@@ -228,7 +228,7 @@ services:
       WORKER_HEARTBEAT_FILE: /tmp/worker-heartbeat
       MEILISEARCH_URL: http://meilisearch:7700
       MEILISEARCH_WRITE_API_KEY: ${MEILISEARCH_WRITE_API_KEY:?set MEILISEARCH_WRITE_API_KEY in .env}
-      INDEXING_BATCH_SIZE: ${INDEXING_BATCH_SIZE:-10000}
+      INDEXING_BATCH_SIZE: ${INDEXING_BATCH_SIZE:-50000}
       # Only an explicit `false` keeps the retired database after a reimport.
       REIMPORT_CLEANUP_OLD_COPY:
     healthcheck:

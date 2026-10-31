@@ -34,7 +34,7 @@ describe('the env loaders', () => {
     expect(loadWorkerEnv()).toMatchObject({
       MEILISEARCH_URL: 'http://localhost:7700',
       MEILISEARCH_WRITE_API_KEY: 'write-key',
-      INDEXING_BATCH_SIZE: 10_000,
+      INDEXING_BATCH_SIZE: 50_000,
     });
   });
 

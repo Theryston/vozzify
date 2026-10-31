@@ -47,6 +47,7 @@ const setup = (
     pending?: OutboxEntry[][];
     documents?: Map<number, CurrentDocument>;
     associationPending?: string[];
+    batchSize?: number;
   } = {},
 ) => {
   const batches = options.pending ?? [];
@@ -86,7 +87,7 @@ const setup = (
     outbox: outbox as unknown as RecordingOutboxRepository,
     documents: documents as unknown as RecordingDocumentService,
     index: index as unknown as MeilisearchIndex<RecordingDocument>,
-    batchSize: 100,
+    batchSize: options.batchSize ?? 100,
     associations: associations as unknown as TrackAssociationService,
     logger: silentLogger,
   });
@@ -117,6 +118,22 @@ describe('SyncService.ensureTriggers', () => {
 });
 
 describe('SyncService.drain', () => {
+  it.each([
+    [100, 100],
+    [50_000, 10_000],
+  ])(
+    'keeps sync and association reads bounded for batch size %s',
+    async (batchSize, limit) => {
+      const { service, outbox, associations } = setup({ batchSize });
+      await service.drain(liveSignal);
+      expect(outbox.peekPending).toHaveBeenCalledExactlyOnceWith(limit);
+      expect(associations.peekPending).toHaveBeenCalledExactlyOnceWith(
+        limit,
+        undefined,
+      );
+    },
+  );
+
   it('does nothing before the catalog is ready', async () => {
     const { service, outbox, index } = setup({
       phase: 'indexing',

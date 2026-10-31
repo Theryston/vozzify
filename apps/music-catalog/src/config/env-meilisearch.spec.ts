@@ -65,7 +65,7 @@ describe('parseWorkerEnv', () => {
     expect(parseWorkerEnv(worker)).toMatchObject({
       MEILISEARCH_URL: 'http://localhost:7700',
       MEILISEARCH_WRITE_API_KEY: WRITE_KEY,
-      INDEXING_BATCH_SIZE: 10_000,
+      INDEXING_BATCH_SIZE: 50_000,
     });
   });
 
@@ -82,12 +82,22 @@ describe('parseWorkerEnv', () => {
     ).toBe(500);
   });
 
+  it.each(['25000', '50000'])(
+    'accepts a larger indexing task of %s documents',
+    (size) => {
+      expect(
+        parseWorkerEnv({ ...worker, INDEXING_BATCH_SIZE: size })
+          .INDEXING_BATCH_SIZE,
+      ).toBe(Number(size));
+    },
+  );
+
   it.each([
     ['MEILISEARCH_URL', undefined],
     ['MEILISEARCH_WRITE_API_KEY', undefined],
     ['MEILISEARCH_WRITE_API_KEY', ''],
     ['INDEXING_BATCH_SIZE', '0'],
-    ['INDEXING_BATCH_SIZE', '10001'],
+    ['INDEXING_BATCH_SIZE', '50001'],
     ['INDEXING_BATCH_SIZE', 'many'],
   ])('rejects %s=%s', (name, value) => {
     expect(() => parseWorkerEnv({ ...worker, [name]: value })).toThrow(name);

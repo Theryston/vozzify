@@ -66,8 +66,8 @@ const workerEnvSchema = envSchema.extend({
     .number()
     .int()
     .min(1)
-    .max(10_000)
-    .default(10_000),
+    .max(50_000)
+    .default(50_000),
   // The parallel database the blue-green reimport rebuilds the catalog in
   // after MusicBrainz's yearly schema change (same server, other database).
   // Absent, the worker never reimports (see apps/music-catalog/CLAUDE.md).
