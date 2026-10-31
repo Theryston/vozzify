@@ -18,7 +18,9 @@ type Result = { ok: true } | { ok: false };
 type PendingBatch = { batch: DocumentBatch; finished: Promise<Result> };
 
 // Bound memory, queued tasks and the time association writes wait on the fence.
-const MAX_PENDING_BATCHES = 3;
+const MAX_PENDING_BATCHES = 2;
+// Keep relation queries bounded independently of the Meilisearch payload.
+const MAX_READ_BATCH_SIZE = 10_000;
 
 class IndexingWindow {
   private readonly pending: PendingBatch[] = [];
@@ -43,18 +45,14 @@ class IndexingWindow {
   }
 
   private async fill(): Promise<void> {
-    const { documents, index, batchSize, signal } = this.options;
+    const { index } = this.options;
     while (
       this.pending.length < MAX_PENDING_BATCHES &&
-      !signal.aborted &&
-      this.failure === undefined
+      !this.exhausted &&
+      this.canLoad()
     ) {
-      const batch = await documents.findBatch(this.afterId, batchSize);
-      if (batch === undefined) {
-        this.exhausted = true;
-        return;
-      }
-      if (signal.aborted || this.failure !== undefined) return;
+      const batch = await this.loadBatch();
+      if (batch === undefined || !this.canLoad()) return;
       this.afterId = batch.lastRecordingId;
       // Observe rejection immediately, even while the next batch is loading.
       const finished = index.upsert(batch.documents).then(
@@ -66,6 +64,32 @@ class IndexingWindow {
       );
       this.pending.push({ batch, finished });
     }
+  }
+
+  private canLoad(): boolean {
+    return !this.options.signal.aborted && this.failure === undefined;
+  }
+
+  private async loadBatch(): Promise<DocumentBatch | undefined> {
+    const { documents, batchSize } = this.options;
+    const combined: DocumentBatch = {
+      documents: [],
+      lastRecordingId: this.afterId,
+    };
+    while (combined.documents.length < batchSize && this.canLoad()) {
+      const size = Math.min(
+        MAX_READ_BATCH_SIZE,
+        batchSize - combined.documents.length,
+      );
+      const batch = await documents.findBatch(combined.lastRecordingId, size);
+      if (batch === undefined) {
+        this.exhausted = true;
+        break;
+      }
+      combined.documents.push(...batch.documents);
+      combined.lastRecordingId = batch.lastRecordingId;
+    }
+    return combined.documents.length === 0 ? undefined : combined;
   }
 
   private async confirmAll(): Promise<void> {

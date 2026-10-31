@@ -581,9 +581,12 @@ come from env; version pinned to a stable v1.x in the dev compose
 - **Indexing flow** (`IndexingService.run`, one worker tick): while the phase is
   `restoring` or there is no bootstrap row, nothing happens. On `restored` the
   worker records `indexing`, applies the index settings, and walks the
-  Recordings by MusicBrainz's integer id, `INDEXING_BATCH_SIZE` at a time
-  (default 10000). `runIndexingWindow` prepares and submits up to three batches
-  while previous Meilisearch tasks run. Each window holds the catalog write
+  Recordings by MusicBrainz's integer id. `INDEXING_BATCH_SIZE` controls the
+  Meilisearch task size (default and maximum 50000); source reads remain
+  capped at 10000 Recordings and are combined before submission. The final
+  task may be smaller. `runIndexingWindow` prepares and submits up to two
+  tasks while previous Meilisearch tasks run, retaining at most 100000
+  documents instead of the previous 30000. Each window holds the catalog write
   fence through all its tasks, then releases it so association deliveries can
   proceed between windows. Tasks are confirmed in source order before writing
   each checkpoint (`music_catalog.indexing_checkpoint`, one row per index).
@@ -624,7 +627,8 @@ After the first import, every change to the MusicBrainz tables reaches the
   `music_catalog.recording_outbox`.
 - **Drain** (`SyncService.drain`, one worker tick): only once `ready` (so a
   ready catalog never answers `CATALOG_NOT_READY`, however many entries wait).
-  Each batch rebuilds the documents of the Recordings its entries touch with
+  Each batch (capped at 10000 entries independently of the initial indexing
+  task size) rebuilds the documents of the Recordings its entries touch with
   the same queries as the initial indexing (`RecordingDocumentService`,
   extended with `findDocumentsByIds`), upserts them, deletes the enqueued
   MBIDs that are gone (deleted rows) or stale (merges, MBID changes), and only
@@ -1340,7 +1344,7 @@ and 959 MB (mbslave).
   | `MEILISEARCH_URL` | Meilisearch, `http(s)://` (dev compose: port 7700); server and worker |
   | `MEILISEARCH_SEARCH_API_KEY` | Search-only key; required by the **server** only |
   | `MEILISEARCH_WRITE_API_KEY` | Key that can write; required by the **worker** only |
-  | `INDEXING_BATCH_SIZE` | Recordings per Meilisearch task while indexing (default 10000, 1 to 10000); worker |
+  | `INDEXING_BATCH_SIZE` | Recordings per initial Meilisearch task (default 50000, 1 to 50000); source reads and incremental sync stay capped at 10000; worker |
   | `MUSICBRAINZ_DUMP_BASE_URL` | The `.../data` directory the dumps are published under (default: the official one); restore (see "First import") |
   | `MBSLAVE_REF` | The mbslave release in the mbslave image (baked in from its build argument); recorded with a schema-change stall (see "Yearly schema change") |
   | `REIMPORT_DATABASE_URL` | The parallel database a reimport rebuilds (same server, other database); absent, nothing ever reimports (see "Yearly schema change"); restore, worker and server (boot fallback) |

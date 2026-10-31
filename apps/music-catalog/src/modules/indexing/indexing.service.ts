@@ -30,7 +30,7 @@ export class IndexingService {
   /**
    * One round of the worker's initial indexing. It waits (does nothing)
    * until the mbslave container has restored the MusicBrainz data, then
-   * pipelines up to three batches at a time. The checkpoint moves only
+   * pipelines up to two batches at a time. The checkpoint moves only
    * after each batch is confirmed, in source order, so a worker that
    * dies mid-indexing resumes after the last batch Meilisearch confirmed
    * (a batch that was sent but not checkpointed is sent again, which is

@@ -119,7 +119,7 @@ describe('IndexingService', () => {
         await pending;
       });
       const running = service.run(signal());
-      await vi.waitFor(() => expect(index.upsert).toHaveBeenCalledTimes(3));
+      await vi.waitFor(() => expect(index.upsert).toHaveBeenCalledTimes(2));
       expect(locked).toBe(true);
       expect(repository.saveCheckpoint).not.toHaveBeenCalled();
       releaseTasks();
@@ -141,9 +141,9 @@ describe('IndexingService', () => {
         'ensure',
         'upsert mbid-1,mbid-2',
         'upsert mbid-3,mbid-4',
-        'upsert mbid-5',
         'checkpoint 2',
         'checkpoint 4',
+        'upsert mbid-5',
         'checkpoint 5',
         'markReady',
       ]);

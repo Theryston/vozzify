@@ -25,7 +25,10 @@ export type SyncServiceDeps = {
 };
 
 export class SyncService {
-  constructor(private readonly deps: SyncServiceDeps) {}
+  constructor(private readonly deps: SyncServiceDeps) {
+    // Initial indexing combines smaller reads; sync reads its whole batch.
+    this.deps = { ...deps, batchSize: Math.min(deps.batchSize, 10_000) };
+  }
 
   /**
    * Installs the change triggers once the MusicBrainz tables exist (after
