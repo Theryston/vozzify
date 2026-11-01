@@ -17,6 +17,7 @@ export type SearchIndexTrackRow = {
   id: string;
   title: string;
   artistCredit: { name: string; joinPhrase: string }[];
+  updatedAt: Date;
 };
 
 @Injectable()
@@ -48,6 +49,7 @@ export class TracksSearchRepository {
         id: tracks.id,
         title: tracks.title,
         artistCredit: tracks.artistCredit,
+        updatedAt: tracks.updatedAt,
       })
       .from(tracks)
       .where(

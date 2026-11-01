@@ -6,6 +6,7 @@ export type SearchIndexTrack = {
   id: string;
   title: string;
   artistCredit: { name: string; joinPhrase: string }[];
+  updatedAt: Date;
 };
 
 @Injectable()

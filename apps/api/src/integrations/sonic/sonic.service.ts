@@ -50,6 +50,14 @@ export class SonicService {
     }
   }
 
+  async removeTrack(id: string): Promise<void> {
+    try {
+      await this.ingestChannel.removeObject('tracks', 'completed', id);
+    } catch (error: unknown) {
+      throw asSonicException(error, 'Sonic track removal failed');
+    }
+  }
+
   async markIndexReady(): Promise<void> {
     try {
       await this.ingestChannel.pushToCollection(

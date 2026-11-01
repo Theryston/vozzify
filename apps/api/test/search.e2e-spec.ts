@@ -1,10 +1,4 @@
-import { fileURLToPath } from 'node:url';
 import { searchResultSchema } from '@vozzify/contracts';
-import {
-  GenericContainer,
-  type StartedTestContainer,
-  Wait,
-} from 'testcontainers';
 import { trackProcessings } from '../src/database/schema/track-processings.js';
 import { tracks } from '../src/database/schema/tracks.js';
 import { SonicService } from '../src/integrations/sonic/sonic.service.js';
@@ -20,6 +14,7 @@ import {
   startFakeMusicCatalog,
 } from './utils/fake-music-catalog.js';
 import { recordingSummary } from './utils/recording-summaries.js';
+import { startSonicContainer } from './utils/sonic-container.js';
 
 // End-to-end unauthenticated search through the API over one persistent
 // Music catalog WebSocket: the API multiplexes queries by request id,
@@ -28,24 +23,11 @@ import { recordingSummary } from './utils/recording-summaries.js';
 describe('Catalog search plus limits plus errors (e2e)', () => {
   let catalog: FakeMusicCatalog;
   let testApp: TestApp;
-  let sonic: StartedTestContainer;
+  let sonic: Awaited<ReturnType<typeof startSonicContainer>>;
   let probeReady = false;
 
   beforeAll(async () => {
-    sonic = await new GenericContainer('valeriansaliou/sonic:v1.10.1')
-      .withCommand(['sonic', '-c', '/etc/sonic/config.toml'])
-      .withCopyFilesToContainer([
-        {
-          source: fileURLToPath(
-            new URL('../sonic/config.toml', import.meta.url),
-          ),
-          target: '/etc/sonic/config.toml',
-        },
-      ])
-      .withExposedPorts(1491)
-      .withWaitStrategy(Wait.forLogMessage('reading config file', 1))
-      .withStartupTimeout(120_000)
-      .start();
+    sonic = await startSonicContainer();
   }, 120_000);
 
   beforeEach(async () => {
