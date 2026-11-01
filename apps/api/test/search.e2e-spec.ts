@@ -1,10 +1,5 @@
-import { fileURLToPath } from 'node:url';
 import { searchResultSchema } from '@vozzify/contracts';
-import {
-  GenericContainer,
-  type StartedTestContainer,
-  Wait,
-} from 'testcontainers';
+import type { StartedTestContainer } from 'testcontainers';
 import { trackProcessings } from '../src/database/schema/track-processings.js';
 import { tracks } from '../src/database/schema/tracks.js';
 import { SonicService } from '../src/integrations/sonic/sonic.service.js';
@@ -20,6 +15,7 @@ import {
   startFakeMusicCatalog,
 } from './utils/fake-music-catalog.js';
 import { recordingSummary } from './utils/recording-summaries.js';
+import { startSonicContainer } from './utils/sonic-container.js';
 
 // End-to-end unauthenticated search through the API over one persistent
 // Music catalog WebSocket: the API multiplexes queries by request id,
@@ -32,20 +28,7 @@ describe('Catalog search plus limits plus errors (e2e)', () => {
   let probeReady = false;
 
   beforeAll(async () => {
-    sonic = await new GenericContainer('valeriansaliou/sonic:v1.10.1')
-      .withCommand(['sonic', '-c', '/etc/sonic/config.toml'])
-      .withCopyFilesToContainer([
-        {
-          source: fileURLToPath(
-            new URL('../sonic/config.toml', import.meta.url),
-          ),
-          target: '/etc/sonic/config.toml',
-        },
-      ])
-      .withExposedPorts(1491)
-      .withWaitStrategy(Wait.forLogMessage('reading config file', 1))
-      .withStartupTimeout(120_000)
-      .start();
+    sonic = await startSonicContainer();
   }, 120_000);
 
   beforeEach(async () => {
@@ -213,6 +196,36 @@ describe('Catalog search plus limits plus errors (e2e)', () => {
     } finally {
       await fallbackApp.close();
     }
+  });
+
+  it('falls back to Sonic when the catalog times out and bypasses it afterward', async () => {
+    await testApp.db.insert(tracks).values({
+      id: 'sonic-slow',
+      recordingMbid: testMbid(14),
+      title: 'Slow fallback result',
+      artistCredit: [{ name: 'Fallback Artist', joinPhrase: '' }],
+    });
+    await testApp.db.insert(trackProcessings).values({
+      trackId: 'sonic-slow',
+      status: 'COMPLETED',
+    });
+    await testApp.app.get(SearchIndexService).rebuild();
+
+    const response = await searchAs(testApp, '203.0.113.16', {
+      query: 'slow',
+    }).expect(200);
+    expect(response.body.source).toBe('sonic');
+    expect(response.body.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ trackId: 'sonic-slow' }),
+      ]),
+    );
+
+    const next = await searchAs(testApp, '203.0.113.16', {
+      query: 'after-timeout',
+    }).expect(200);
+    expect(next.body.source).toBe('sonic');
+    expect(catalog.seenQueries).not.toContain('after-timeout');
   });
 
   it('returns INTERNAL_ERROR for an unreadable catalog frame instead of hiding it', async () => {

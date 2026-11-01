@@ -88,6 +88,13 @@ test('silently restarts pages after a timed primary fallback switches source', a
   await page.clock.fastForward(60_000);
   expect(search.calls).toHaveLength(requestsAfterFallback);
 
+  let freshResponseSource: string | undefined;
+  page.on('response', async (response) => {
+    if (!response.url().includes('/v1/search')) return;
+    const request = response.request();
+    if (!request.url().includes('fresh-after-recovery')) return;
+    freshResponseSource = (await response.json()).source;
+  });
   await page.goto('/en/search?q=fresh-after-recovery');
   await expect
     .poll(() => search.calls.map((request) => searchParamsOf(request)))
@@ -97,7 +104,7 @@ test('silently restarts pages after a timed primary fallback switches source', a
   await expect(
     main.getByText('Bohemian Rhapsody', { exact: true }),
   ).toBeVisible();
-  expect(search.source).toBe('music-catalog');
+  await expect.poll(() => freshResponseSource).toBe('music-catalog');
 });
 
 test('a delayed restart cannot restore pages after the query changes', async ({

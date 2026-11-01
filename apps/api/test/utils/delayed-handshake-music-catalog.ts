@@ -21,15 +21,21 @@ export type DelayedHandshakeMusicCatalog = {
   seenQueries: string[];
   waitForHandshake: () => Promise<void>;
   acceptHandshake: () => void;
+  setAutoPong: (enabled: boolean) => void;
   waitForQueryCount: (query: string, count: number) => Promise<void>;
   answerVisitorLate: () => void;
   answerProbe: (ready: boolean) => void;
   close: () => Promise<void>;
 };
 
-export async function startDelayedHandshakeMusicCatalog(): Promise<DelayedHandshakeMusicCatalog> {
+export async function startDelayedHandshakeMusicCatalog(options?: {
+  autoPong?: boolean;
+}): Promise<DelayedHandshakeMusicCatalog> {
   const httpServer = createServer();
-  const socketServer = new WebSocketServer({ noServer: true });
+  const socketServer = new WebSocketServer({
+    noServer: true,
+    autoPong: options?.autoPong ?? true,
+  });
   const state = createState();
   const handshake = createHandshakeGate(httpServer, socketServer);
   socketServer.on('connection', (socket) => watchRequests(socket, state));
@@ -40,6 +46,9 @@ export async function startDelayedHandshakeMusicCatalog(): Promise<DelayedHandsh
     seenQueries: state.seenQueries,
     waitForHandshake: handshake.wait,
     acceptHandshake: handshake.accept,
+    setAutoPong: (enabled) => {
+      socketServer.options.autoPong = enabled;
+    },
     waitForQueryCount: (query, count) => waitForQueryCount(state, query, count),
     answerVisitorLate: () => answerVisitorLate(state),
     answerProbe: (ready) => answerProbe(state, ready),

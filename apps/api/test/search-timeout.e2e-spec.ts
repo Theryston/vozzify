@@ -1,11 +1,7 @@
-import { fileURLToPath } from 'node:url';
-import {
-  GenericContainer,
-  type StartedTestContainer,
-  Wait,
-} from 'testcontainers';
+import type { StartedTestContainer } from 'testcontainers';
 import { trackProcessings } from '../src/database/schema/track-processings.js';
 import { tracks } from '../src/database/schema/tracks.js';
+import { MusicCatalogClient } from '../src/integrations/music-catalog/music-catalog.client.js';
 import { SearchIndexService } from '../src/modules/search/search-index.service.js';
 import { createTestApp, type TestApp } from './utils/create-test-app.js';
 import { resetDatabase } from './utils/database.js';
@@ -14,6 +10,7 @@ import {
   startDelayedHandshakeMusicCatalog,
 } from './utils/delayed-handshake-music-catalog.js';
 import { testMbid } from './utils/factories.js';
+import { startSonicContainer } from './utils/sonic-container.js';
 
 describe('Music catalog search deadline (e2e)', () => {
   let catalog: DelayedHandshakeMusicCatalog;
@@ -21,20 +18,7 @@ describe('Music catalog search deadline (e2e)', () => {
   let sonic: StartedTestContainer;
 
   beforeAll(async () => {
-    sonic = await new GenericContainer('valeriansaliou/sonic:v1.10.1')
-      .withCommand(['sonic', '-c', '/etc/sonic/config.toml'])
-      .withCopyFilesToContainer([
-        {
-          source: fileURLToPath(
-            new URL('../sonic/config.toml', import.meta.url),
-          ),
-          target: '/etc/sonic/config.toml',
-        },
-      ])
-      .withExposedPorts(1491)
-      .withWaitStrategy(Wait.forLogMessage('reading config file', 1))
-      .withStartupTimeout(120_000)
-      .start();
+    sonic = await startSonicContainer();
   }, 120_000);
 
   beforeEach(async () => {
@@ -63,6 +47,9 @@ describe('Music catalog search deadline (e2e)', () => {
     await testApp.close();
 
     catalog = await startDelayedHandshakeMusicCatalog();
+    const skipAutomaticConnect = vi
+      .spyOn(MusicCatalogClient.prototype, 'onModuleInit')
+      .mockImplementation(() => undefined);
     testApp = await createTestApp({
       env: {
         MUSIC_CATALOG_URL: catalog.url,
@@ -74,12 +61,16 @@ describe('Music catalog search deadline (e2e)', () => {
         SONIC_REQUEST_TIMEOUT_MS: 2_000,
       },
     });
+    skipAutomaticConnect.mockRestore();
+    useControlledClock();
+    testApp.app.get(MusicCatalogClient).onModuleInit();
     await catalog.waitForHandshake();
   }, 30_000);
 
   afterEach(async () => {
     await testApp?.close();
     await catalog?.close();
+    vi.useRealTimers();
   });
 
   afterAll(async () => {
@@ -87,6 +78,112 @@ describe('Music catalog search deadline (e2e)', () => {
   });
 
   it('uses Sonic at the two-second boundary and recovers only after an empty probe', async () => {
+    const startedAt = Date.now();
+    let resolveSearchStarted: (() => void) | undefined;
+    const searchStarted = new Promise<void>((resolve) => {
+      resolveSearchStarted = resolve;
+    });
+    const client = testApp.app.get(MusicCatalogClient);
+    const originalSearch = client.search.bind(client);
+    vi.spyOn(client, 'search').mockImplementation((params) => {
+      resolveSearchStarted?.();
+      return originalSearch(params);
+    });
+    let settled = false;
+    const timedSearch = search('not-ready fallback song').then((response) => {
+      settled = true;
+      return response;
+    });
+    await catalog.waitForHandshake();
+    await searchStarted;
+    setTimeout(() => catalog.acceptHandshake(), 1_500);
+    await vi.advanceTimersByTimeAsync(1_499);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await flushNativeIo();
+    await catalog.waitForQueryCount('not-ready fallback song', 1);
+    await vi.advanceTimersByTimeAsync(499);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await flushNativeIo();
+
+    const fallback = await timedSearch;
+    expect(Date.now() - startedAt).toBe(2_000);
+    expect(fallback.status).toBe(200);
+    expect(fallback.body.source).toBe('sonic');
+    expect(
+      fallback.body.results.map(
+        (result: { trackId: string }) => result.trackId,
+      ),
+    ).toContain('sonic-completed');
+
+    const stillFallback = await search('still-fallback');
+    expect(stillFallback.body.source).toBe('sonic');
+    expect(catalog.seenQueries).not.toContain('still-fallback');
+
+    const firstProbe = catalog.waitForQueryCount(
+      'vozzify primary health check',
+      1,
+    );
+    await vi.advanceTimersByTimeAsync(3_000);
+    await firstProbe;
+    catalog.answerVisitorLate();
+    catalog.answerProbe(false);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const secondProbe = catalog.waitForQueryCount(
+      'vozzify primary health check',
+      2,
+    );
+    await vi.advanceTimersByTimeAsync(3_000);
+    await secondProbe;
+    catalog.answerProbe(true);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    const recovered = await search('fresh-after-recovery');
+    expect(recovered.body.source).toBe('music-catalog');
+    expect(catalog.seenQueries).toContain('fresh-after-recovery');
+  });
+
+  it('routes to Sonic after a silent ping timeout and bypasses the catalog', async () => {
+    const client = testApp.app.get(MusicCatalogClient);
+    catalog.setAutoPong(false);
+    const closed = new Promise<void>((resolve) => {
+      client.onSearchConnectionClosed(resolve);
+    });
+    catalog.acceptHandshake();
+    await flushNativeIo();
+    await waitForConnected(client);
+    await vi.advanceTimersByTimeAsync(4_000);
+    await flushNativeIo();
+    await closed;
+
+    const fallback = await search('not-ready fallback song');
+    expect(fallback.status).toBe(200);
+    expect(fallback.body.source).toBe('sonic');
+    expect(
+      fallback.body.results.map(
+        (result: { trackId: string }) => result.trackId,
+      ),
+    ).toContain('sonic-completed');
+    const seenBeforeNext = [...catalog.seenQueries];
+
+    const next = await search('after-silent-ping');
+    expect(next.body.source).toBe('sonic');
+    expect(catalog.seenQueries).toEqual(seenBeforeNext);
+  });
+
+  function search(query: string) {
+    return testApp.http
+      .get('/v1/search')
+      .set('X-Forwarded-For', '203.0.113.28')
+      .query({ query });
+  }
+
+  function flushNativeIo(): Promise<void> {
+    return new Promise((resolve) => setImmediate(resolve));
+  }
+
+  function useControlledClock(): void {
     vi.useFakeTimers({
       toFake: [
         'Date',
@@ -96,66 +193,12 @@ describe('Music catalog search deadline (e2e)', () => {
         'clearInterval',
       ],
     });
-    try {
-      const startedAt = Date.now();
-      let settled = false;
-      const timedSearch = search('not-ready fallback song').then((response) => {
-        settled = true;
-        return response;
-      });
-      setTimeout(() => catalog.acceptHandshake(), 1_500);
-      await vi.advanceTimersByTimeAsync(1_499);
-      expect(settled).toBe(false);
-      await vi.advanceTimersByTimeAsync(1);
-      await catalog.waitForQueryCount('not-ready fallback song', 1);
-      await vi.advanceTimersByTimeAsync(499);
-      expect(settled).toBe(false);
-      await vi.advanceTimersByTimeAsync(1);
+  }
 
-      const fallback = await timedSearch;
-      expect(Date.now() - startedAt).toBe(2_000);
-      expect(fallback.status).toBe(200);
-      expect(fallback.body.source).toBe('sonic');
-      expect(
-        fallback.body.results.map(
-          (result: { trackId: string }) => result.trackId,
-        ),
-      ).toContain('sonic-completed');
-
-      const stillFallback = await search('still-fallback');
-      expect(stillFallback.body.source).toBe('sonic');
-      expect(catalog.seenQueries).not.toContain('still-fallback');
-
-      const firstProbe = catalog.waitForQueryCount(
-        'vozzify primary health check',
-        1,
-      );
-      await vi.advanceTimersByTimeAsync(3_000);
-      await firstProbe;
-      catalog.answerVisitorLate();
-      catalog.answerProbe(false);
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      const secondProbe = catalog.waitForQueryCount(
-        'vozzify primary health check',
-        2,
-      );
-      await vi.advanceTimersByTimeAsync(3_000);
-      await secondProbe;
-      catalog.answerProbe(true);
-      await new Promise<void>((resolve) => setImmediate(resolve));
-
-      const recovered = await search('fresh-after-recovery');
-      expect(recovered.body.source).toBe('music-catalog');
-      expect(catalog.seenQueries).toContain('fresh-after-recovery');
-    } finally {
-      vi.useRealTimers();
+  async function waitForConnected(client: MusicCatalogClient): Promise<void> {
+    for (let attempt = 0; attempt < 20 && !client.isConnected(); attempt += 1) {
+      await flushNativeIo();
     }
-  });
-
-  function search(query: string) {
-    return testApp.http
-      .get('/v1/search')
-      .set('X-Forwarded-For', '203.0.113.28')
-      .query({ query });
+    expect(client.isConnected()).toBe(true);
   }
 });
