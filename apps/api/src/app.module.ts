@@ -19,6 +19,7 @@ import { PracticePreferencesModule } from './modules/practice-preferences/practi
 import { ProfileSummaryModule } from './modules/profile-summary/profile-summary.module.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
 import { SearchModule } from './modules/search/search.module.js';
+import { SearchIndexModule } from './modules/search/search-index.module.js';
 import { StreaksModule } from './modules/streaks/streaks.module.js';
 import { TrackMetadataModule } from './modules/track-metadata/track-metadata.module.js';
 import { TracksModule } from './modules/tracks/tracks.module.js';
@@ -46,6 +47,7 @@ import { RedisModule } from './redis/redis.module.js';
     AlbumsModule,
     ArtistsModule,
     SearchModule,
+    SearchIndexModule,
     TracksModule,
     TrackMetadataModule,
     FavoritesModule,

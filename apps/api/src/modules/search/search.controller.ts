@@ -26,8 +26,8 @@ export class SearchController {
   // Unauthenticated on purpose: visitors search before they sign up. Abuse
   // is bounded by a stricter per-IP limit than the global one (realtime
   // typing stays usable while sustained floods answer 429 `RATE_LIMITED`).
-  // A down catalog answers 503 `SERVICE_UNAVAILABLE` and a slow one 504
-  // `GATEWAY_TIMEOUT`, so the web retries instead of showing a dead end.
+  // Search falls back to completed API Tracks when the catalog cannot answer;
+  // 503 means both search engines are unavailable.
   @Get()
   @Throttle({ default: { limit: 30, ttl: seconds(60) } })
   @ZodSerializerDto(searchResultSchema)

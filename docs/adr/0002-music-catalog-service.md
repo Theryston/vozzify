@@ -191,3 +191,22 @@ concurrent pending events before succeeding. It can be rerun to restore a lost
 projection. Track creation continues to populate the same outbox; no periodic
 reconciliation scan is added. See `docs/track-association-sync.md` for the
 cutover and recovery steps.
+
+## Update (#427): API search fallback
+
+Sonic is an API-owned reserve index for Tracks with at least one completed
+Processing. It stores each Track ID and searchable title/artist text; the API
+database remains the source of truth. The public API hydrates Sonic hits
+through the Tracks service and drops stale or ineligible IDs while preserving
+Sonic's order. The Music catalog remains the preferred complete-catalog search
+engine, and Meilisearch remains its internal index. Their coverage and
+relevance differ by design.
+
+Production Sonic must run with persistent storage outside the Music catalog's
+household network and failure domain. Operators rebuild it from bounded
+keyset pages using `node dist/main.js --sync-sonic-index`; the command marks
+the index ready only after it has finished. A lost or uninitialized index
+returns the existing retryable `SERVICE_UNAVAILABLE` response when used as
+fallback. Sonic is not a Processing dependency, and this slice does not add
+automatic delivery for later completions; that work is tracked separately.
+See `docs/track-search-sonic.md` for local verification and recovery steps.

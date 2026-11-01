@@ -1,0 +1,9 @@
+[channel]
+inet = "0.0.0.0:1491"
+auth_password = "local-dev-sonic-password-change-me"
+
+[store.kv]
+path = "/var/lib/sonic/store/kv/"
+
+[store.fst]
+path = "/var/lib/sonic/store/fst/"

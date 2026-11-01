@@ -17,6 +17,7 @@
     "test:cov": "vitest run --coverage",
     "test:mutation": "stryker run",
     "test:e2e": "playwright test",
+    "test:e2e:real-search": "playwright test --config=playwright.real-search.config.ts",
     "bundle:check": "node scripts/check-bundle-budget.ts",
     "lighthouse": "lhci autorun"
   },

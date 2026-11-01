@@ -10,6 +10,7 @@ const isCI = Boolean(process.env.CI);
 // The streak specs sing into the fake microphone too, so they run there.
 const micSpec = /(track-mic|track-streak|streak-toast-clearance)\.spec\.ts$/;
 const sharedHomeSpecs = /home(?:-discovery|-ranked)?\.spec\.ts$/;
+const realSearchSpecs = /[/\\]real-search[/\\]/;
 // Escape hatch for machines with a preinstalled Chromium that doesn't match
 // this Playwright version (and can't download one). CI leaves it unset and
 // uses `playwright install`.
@@ -29,6 +30,7 @@ const fakeVoice = fileURLToPath(
  */
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: ['real-search/**'],
   fullyParallel: true,
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
@@ -45,7 +47,7 @@ export default defineConfig({
       name: 'chromium',
       // The mic specs get their own project below: a fake microphone that is
       // granted without a prompt must not reach any other spec.
-      testIgnore: [micSpec, sharedHomeSpecs],
+      testIgnore: [micSpec, sharedHomeSpecs, realSearchSpecs],
       use: { ...devices['Desktop Chrome'], launchOptions },
     },
     {

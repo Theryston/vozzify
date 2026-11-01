@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { CatalogTrack, Mbid } from '@vozzify/contracts';
+import { type CatalogTrack, type Mbid } from '@vozzify/contracts';
 import { throwMovedOrMissing } from './track-not-found.js';
 import { TracksRepository } from './tracks.repository.js';
 

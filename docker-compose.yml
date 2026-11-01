@@ -37,6 +37,18 @@ services:
       timeout: 5s
       retries: 10
 
+  # Small API-owned fallback index. Its persistent store is local development
+  # state; production storage must live outside the Music catalog's home network.
+  sonic:
+    image: valeriansaliou/sonic:v1.10.1
+    restart: unless-stopped
+    command: ['-c', '/etc/sonic/config.toml']
+    ports:
+      - '1491:1491'
+    volumes:
+      - ./apps/api/sonic/config.toml:/etc/sonic/config.toml:ro
+      - sonic-data:/var/lib/sonic/store
+
   # S3-compatible object storage for user uploads (Avatars), reached with the
   # same SDK calls as production's S3. Upstream's minio/minio (Docker Hub) and
   # quay.io/minio/minio images can no longer be pulled anonymously, so this is
@@ -83,3 +95,4 @@ volumes:
   postgres-data:
   redis-data:
   minio-data:
+  sonic-data:
