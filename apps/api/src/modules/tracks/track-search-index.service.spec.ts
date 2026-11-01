@@ -21,10 +21,7 @@ describe('TrackSearchIndexService', () => {
   const events = {
     claimPending: vi.fn<TrackSearchIndexEventRepository['claimPending']>(),
     withDeliveryLock: vi.fn(
-      async <Result>(
-        _trackId: string,
-        deliver: () => Promise<Result>,
-      ): Promise<Result> => deliver(),
+      async (_trackId: string, deliver: () => Promise<void>) => deliver(),
     ),
     findById: vi.fn<TrackSearchIndexEventRepository['findById']>(),
     markDelivered: vi.fn<TrackSearchIndexEventRepository['markDelivered']>(),

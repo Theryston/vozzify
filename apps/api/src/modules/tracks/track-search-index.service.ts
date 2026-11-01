@@ -13,14 +13,18 @@ const MAX_REVISIONS_PER_DELIVERY = 3;
 export type TrackSearchIndexDeliveryStore = Pick<
   TrackSearchIndexEventRepository,
   | 'claimPending'
-  | 'withDeliveryLock'
   | 'findById'
   | 'markDelivered'
   | 'scheduleRetry'
   | 'requeueNewerRevision'
   | 'enqueueBackfillPage'
   | 'countPending'
->;
+> & {
+  withDeliveryLock(
+    trackId: string,
+    deliver: () => Promise<void>,
+  ): Promise<void>;
+};
 
 export type TrackSearchIndexSonicWriter = Pick<
   SonicService,
