@@ -65,8 +65,8 @@ for (const { locale, messages } of localeCatalogs) {
 
       await header(page).fill('queen');
       const rows = list(page).getByRole('option');
-      await expect(rows).toHaveCount(RANKED.length + 1);
-      for (const [index, hit] of RANKED.entries()) {
+      await expect(rows).toHaveCount(21);
+      for (const [index, hit] of RANKED.slice(0, 20).entries()) {
         await expect(rows.nth(index)).toContainText(hit.title);
         await expect(rows.nth(index)).toContainText(hit.artist);
       }
@@ -74,7 +74,7 @@ for (const { locale, messages } of localeCatalogs) {
       await expect(page).toHaveURL(home);
     });
 
-    test('asks for six suggestions and shows at most six Recordings', async ({
+    test('asks for twenty suggestions and caps the panel at twenty Recordings', async ({
       page,
     }) => {
       const { calls } = await open(page, `/${locale}`);
@@ -83,10 +83,61 @@ for (const { locale, messages } of localeCatalogs) {
       await expect(rowLink(page, /Radio Ga Ga/)).toBeVisible();
       expect(searchParamsOf(lastOf(calls))).toMatchObject({
         query: 'queen',
-        limit: '6',
+        limit: '20',
       });
-      // Six Recordings plus the Search-for row, never a seventh hit.
-      await expect(list(page).getByRole('option')).toHaveCount(7);
+      // Twenty Recordings plus the Search-for row; the fixture has 25 hits.
+      await expect(list(page).getByRole('option')).toHaveCount(21);
+      await expect(rowLink(page, /Search result 25/)).toHaveCount(0);
+    });
+
+    test('keeps all matches when fewer than twenty are available', async ({
+      page,
+    }) => {
+      await open(page, `/${locale}`, RANKED.slice(0, 2));
+
+      await header(page).fill('queen');
+      const rows = list(page).getByRole('option');
+      await expect(rows).toHaveCount(3);
+      await expect(rows.nth(0)).toContainText('Under Pressure');
+      await expect(rows.nth(1)).toContainText('Radio Ga Ga');
+      await expect(rows.last()).toContainText(searchForLabel('queen'));
+    });
+
+    test('scrolls to and opens a late suggestion with the keyboard', async ({
+      page,
+    }) => {
+      await registerTrack('late-result-track');
+      await open(page, `/${locale}`);
+      const field = header(page);
+      await field.fill('queen');
+      const lateResult = rowLink(page, /Search result 20/);
+      await expect(lateResult).toBeVisible();
+      await expect(list(page).getByRole('option')).toHaveCount(21);
+
+      for (let index = 0; index < 20; index += 1) {
+        await field.press('ArrowDown');
+      }
+      await expect(lateResult).toHaveAttribute('aria-selected', 'true');
+      const panel = lateResult.locator(
+        'xpath=ancestor::*[@data-slot="popover-content"]',
+      );
+      const scroll = await panel.evaluate((element) => ({
+        top: element.scrollTop,
+        panelTop: element.getBoundingClientRect().top,
+        rowTop: element
+          .querySelector('[data-highlighted]')
+          ?.getBoundingClientRect().top,
+        bottom: element.getBoundingClientRect().bottom,
+        rowBottom: element
+          .querySelector('[data-highlighted]')
+          ?.getBoundingClientRect().bottom,
+      }));
+      expect(scroll.top).toBeGreaterThan(0);
+      expect(scroll.rowTop).toBeGreaterThanOrEqual(scroll.panelTop);
+      expect(scroll.rowBottom).toBeLessThanOrEqual(scroll.bottom);
+
+      await field.press('Enter');
+      await expect(page).toHaveURL(/\/tracks\/late-result-track/);
     });
 
     test('shows the cover art, or the placeholder, at the design size', async ({
@@ -120,7 +171,7 @@ for (const { locale, messages } of localeCatalogs) {
       const cover = await art.boundingBox();
       expect(cover?.width).toBe(48);
       expect(cover?.height).toBe(48);
-      for (let index = 0; index < RANKED.length; index += 1) {
+      for (let index = 0; index < 20; index += 1) {
         const row = await rows.nth(index).boundingBox();
         expect(row?.height ?? 0).toBeGreaterThanOrEqual(56);
       }
@@ -359,7 +410,7 @@ for (const { locale, messages } of localeCatalogs) {
         'id',
         'header-suggestions-listbox',
       );
-      await expect(list(page).getByRole('option')).toHaveCount(7);
+      await expect(list(page).getByRole('option')).toHaveCount(21);
       await expect(radio).toBeVisible();
       await field.press('ArrowDown');
       await field.press('ArrowDown');

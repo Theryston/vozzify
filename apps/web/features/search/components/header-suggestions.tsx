@@ -302,7 +302,7 @@ function SuggestionOptions({
 }
 
 /**
- * The header suggestions: up to six Recordings in catalog rank order, then
+ * The header suggestions: up to twenty Recordings in catalog rank order, then
  * the trailing "Search for" option that goes to the full search. A settled
  * empty answer adds a "No songs found" line above it (the full search answers
  * the same query). The panel is anchored to the search bar, full width on

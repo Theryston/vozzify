@@ -26,7 +26,7 @@ beforeEach(() => {
 });
 
 describe('searchSuggestionsQueryOptions', () => {
-  it('asks the public endpoint for a limit of 6', async () => {
+  it('asks the public endpoint for a limit of 20', async () => {
     fetchMock.mockResolvedValue(Response.json({ results: [] }));
     const queryClient = new QueryClient();
 
@@ -39,7 +39,7 @@ describe('searchSuggestionsQueryOptions', () => {
     expect(url.pathname).toBe('/v1/search');
     expect(url.searchParams.get('query')).toBe('queen');
     expect(url.searchParams.has('scope')).toBe(false);
-    expect(url.searchParams.get('limit')).toBe('6');
+    expect(url.searchParams.get('limit')).toBe('20');
     expect(url.searchParams.get('offset')).toBe('0');
   });
 
@@ -49,13 +49,13 @@ describe('searchSuggestionsQueryOptions', () => {
     expect(options.queryKey).toEqual([
       'search',
       'suggestions',
-      { query: 'queen', limit: 6 },
+      { query: 'queen', limit: 20 },
     ]);
     expect(options.queryKey).toEqual(searchKeys.suggestions('queen'));
     expect(options.queryKey).not.toEqual(
       searchInfiniteQueryOptions({
         query: 'queen',
-        limit: 6,
+        limit: 20,
       }).queryKey,
     );
   });
@@ -77,7 +77,7 @@ describe('searchSuggestionsQueryOptions', () => {
     const blanker = searchSuggestionsQueryOptions({ query: '   ' }).queryKey;
 
     expect(blank).toEqual(blanker);
-    expect(blank).toEqual(['search', 'suggestions', { query: '', limit: 6 }]);
+    expect(blank).toEqual(['search', 'suggestions', { query: '', limit: 20 }]);
   });
 
   it('fetches on the shared debounce with the latest query', async () => {
