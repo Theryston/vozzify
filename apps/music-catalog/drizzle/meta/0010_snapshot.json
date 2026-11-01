@@ -288,13 +288,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
-        },
-        "indexed_revision": {
-          "name": "indexed_revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
         }
       },
       "indexes": {},

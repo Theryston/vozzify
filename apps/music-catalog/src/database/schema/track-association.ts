@@ -7,7 +7,6 @@ export const trackAssociation = musicCatalog.table('track_association', {
   trackId: text(),
   businessScore: integer(),
   revision: integer().notNull().default(0),
-  indexedRevision: integer().notNull().default(0),
   pending: boolean().notNull().default(true),
   updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });

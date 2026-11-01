@@ -1,5 +1,12 @@
 import { inject } from 'vitest';
+import { createMeilisearchIndex } from '../src/integrations/meilisearch/meilisearch-index.js';
+import {
+  RECORDINGS_INDEX,
+  RECORDINGS_INDEX_SETTINGS,
+  type RecordingDocument,
+} from '../src/lib/recordings-index.js';
 import { useTestServer } from './utils/create-test-server.js';
+import { setBootstrapState } from './utils/database.js';
 import { meilisearchRequest } from './utils/meilisearch-http.js';
 import { addArtist, addRecording, mbid } from './utils/musicbrainz.js';
 import { requestSearch } from './utils/search-client.js';
@@ -47,42 +54,65 @@ describe('Track association score ranking (e2e)', () => {
       name: 'Twin Song',
       artists: [{ artist: bandA }],
     });
-    await indexCatalog(server());
-
     const meilisearch = inject('meilisearch');
-    await meilisearchRequest(
-      meilisearch,
-      'PUT',
-      '/indexes/recordings/settings/ranking-rules',
-      [
-        'words',
-        'typo',
-        'proximity',
-        'attributeRank',
-        'sort',
-        'wordPosition',
-        'exactness',
-      ],
-    );
-    await meilisearchRequest(
-      meilisearch,
-      'PUT',
-      '/indexes/recordings/documents',
-      [
-        {
-          mbid: unlinked.mbid,
-          title: 'Twin Song',
-          artistCredit: 'Original Artist',
-          artistAliases: ['Original Artist'],
-          releaseTitles: [],
-          workTitles: [],
-          genres: [],
-          disambiguation: '',
-          primaryReleaseMbid: null,
-          trackId: null,
-        },
-      ],
-    );
+    const legacyRules = [
+      'words',
+      'typo',
+      'proximity',
+      'attributeRank',
+      'sort',
+      'wordPosition',
+      'exactness',
+    ];
+    const oldIndex = createMeilisearchIndex<RecordingDocument>({
+      url: meilisearch.url,
+      apiKey: meilisearch.writeKey,
+      uid: RECORDINGS_INDEX.uid,
+      primaryKey: RECORDINGS_INDEX.primaryKey,
+    });
+    await oldIndex.ensure({
+      ...RECORDINGS_INDEX_SETTINGS,
+      rankingRules: legacyRules,
+    });
+    const legacyDocument = (
+      recordingMbid: string,
+      title: string,
+      artistCredit: string,
+      trackId: string | null,
+    ): RecordingDocument => ({
+      mbid: recordingMbid,
+      title,
+      artistCredit,
+      artistAliases: [artistCredit],
+      releaseTitles: [],
+      workTitles: [],
+      genres: [],
+      disambiguation: '',
+      primaryReleaseMbid: null,
+      trackId,
+    });
+    await oldIndex.upsert([
+      legacyDocument(original.mbid, 'Twin Song', 'Original Artist', null),
+      legacyDocument(cover.mbid, 'Twin Song', 'Cover Artist', null),
+      legacyDocument(unlinked.mbid, 'Twin Song', 'Original Artist', null),
+      legacyDocument(partialMatch.mbid, 'Twin', 'Original Artist', null),
+      legacyDocument(clearedScore.mbid, 'Twin Song', 'Original Artist', null),
+    ]);
+    for (const recording of [
+      original,
+      cover,
+      unlinked,
+      partialMatch,
+      clearedScore,
+    ]) {
+      const legacy = await meilisearchRequest(
+        meilisearch,
+        'GET',
+        `/indexes/recordings/documents/${recording.mbid}`,
+      );
+      expect(legacy.json).not.toHaveProperty('businessScore');
+    }
+    await setBootstrapState(server().db, { phase: 'ready', dataset: 'tiny' });
     const before = await meilisearchRequest(
       meilisearch,
       'GET',
@@ -203,6 +233,47 @@ describe('Track association score ranking (e2e)', () => {
       artistCredit: 'Original Artist',
       trackId: TRACK_A,
       businessScore: 1,
+    });
+  });
+
+  it('ranks an exact spelling above a high-score typo match', async () => {
+    const artist = await addArtist(server().db, { name: 'Ranking Artist' });
+    const exact = await addRecording(server().db, {
+      mbid: mbid(532),
+      name: 'Moonlight Sonata',
+      artists: [{ artist }],
+    });
+    const typo = await addRecording(server().db, {
+      mbid: mbid(533),
+      name: 'Moonligh Sonata',
+      artists: [{ artist }],
+    });
+    await indexCatalog(server());
+    await requestTrackAssociation(client(), {
+      mbid: exact.mbid,
+      trackId: TRACK_A,
+      businessScore: 1,
+      revision: 1,
+    });
+    await requestTrackAssociation(client(), {
+      mbid: typo.mbid,
+      trackId: TRACK_B,
+      businessScore: 100,
+      revision: 1,
+    });
+    await createTestWorker(server()).tick();
+
+    const response = await requestSearch(client(), {
+      query: 'Moonlight Sonata',
+    });
+    expect(response).toMatchObject({
+      ok: true,
+      result: {
+        results: [
+          { mbid: exact.mbid, trackId: TRACK_A },
+          { mbid: typo.mbid, trackId: TRACK_B },
+        ],
+      },
     });
   });
 });

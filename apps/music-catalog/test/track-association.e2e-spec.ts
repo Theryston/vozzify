@@ -4,6 +4,7 @@ import { indexingCheckpoint } from '../src/database/schema/indexing-checkpoint.j
 import { trackAssociation } from '../src/database/schema/track-association.js';
 import { MeilisearchIndex } from '../src/integrations/meilisearch/meilisearch-index.js';
 import { RECORDINGS_INDEX } from '../src/lib/recordings-index.js';
+import { TrackAssociationRepository } from '../src/modules/track-association/track-association.repository.js';
 import { useTestServer } from './utils/create-test-server.js';
 import { waitForCatalogWriteLockWaiter } from './utils/database.js';
 import { meilisearchRequest } from './utils/meilisearch-http.js';
@@ -100,6 +101,10 @@ describe('Track association projection (e2e)', () => {
       businessScore: 30,
       revision: 2,
     });
+    await requestTrackAssociation(client(), {
+      mbid: recording.mbid,
+      trackId: TRACK_B,
+    });
     await createTestWorker(server()).tick();
     const indexed = await meilisearchRequest(
       inject('meilisearch'),
@@ -131,12 +136,61 @@ describe('Track association projection (e2e)', () => {
     expect(unlinked.json).toMatchObject({ trackId: null, businessScore: null });
   });
 
+  it('does not let an older index acknowledgment clear a newer projection', async () => {
+    const artist = await addArtist(server().db, {
+      name: 'Acknowledgment Band',
+    });
+    const recording = await addRecording(server().db, {
+      mbid: mbid(534),
+      name: 'Acknowledgment Song',
+      artists: [{ artist }],
+    });
+    await indexCatalog(server());
+    await requestTrackAssociation(client(), {
+      mbid: recording.mbid,
+      trackId: TRACK_A,
+      businessScore: 3,
+      revision: 1,
+    });
+    const repository = new TrackAssociationRepository(server().db);
+    const [older] = await repository.peekPending(1);
+    if (older === undefined) throw new Error('Expected pending revision 1');
+
+    await requestTrackAssociation(client(), {
+      mbid: recording.mbid,
+      trackId: TRACK_B,
+      businessScore: 15,
+      revision: 2,
+    });
+    await repository.markIndexed([older]);
+    const [pending] = await repository.peekPending(1);
+    expect(pending).toMatchObject({
+      mbid: recording.mbid,
+      trackId: TRACK_B,
+      businessScore: 15,
+      revision: 2,
+    });
+
+    await createTestWorker(server()).tick();
+    const indexed = await meilisearchRequest(
+      inject('meilisearch'),
+      'GET',
+      `/indexes/recordings/documents/${recording.mbid}`,
+    );
+    expect(indexed.json).toMatchObject({
+      trackId: TRACK_B,
+      businessScore: 15,
+    });
+  });
+
   it('keeps an association for a missing Recording until indexing creates a full document, including after worker restart', async () => {
     await indexCatalog(server());
     const recordingMbid = mbid(502);
     await requestTrackAssociation(client(), {
       mbid: recordingMbid,
       trackId: TRACK_A,
+      businessScore: 6,
+      revision: 1,
     });
 
     const restartedWorker = createTestWorker(server());
@@ -164,6 +218,12 @@ describe('Track association projection (e2e)', () => {
       ok: true,
       result: { results: [{ mbid: recordingMbid, trackId: TRACK_A }] },
     });
+    const indexed = await meilisearchRequest(
+      meilisearch,
+      'GET',
+      `/indexes/recordings/documents/${recordingMbid}`,
+    );
+    expect(indexed.json).toMatchObject({ businessScore: 6 });
   });
 
   it('scans past a lower pending MBID for a missing Recording at batch size one', async () => {
@@ -239,6 +299,12 @@ describe('Track association projection (e2e)', () => {
       ok: true,
       result: { results: [{ mbid: recording.mbid, trackId: TRACK_A }] },
     });
+    const indexed = await meilisearchRequest(
+      inject('meilisearch'),
+      'GET',
+      `/indexes/recordings/documents/${recording.mbid}`,
+    );
+    expect(indexed.json).toMatchObject({ businessScore: 7 });
   });
 
   it('orders a stale metadata replacement before a concurrent association and retries the complete document', async () => {
@@ -277,11 +343,12 @@ describe('Track association projection (e2e)', () => {
     try {
       const workerTick = createTestWorker(server()).tick();
       await metadataWrite;
-      const delivery = client().request(
-        'associateTrack',
-        { mbid: recording.mbid, trackId: TRACK_A },
-        'metadata-association-race',
-      );
+      const delivery = requestTrackAssociation(client(), {
+        mbid: recording.mbid,
+        trackId: TRACK_A,
+        businessScore: 6,
+        revision: 1,
+      });
       await waitForCatalogWriteLockWaiter(server().db);
       releaseWrite();
       await Promise.all([workerTick, delivery]);
@@ -303,6 +370,7 @@ describe('Track association projection (e2e)', () => {
     );
     expect(indexed.json).toMatchObject({
       trackId: TRACK_A,
+      businessScore: 6,
       title: 'Race Song Updated',
       artistCredit: 'Race Band',
     });
@@ -319,6 +387,8 @@ describe('Track association projection (e2e)', () => {
     await requestTrackAssociation(client(), {
       mbid: recording.mbid,
       trackId: TRACK_B,
+      businessScore: 11,
+      revision: 1,
     });
     await createTestWorker(server()).tick();
 
@@ -334,6 +404,15 @@ describe('Track association projection (e2e)', () => {
     ).resolves.toMatchObject({
       ok: true,
       result: { results: [{ mbid: recording.mbid, trackId: TRACK_B }] },
+    });
+    const rebuilt = await meilisearchRequest(
+      meilisearch,
+      'GET',
+      `/indexes/recordings/documents/${recording.mbid}`,
+    );
+    expect(rebuilt.json).toMatchObject({
+      trackId: TRACK_B,
+      businessScore: 11,
     });
   });
 

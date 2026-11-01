@@ -104,7 +104,7 @@ export class TrackAssociationRepository {
     for (const entry of entries) {
       await this.getServing()
         .update(trackAssociation)
-        .set({ pending: false, indexedRevision: entry.revision })
+        .set({ pending: false })
         .where(
           and(
             eq(trackAssociation.recordingMbid, entry.mbid),
@@ -126,7 +126,6 @@ export class TrackAssociationRepository {
             trackId: trackAssociation.trackId,
             businessScore: trackAssociation.businessScore,
             revision: trackAssociation.revision,
-            indexedRevision: trackAssociation.indexedRevision,
           })
           .from(trackAssociation)
           .where(
@@ -146,7 +145,6 @@ export class TrackAssociationRepository {
                   trackId: row.trackId,
                   businessScore: row.businessScore,
                   revision: row.revision,
-                  indexedRevision: row.indexedRevision,
                   pending: true,
                 })
                 .onConflictDoUpdate({
@@ -155,7 +153,6 @@ export class TrackAssociationRepository {
                     trackId: row.trackId,
                     businessScore: row.businessScore,
                     revision: row.revision,
-                    indexedRevision: row.indexedRevision,
                     pending: true,
                   },
                   setWhere: gte(
