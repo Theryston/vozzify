@@ -140,6 +140,17 @@ const envSchema = z
     MUSIC_CATALOG_REQUEST_TIMEOUT_MS: optional(
       z.coerce.number().int().positive(),
     ),
+    // API-owned fallback index. Search and ingestion use independent TCP
+    // sessions to Sonic; production provisioning remains an operator task.
+    SONIC_HOST: optional(z.string().min(1)),
+    SONIC_PORT: optional(z.coerce.number().int().min(1).max(65_535)),
+    SONIC_AUTH_PASSWORD: optional(
+      z
+        .string()
+        .min(1)
+        .regex(/^[^\s]+$/),
+    ),
+    SONIC_REQUEST_TIMEOUT_MS: optional(z.coerce.number().int().positive()),
     // Limits on a User's Track requests (admins are exempt) and the longest
     // Recording or video a Processing accepts. Unset, the defaults of
     // `modules/tracks/track-limits.ts` apply: kept out of the schema so the
@@ -177,6 +188,24 @@ const envSchema = z
   })
   .check((ctx) => {
     const env = ctx.value;
+    const sonicAnySet = [
+      env.SONIC_HOST,
+      env.SONIC_PORT,
+      env.SONIC_AUTH_PASSWORD,
+      env.SONIC_REQUEST_TIMEOUT_MS,
+    ].some((value) => value !== undefined);
+    if (sonicAnySet) {
+      for (const key of ['SONIC_HOST', 'SONIC_AUTH_PASSWORD'] as const) {
+        if (env[key] === undefined) {
+          ctx.issues.push({
+            code: 'custom',
+            input: env,
+            path: [key],
+            message: 'Required when Sonic is configured',
+          });
+        }
+      }
+    }
     const anySet = [...S3_MANDATORY, ...S3_OPTIONAL].some(
       (key) => env[key] !== undefined,
     );
@@ -243,11 +272,26 @@ const envSchema = z
       message: 'Set both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, or neither',
     },
   )
-  .transform((env) => ({
-    ...env,
-    SWAGGER_ENABLED: env.SWAGGER_ENABLED ?? env.NODE_ENV !== 'production',
-    BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET ?? TEST_AUTH_SECRET,
-  }));
+  .transform((env) => {
+    const {
+      SONIC_HOST,
+      SONIC_PORT,
+      SONIC_AUTH_PASSWORD,
+      SONIC_REQUEST_TIMEOUT_MS,
+      ...rest
+    } = env;
+    return {
+      ...rest,
+      ...(SONIC_HOST === undefined ? {} : { SONIC_HOST }),
+      ...(SONIC_PORT === undefined ? {} : { SONIC_PORT }),
+      ...(SONIC_AUTH_PASSWORD === undefined ? {} : { SONIC_AUTH_PASSWORD }),
+      ...(SONIC_REQUEST_TIMEOUT_MS === undefined
+        ? {}
+        : { SONIC_REQUEST_TIMEOUT_MS }),
+      SWAGGER_ENABLED: env.SWAGGER_ENABLED ?? env.NODE_ENV !== 'production',
+      BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET ?? TEST_AUTH_SECRET,
+    };
+  });
 
 export type Env = z.output<typeof envSchema>;
 

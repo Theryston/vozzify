@@ -7,6 +7,8 @@ export type FakeCatalogHandler = (payload: Record<string, unknown>) => {
   delayMs?: number;
   result?: unknown;
   error?: unknown;
+  closeConnection?: boolean;
+  sendUnreadableFrame?: boolean;
 };
 
 /**
@@ -18,6 +20,7 @@ export type FakeCatalogHandler = (payload: Record<string, unknown>) => {
 export type FakeMusicCatalog = {
   url: string;
   seenAuth: string[];
+  seenQueries?: string[];
   close: () => Promise<void>;
 };
 
@@ -25,6 +28,7 @@ export const startFakeMusicCatalog = async (
   handler: FakeCatalogHandler,
 ): Promise<FakeMusicCatalog> => {
   const seenAuth: string[] = [];
+  const seenQueries: string[] = [];
   const server = new WebSocketServer({ port: 0 });
   await new Promise<void>((resolve) => server.on('listening', () => resolve()));
   const address = server.address();
@@ -39,9 +43,18 @@ export const startFakeMusicCatalog = async (
         type: string;
         payload: Record<string, unknown>;
       };
+      seenQueries.push(String(message.payload.query ?? ''));
       const answer = handler(message.payload);
+      if (answer.closeConnection) {
+        socket.close(1000, 'planned disconnect');
+        return;
+      }
       const respond = () => {
         if (socket.readyState !== socket.OPEN) {
+          return;
+        }
+        if (answer.sendUnreadableFrame === true) {
+          socket.send('not json');
           return;
         }
         if (answer.error !== undefined) {
@@ -65,6 +78,7 @@ export const startFakeMusicCatalog = async (
   return {
     url: `ws://127.0.0.1:${port}`,
     seenAuth,
+    seenQueries,
     // `server.close` waits for open peers, so specs close their app (and
     // its catalog socket) before calling this.
     close: () =>

@@ -248,6 +248,20 @@ describe('MusicCatalogClient', () => {
     expect(result.results.map((item) => item.title)).toEqual(['Kept']);
   });
 
+  it('does not hide an unreadable search response with Sonic fallback', async () => {
+    fake = await startFakeMusicCatalog(() => ({ sendUnreadableFrame: true }));
+    const created = await createClient(fake.url, 40);
+    moduleRef = created.moduleRef;
+
+    await expect(
+      created.client.search({
+        query: 'song',
+        limit: 20,
+        offset: 0,
+      }),
+    ).rejects.toMatchObject({ code: 'INTERNAL_ERROR' });
+  });
+
   it('rejects the in-flight search when the connection drops', async () => {
     const server = new WebSocketServer({ port: 0 });
     await new Promise<void>((resolve) =>

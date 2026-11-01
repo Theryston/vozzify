@@ -29,6 +29,7 @@ const fakeVoice = fileURLToPath(
  */
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: ['real-search/**'],
   fullyParallel: true,
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,

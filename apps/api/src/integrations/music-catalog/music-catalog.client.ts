@@ -147,6 +147,34 @@ export class MusicCatalogClient implements OnModuleInit, OnModuleDestroy {
     this.connection.stop();
   }
 
+  isConnected(): boolean {
+    return this.connection.isConnected();
+  }
+
+  searchRoutingState(): { connected: boolean; generation: number } {
+    if (!this.isConfigured()) {
+      throw new AppException(
+        'INTERNAL_ERROR',
+        'Music catalog is not configured',
+      );
+    }
+    const authenticationFailure = this.connection.getAuthenticationFailure();
+    if (authenticationFailure !== undefined) {
+      throw new AppException(
+        'INTERNAL_ERROR',
+        `Music catalog authentication failed: ${authenticationFailure}`,
+      );
+    }
+    return {
+      connected: this.connection.isConnected(),
+      generation: this.connection.getSearchGeneration(),
+    };
+  }
+
+  onSearchConnectionClosed(listener: () => void): () => void {
+    return this.connection.onSearchConnectionClosed(listener);
+  }
+
   /**
    * Searches the catalog, keeping the catalog's relevance order. Every hit
    * is returned untouched; the caller adds the Track link.
@@ -156,6 +184,25 @@ export class MusicCatalogClient implements OnModuleInit, OnModuleDestroy {
   ): Promise<MusicCatalogSearchResult> {
     return resultOrThrow(
       await this.requestOrFail(
+        'search',
+        params,
+        musicCatalogSearchResponseSchema,
+      ),
+    );
+  }
+
+  /** Searches only the existing socket; it never starts an on-demand dial. */
+  async searchIfConnected(
+    params: MusicCatalogSearchParams,
+  ): Promise<MusicCatalogSearchResult> {
+    if (!this.isConfigured()) {
+      throw new AppException(
+        'INTERNAL_ERROR',
+        'Music catalog is not configured',
+      );
+    }
+    return resultOrThrow(
+      await this.connection.requestIfConnected(
         'search',
         params,
         musicCatalogSearchResponseSchema,
