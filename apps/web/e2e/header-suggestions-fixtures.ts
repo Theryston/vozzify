@@ -27,12 +27,8 @@ export type Hit = {
   coverUrl?: string;
 };
 
-/**
- * Six Recordings in the order the catalog ranks them. The order is neither
- * alphabetical nor "Tracks first" (the first hit has no Track), so a sort
- * or a reorder by Track status shows up in the row assertions.
- */
-export const RANKED: Hit[] = [
+/** The first results preserve the catalog's mixed Track and lexical order. */
+const FIRST_RANKED: Hit[] = [
   {
     title: 'Under Pressure',
     artist: 'Queen & David Bowie',
@@ -44,6 +40,16 @@ export const RANKED: Hit[] = [
   { title: 'We Will Rock You', artist: 'Queen', trackId: 'seedtrack03' },
   { title: 'Killer Queen', artist: 'Queen', trackId: 'seedtrack04' },
   { title: 'Somebody to Love', artist: 'Queen', trackId: null },
+];
+
+/** More than the autocomplete limit exposes truncation and late-row keyboard use. */
+export const RANKED: Hit[] = [
+  ...FIRST_RANKED,
+  ...Array.from({ length: 19 }, (_, index) => ({
+    title: `Search result ${index + 7}`,
+    artist: 'Queen',
+    trackId: index === 13 ? 'late-result-track' : null,
+  })),
 ];
 
 function resultBody(hit: Hit, index: number) {

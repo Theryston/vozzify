@@ -7,7 +7,7 @@ import { SEARCH_SUGGESTIONS_LIMIT } from './search-params';
  * public query, so defaults are applied once and each query text caches
  * separately; the infinite key pages on top of it without the offset (every
  * page shares it, the offset travels as the page param); the suggestions key
- * is the header autocomplete's own key (short limit), so its cache never
+ * is the header autocomplete's own key, so its cache never
  * mixes with the search page's.
  */
 export const searchKeys = {

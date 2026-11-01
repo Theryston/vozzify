@@ -49,7 +49,7 @@ for (const { locale, messages } of cases) {
       const { search, home, header } = await openWithHeader(page, `/${locale}`);
 
       // No Enter: typing alone never navigates, debounced or not. It asks
-      // only for the header suggestions (limit 6).
+      // only for the header suggestions.
       const suggestionsRequest = page.waitForRequest(
         (request) => searchParamsOf(request).query === 'queen',
       );
@@ -59,7 +59,7 @@ for (const { locale, messages } of cases) {
       expect(search.calls).toHaveLength(1);
       expect(searchParamsOf(lastRequest(search.calls))).toMatchObject({
         query: 'queen',
-        limit: '6',
+        limit: '20',
       });
 
       await header.press('Enter');
@@ -76,11 +76,11 @@ for (const { locale, messages } of cases) {
         page.getByRole('main').getByText('Bohemian Rhapsody'),
       ).toBeVisible();
       // The search page asks for its own results: two requests in total, and
-      // the last is not the header's six-suggestion request.
+      // the full search makes an independent request after navigation.
       expect(search.calls).toHaveLength(2);
       const pageRequest = searchParamsOf(lastRequest(search.calls));
       expect(pageRequest).toMatchObject({ query: 'queen' });
-      expect(pageRequest.limit).not.toBe('6');
+      expect(pageRequest.offset).toBe('0');
     });
 
     test('header typing on a legacy lyrics link searches the metadata only', async ({
