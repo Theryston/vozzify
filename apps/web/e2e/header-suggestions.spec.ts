@@ -410,7 +410,7 @@ for (const { locale, messages } of localeCatalogs) {
         'id',
         'header-suggestions-listbox',
       );
-      await expect(list(page).getByRole('option')).toHaveCount(7);
+      await expect(list(page).getByRole('option')).toHaveCount(21);
       await expect(radio).toBeVisible();
       await field.press('ArrowDown');
       await field.press('ArrowDown');
