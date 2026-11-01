@@ -197,16 +197,34 @@ describe('Catalog search plus limits plus errors (e2e)', () => {
     }
   });
 
-  it('answers 504 GATEWAY_TIMEOUT instead of hanging', async () => {
-    const fallbackApp = await createFallbackTestApp();
-    try {
-      const response = await searchAs(fallbackApp, '203.0.113.16', {
-        query: 'slow',
-      }).expect(200);
-      expect(response.body).toEqual({ results: [], source: 'sonic' });
-    } finally {
-      await fallbackApp.close();
-    }
+  it('falls back to Sonic when the catalog times out and bypasses it afterward', async () => {
+    await testApp.db.insert(tracks).values({
+      id: 'sonic-slow',
+      recordingMbid: testMbid(14),
+      title: 'Slow fallback result',
+      artistCredit: [{ name: 'Fallback Artist', joinPhrase: '' }],
+    });
+    await testApp.db.insert(trackProcessings).values({
+      trackId: 'sonic-slow',
+      status: 'COMPLETED',
+    });
+    await testApp.app.get(SearchIndexService).rebuild();
+
+    const response = await searchAs(testApp, '203.0.113.16', {
+      query: 'slow',
+    }).expect(200);
+    expect(response.body.source).toBe('sonic');
+    expect(response.body.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ trackId: 'sonic-slow' }),
+      ]),
+    );
+
+    const next = await searchAs(testApp, '203.0.113.16', {
+      query: 'after-timeout',
+    }).expect(200);
+    expect(next.body.source).toBe('sonic');
+    expect(catalog.seenQueries).not.toContain('after-timeout');
   });
 
   it('returns INTERNAL_ERROR for an unreadable catalog frame instead of hiding it', async () => {

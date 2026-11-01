@@ -10,6 +10,23 @@ export type PendingRequest = {
   fail: (error: Error) => void;
 };
 
+export function failPendingRequests(
+  pending: Map<string, PendingRequest>,
+  error: Error,
+): void {
+  for (const [id, request] of pending) {
+    pending.delete(id);
+    request.fail(error);
+  }
+}
+
+export function requestIdOf(frame: unknown): string | undefined {
+  if (typeof frame !== 'object' || frame === null || !('id' in frame)) {
+    return undefined;
+  }
+  return typeof frame.id === 'string' ? frame.id : undefined;
+}
+
 type RequestOptions<TOutput> = {
   pending: Map<string, PendingRequest>;
   socket: WebSocket;

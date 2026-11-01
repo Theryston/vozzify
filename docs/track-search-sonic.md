@@ -59,6 +59,18 @@ API verifies search in the background, and subsequent requests return to
 `source: "music-catalog"` after that probe succeeds. The probe result is never
 returned to the visitor.
 
+Search has a maximum two-second primary budget, including the WebSocket
+handshake when the API has no open connection. The API also sends a WebSocket
+ping every two seconds and closes the connection if no pong arrives within two
+seconds. This detects a silent network partition even when the socket still
+reports open. Search timeout and liveness failures mark the primary unavailable
+and route later requests directly to Sonic while background verification
+continues. Look for `Music catalog liveness check timed out`,
+`Lost the Music catalog connection, redialing`, and
+`Music catalog search verified; primary routing resumed` in API logs to follow
+the transition. These intervals are operational checks; only the two-second
+primary search budget is a visitor-facing latency bound.
+
 If Sonic is empty or unreachable, it does not count as an empty successful
 fallback: the endpoint returns the existing `503 SERVICE_UNAVAILABLE` envelope
 when the Music catalog is also unavailable.

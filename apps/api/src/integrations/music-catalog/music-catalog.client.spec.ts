@@ -1,3 +1,5 @@
+import { createServer } from 'node:http';
+import type { Duplex } from 'node:stream';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { musicCatalogTrackAssociationPayloadSchema } from '@vozzify/contracts';
 import { WebSocketServer } from 'ws';
@@ -152,6 +154,141 @@ describe('MusicCatalogClient', () => {
       code: 'GATEWAY_TIMEOUT',
       message: 'Music catalog request timed out',
     });
+  });
+
+  it('bounds an open but stalled search at two seconds', async () => {
+    fake = await startFakeMusicCatalog(() => ({
+      delayMs: 10_000,
+      result: { results: [] },
+    }));
+    const created = await createClient(fake.url, 10_000);
+    moduleRef = created.moduleRef;
+    await vi.waitFor(() => expect(fake?.seenAuth).toHaveLength(1));
+    vi.useFakeTimers({
+      toFake: [
+        'Date',
+        'setTimeout',
+        'clearTimeout',
+        'setInterval',
+        'clearInterval',
+      ],
+    });
+
+    let settled = false;
+    const request = created.client
+      .search({ query: 'stalled', limit: 20, offset: 0 })
+      .finally(() => {
+        settled = true;
+      });
+    const rejection = expect(request).rejects.toMatchObject({
+      code: 'GATEWAY_TIMEOUT',
+    });
+    try {
+      while (fake.seenQueries?.includes('stalled') !== true) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      await vi.advanceTimersByTimeAsync(1_999);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await rejection;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('includes a stalled connection handshake in the two-second search budget', async () => {
+    const server = createServer();
+    let pendingSocket: Duplex | undefined;
+    server.on('upgrade', (_request, socket) => {
+      pendingSocket = socket;
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, '127.0.0.1', resolve),
+    );
+    const address = server.address();
+    const port =
+      typeof address === 'object' && address !== null ? address.port : 0;
+    const client = new MusicCatalogClient({
+      NODE_ENV: 'test',
+      MUSIC_CATALOG_URL: `ws://127.0.0.1:${port}`,
+      MUSIC_CATALOG_API_KEY: API_KEY,
+      MUSIC_CATALOG_REQUEST_TIMEOUT_MS: 10_000,
+    } as never);
+    vi.useFakeTimers({
+      toFake: [
+        'Date',
+        'setTimeout',
+        'clearTimeout',
+        'setInterval',
+        'clearInterval',
+      ],
+    });
+
+    try {
+      const startedAt = Date.now();
+      const request = client.search({
+        query: 'connecting',
+        limit: 20,
+        offset: 0,
+      });
+      const rejection = expect(request).rejects.toMatchObject({
+        code: 'SERVICE_UNAVAILABLE',
+      });
+      while (pendingSocket === undefined) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      await vi.advanceTimersByTimeAsync(1_999);
+      expect(Date.now() - startedAt).toBe(1_999);
+      await vi.advanceTimersByTimeAsync(1);
+      await rejection;
+      expect(Date.now() - startedAt).toBe(2_000);
+    } finally {
+      client.onModuleDestroy();
+      pendingSocket?.destroy();
+      vi.useRealTimers();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('closes a pending handshake and settles its search during shutdown', async () => {
+    const server = createServer();
+    let pendingSocket: Duplex | undefined;
+    server.on('upgrade', (_request, socket) => {
+      pendingSocket = socket;
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, '127.0.0.1', resolve),
+    );
+    const address = server.address();
+    const port =
+      typeof address === 'object' && address !== null ? address.port : 0;
+    const client = new MusicCatalogClient({
+      NODE_ENV: 'test',
+      MUSIC_CATALOG_URL: `ws://127.0.0.1:${port}`,
+      MUSIC_CATALOG_API_KEY: API_KEY,
+      MUSIC_CATALOG_REQUEST_TIMEOUT_MS: 10_000,
+    } as never);
+    client.onModuleInit();
+    const request = client.search({
+      query: 'shutting-down',
+      limit: 20,
+      offset: 0,
+    });
+    const rejection = expect(request).rejects.toMatchObject({
+      code: 'SERVICE_UNAVAILABLE',
+    });
+
+    try {
+      while (pendingSocket === undefined) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      client.onModuleDestroy();
+      await rejection;
+    } finally {
+      client.onModuleDestroy();
+      pendingSocket?.destroy();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 
   it('maps a not-ready catalog to SERVICE_UNAVAILABLE for retry', async () => {
