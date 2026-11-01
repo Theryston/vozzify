@@ -484,7 +484,10 @@ Greppable restore logs (`docker compose logs -f music-catalog-mbslave`):
 `Restore failed, the next start redoes it` on failure. The pre-import log
 also carries `totalBytes` (summed `HEAD` `Content-Length`, omitted when a
 size is missing). The worker logs `Indexed a batch of Recordings` with
-`indexed`, `total` and `percent` per batch against one `count(*)` per run.
+`indexed`, `remaining`, `total` and `percent` per batch. One aggregate query
+per run counts the source and its checkpoint-confirmed prefix, so progress
+includes previous runs even when MusicBrainz ids have gaps. Only confirmed,
+checkpointed batches advance the counters; `batch` is local to the run.
 
 Handoff for issue #61 (change triggers and the outbox, owned by that ticket):
 after this records `restored`, the worker installs the change triggers and

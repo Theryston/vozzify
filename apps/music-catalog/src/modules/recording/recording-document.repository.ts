@@ -32,6 +32,7 @@ import type {
   DocumentRecordingRow,
   PrimaryReleaseRow,
   RecordingGenreRow,
+  RecordingProgress,
   RecordingTitleRow,
 } from './recording-document-data.js';
 
@@ -76,12 +77,20 @@ export class RecordingDocumentRepository {
   }
 
   /**
-   * How many Recordings the catalog holds. The worker reads it once per
-   * indexing run to log its progress against; batches never re-read it.
+   * Counts both the catalog and its confirmed prefix in one source scan.
+   * MusicBrainz ids have gaps, so the checkpoint itself is not a count.
    */
-  async countAll(): Promise<number> {
-    const [row] = await this.getDb().select({ value: count() }).from(recording);
-    return row?.value ?? 0;
+  async countProgress(afterId: number): Promise<RecordingProgress> {
+    const [row] = await this.getDb()
+      .select({
+        total: count(),
+        indexed:
+          sql<number>`count(*) filter (where ${recording.id} <= ${afterId})`.mapWith(
+            Number,
+          ),
+      })
+      .from(recording);
+    return row ?? { total: 0, indexed: 0 };
   }
 
   /** The Recordings with these integer ids, in no particular order. */

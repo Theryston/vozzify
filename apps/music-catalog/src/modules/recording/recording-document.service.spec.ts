@@ -18,7 +18,10 @@ const row = (
 const setup = (rows: DocumentRecordingRow[]) => {
   const repository = {
     findBatch: vi.fn(async () => rows),
-    countAll: vi.fn(async () => rows.length),
+    countProgress: vi.fn(async (afterId: number) => ({
+      total: rows.length,
+      indexed: rows.filter((recording) => recording.id <= afterId).length,
+    })),
     findArtistNames: vi.fn(async () => []),
     findReleaseTitles: vi.fn(async () => [{ recordingId: 11, title: 'Album' }]),
     findPrimaryReleases: vi.fn(async () => [
@@ -96,12 +99,15 @@ describe('RecordingDocumentService', () => {
     });
   });
 
-  describe('countAll', () => {
-    it('reports how many Recordings the catalog holds', async () => {
+  describe('countProgress', () => {
+    it('reports the catalog size and how many Recordings its checkpoint confirms', async () => {
       const { service, repository } = setup([row(11, 5), row(12, 6)]);
 
-      await expect(service.countAll()).resolves.toBe(2);
-      expect(repository.countAll).toHaveBeenCalledTimes(1);
+      await expect(service.countProgress(11)).resolves.toEqual({
+        total: 2,
+        indexed: 1,
+      });
+      expect(repository.countProgress).toHaveBeenCalledExactlyOnceWith(11);
     });
   });
 });
