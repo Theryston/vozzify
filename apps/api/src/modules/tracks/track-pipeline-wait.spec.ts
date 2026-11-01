@@ -4,6 +4,7 @@ import { WebRevalidationService } from '../../integrations/web-revalidation/web-
 import { TrackPipelineService } from './track-pipeline.service.js';
 import { TRACK_PROCESSING_QUEUE } from './track-processing.job.js';
 import { TrackProcessingRepository } from './track-processing.repository.js';
+import { TrackProcessingCompletionService } from './track-processing-completion.service.js';
 import { TrackProcessingFailure } from './track-processing-failure.js';
 import { TrackStepsService } from './track-steps.service.js';
 
@@ -16,11 +17,11 @@ const processings = {
   findProcessing: vi.fn(),
   markStepStarted: vi.fn(),
   markFailed: vi.fn(),
-  markCompleted: vi.fn(),
   findCatalogIds: vi.fn(),
 };
 const steps = { findVideo: vi.fn(), downloadAudio: vi.fn() };
 const revalidation = { revalidate: vi.fn() };
+const completion = { complete: vi.fn() };
 
 const processing = (status: string) => ({
   id: 'processing-1',
@@ -40,7 +41,7 @@ describe('TrackPipelineService waits', () => {
     vi.clearAllMocks();
     processings.markStepStarted.mockResolvedValue(true);
     processings.markFailed.mockResolvedValue(true);
-    processings.markCompleted.mockResolvedValue(true);
+    completion.complete.mockResolvedValue(true);
     processings.findCatalogIds.mockResolvedValue({
       artistIds: [],
       albumIds: [],
@@ -52,6 +53,7 @@ describe('TrackPipelineService waits', () => {
         TrackPipelineService,
         { provide: getQueueToken(TRACK_PROCESSING_QUEUE), useValue: queue },
         { provide: TrackProcessingRepository, useValue: processings },
+        { provide: TrackProcessingCompletionService, useValue: completion },
         { provide: TrackStepsService, useValue: steps },
         { provide: WebRevalidationService, useValue: revalidation },
       ],
@@ -76,7 +78,7 @@ describe('TrackPipelineService waits', () => {
       { processingId: 'processing-1', step: 'DOWNLOADING_AUDIO' },
       { jobId: 'step-processing-1-DOWNLOADING_AUDIO' },
     );
-    expect(processings.markCompleted).not.toHaveBeenCalled();
+    expect(completion.complete).not.toHaveBeenCalled();
   });
 
   it('queues the first re-check of a waiting step after its delay, as round 1', async () => {
@@ -103,7 +105,7 @@ describe('TrackPipelineService waits', () => {
       },
       { jobId: 'wait-processing-1-DOWNLOADING_AUDIO-1', delay: 10_000 },
     );
-    expect(processings.markCompleted).not.toHaveBeenCalled();
+    expect(completion.complete).not.toHaveBeenCalled();
     expect(revalidation.revalidate).not.toHaveBeenCalled();
   });
 
@@ -153,7 +155,7 @@ describe('TrackPipelineService waits', () => {
       { processingId: 'processing-1', step: 'EXTRACTING_VOCALS' },
       { jobId: 'step-processing-1-EXTRACTING_VOCALS' },
     );
-    expect(processings.markCompleted).not.toHaveBeenCalled();
+    expect(completion.complete).not.toHaveBeenCalled();
   });
 
   it('ends the Processing FAILED with DOWNLOAD_FAILED on the last attempt, resuming at the download', async () => {
@@ -214,7 +216,7 @@ describe('TrackPipelineService waits', () => {
       { code: 'DOWNLOAD_FAILED', resumeFrom: 'DOWNLOADING_AUDIO' },
     );
     expect(queue.add).not.toHaveBeenCalled();
-    expect(processings.markCompleted).not.toHaveBeenCalled();
+    expect(completion.complete).not.toHaveBeenCalled();
   });
 
   it('stops without advancing a Processing that moved on while the download ran', async () => {
@@ -228,7 +230,7 @@ describe('TrackPipelineService waits', () => {
       true,
     );
 
-    expect(processings.markCompleted).not.toHaveBeenCalled();
+    expect(completion.complete).not.toHaveBeenCalled();
     expect(processings.markFailed).not.toHaveBeenCalled();
     expect(queue.add).not.toHaveBeenCalled();
     expect(revalidation.revalidate).not.toHaveBeenCalled();

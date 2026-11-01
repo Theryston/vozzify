@@ -42,7 +42,7 @@ services:
   sonic:
     image: valeriansaliou/sonic:v1.10.1
     restart: unless-stopped
-    command: ['-c', '/etc/sonic/config.toml']
+    command: ['sonic', '-c', '/etc/sonic/config.toml']
     ports:
       - '1491:1491'
     volumes:

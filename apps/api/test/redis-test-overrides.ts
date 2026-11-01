@@ -24,6 +24,8 @@ import { TRACK_MP3_QUEUE } from '../src/modules/tracks/track-mp3.job.js';
 import { TrackMp3Processor } from '../src/modules/tracks/track-mp3.processor.js';
 import { TRACK_PROCESSING_QUEUE } from '../src/modules/tracks/track-processing.job.js';
 import { TrackProcessingProcessor } from '../src/modules/tracks/track-processing.processor.js';
+import { TRACK_SEARCH_INDEX_QUEUE } from '../src/modules/tracks/track-search-index.job.js';
+import { TrackSearchIndexProcessor } from '../src/modules/tracks/track-search-index.processor.js';
 import { TRACK_TRENDING_QUEUE } from '../src/modules/tracks/track-trending.job.js';
 import { TrackTrendingProcessor } from '../src/modules/tracks/track-trending.processor.js';
 import { TRACK_METADATA_QUEUE } from '../src/queue/track-metadata.job.js';
@@ -39,6 +41,7 @@ const QUEUES = [
   TRACK_MP3_QUEUE,
   TRACK_TRENDING_QUEUE,
   TRACK_ASSOCIATION_QUEUE,
+  TRACK_SEARCH_INDEX_QUEUE,
   HOME_FEED_QUEUE,
   PERSONAL_HOME_FEED_QUEUE,
   EDITORIAL_PIN_QUEUE,
@@ -55,6 +58,7 @@ const PROCESSORS = [
   TrackMp3Processor,
   TrackTrendingProcessor,
   TrackAssociationProcessor,
+  TrackSearchIndexProcessor,
   HomeFeedProcessor,
   PersonalHomeProcessor,
   EditorialPinsProcessor,

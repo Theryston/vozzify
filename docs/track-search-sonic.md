@@ -26,6 +26,22 @@ the API logs for the final indexed page before exercising fallback. With no
 override, each Sonic command has a 5-second deadline; the tiny nine-Track seed
 index completed with that default.
 
+Processing completion and its Sonic projection event commit in the same
+PostgreSQL transaction. A background worker polls the durable outbox every five
+seconds, claims bounded batches, and retries failed or interrupted deliveries
+with capped backoff. This polling interval and retry schedule are operational
+choices, not search latency guarantees. Processing success does not wait for
+Sonic. The outbox keeps one revisioned row per Track; an acknowledgment for an
+older revision cannot clear newer work. The rebuild command also uses this
+outbox and leaves Sonic marked not-ready if any delivery remains pending.
+
+Track creation, Processing pending, and failed-only Processing do not queue a
+Sonic document. The API currently has no supported Track title/artist-credit
+edit or Track removal operation. If one is added, it must enqueue the changed
+projection or a delete tombstone in the same PostgreSQL transaction. Display
+fields such as covers remain hydrated from PostgreSQL and do not need Sonic
+updates.
+
 ## Verify outage and recovery
 
 Start the API and the Music catalog with a Track that has completed Processing,

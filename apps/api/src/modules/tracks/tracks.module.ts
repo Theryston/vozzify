@@ -47,6 +47,7 @@ import { TRACK_PROCESSING_QUEUE } from './track-processing.job.js';
 import { TrackProcessingProcessor } from './track-processing.processor.js';
 import { TrackProcessingRepository } from './track-processing.repository.js';
 import { TrackProcessingService } from './track-processing.service.js';
+import { TrackProcessingCompletionService } from './track-processing-completion.service.js';
 import { TrackRecommendationsController } from './track-recommendations.controller.js';
 import { TrackRecommendationsRepository } from './track-recommendations.repository.js';
 import { TrackRecommendationsService } from './track-recommendations.service.js';
@@ -58,6 +59,9 @@ import { TrackRequesterService } from './track-requester.service.js';
 import { TrackRetryRepository } from './track-retry.repository.js';
 import { TrackRetryService } from './track-retry.service.js';
 import { TrackRetryLauncherService } from './track-retry-launcher.service.js';
+import { TRACK_SEARCH_INDEX_QUEUE } from './track-search-index.job.js';
+import { TrackSearchIndexModule } from './track-search-index.module.js';
+import { TrackSearchIndexProcessor } from './track-search-index.processor.js';
 import { TrackSitemapController } from './track-sitemap.controller.js';
 import { TrackSitemapRepository } from './track-sitemap.repository.js';
 import { TrackSitemapService } from './track-sitemap.service.js';
@@ -89,6 +93,8 @@ import { TracksService } from './tracks.service.js';
     BullModule.registerQueue({ name: TRACK_MP3_QUEUE }),
     BullModule.registerQueue({ name: TRACK_TRENDING_QUEUE }),
     BullModule.registerQueue({ name: TRACK_ASSOCIATION_QUEUE }),
+    BullModule.registerQueue({ name: TRACK_SEARCH_INDEX_QUEUE }),
+    TrackSearchIndexModule,
     CoverArtModule,
     EmailModule,
     FfmpegModule,
@@ -116,6 +122,7 @@ import { TracksService } from './tracks.service.js';
     TrackDirectAudioService,
     TracksRepository,
     TrackProcessingRepository,
+    TrackProcessingCompletionService,
     TrackContributorRepository,
     TrackContributionsService,
     TrackRequestLimitRepository,
@@ -125,6 +132,7 @@ import { TracksService } from './tracks.service.js';
     TrackAssociationSyncRepository,
     TrackAssociationSyncService,
     TrackAssociationProcessor,
+    TrackSearchIndexProcessor,
     TrackRequestLauncherService,
     TrackRequestFlowService,
     TrackMetadataQueueService,

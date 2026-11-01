@@ -1,9 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SonicService } from '../../integrations/sonic/sonic.service.js';
-import {
-  type SearchIndexTrack,
-  TracksSearchService,
-} from '../tracks/tracks-search.service.js';
+import { TrackSearchIndexService } from '../tracks/track-search-index.service.js';
+import { TracksSearchService } from '../tracks/tracks-search.service.js';
 
 const INDEX_PAGE_SIZE = 200;
 
@@ -14,6 +12,7 @@ export class SearchIndexService {
   constructor(
     private readonly tracks: TracksSearchService,
     private readonly sonic: SonicService,
+    private readonly delivery: TrackSearchIndexService,
   ) {}
 
   async rebuild(): Promise<void> {
@@ -25,19 +24,22 @@ export class SearchIndexService {
         INDEX_PAGE_SIZE,
       );
       if (page.length === 0) break;
-      for (const track of page) {
-        await this.sonic.indexTrack(track.id, searchableText(track));
-      }
+      await this.delivery.enqueueBackfillPage(page);
+      await this.drainDueEvents();
       afterId = page.at(-1)?.id;
       this.logger.log(
         `Indexed ${page.length} eligible Tracks through ${afterId}`,
       );
     }
+    await this.drainDueEvents();
     await this.sonic.markIndexReady();
   }
-}
 
-const searchableText = (track: SearchIndexTrack): string =>
-  `${track.title} ${track.artistCredit
-    .map(({ name, joinPhrase }) => `${name}${joinPhrase}`)
-    .join('')}`;
+  private async drainDueEvents(): Promise<void> {
+    while ((await this.delivery.countPending()) > 0) {
+      if ((await this.delivery.dispatchPending()) === 0) {
+        throw new Error('Sonic index rebuild has undelivered events');
+      }
+    }
+  }
+}

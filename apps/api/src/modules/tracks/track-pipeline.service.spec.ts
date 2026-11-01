@@ -9,6 +9,7 @@ import { TrackNoteDetectionService } from './track-note-detection.service.js';
 import { TrackPipelineService } from './track-pipeline.service.js';
 import { coverJobId, TRACK_PROCESSING_QUEUE } from './track-processing.job.js';
 import { TrackProcessingRepository } from './track-processing.repository.js';
+import { TrackProcessingCompletionService } from './track-processing-completion.service.js';
 import { TrackProcessingFailure } from './track-processing-failure.js';
 import { TrackStepsService } from './track-steps.service.js';
 import { TrackVideoStepService } from './track-video-step.service.js';
@@ -22,7 +23,6 @@ const processings = {
   findProcessing: vi.fn(),
   markStepStarted: vi.fn(),
   markFailed: vi.fn(),
-  markCompleted: vi.fn(),
   findCatalogIds: vi.fn(),
 };
 const videoStep = { run: vi.fn() };
@@ -30,6 +30,7 @@ const audio = { run: vi.fn() };
 const noteDetection = { extractVocals: vi.fn(), detectNotes: vi.fn() };
 const lyrics = { run: vi.fn() };
 const revalidation = { revalidate: vi.fn() };
+const completion = { complete: vi.fn() };
 
 const processing = (overrides: Record<string, unknown> = {}) => ({
   id: 'processing-1',
@@ -68,7 +69,7 @@ describe('TrackPipelineService', () => {
     noteDetection.detectNotes.mockResolvedValue({ kind: 'done' });
     processings.markStepStarted.mockResolvedValue(true);
     processings.markFailed.mockResolvedValue(true);
-    processings.markCompleted.mockResolvedValue(true);
+    completion.complete.mockResolvedValue(true);
     processings.findCatalogIds.mockResolvedValue({
       artistIds: [],
       albumIds: [],
@@ -80,6 +81,7 @@ describe('TrackPipelineService', () => {
         TrackStepsService,
         { provide: getQueueToken(TRACK_PROCESSING_QUEUE), useValue: queue },
         { provide: TrackProcessingRepository, useValue: processings },
+        { provide: TrackProcessingCompletionService, useValue: completion },
         { provide: TrackVideoStepService, useValue: videoStep },
         { provide: TrackAudioService, useValue: audio },
         { provide: TrackNoteDetectionService, useValue: noteDetection },
@@ -175,7 +177,7 @@ describe('TrackPipelineService', () => {
 
       expect(videoStep.run).not.toHaveBeenCalled();
       expect(queue.add).not.toHaveBeenCalled();
-      expect(processings.markCompleted).not.toHaveBeenCalled();
+      expect(completion.complete).not.toHaveBeenCalled();
       expect(processings.markFailed).not.toHaveBeenCalled();
     });
 
@@ -210,7 +212,7 @@ describe('TrackPipelineService', () => {
         jobId: 'step-processing-1-EXTRACTING_LYRICS',
       });
       expect(revalidation.revalidate).not.toHaveBeenCalled();
-      expect(processings.markCompleted).not.toHaveBeenCalled();
+      expect(completion.complete).not.toHaveBeenCalled();
     });
 
     it('completes the Processing after the lyrics step, revalidating the Track first', async () => {
@@ -242,12 +244,13 @@ describe('TrackPipelineService', () => {
         'album:album-1',
         'album:album-1:tracks',
       ]);
-      expect(processings.markCompleted).toHaveBeenCalledWith(
+      expect(completion.complete).toHaveBeenCalledWith(
         'processing-1',
+        'track-1',
         'EXTRACTING_LYRICS',
       );
       expect(revalidation.revalidate.mock.invocationCallOrder[0]).toBeLessThan(
-        processings.markCompleted.mock.invocationCallOrder[0] ?? 0,
+        completion.complete.mock.invocationCallOrder[0] ?? 0,
       );
     });
 
@@ -266,9 +269,7 @@ describe('TrackPipelineService', () => {
       expect(revalidation.revalidate).toHaveBeenCalledWith(['sitemap']);
       expect(
         revalidation.revalidate.mock.invocationCallOrder.at(-1),
-      ).toBeLessThan(
-        processings.markCompleted.mock.invocationCallOrder[0] ?? 0,
-      );
+      ).toBeLessThan(completion.complete.mock.invocationCallOrder[0] ?? 0);
     });
 
     it('queues the cover keyed by its Processing, with the artwork the video step found', async () => {
@@ -315,7 +316,7 @@ describe('TrackPipelineService', () => {
         ['QUEUED', 'FINDING_VIDEO'],
         { code: 'VIDEO_NOT_FOUND', resumeFrom: 'FINDING_VIDEO' },
       );
-      expect(processings.markCompleted).not.toHaveBeenCalled();
+      expect(completion.complete).not.toHaveBeenCalled();
       expect(queue.add).not.toHaveBeenCalled();
     });
 
@@ -370,7 +371,7 @@ describe('TrackPipelineService', () => {
         ['QUEUED', 'FINDING_VIDEO'],
         { code: 'INTERNAL', resumeFrom: 'FINDING_VIDEO' },
       );
-      expect(processings.markCompleted).not.toHaveBeenCalled();
+      expect(completion.complete).not.toHaveBeenCalled();
     });
 
     it('lets BullMQ retry a failure after the video is saved before its last attempt', async () => {
