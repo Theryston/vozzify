@@ -5,5 +5,8 @@ export default defineConfig({
   ...baseConfig,
   testDir: './e2e/real-search',
   testIgnore: [],
-  projects: baseConfig.projects,
+  projects: (baseConfig.projects ?? []).map((project) => ({
+    ...project,
+    testIgnore: [],
+  })),
 });
