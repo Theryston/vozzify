@@ -4,6 +4,7 @@ import { WebRevalidationService } from '../../integrations/web-revalidation/web-
 import { TrackPipelineService } from './track-pipeline.service.js';
 import { TRACK_PROCESSING_QUEUE } from './track-processing.job.js';
 import { TrackProcessingRepository } from './track-processing.repository.js';
+import { TrackProcessingCompletionService } from './track-processing-completion.service.js';
 import { TrackStepsService } from './track-steps.service.js';
 
 // The optional lyrics step (ADR 0004): its failure on the last attempt completes
@@ -15,11 +16,11 @@ const processings = {
   findProcessing: vi.fn(),
   markStepStarted: vi.fn(),
   markFailed: vi.fn(),
-  markCompleted: vi.fn(),
   findCatalogIds: vi.fn(),
 };
 const steps = { downloadAudio: vi.fn(), extractLyrics: vi.fn() };
 const revalidation = { revalidate: vi.fn() };
+const completion = { complete: vi.fn() };
 
 const lyricsJob = {
   processingId: 'processing-1',
@@ -45,7 +46,7 @@ describe('TrackPipelineService optional steps', () => {
     );
     processings.markStepStarted.mockResolvedValue(true);
     processings.markFailed.mockResolvedValue(true);
-    processings.markCompleted.mockResolvedValue(true);
+    completion.complete.mockResolvedValue(true);
     processings.findCatalogIds.mockResolvedValue({
       artistIds: [],
       albumIds: [],
@@ -57,6 +58,7 @@ describe('TrackPipelineService optional steps', () => {
         TrackPipelineService,
         { provide: getQueueToken(TRACK_PROCESSING_QUEUE), useValue: queue },
         { provide: TrackProcessingRepository, useValue: processings },
+        { provide: TrackProcessingCompletionService, useValue: completion },
         { provide: TrackStepsService, useValue: steps },
         { provide: WebRevalidationService, useValue: revalidation },
       ],
@@ -73,8 +75,9 @@ describe('TrackPipelineService optional steps', () => {
 
     await pipeline.runStep(lyricsJob, true);
 
-    expect(processings.markCompleted).toHaveBeenCalledWith(
+    expect(completion.complete).toHaveBeenCalledWith(
       'processing-1',
+      'track-1',
       'EXTRACTING_LYRICS',
     );
     expect(processings.markFailed).not.toHaveBeenCalled();
@@ -88,7 +91,7 @@ describe('TrackPipelineService optional steps', () => {
       'OpenAI is down',
     );
 
-    expect(processings.markCompleted).not.toHaveBeenCalled();
+    expect(completion.complete).not.toHaveBeenCalled();
     expect(processings.markFailed).not.toHaveBeenCalled();
   });
 
@@ -102,7 +105,7 @@ describe('TrackPipelineService optional steps', () => {
       expect.arrayContaining(['EXTRACTING_LYRICS']),
       { code: 'INTERNAL', resumeFrom: 'EXTRACTING_LYRICS' },
     );
-    expect(processings.markCompleted).not.toHaveBeenCalled();
+    expect(completion.complete).not.toHaveBeenCalled();
   });
 
   it('still fails the Processing when a required step fails on its last attempt', async () => {
@@ -121,6 +124,6 @@ describe('TrackPipelineService optional steps', () => {
       expect.arrayContaining(['DOWNLOADING_AUDIO']),
       { code: 'INTERNAL', resumeFrom: 'DOWNLOADING_AUDIO' },
     );
-    expect(processings.markCompleted).not.toHaveBeenCalled();
+    expect(completion.complete).not.toHaveBeenCalled();
   });
 });

@@ -4,6 +4,7 @@ import { WebRevalidationService } from '../../integrations/web-revalidation/web-
 import { TrackPipelineService } from './track-pipeline.service.js';
 import { TRACK_PROCESSING_QUEUE } from './track-processing.job.js';
 import { TrackProcessingRepository } from './track-processing.repository.js';
+import { TrackProcessingCompletionService } from './track-processing-completion.service.js';
 import { TrackStepsService } from './track-steps.service.js';
 
 // Where a queued Processing's first step job starts: the first step of a first
@@ -11,6 +12,7 @@ import { TrackStepsService } from './track-steps.service.js';
 
 const queue = { add: vi.fn() };
 const processings = { findLatestProcessing: vi.fn() };
+const completion = { complete: vi.fn() };
 
 describe('TrackPipelineService.startIfQueued', () => {
   let pipeline: TrackPipelineService;
@@ -24,6 +26,7 @@ describe('TrackPipelineService.startIfQueued', () => {
         TrackPipelineService,
         { provide: getQueueToken(TRACK_PROCESSING_QUEUE), useValue: queue },
         { provide: TrackProcessingRepository, useValue: processings },
+        { provide: TrackProcessingCompletionService, useValue: completion },
         { provide: TrackStepsService, useValue: {} },
         { provide: WebRevalidationService, useValue: {} },
       ],

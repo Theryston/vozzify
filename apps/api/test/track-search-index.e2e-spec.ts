@@ -1,12 +1,15 @@
 import { TransactionHost } from '@nestjs-cls/transactional';
 import { eq } from 'drizzle-orm';
+import { ClsService } from 'nestjs-cls';
 import { trackProcessings } from '../src/database/schema/track-processings.js';
 import { trackSearchIndexEvents } from '../src/database/schema/track-search-index-events.js';
 import { tracks } from '../src/database/schema/tracks.js';
 import { SonicService } from '../src/integrations/sonic/sonic.service.js';
-import { TrackProcessingRepository } from '../src/modules/tracks/track-processing.repository.js';
+import { TrackPipelineService } from '../src/modules/tracks/track-pipeline.service.js';
 import { TrackSearchIndexService } from '../src/modules/tracks/track-search-index.service.js';
 import { TrackSearchIndexEventRepository } from '../src/modules/tracks/track-search-index-event.repository.js';
+import { DONE } from '../src/modules/tracks/track-step-outcome.js';
+import { TrackStepsService } from '../src/modules/tracks/track-steps.service.js';
 import { createTestApp, type TestApp } from './utils/create-test-app.js';
 import { resetDatabase } from './utils/database.js';
 import { createTrack } from './utils/factories.js';
@@ -14,16 +17,17 @@ import { createTrackProcessing } from './utils/track-processing-factories.js';
 
 describe('Track Sonic index outbox (e2e)', () => {
   let testApp: TestApp;
-  const indexTrack = vi.fn().mockResolvedValue(undefined);
+  const replaceTrack = vi.fn().mockResolvedValue(undefined);
   const removeTrack = vi.fn().mockResolvedValue(undefined);
 
   beforeAll(async () => {
     testApp = await createTestApp({
       override: (builder) =>
-        builder.overrideProvider(SonicService).useValue({
-          indexTrack,
-          removeTrack,
-        }),
+        builder
+          .overrideProvider(SonicService)
+          .useValue({ replaceTrack, removeTrack })
+          .overrideProvider(TrackStepsService)
+          .useValue({ extractLyrics: vi.fn().mockResolvedValue(DONE) }),
     });
   });
 
@@ -31,7 +35,7 @@ describe('Track Sonic index outbox (e2e)', () => {
 
   beforeEach(async () => {
     await resetDatabase(testApp.db);
-    indexTrack.mockReset().mockResolvedValue(undefined);
+    replaceTrack.mockReset().mockResolvedValue(undefined);
     removeTrack.mockReset().mockResolvedValue(undefined);
   });
 
@@ -42,11 +46,7 @@ describe('Track Sonic index outbox (e2e)', () => {
     });
     expect(await testApp.db.select().from(trackSearchIndexEvents)).toEqual([]);
 
-    await expect(
-      testApp.app
-        .get(TrackProcessingRepository)
-        .markCompleted(processing.id, 'EXTRACTING_LYRICS'),
-    ).resolves.toBe(true);
+    await completeProcessingThroughPipeline(processing.id);
 
     const [completed] = await testApp.db
       .select({ status: trackProcessings.status })
@@ -77,9 +77,7 @@ describe('Track Sonic index outbox (e2e)', () => {
 
     await expect(
       transaction.withTransaction(async () => {
-        await testApp.app
-          .get(TrackProcessingRepository)
-          .markCompleted(processing.id, 'EXTRACTING_LYRICS');
+        await completeProcessingThroughPipeline(processing.id);
         throw new Error('force transaction rollback');
       }),
     ).rejects.toThrow('force transaction rollback');
@@ -97,9 +95,7 @@ describe('Track Sonic index outbox (e2e)', () => {
     const processing = await createTrackProcessing(testApp.db, track.id, {
       status: 'EXTRACTING_LYRICS',
     });
-    await testApp.app
-      .get(TrackProcessingRepository)
-      .markCompleted(processing.id, 'EXTRACTING_LYRICS');
+    await completeProcessingThroughPipeline(processing.id);
     const events = testApp.app.get(TrackSearchIndexEventRepository);
     const event = await testApp.db.query.trackSearchIndexEvents.findFirst({
       where: eq(trackSearchIndexEvents.trackId, track.id),
@@ -124,23 +120,24 @@ describe('Track Sonic index outbox (e2e)', () => {
     });
     let concurrentDelivery: Promise<number> | undefined;
 
-    indexTrack.mockImplementationOnce(async () => {
+    const cls = testApp.app.get(ClsService);
+    replaceTrack.mockImplementationOnce(async () => {
       const newerTimestamp = new Date(event.sourceUpdatedAt.getTime() + 1_000);
-      await testApp.db
-        .update(tracks)
-        .set({ updatedAt: newerTimestamp })
-        .where(eq(tracks.id, track.id));
-      await events.enqueueBackfillPage([
-        {
-          id: track.id,
-          title: 'Updated title',
-          artistCredit: track.artistCredit,
-          updatedAt: newerTimestamp,
-        },
-      ]);
-      concurrentDelivery = delivery.dispatchPending(
-        new Date(Date.now() + 10_000),
-      );
+      concurrentDelivery = cls.runWith({}, async () => {
+        await testApp.db
+          .update(tracks)
+          .set({ updatedAt: newerTimestamp })
+          .where(eq(tracks.id, track.id));
+        await events.enqueueBackfillPage([
+          {
+            id: track.id,
+            title: 'Updated title',
+            artistCredit: track.artistCredit,
+            updatedAt: newerTimestamp,
+          },
+        ]);
+        return delivery.dispatchPending(new Date(Date.now() + 10_000));
+      });
       await oldWriteRelease;
     });
 
@@ -148,7 +145,7 @@ describe('Track Sonic index outbox (e2e)', () => {
       new Date(event.nextAttemptAt.getTime() + 1),
     );
     await secondClaimed;
-    expect(indexTrack).toHaveBeenCalledOnce();
+    expect(replaceTrack).toHaveBeenCalledOnce();
     releaseOldWrite();
     await firstDelivery;
     await concurrentDelivery;
@@ -163,9 +160,13 @@ describe('Track Sonic index outbox (e2e)', () => {
         .join('')}`,
       deliveredAt: expect.any(Date),
     });
-    expect(indexTrack).toHaveBeenNthCalledWith(1, track.id, expect.any(String));
-    expect(indexTrack.mock.calls.length).toBeGreaterThanOrEqual(2);
-    expect(indexTrack).toHaveBeenNthCalledWith(
+    expect(replaceTrack).toHaveBeenNthCalledWith(
+      1,
+      track.id,
+      expect.any(String),
+    );
+    expect(replaceTrack.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(replaceTrack).toHaveBeenNthCalledWith(
       2,
       track.id,
       `Updated title ${track.artistCredit
@@ -179,10 +180,8 @@ describe('Track Sonic index outbox (e2e)', () => {
     const processing = await createTrackProcessing(testApp.db, track.id, {
       status: 'EXTRACTING_LYRICS',
     });
-    await testApp.app
-      .get(TrackProcessingRepository)
-      .markCompleted(processing.id, 'EXTRACTING_LYRICS');
-    indexTrack.mockRejectedValueOnce(new Error('Sonic unavailable'));
+    await completeProcessingThroughPipeline(processing.id);
+    replaceTrack.mockRejectedValueOnce(new Error('Sonic unavailable'));
 
     const delivery = testApp.app.get(TrackSearchIndexService);
     const attemptAt = new Date(Date.now() + 1_000);
@@ -197,7 +196,7 @@ describe('Track Sonic index outbox (e2e)', () => {
       new Date(attemptAt.getTime() + 5_000),
     );
 
-    indexTrack.mockResolvedValue(undefined);
+    replaceTrack.mockResolvedValue(undefined);
     await delivery.dispatchPending(pending?.nextAttemptAt ?? attemptAt);
     const [delivered] = await testApp.db
       .select()
@@ -205,4 +204,12 @@ describe('Track Sonic index outbox (e2e)', () => {
       .where(eq(trackSearchIndexEvents.trackId, track.id));
     expect(delivered?.deliveredAt).toBeInstanceOf(Date);
   });
+
+  async function completeProcessingThroughPipeline(
+    processingId: string,
+  ): Promise<void> {
+    await testApp.app
+      .get(TrackPipelineService)
+      .runStep({ processingId, step: 'EXTRACTING_LYRICS' }, true);
+  }
 });

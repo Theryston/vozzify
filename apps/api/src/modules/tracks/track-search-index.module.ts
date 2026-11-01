@@ -8,6 +8,6 @@ import { TrackSearchIndexEventRepository } from './track-search-index-event.repo
 @Module({
   imports: [ConfigModule, DatabaseModule, SonicModule],
   providers: [TrackSearchIndexEventRepository, TrackSearchIndexService],
-  exports: [TrackSearchIndexService],
+  exports: [TrackSearchIndexEventRepository, TrackSearchIndexService],
 })
 export class TrackSearchIndexModule {}

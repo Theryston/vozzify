@@ -1,13 +1,31 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SonicService } from '../../integrations/sonic/sonic.service.js';
 import { trackAssociationRetryDelay } from './track-association-retry.js';
 import {
   TRACK_SEARCH_INDEX_BATCH_SIZE,
   TRACK_SEARCH_INDEX_CLAIM_LEASE_MS,
 } from './track-search-index.job.js';
+import type { ClaimedTrackSearchIndexEvent } from './track-search-index-event.repository.js';
 import { TrackSearchIndexEventRepository } from './track-search-index-event.repository.js';
 
 const MAX_REVISIONS_PER_DELIVERY = 3;
+
+export type TrackSearchIndexDeliveryStore = Pick<
+  TrackSearchIndexEventRepository,
+  | 'claimPending'
+  | 'withDeliveryLock'
+  | 'findById'
+  | 'markDelivered'
+  | 'scheduleRetry'
+  | 'requeueNewerRevision'
+  | 'enqueueBackfillPage'
+  | 'countPending'
+>;
+
+export type TrackSearchIndexSonicWriter = Pick<
+  SonicService,
+  'replaceTrack' | 'removeTrack'
+>;
 
 /** Delivers the independently acknowledged Sonic projection outbox. */
 @Injectable()
@@ -15,8 +33,9 @@ export class TrackSearchIndexService {
   private readonly logger = new Logger(TrackSearchIndexService.name);
 
   constructor(
-    private readonly events: TrackSearchIndexEventRepository,
-    private readonly sonic: SonicService,
+    @Inject(TrackSearchIndexEventRepository)
+    private readonly events: TrackSearchIndexDeliveryStore,
+    @Inject(SonicService) private readonly sonic: TrackSearchIndexSonicWriter,
   ) {}
 
   async dispatchPending(now = new Date()): Promise<number> {
@@ -54,14 +73,7 @@ export class TrackSearchIndexService {
   }
 
   private async deliverLatestRevision(
-    claimed: {
-      id: string;
-      trackId: string;
-      operation: 'upsert' | 'delete';
-      searchableText: string | null;
-      revision: number;
-      attempts: number;
-    },
+    claimed: ClaimedTrackSearchIndexEvent,
     now: Date,
   ): Promise<void> {
     await this.events.withDeliveryLock(claimed.trackId, () =>
@@ -70,14 +82,7 @@ export class TrackSearchIndexService {
   }
 
   private async deliverLockedRevisions(
-    claimed: {
-      id: string;
-      trackId: string;
-      operation: 'upsert' | 'delete';
-      searchableText: string | null;
-      revision: number;
-      attempts: number;
-    },
+    claimed: ClaimedTrackSearchIndexEvent,
     now: Date,
   ): Promise<void> {
     let current = (await this.events.findById(claimed.id)) ?? claimed;
@@ -97,14 +102,7 @@ export class TrackSearchIndexService {
   }
 
   private async deliverOneRevision(
-    current: {
-      id: string;
-      trackId: string;
-      operation: 'upsert' | 'delete';
-      searchableText: string | null;
-      revision: number;
-      attempts: number;
-    },
+    current: ClaimedTrackSearchIndexEvent,
     now: Date,
   ) {
     await this.writeToSonic(current);
@@ -117,15 +115,16 @@ export class TrackSearchIndexService {
     return (await this.events.findById(latest.id)) ?? current;
   }
 
-  private async writeToSonic(row: {
-    trackId: string;
-    operation: 'upsert' | 'delete';
-    searchableText: string | null;
-  }): Promise<void> {
+  private async writeToSonic(
+    row: Pick<
+      ClaimedTrackSearchIndexEvent,
+      'trackId' | 'operation' | 'searchableText'
+    >,
+  ): Promise<void> {
     if (row.operation === 'delete') {
       await this.sonic.removeTrack(row.trackId);
     } else if (row.searchableText !== null) {
-      await this.sonic.indexTrack(row.trackId, row.searchableText);
+      await this.sonic.replaceTrack(row.trackId, row.searchableText);
     } else {
       throw new Error(`Track ${row.trackId} has no Sonic document`);
     }

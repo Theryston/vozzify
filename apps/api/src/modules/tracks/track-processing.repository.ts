@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Transactional, TransactionHost } from '@nestjs-cls/transactional';
+import { TransactionHost } from '@nestjs-cls/transactional';
 import {
   TRACK_PROCESSING_TERMINAL_STATUSES,
   type TrackProcessingFailureCode,
@@ -25,7 +25,6 @@ import type {
 } from './track-processing-outputs.js';
 import type { TrackProcessingRow } from './track-processing-view.js';
 import { TrackRequestLimitRepository } from './track-request-limit.repository.js';
-import { completeProcessingWithSearchIndexEvent } from './track-search-index-event.repository.js';
 
 /** A Processing as one of its step jobs reads it. */
 export type ProcessingForStep = {
@@ -254,16 +253,16 @@ export class TrackProcessingRepository {
   }
 
   /** The last step is done: the Processing completes. False if it moved on. */
-  @Transactional()
   async markCompleted(
     processingId: string,
     lastStep: TrackProcessingStep,
   ): Promise<boolean> {
-    return completeProcessingWithSearchIndexEvent(
-      this.txHost,
-      processingId,
-      lastStep,
-    );
+    return this.setInStatus(processingId, [lastStep], {
+      status: 'COMPLETED',
+      failureCode: null,
+      resumeFrom: null,
+      finishedAt: new Date(),
+    });
   }
 
   /**

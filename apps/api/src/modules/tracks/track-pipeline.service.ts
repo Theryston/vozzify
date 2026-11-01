@@ -1,5 +1,5 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   cacheTags,
   type TrackProcessingFailureCode,
@@ -33,6 +33,7 @@ import {
   type ProcessingForStep,
   TrackProcessingRepository,
 } from './track-processing.repository.js';
+import { TrackProcessingCompletionService } from './track-processing-completion.service.js';
 import {
   messageOf,
   TrackProcessingFailure,
@@ -61,6 +62,9 @@ type StepHandler = (
 @Injectable()
 export class TrackPipelineService {
   private readonly logger = new Logger(TrackPipelineService.name);
+
+  @Inject(TrackProcessingCompletionService)
+  private completion: TrackProcessingCompletionService | undefined = undefined;
 
   /**
    * What each step of the pipeline does. Typed on the step list, so a step
@@ -299,7 +303,10 @@ export class TrackPipelineService {
     // A completed Track joins the Tracks, Artists and Albums sitemaps, which
     // share one tag: it drops their cached pages, so the next crawl sees it.
     await this.revalidation.revalidate([cacheTags.sitemap]);
-    await this.processings.markCompleted(processing.id, lastStep);
+    if (this.completion === undefined) {
+      throw new Error('Track completion service is unavailable');
+    }
+    await this.completion.complete(processing.id, processing.trackId, lastStep);
   }
 
   private async enqueueStep(

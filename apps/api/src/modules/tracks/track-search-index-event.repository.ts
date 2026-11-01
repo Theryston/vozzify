@@ -1,69 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
-import type { TrackProcessingStep } from '@vozzify/contracts';
 import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
-import { trackProcessings } from '../../database/schema/track-processings.js';
 import { trackSearchIndexEvents } from '../../database/schema/track-search-index-events.js';
 import { tracks } from '../../database/schema/tracks.js';
-
-const processingInStatus = (
-  processingId: string,
-  status: TrackProcessingStep,
-) =>
-  and(
-    eq(trackProcessings.id, processingId),
-    eq(trackProcessings.status, status),
-  );
-
-/** Joins completion and its first searchable projection in the caller's transaction. */
-export const completeProcessingWithSearchIndexEvent = async (
-  txHost: TransactionHost<DatabaseAdapter>,
-  processingId: string,
-  lastStep: TrackProcessingStep,
-): Promise<boolean> => {
-  const completed = await txHost.tx
-    .update(trackProcessings)
-    .set({
-      status: 'COMPLETED',
-      failureCode: null,
-      resumeFrom: null,
-      finishedAt: new Date(),
-    })
-    .where(processingInStatus(processingId, lastStep))
-    .returning({ trackId: trackProcessings.trackId });
-  const trackId = completed[0]?.trackId;
-  if (trackId === undefined) return false;
-
-  const track = await txHost.tx.query.tracks.findFirst({
-    where: eq(tracks.id, trackId),
-    columns: { title: true, artistCredit: true, updatedAt: true },
-  });
-  if (track === undefined) throw new Error(`No Track ${trackId}`);
-  const searchableText = formatSearchableTrackText(track);
-  await txHost.tx
-    .insert(trackSearchIndexEvents)
-    .values({
-      trackId,
-      operation: 'upsert',
-      searchableText,
-      sourceUpdatedAt: track.updatedAt,
-    })
-    .onConflictDoUpdate({
-      target: trackSearchIndexEvents.trackId,
-      set: {
-        operation: 'upsert',
-        searchableText,
-        sourceUpdatedAt: track.updatedAt,
-        revision: sql`${trackSearchIndexEvents.revision} + 1`,
-        attempts: 0,
-        nextAttemptAt: new Date(),
-        claimedUntil: null,
-        deliveredAt: null,
-      },
-    });
-  return true;
-};
 
 const formatSearchableTrackText = (track: {
   title: string;
@@ -98,6 +38,16 @@ export class TrackSearchIndexEventRepository {
       );
       return deliver();
     });
+  }
+
+  /** Adds the Track's current searchable projection in the caller's transaction. */
+  async enqueueCompletedTrack(trackId: string): Promise<void> {
+    const track = await this.txHost.tx.query.tracks.findFirst({
+      where: eq(tracks.id, trackId),
+      columns: { title: true, artistCredit: true, updatedAt: true },
+    });
+    if (track === undefined) throw new Error(`No Track ${trackId}`);
+    await this.enqueueBackfillPage([{ id: trackId, ...track }]);
   }
 
   async claimPending(
