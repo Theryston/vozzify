@@ -4,6 +4,7 @@ import type { RecordingDocumentRepository } from './recording-document.repositor
 import type {
   BatchDetails,
   DocumentRecordingRow,
+  RecordingProgress,
 } from './recording-document-data.js';
 
 export type DocumentBatch = {
@@ -49,12 +50,11 @@ export class RecordingDocumentService {
   }
 
   /**
-   * How many Recordings the catalog holds. The worker calls it once per
-   * indexing run (one `count(*)`), then walks the batches without re-reading
-   * it, so the total stays the one the run started with.
+   * Reads cumulative progress once per run, using the last confirmed id.
+   * Batches advance these counts only after their checkpoint is saved.
    */
-  async countAll(): Promise<number> {
-    return this.repository.countAll();
+  async countProgress(afterId: number): Promise<RecordingProgress> {
+    return this.repository.countProgress(afterId);
   }
 
   /**

@@ -1,7 +1,12 @@
 import { MeilisearchIndex } from '../src/integrations/meilisearch/meilisearch-index.js';
-import { useTestServer } from './utils/create-test-server.js';
+import { testLogger, useTestServer } from './utils/create-test-server.js';
 import { setBootstrapState } from './utils/database.js';
-import { addArtist, addRecording, mbid } from './utils/musicbrainz.js';
+import {
+  addArtist,
+  addRecording,
+  deleteRecording,
+  mbid,
+} from './utils/musicbrainz.js';
 import { requestSearch } from './utils/search-client.js';
 import {
   createTestWorker,
@@ -162,6 +167,42 @@ describe('indexing: the worker takes the catalog to ready (e2e)', () => {
   });
 
   describe('when the worker dies in the middle of indexing', () => {
+    it('logs cumulative confirmed counts after restarting with gaps in the source ids', async () => {
+      const removed = await addRecording(server().db, { name: 'Removed' });
+      await deleteRecording(server().db, removed);
+      const tunes = await addTunes(5);
+      const controller = new AbortController();
+      watchUpserts((call) => {
+        if (call === 1) controller.abort();
+      });
+      await indexCatalog(server(), smallBatchWorker(controller.signal));
+      expect(await phase()).toBe('indexing');
+      vi.restoreAllMocks();
+      const logs = vi.spyOn(testLogger, 'info');
+
+      await smallBatchWorker().tick();
+
+      expect(logs).toHaveBeenCalledWith('Indexed a batch of Recordings', {
+        batch: 1,
+        indexed: 4,
+        remaining: 1,
+        total: 5,
+        percent: 80,
+        lastRecordingId: 5,
+      });
+      expect(logs).toHaveBeenCalledWith('Indexed a batch of Recordings', {
+        batch: 2,
+        indexed: 5,
+        remaining: 0,
+        total: 5,
+        percent: 100,
+        lastRecordingId: 6,
+      });
+      expect(await phase()).toBe('ready');
+      await server().waitForSearchPhase('ready');
+      expect([...(await searchMbids('tune'))].sort()).toEqual(tunes);
+    });
+
     const killedAfterTwoBatches = async () => {
       const tunes = await addTunes(5);
       const sent = watchUpserts((call) => {

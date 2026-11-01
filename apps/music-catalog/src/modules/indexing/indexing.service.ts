@@ -7,6 +7,7 @@ import {
 import type { Logger } from '../../logger.js';
 import type { BootstrapService } from '../bootstrap/bootstrap.service.js';
 import type { RecordingDocumentService } from '../recording/recording-document.service.js';
+import type { RecordingProgress } from '../recording/recording-document-data.js';
 import type { IndexingRepository } from './indexing.repository.js';
 import { indexingPercent } from './indexing-progress.js';
 import { runIndexingWindow } from './indexing-window.js';
@@ -67,9 +68,9 @@ export class IndexingService {
     const { index, repository } = this.deps;
     await index.ensure(RECORDINGS_INDEX_SETTINGS);
     const checkpoint = await repository.getCheckpoint(RECORDINGS_INDEX.uid);
-    const total = await this.deps.documents.countAll();
-    if (await this.indexFrom(checkpoint, total, signal)) {
-      return total;
+    const progress = await this.deps.documents.countProgress(checkpoint);
+    if (await this.indexFrom(checkpoint, progress, signal)) {
+      return progress.total;
     }
     return undefined;
   }
@@ -77,12 +78,13 @@ export class IndexingService {
   // Returns whether every Recording was indexed (false: stopped early).
   private async indexFrom(
     checkpoint: number,
-    total: number,
+    progress: RecordingProgress,
     signal: AbortSignal,
   ): Promise<boolean> {
     const { documents, index, repository, batchSize, logger } = this.deps;
     let afterId = checkpoint;
-    let indexed = 0;
+    const { total } = progress;
+    let { indexed } = progress;
     let batchNumber = 0;
     while (!signal.aborted) {
       const writeWindow = () =>
@@ -101,6 +103,7 @@ export class IndexingService {
             logger.info('Indexed a batch of Recordings', {
               batch: ++batchNumber,
               indexed,
+              remaining: Math.max(0, total - indexed),
               total,
               percent: indexingPercent(indexed, total),
               lastRecordingId: batch.lastRecordingId,

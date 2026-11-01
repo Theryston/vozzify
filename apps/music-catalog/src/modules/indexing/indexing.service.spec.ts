@@ -25,22 +25,23 @@ const doc = (id: number): RecordingDocument => ({
   disambiguation: '',
 });
 
-// Recordings 1..total, served `size` at a time after the given id.
-const catalog = (total: number) => async (afterId: number, size: number) => {
-  const ids = Array.from({ length: total }, (_, i) => i + 1)
-    .filter((id) => id > afterId)
-    .slice(0, size);
-  const last = ids.at(-1);
-  return last === undefined
-    ? undefined
-    : { documents: ids.map(doc), lastRecordingId: last };
-};
+// Existing Recordings, served `size` at a time after the given id.
+const catalog =
+  (recordingIds: readonly number[]) =>
+  async (afterId: number, size: number) => {
+    const ids = recordingIds.filter((id) => id > afterId).slice(0, size);
+    const last = ids.at(-1);
+    return last === undefined
+      ? undefined
+      : { documents: ids.map(doc), lastRecordingId: last };
+  };
 
 type Options = {
   phase?: BootstrapPhase;
   total?: number;
   checkpoint?: number;
   batchSize?: number;
+  recordingIds?: number[];
   writeLock?: IndexingServiceDeps['writeLock'];
 };
 
@@ -58,9 +59,15 @@ const setup = (options: Options = {}) => {
       events.push('markReady');
     }),
   };
+  const ids =
+    options.recordingIds ??
+    Array.from({ length: options.total ?? 5 }, (_, i) => i + 1);
   const documents = {
-    findBatch: vi.fn(catalog(options.total ?? 5)),
-    countAll: vi.fn(async () => options.total ?? 5),
+    findBatch: vi.fn(catalog(ids)),
+    countProgress: vi.fn(async (afterId: number) => ({
+      total: ids.length,
+      indexed: ids.filter((id) => id <= afterId).length,
+    })),
   };
   const repository = {
     getCheckpoint: vi.fn(async () => options.checkpoint ?? 0),
@@ -221,6 +228,7 @@ describe('IndexingService', () => {
         {
           batch: 1,
           indexed: 2,
+          remaining: 1,
           total: 3,
           percent: 67,
           lastRecordingId: 2,
@@ -231,6 +239,7 @@ describe('IndexingService', () => {
         {
           batch: 2,
           indexed: 3,
+          remaining: 0,
           total: 3,
           percent: 100,
           lastRecordingId: 3,
@@ -238,15 +247,97 @@ describe('IndexingService', () => {
       );
     });
 
-    it('reads the total once per run, never per batch', async () => {
+    it('reads cumulative counts once per run, never per batch', async () => {
       const { service, documents } = setup({ total: 5, batchSize: 2 });
 
       await service.run(signal());
 
-      expect(documents.countAll).toHaveBeenCalledTimes(1);
+      expect(documents.countProgress).toHaveBeenCalledExactlyOnceWith(0);
     });
 
     describe('when the worker is restarted in the middle of indexing', () => {
+      it('logs confirmed progress from previous runs and the remaining Recordings', async () => {
+        const { service, logger } = setup({
+          phase: 'indexing',
+          recordingIds: [10, 40, 90, 130, 1000],
+          checkpoint: 40,
+          batchSize: 2,
+        });
+
+        await service.run(signal());
+
+        expect(logger.info).toHaveBeenCalledWith(
+          'Indexed a batch of Recordings',
+          {
+            batch: 1,
+            indexed: 4,
+            remaining: 1,
+            total: 5,
+            percent: 80,
+            lastRecordingId: 130,
+          },
+        );
+        expect(logger.info).toHaveBeenCalledWith(
+          'Indexed a batch of Recordings',
+          {
+            batch: 2,
+            indexed: 5,
+            remaining: 0,
+            total: 5,
+            percent: 100,
+            lastRecordingId: 1000,
+          },
+        );
+      });
+
+      it('recounts confirmed progress on retry without including a failed batch', async () => {
+        const { service, index, repository, documents, logger } = setup({
+          phase: 'indexing',
+          total: 5,
+          checkpoint: 2,
+        });
+        index.upsert
+          .mockResolvedValueOnce(undefined)
+          .mockRejectedValueOnce(new Error('task failed'));
+
+        await expect(service.run(signal())).rejects.toThrow('task failed');
+
+        expect(repository.saveCheckpoint.mock.calls).toEqual([
+          [RECORDINGS_INDEX.uid, 4],
+        ]);
+        expect(logger.info).toHaveBeenCalledExactlyOnceWith(
+          'Indexed a batch of Recordings',
+          expect.objectContaining({ indexed: 4, remaining: 1, percent: 80 }),
+        );
+        repository.getCheckpoint.mockResolvedValue(4);
+        logger.info.mockClear();
+
+        await service.run(signal());
+
+        expect(documents.countProgress.mock.calls).toEqual([[2], [4]]);
+        expect(logger.info).toHaveBeenCalledWith(
+          'Indexed a batch of Recordings',
+          expect.objectContaining({ indexed: 5, remaining: 0, percent: 100 }),
+        );
+      });
+
+      it('keeps cumulative progress in the pause log', async () => {
+        const controller = new AbortController();
+        controller.abort();
+        const { service, logger } = setup({
+          phase: 'indexing',
+          recordingIds: [10, 40, 90],
+          checkpoint: 40,
+        });
+
+        await service.run(controller.signal);
+
+        expect(logger.info).toHaveBeenLastCalledWith(
+          'Indexing paused: the worker is stopping',
+          { indexed: 2 },
+        );
+      });
+
       it('goes on after the checkpoint instead of starting over', async () => {
         const { service, documents, bootstrap, events } = setup({
           phase: 'indexing',

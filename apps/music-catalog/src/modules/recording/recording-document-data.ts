@@ -4,6 +4,9 @@ import type { TagVotesRow } from './recording-data.js';
 // is built into the document Meilisearch indexes. Plain rows, keyed by the
 // Recording (or the artist credit) they belong to.
 
+/** Recordings in the source and in its checkpoint-confirmed prefix. */
+export type RecordingProgress = { total: number; indexed: number };
+
 /** The Recording's own row with the printed name of its artist credit. */
 export type DocumentRecordingRow = {
   /** MusicBrainz's integer id: only used to walk the Recordings in order. */
