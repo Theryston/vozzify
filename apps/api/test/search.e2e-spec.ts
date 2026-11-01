@@ -91,6 +91,7 @@ describe('Catalog search plus limits plus errors (e2e)', () => {
     }).expect(200);
 
     expect(searchResultSchema.parse(response.body)).toEqual(response.body);
+    expect(response.body.source).toBe('music-catalog');
     expect(
       response.body.results.map((item: { title: string }) => item.title),
     ).toEqual(['First Song', 'Second Song']);

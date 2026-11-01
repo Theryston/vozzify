@@ -10,9 +10,12 @@ import {
 import { seconds, Throttle } from '@nestjs/throttler';
 import { type SearchResult, searchResultSchema } from '@vozzify/contracts';
 import { Public } from '../../common/decorators/public.decorator.js';
+import { createZodDto } from '../../common/zod/create-zod-dto.js';
 import { ZodSerializerDto } from '../../common/zod/zod-serializer.interceptor.js';
 import { SearchService } from './search.service.js';
 import { SearchQueryDto } from './search-query.dto.js';
+
+class SearchResultDto extends createZodDto(searchResultSchema) {}
 
 @ApiTags('search')
 @Public()
@@ -28,7 +31,10 @@ export class SearchController {
   @Get()
   @Throttle({ default: { limit: 30, ttl: seconds(60) } })
   @ZodSerializerDto(searchResultSchema)
-  @ApiOkResponse({ description: 'Catalog matches, best first.' })
+  @ApiOkResponse({
+    description: 'Catalog matches, best first.',
+    type: SearchResultDto,
+  })
   @ApiBadRequestResponse({ description: 'The query or paging is bad.' })
   @ApiTooManyRequestsResponse({ description: 'Per-IP search rate exceeded.' })
   @ApiServiceUnavailableResponse({ description: 'The Music catalog is down.' })

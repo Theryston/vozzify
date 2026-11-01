@@ -1,8 +1,11 @@
 'use client';
 
 import {
+  type InfiniteData,
   infiniteQueryOptions,
   keepPreviousData,
+  type QueryFunctionContext,
+  replaceEqualDeep,
   useInfiniteQuery,
 } from '@tanstack/react-query';
 import {
@@ -41,10 +44,61 @@ export function fetchSearchPage({
   });
 }
 
+type SearchPage = SearchResult & { offset?: number };
+type SearchPages = InfiniteData<SearchPage, number>;
+
+/** Commit only pages following the most recent restart, in one cache update. */
+function shareSearchPages(previous: unknown, next: unknown) {
+  // TanStack's structural-sharing callback erases the query data type.
+  const data = next as SearchPages;
+  const start = data.pages.findLastIndex((page) => page.offset === 0);
+  const pages = data.pages.slice(Math.max(0, start));
+  return replaceEqualDeep(previous, {
+    pages,
+    pageParams: pages.map(
+      (page, index) => page.offset ?? data.pageParams[index],
+    ),
+  });
+}
+
 export type SearchInfiniteInput = {
   query: string;
   limit?: number;
 };
+
+// A refetch can visit several pages before committing. Its signal identifies
+// that in-flight sequence, whose first source can differ from cached data.
+const sequenceSources = new WeakMap<AbortSignal, SearchResult['source']>();
+
+async function fetchSequencePage(
+  { query, limit = SEARCH_DEFAULT_LIMIT }: SearchInfiniteInput,
+  {
+    pageParam,
+    signal,
+    client,
+    queryKey,
+  }: QueryFunctionContext<readonly unknown[], number>,
+): Promise<SearchPage> {
+  const page = await fetchSearchPage({
+    query,
+    limit,
+    offset: pageParam,
+    signal,
+  });
+  signal.throwIfAborted();
+  const previous = client.getQueryData<SearchPages>(queryKey);
+  const source = sequenceSources.has(signal)
+    ? sequenceSources.get(signal)
+    : previous?.pages.find((entry) => entry.source)?.source;
+  if (pageParam > 0 && source && page.source && source !== page.source) {
+    const first = await fetchSearchPage({ query, limit, offset: 0, signal });
+    signal.throwIfAborted();
+    sequenceSources.set(signal, first.source);
+    return { ...first, offset: 0 };
+  }
+  if (pageParam === 0 || page.source) sequenceSources.set(signal, page.source);
+  return { ...page, offset: pageParam };
+}
 
 /**
  * Infinite results keyed by query text (the offset travels as the page
@@ -69,21 +123,18 @@ export function searchInfiniteQueryOptions({
           'infinite',
           { query: normalizeSearchQuery(query), limit },
         ] as const),
-    queryFn: ({
-      pageParam,
-      signal,
-    }: {
-      pageParam: number;
-      signal: AbortSignal;
-    }) => fetchSearchPage({ query, limit, offset: pageParam, signal }),
+    queryFn: (context: QueryFunctionContext<readonly unknown[], number>) =>
+      fetchSequencePage({ query, limit }, context),
+    structuralSharing: shareSearchPages,
     initialPageParam: 0,
     getNextPageParam: (
-      lastPage: SearchResult,
-      _allPages: SearchResult[],
+      lastPage: SearchPage,
+      _allPages: SearchPage[],
       lastPageParam: number,
     ) => {
       if (lastPage.results.length < limit) return undefined;
-      const nextOffset = lastPageParam + lastPage.results.length;
+      const nextOffset =
+        (lastPage.offset ?? lastPageParam) + lastPage.results.length;
       return nextOffset > SEARCH_MAX_OFFSET ? undefined : nextOffset;
     },
     enabled,
