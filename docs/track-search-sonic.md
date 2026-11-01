@@ -51,7 +51,7 @@ when the Music catalog is also unavailable.
 
 The `search-real-sonic.spec.ts` browser test starts with a catalog-ranked page,
 then forwards the next page and the pagination restart to a real API on port
-4335. The API must have the seeded completed Tracks indexed in Sonic and the
+4336. The API must have the seeded completed Tracks indexed in Sonic and the
 Music catalog unavailable. In separate terminals, migrate and seed the local
 API database, then rebuild Sonic:
 
@@ -65,7 +65,7 @@ Start the API with a deliberately unreachable catalog and the local Sonic
 settings from `apps/api/.env.example`:
 
 ```sh
-PORT=4335 MUSIC_CATALOG_URL=ws://127.0.0.1:1 \
+PORT=4336 MUSIC_CATALOG_URL=ws://127.0.0.1:1 \
 MUSIC_CATALOG_API_KEY=local-placeholder-key-at-least-32-characters \
 nub run --filter=api dev
 ```
