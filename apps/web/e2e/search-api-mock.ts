@@ -1,4 +1,5 @@
 import type { Page, Request, Route } from '@playwright/test';
+import type { SearchResult } from '@vozzify/contracts';
 
 // Any host: like the auth routes, the API URL is inlined at build time.
 const SEARCH_ROUTE = '**/v1/search**';
@@ -24,6 +25,9 @@ function resultBody(item: SearchMockItem, index: number) {
 }
 
 export type SearchMockState = {
+  source?: SearchResult['source'];
+  sourceOnNextPage?: SearchResult['source'];
+  reverseResults: boolean;
   /** Every search request the page made, in order. */
   calls: Request[];
   /** Added latency per reply, so the loading skeleton can be seen. */
@@ -43,7 +47,7 @@ export type SearchMockState = {
 /** Every hit the mock knows, with the linked and unlinked cards first. */
 function allHits(state: SearchMockState): SearchMockItem[] {
   if (state.emptyResults) return [];
-  return Array.from({ length: state.totalCount }, (_, index) => {
+  const hits = Array.from({ length: state.totalCount }, (_, index) => {
     if (index === 0) return state.linked;
     if (index === 1) return state.unlinked;
     return {
@@ -52,6 +56,7 @@ function allHits(state: SearchMockState): SearchMockItem[] {
       trackId: null,
     };
   });
+  return state.reverseResults ? hits.reverse() : hits;
 }
 
 type MockReply = { status: number; body: unknown };
@@ -71,10 +76,15 @@ function searchReply(state: SearchMockState, request: Request): MockReply {
   const url = new URL(request.url());
   const offset = Number(url.searchParams.get('offset') ?? 0);
   const limit = Number(url.searchParams.get('limit') ?? 20);
+  if (offset > 0 && state.sourceOnNextPage) {
+    state.source = state.sourceOnNextPage;
+    state.sourceOnNextPage = undefined;
+    state.reverseResults = true;
+  }
   const results = allHits(state)
     .slice(offset, offset + limit)
     .map((item, position) => resultBody(item, offset + position));
-  return { status: 200, body: { results } };
+  return { status: 200, body: { results, source: state.source } };
 }
 
 /** The CORS headers the real API sends, so the browser accepts the reply. */
@@ -101,6 +111,7 @@ export async function mockSearchApi(
 ): Promise<SearchMockState> {
   const state: SearchMockState = {
     calls: [],
+    reverseResults: false,
     delayMs: 0,
     shouldFail: false,
     emptyResults: false,
@@ -126,11 +137,11 @@ export async function mockSearchApi(
       return;
     }
     state.calls.push(request);
+    const reply = searchReply(state, request);
     if (state.delayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, state.delayMs));
     }
     try {
-      const reply = searchReply(state, request);
       await route.fulfill({
         status: reply.status,
         headers,

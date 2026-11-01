@@ -1,5 +1,5 @@
 import { QueryClient } from '@tanstack/react-query';
-import { SEARCH_DEFAULT_LIMIT } from '@vozzify/contracts';
+import { SEARCH_DEFAULT_LIMIT, SEARCH_MAX_OFFSET } from '@vozzify/contracts';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/env/client', () => ({
@@ -125,14 +125,28 @@ describe('searchInfiniteQueryOptions', () => {
     ).toBeUndefined();
   });
 
-  it('uses the default page size', async () => {
+  it('does not request an offset beyond the public bound', async () => {
     const { searchInfiniteQueryOptions } = await import('./use-search-results');
-    const options = searchInfiniteQueryOptions({ query: 'queen' });
+    const options = searchInfiniteQueryOptions({ query: 'queen', limit: 2 });
+    const page = { results: [resultItem(1, 'A'), resultItem(2, 'B')] };
 
-    expect(options.queryKey).toEqual([
-      'search',
-      'infinite',
-      { query: 'queen', limit: SEARCH_DEFAULT_LIMIT },
-    ]);
+    expect(
+      options.getNextPageParam?.(page, [page], SEARCH_MAX_OFFSET, [
+        SEARCH_MAX_OFFSET,
+      ]),
+    ).toBeUndefined();
+  });
+
+  it('uses the default page size in the public request', async () => {
+    fetchMock.mockResolvedValue(searchBody([]));
+    const { searchInfiniteQueryOptions } = await import('./use-search-results');
+    await new QueryClient().fetchInfiniteQuery(
+      searchInfiniteQueryOptions({ query: 'queen' }),
+    );
+
+    const [input] = fetchMock.mock.lastCall ?? [];
+    expect(new URL(String(input)).searchParams.get('limit')).toBe(
+      String(SEARCH_DEFAULT_LIMIT),
+    );
   });
 });

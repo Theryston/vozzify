@@ -2066,7 +2066,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Catalog matches, best first."
+            "description": "Catalog matches, best first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResultDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "The query or paging is bad."
@@ -4086,6 +4093,55 @@
           "benefitIds"
         ],
         "additionalProperties": false
+      },
+      "SearchResultDto": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "mbid": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "artistCredit": {
+                  "type": "string"
+                },
+                "coverUrl": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "trackId": {
+                  "nullable": true,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "mbid",
+                "title",
+                "artistCredit",
+                "coverUrl",
+                "trackId"
+              ]
+            }
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "music-catalog",
+              "sonic"
+            ]
+          }
+        },
+        "required": [
+          "results"
+        ]
       },
       "UpdatePracticePreferencesBodyDto": {
         "type": "object",

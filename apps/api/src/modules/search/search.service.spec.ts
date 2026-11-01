@@ -31,7 +31,7 @@ describe('SearchService', () => {
 
     await expect(
       service.search({ query: 'song', limit: 20, offset: 0 }),
-    ).resolves.toEqual(result);
+    ).resolves.toEqual({ ...result, source: 'music-catalog' });
     expect(searchResultSchema.parse(result)).toEqual(result);
   });
 
@@ -39,7 +39,7 @@ describe('SearchService', () => {
     catalog.search.mockResolvedValue({ results: [] });
     await expect(
       service.search({ query: 'none', limit: 20, offset: 0 }),
-    ).resolves.toEqual({ results: [] });
+    ).resolves.toEqual({ results: [], source: 'music-catalog' });
   });
 
   it('preserves catalog errors', async () => {

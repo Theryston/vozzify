@@ -13,6 +13,7 @@ export class SearchService {
    * The catalog owns the Track association projection and relevance order.
    */
   async search(params: MusicCatalogSearchParams): Promise<SearchResult> {
-    return this.catalog.search(params);
+    const result = await this.catalog.search(params);
+    return { ...result, source: 'music-catalog' };
   }
 }

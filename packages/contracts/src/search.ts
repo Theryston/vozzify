@@ -44,6 +44,7 @@ export type SearchResultItem = z.infer<typeof searchResultItemSchema>;
 /** The matches, best first: the order the search engine ranked them in. */
 export const searchResultSchema = z.object({
   results: z.array(searchResultItemSchema),
+  source: z.enum(['music-catalog', 'sonic']).optional(),
 });
 
 export type SearchResult = z.infer<typeof searchResultSchema>;
