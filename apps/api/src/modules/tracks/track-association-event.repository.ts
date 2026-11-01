@@ -9,6 +9,8 @@ export type ClaimedTrackAssociation = {
   recordingMbid: string;
   trackId: string;
   attempts: number;
+  businessScore: number;
+  revision: number;
 };
 
 /** Durable queue state for Track links that the Music catalog has not acknowledged. */
@@ -52,31 +54,43 @@ export class TrackAssociationEventRepository {
         id: trackAssociationEvents.id,
         recordingMbid: trackAssociationEvents.recordingMbid,
         trackId: trackAssociationEvents.trackId,
+        businessScore: trackAssociationEvents.businessScore,
+        revision: trackAssociationEvents.revision,
         attempts: trackAssociationEvents.attempts,
       });
   }
 
   /** Records delivery only after the catalog's durable acknowledgment. */
-  async markDelivered(id: string, deliveredAt: Date): Promise<void> {
+  async markDelivered(
+    id: string,
+    revision: number,
+    deliveredAt: Date,
+  ): Promise<void> {
     await this.txHost.tx
       .update(trackAssociationEvents)
       .set({ deliveredAt, claimedUntil: null })
       .where(
         and(
           eq(trackAssociationEvents.id, id),
+          eq(trackAssociationEvents.revision, revision),
           isNull(trackAssociationEvents.deliveredAt),
         ),
       );
   }
 
   /** Releases a failed claim with durable exponential backoff. */
-  async scheduleRetry(id: string, nextAttemptAt: Date): Promise<void> {
+  async scheduleRetry(
+    id: string,
+    revision: number,
+    nextAttemptAt: Date,
+  ): Promise<void> {
     await this.txHost.tx
       .update(trackAssociationEvents)
       .set({ nextAttemptAt, claimedUntil: null })
       .where(
         and(
           eq(trackAssociationEvents.id, id),
+          eq(trackAssociationEvents.revision, revision),
           isNull(trackAssociationEvents.deliveredAt),
         ),
       );
@@ -98,7 +112,12 @@ export class TrackAssociationEventRepository {
   }
 
   async enqueueSynchronizationPage(
-    rows: { id: string; recordingMbid: string }[],
+    rows: {
+      id: string;
+      recordingMbid: string;
+      businessScore: number;
+      revision: number;
+    }[],
   ): Promise<void> {
     if (rows.length === 0) return;
     await this.txHost.tx
@@ -107,16 +126,20 @@ export class TrackAssociationEventRepository {
         rows.map((row) => ({
           trackId: row.id,
           recordingMbid: row.recordingMbid,
+          businessScore: row.businessScore,
+          revision: row.revision,
         })),
       )
       .onConflictDoUpdate({
         target: trackAssociationEvents.trackId,
         set: {
-          recordingMbid: sql`excluded.recording_mbid`,
-          attempts: 0,
-          nextAttemptAt: new Date(),
-          claimedUntil: null,
-          deliveredAt: null,
+          recordingMbid: sql`case when excluded.revision >= ${trackAssociationEvents.revision} then excluded.recording_mbid else ${trackAssociationEvents.recordingMbid} end`,
+          businessScore: sql`case when excluded.revision >= ${trackAssociationEvents.revision} then excluded.business_score else ${trackAssociationEvents.businessScore} end`,
+          revision: sql`greatest(${trackAssociationEvents.revision}, excluded.revision)`,
+          attempts: sql`case when excluded.revision >= ${trackAssociationEvents.revision} then 0 else ${trackAssociationEvents.attempts} end`,
+          nextAttemptAt: sql`case when excluded.revision >= ${trackAssociationEvents.revision} then now() else ${trackAssociationEvents.nextAttemptAt} end`,
+          claimedUntil: sql`case when excluded.revision >= ${trackAssociationEvents.revision} then null else ${trackAssociationEvents.claimedUntil} end`,
+          deliveredAt: sql`case when excluded.revision >= ${trackAssociationEvents.revision} then null else ${trackAssociationEvents.deliveredAt} end`,
         },
       });
   }

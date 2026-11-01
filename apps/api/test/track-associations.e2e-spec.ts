@@ -22,6 +22,7 @@ import { TrackAssociationEventRepository } from '../src/modules/tracks/track-ass
 import { TrackAssociationSyncRepository } from '../src/modules/tracks/track-association-sync.repository.js';
 import { TrackAssociationSyncService } from '../src/modules/tracks/track-association-sync.service.js';
 import { TrackProcessingRepository } from '../src/modules/tracks/track-processing.repository.js';
+import { TracksRepository } from '../src/modules/tracks/tracks.repository.js';
 import { type AuthClient, createAuthClient, signIn } from './utils/auth.js';
 import { createTestApp, type TestApp } from './utils/create-test-app.js';
 import { resetDatabase } from './utils/database.js';
@@ -193,6 +194,107 @@ describe('Track association outbox (e2e)', () => {
     expect(event?.deliveredAt).toBeInstanceOf(Date);
   });
 
+  it('atomically publishes score increases and decreases, while stale completion cannot acknowledge a newer revision', async () => {
+    const user = await createPasswordUser(testApp.db);
+    const response = await (await signedInClient(user))
+      .post('/v1/tracks')
+      .send({ recordingMbid: testMbid(1), locale: 'en' })
+      .expect(202);
+    const { trackId } = createTrackResultSchema.parse(response.body);
+    const repository = testApp.app.get(TracksRepository);
+    const events = testApp.app.get(TrackAssociationEventRepository);
+    const [initial] = await events.claimPending(
+      new Date(Date.now() + 1_000),
+      new Date(Date.now() + 30_000),
+      1,
+    );
+    if (initial === undefined) throw new Error('Expected initial event claim');
+    expect(initial).toMatchObject({ businessScore: 1, revision: 1 });
+
+    await repository.setTrendingScore(trackId, 8);
+    const [revisionTwo] = await events.claimPending(
+      new Date(Date.now() + 1_000),
+      new Date(Date.now() + 30_000),
+      1,
+    );
+    if (revisionTwo === undefined)
+      throw new Error('Expected revision two claim');
+    expect(revisionTwo).toMatchObject({ businessScore: 9, revision: 2 });
+    const [claimedRevisionTwo] = await testApp.db
+      .select()
+      .from(trackAssociationEvents);
+    await events.enqueueSynchronizationPage([
+      {
+        id: trackId,
+        recordingMbid: testMbid(1),
+        businessScore: 1,
+        revision: 1,
+      },
+    ]);
+    const [queued] = await testApp.db.select().from(trackAssociationEvents);
+    expect(queued).toMatchObject({ businessScore: 9, revision: 2 });
+    expect(queued?.claimedUntil).toEqual(claimedRevisionTwo?.claimedUntil);
+    expect(queued?.nextAttemptAt).toEqual(claimedRevisionTwo?.nextAttemptAt);
+
+    await events.markDelivered(initial.id, initial.revision, new Date());
+    await events.scheduleRetry(
+      initial.id,
+      initial.revision,
+      new Date(Date.now() + 60_000),
+    );
+    let [latest] = await testApp.db.select().from(trackAssociationEvents);
+    expect(latest).toMatchObject({
+      businessScore: 9,
+      revision: 2,
+      deliveredAt: null,
+    });
+    await events.markDelivered(
+      revisionTwo.id,
+      revisionTwo.revision,
+      new Date(),
+    );
+    await events.enqueueSynchronizationPage([
+      {
+        id: trackId,
+        recordingMbid: testMbid(1),
+        businessScore: 9,
+        revision: 2,
+      },
+    ]);
+    [latest] = await testApp.db.select().from(trackAssociationEvents);
+    expect(latest).toMatchObject({
+      businessScore: 9,
+      revision: 2,
+      deliveredAt: null,
+    });
+
+    await repository.setTrendingScore(trackId, 0);
+    [latest] = await testApp.db.select().from(trackAssociationEvents);
+    expect(latest).toMatchObject({ businessScore: 1, revision: 3 });
+    const [track] = await testApp.db
+      .select({
+        trendingScore: tracks.trendingScore,
+        revision: tracks.associationRevision,
+      })
+      .from(tracks)
+      .where(eq(tracks.id, trackId));
+    expect(track).toEqual({ trendingScore: 0, revision: 3 });
+
+    if (latest === undefined) throw new Error('Expected a score event');
+    await events.markDelivered(latest.id, latest.revision, new Date());
+    expect(
+      await events.deleteDeliveredBefore(new Date(Date.now() + 1_000), 10),
+    ).toBe(1);
+    await repository.setTrendingScore(trackId, 8);
+    [latest] = await testApp.db.select().from(trackAssociationEvents);
+    expect(latest).toMatchObject({ businessScore: 9, revision: 4 });
+    const [afterCleanup] = await testApp.db
+      .select({ revision: tracks.associationRevision })
+      .from(tracks)
+      .where(eq(tracks.id, trackId));
+    expect(afterCleanup?.revision).toBe(4);
+  });
+
   it('retries a committed event after catalog delivery becomes available', async () => {
     associationOutage = true;
     const user = await createPasswordUser(testApp.db);
@@ -290,12 +392,13 @@ describe('Track association outbox (e2e)', () => {
       .returning();
     const sync = testApp.app.get(TrackAssociationSyncService);
     const syncRepository = testApp.app.get(TrackAssociationSyncRepository);
-    const originalFindPage = syncRepository.findPage.bind(syncRepository);
+    const originalFindAndEnqueuePage =
+      syncRepository.findAndEnqueuePage.bind(syncRepository);
     let overlapTrackId: string | undefined;
-    const findPage = vi
-      .spyOn(syncRepository, 'findPage')
-      .mockImplementation(async (afterId, limit) => {
-        const page = await originalFindPage(afterId, limit);
+    const findAndEnqueuePage = vi
+      .spyOn(syncRepository, 'findAndEnqueuePage')
+      .mockImplementation(async (afterId, limit, enqueue) => {
+        const page = await originalFindAndEnqueuePage(afterId, limit, enqueue);
         if (page.length === 0 && overlapTrackId === undefined) {
           const [track] = await testApp.db
             .insert(tracks)
@@ -340,7 +443,7 @@ describe('Track association outbox (e2e)', () => {
     expect(events.every((event) => event.deliveredAt instanceof Date)).toBe(
       true,
     );
-    findPage.mockRestore();
+    findAndEnqueuePage.mockRestore();
   }, 60_000);
 
   it('recovers search links after sync interruption', async () => {

@@ -21,6 +21,8 @@ export type RecordingDocument = {
   primaryReleaseMbid?: string | null;
   /** The API-owned Track currently associated with this exact Recording. */
   trackId?: string | null;
+  /** One plus the API Track's global trending score. */
+  businessScore?: number | null;
 };
 
 /** The index of Recordings; its primary key is the MBID. */
@@ -55,6 +57,16 @@ const SEARCHABLE_ATTRIBUTES = [
 
 export const RECORDINGS_INDEX_SETTINGS: IndexSettings = {
   searchableAttributes: [...SEARCHABLE_ATTRIBUTES],
+  rankingRules: [
+    'words',
+    'typo',
+    'businessScore:desc',
+    'proximity',
+    'attributeRank',
+    'sort',
+    'wordPosition',
+    'exactness',
+  ],
   // The window `search` lets clients page through (its offset bound is
   // derived from the same constant).
   pagination: { maxTotalHits: SEARCH_MAX_TOTAL_HITS },

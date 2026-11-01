@@ -46,6 +46,7 @@ const documentColumns = {
   artistCreditId: recording.artistCredit,
   artistCreditName: artistCredit.name,
   trackId: trackAssociation.trackId,
+  businessScore: trackAssociation.businessScore,
 };
 
 /**

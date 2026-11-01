@@ -8,7 +8,7 @@ import type {
   CatalogTrackWork,
   Mbid,
 } from '@vozzify/contracts';
-import { and, asc, desc, eq, gt, inArray, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
 import { artists, trackArtists } from '../../database/schema/artists.js';
 import { trackAssociationEvents } from '../../database/schema/track-association-events.js';
@@ -33,6 +33,7 @@ import {
   type NewTrackDetails,
   onTrack,
 } from './track-repository.helpers.js';
+import { setTrackTrendingScore } from './track-trending-score.repository.js';
 
 @Injectable()
 export class TracksRepository {
@@ -78,6 +79,7 @@ export class TracksRepository {
     await this.txHost.tx.insert(trackAssociationEvents).values({
       recordingMbid,
       trackId,
+      businessScore: 1,
     });
   }
 
@@ -186,12 +188,7 @@ export class TracksRepository {
 
   /** Sets a Track's trending score. True when the score actually changed. */
   async setTrendingScore(trackId: string, score: number): Promise<boolean> {
-    const changed = await this.txHost.tx
-      .update(tracks)
-      .set({ trendingScore: score })
-      .where(and(eq(tracks.id, trackId), ne(tracks.trendingScore, score)))
-      .returning({ id: tracks.id });
-    return changed.length > 0;
+    return setTrackTrendingScore(this.txHost, trackId, score);
   }
 
   /** Tracks with a trending score, which rolls with time as well as views. */

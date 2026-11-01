@@ -1,5 +1,6 @@
 import type { MeilisearchIndex } from '../../integrations/meilisearch/meilisearch-index.js';
 import type { RecordingDocument } from '../../lib/recordings-index.js';
+import { RECORDINGS_INDEX_SETTINGS } from '../../lib/recordings-index.js';
 import type { Logger } from '../../logger.js';
 import type { BootstrapService } from '../bootstrap/bootstrap.service.js';
 import type {
@@ -46,7 +47,12 @@ const setup = (
     phase?: string;
     pending?: OutboxEntry[][];
     documents?: Map<number, CurrentDocument>;
-    associationPending?: string[];
+    associationPending?: {
+      mbid: string;
+      trackId: string | null;
+      businessScore: number | null;
+      revision: number;
+    }[];
     batchSize?: number;
   } = {},
 ) => {
@@ -73,6 +79,9 @@ const setup = (
     }),
   };
   const index = {
+    ensure: vi.fn(async () => undefined),
+    hasDocument: vi.fn(async () => true),
+    updateDocuments: vi.fn(async () => undefined),
     upsert: vi.fn(async () => undefined),
     deleteDocuments: vi.fn(async () => undefined),
   };
@@ -217,23 +226,37 @@ describe('SyncService.drain', () => {
 describe('SyncService.drainAssociations', () => {
   it('keeps a failed index update pending and retries it after a worker restart', async () => {
     const { service, index, associations } = setup({
-      associationPending: ['mbid-7'],
+      associationPending: [
+        { mbid: 'mbid-7', trackId: 'track-7', businessScore: 3, revision: 2 },
+      ],
       documents: new Map([[7, found(7, 'mbid-7')]]),
     });
-    index.upsert.mockRejectedValueOnce(new Error('Meilisearch task failed'));
+    index.updateDocuments.mockRejectedValueOnce(
+      new Error('Meilisearch task failed'),
+    );
 
     await expect(service.drainAssociations()).rejects.toThrow(
       'Meilisearch task failed',
     );
+    expect(index.ensure).toHaveBeenCalledWith(RECORDINGS_INDEX_SETTINGS);
+    expect(index.ensure.mock.invocationCallOrder[0]).toBeLessThan(
+      index.updateDocuments.mock.invocationCallOrder[0] ?? Infinity,
+    );
     expect(associations.markIndexed).not.toHaveBeenCalled();
 
     const restarted = setup({
-      associationPending: ['mbid-7'],
+      associationPending: [
+        { mbid: 'mbid-7', trackId: 'track-7', businessScore: 3, revision: 2 },
+      ],
       documents: new Map([[7, found(7, 'mbid-7')]]),
     });
     await restarted.service.drainAssociations();
 
-    expect(restarted.index.upsert).toHaveBeenCalledWith([document('mbid-7')]);
-    expect(restarted.associations.markIndexed).toHaveBeenCalledWith(['mbid-7']);
+    expect(restarted.index.updateDocuments).toHaveBeenCalledWith([
+      { mbid: 'mbid-7', trackId: 'track-7', businessScore: 3 },
+    ]);
+    expect(restarted.associations.markIndexed).toHaveBeenCalledWith([
+      { mbid: 'mbid-7', trackId: 'track-7', businessScore: 3, revision: 2 },
+    ]);
   });
 });

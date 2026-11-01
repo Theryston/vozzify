@@ -1,11 +1,26 @@
-import { and, asc, eq, gt, inArray } from 'drizzle-orm';
-import { withCatalogWriteLock } from '../../database/catalog-write-lock.js';
+import { and, asc, eq, gt, gte, or, sql } from 'drizzle-orm';
+import {
+  type CatalogTransaction,
+  withCatalogWriteLock,
+} from '../../database/catalog-write-lock.js';
 import type { Database } from '../../database/database.js';
 import type { DatabaseSource } from '../../database/database-ref.js';
 import { reimportState } from '../../database/schema/reimport-state.js';
 import { trackAssociation } from '../../database/schema/track-association.js';
 
-export type TrackAssociation = { mbid: string; trackId: string | null };
+export type TrackAssociation = {
+  mbid: string;
+  trackId: string | null;
+  businessScore?: number | null;
+  revision?: number;
+};
+
+export type PendingTrackAssociation = {
+  mbid: string;
+  trackId: string | null;
+  businessScore: number | null;
+  revision: number;
+};
 
 export class TrackAssociationRepository {
   private readonly getServing: () => Database;
@@ -58,9 +73,17 @@ export class TrackAssociationRepository {
     }).then((outcome) => outcome === 'accepted');
   }
 
-  async peekPending(limit: number, afterMbid?: string): Promise<string[]> {
+  async peekPending(
+    limit: number,
+    afterMbid?: string,
+  ): Promise<PendingTrackAssociation[]> {
     const rows = await this.getServing()
-      .select({ mbid: trackAssociation.recordingMbid })
+      .select({
+        mbid: trackAssociation.recordingMbid,
+        trackId: trackAssociation.trackId,
+        businessScore: trackAssociation.businessScore,
+        revision: trackAssociation.revision,
+      })
       .from(trackAssociation)
       .where(
         afterMbid === undefined
@@ -72,20 +95,24 @@ export class TrackAssociationRepository {
       )
       .orderBy(asc(trackAssociation.recordingMbid))
       .limit(limit);
-    return rows.map((row) => row.mbid);
+    return rows;
   }
 
-  async markIndexed(mbids: readonly string[]): Promise<void> {
-    if (mbids.length === 0) return;
-    await this.getServing()
-      .update(trackAssociation)
-      .set({ pending: false })
-      .where(
-        and(
-          inArray(trackAssociation.recordingMbid, [...mbids]),
-          eq(trackAssociation.pending, true),
-        ),
-      );
+  async markIndexed(
+    entries: readonly PendingTrackAssociation[],
+  ): Promise<void> {
+    for (const entry of entries) {
+      await this.getServing()
+        .update(trackAssociation)
+        .set({ pending: false, indexedRevision: entry.revision })
+        .where(
+          and(
+            eq(trackAssociation.recordingMbid, entry.mbid),
+            eq(trackAssociation.revision, entry.revision),
+            eq(trackAssociation.pending, true),
+          ),
+        );
+    }
   }
 
   async transferTo(nextCopy: Database, batchSize: number): Promise<void> {
@@ -97,6 +124,9 @@ export class TrackAssociationRepository {
           .select({
             mbid: trackAssociation.recordingMbid,
             trackId: trackAssociation.trackId,
+            businessScore: trackAssociation.businessScore,
+            revision: trackAssociation.revision,
+            indexedRevision: trackAssociation.indexedRevision,
           })
           .from(trackAssociation)
           .where(
@@ -114,11 +144,24 @@ export class TrackAssociationRepository {
                 .values({
                   recordingMbid: row.mbid,
                   trackId: row.trackId,
+                  businessScore: row.businessScore,
+                  revision: row.revision,
+                  indexedRevision: row.indexedRevision,
                   pending: true,
                 })
                 .onConflictDoUpdate({
                   target: trackAssociation.recordingMbid,
-                  set: { trackId: row.trackId, pending: true },
+                  set: {
+                    trackId: row.trackId,
+                    businessScore: row.businessScore,
+                    revision: row.revision,
+                    indexedRevision: row.indexedRevision,
+                    pending: true,
+                  },
+                  setWhere: gte(
+                    sql`excluded.revision`,
+                    trackAssociation.revision,
+                  ),
                 });
             }
           });
@@ -131,7 +174,7 @@ export class TrackAssociationRepository {
   }
 
   private async upsert(
-    transaction: Parameters<Parameters<Database['transaction']>[0]>[0],
+    transaction: CatalogTransaction,
     association: TrackAssociation,
   ): Promise<void> {
     await transaction
@@ -139,15 +182,30 @@ export class TrackAssociationRepository {
       .values({
         recordingMbid: association.mbid,
         trackId: association.trackId,
+        businessScore: association.businessScore ?? null,
+        revision: association.revision ?? 0,
         pending: true,
       })
       .onConflictDoUpdate({
         target: trackAssociation.recordingMbid,
         set: {
-          trackId: association.trackId,
+          trackId: sql`excluded.track_id`,
+          businessScore: sql`excluded.business_score`,
+          revision: sql`excluded.revision`,
           pending: true,
           updatedAt: new Date(),
         },
+        setWhere: or(
+          gt(sql`excluded.revision`, trackAssociation.revision),
+          and(
+            eq(sql`excluded.revision`, trackAssociation.revision),
+            or(
+              eq(sql`excluded.revision`, 0),
+              sql`excluded.track_id is not distinct from ${trackAssociation.trackId}
+                and excluded.business_score is not distinct from ${trackAssociation.businessScore}`,
+            ),
+          ),
+        ),
       });
   }
 }

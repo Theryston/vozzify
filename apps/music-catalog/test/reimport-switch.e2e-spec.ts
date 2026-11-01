@@ -1,4 +1,6 @@
+import { eq } from 'drizzle-orm';
 import { inject } from 'vitest';
+import { trackAssociation } from '../src/database/schema/track-association.js';
 import { ReimportStateRepository } from '../src/modules/reimport/reimport-state.repository.js';
 import { requestRecording } from './utils/get-recording-client.js';
 import { useIsolatedServer } from './utils/isolated-server.js';
@@ -53,6 +55,8 @@ describe('yearly schema change: switching to the parallel copy (e2e)', {
     await requestTrackAssociation(client(), {
       mbid: mbid(901),
       trackId: beforeCopyTrack,
+      businessScore: 5,
+      revision: 1,
     });
     await restoreParallel(async (db) => {
       for (const [index, recordingMbid] of overlappingMbids.entries()) {
@@ -89,7 +93,70 @@ describe('yearly schema change: switching to the parallel copy (e2e)', {
       ok: false,
       error: { code: 'REIMPORT_SWITCHING' },
     });
+    await parallel()
+      .db.update(trackAssociation)
+      .set({ pending: true, indexedRevision: 0 })
+      .where(eq(trackAssociation.recordingMbid, mbid(901)));
+    await meilisearchRequest(
+      meilisearch,
+      'PUT',
+      '/indexes/recordings_next/settings/ranking-rules',
+      [
+        'words',
+        'typo',
+        'proximity',
+        'attributeRank',
+        'sort',
+        'wordPosition',
+        'exactness',
+      ],
+    );
+    await meilisearchRequest(
+      meilisearch,
+      'PUT',
+      '/indexes/recordings_next/documents',
+      [
+        {
+          mbid: mbid(901),
+          title: 'Same Take Song',
+          artistCredit: 'Artist of Same Take Song',
+          artistAliases: [],
+          releaseTitles: [],
+          workTitles: [],
+          genres: [],
+          disambiguation: '',
+          primaryReleaseMbid: null,
+          trackId: beforeCopyTrack,
+        },
+      ],
+    );
     await worker.tick();
+    const switchedDocument = await meilisearchRequest(
+      meilisearch,
+      'GET',
+      `/indexes/recordings/documents/${mbid(901)}`,
+    );
+    expect(switchedDocument.json).toMatchObject({
+      trackId: beforeCopyTrack,
+      businessScore: 5,
+    });
+    const switchedSettings = await meilisearchRequest(
+      meilisearch,
+      'GET',
+      '/indexes/recordings/settings',
+    );
+    expect(switchedSettings.json).toMatchObject({
+      rankingRules: [
+        'words',
+        'typo',
+        'businessScore:desc',
+        'proximity',
+        'attributeRank',
+        'sort',
+        'wordPosition',
+        'exactness',
+      ],
+    });
 
     // The flip is steady state: no reimport is reported anymore, and one
     // `status` lets the server adopt the new copy without restarting.

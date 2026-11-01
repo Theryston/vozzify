@@ -9,6 +9,7 @@ import {
 export type IndexSettings = {
   /** In ranking order: a match in an earlier attribute ranks higher. */
   searchableAttributes: string[];
+  rankingRules?: string[];
   pagination: { maxTotalHits: number };
 };
 
@@ -68,6 +69,8 @@ export class MeilisearchIndex<TDocument extends Record<string, unknown>> {
         current.searchableAttributes,
         settings.searchableAttributes,
       ) &&
+      (settings.rankingRules === undefined ||
+        isDeepStrictEqual(current.rankingRules, settings.rankingRules)) &&
       current.pagination?.maxTotalHits === settings.pagination.maxTotalHits;
     if (!upToDate) {
       await this.wait(index.updateSettings(settings));
@@ -81,6 +84,14 @@ export class MeilisearchIndex<TDocument extends Record<string, unknown>> {
     }
     await this.wait(
       this.client.index<TDocument>(this.uid).addDocuments(documents),
+    );
+  }
+
+  /** Partially changes existing documents without replacing catalog metadata. */
+  async updateDocuments(documents: Partial<TDocument>[]): Promise<void> {
+    if (documents.length === 0) return;
+    await this.wait(
+      this.client.index<TDocument>(this.uid).updateDocuments(documents),
     );
   }
 
@@ -142,7 +153,9 @@ export class MeilisearchIndex<TDocument extends Record<string, unknown>> {
   /** Reads a document by its primary key, or returns undefined when absent. */
   async getDocument(id: string): Promise<TDocument | undefined> {
     try {
-      return await this.client.index<TDocument>(this.uid).getDocument(id);
+      return (await this.client
+        .index<TDocument>(this.uid)
+        .getDocument(id)) as TDocument;
     } catch (error) {
       if (isIndexNotFound(error) || isDocumentNotFound(error)) {
         return undefined;

@@ -59,6 +59,10 @@ export const buildRecordingDocument = (
   disambiguation: row.disambiguation,
   primaryReleaseMbid: parts.primaryReleaseMbid,
   trackId: row.trackId ?? null,
+  businessScore:
+    row.trackId === null || row.trackId === undefined
+      ? null
+      : (row.businessScore ?? null),
 });
 
 /**

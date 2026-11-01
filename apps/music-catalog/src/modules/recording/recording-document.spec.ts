@@ -102,6 +102,16 @@ describe('buildRecordingDocument', () => {
     }
   });
 
+  it('projects the business score only for an associated Track', () => {
+    expect(
+      buildRecordingDocument(
+        { ...row, trackId: 'track-1', businessScore: 8 },
+        parts(),
+      ).businessScore,
+    ).toBe(8);
+    expect(buildRecordingDocument(row, parts()).businessScore).toBeNull();
+  });
+
   it('holds nothing but the MBID and the fields the index searches', () => {
     const document = buildRecordingDocument(row, parts());
 
@@ -110,6 +120,7 @@ describe('buildRecordingDocument', () => {
         'mbid',
         'primaryReleaseMbid',
         'trackId',
+        'businessScore',
         ...RECORDINGS_INDEX_SETTINGS.searchableAttributes,
       ].sort(),
     );

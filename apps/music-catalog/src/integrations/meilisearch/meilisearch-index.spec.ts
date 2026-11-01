@@ -9,6 +9,15 @@ type Doc = { mbid: string; title: string };
 
 const SETTINGS: IndexSettings = {
   searchableAttributes: ['title', 'artist'],
+  rankingRules: [
+    'words',
+    'typo',
+    'proximity',
+    'attributeRank',
+    'sort',
+    'wordPosition',
+    'exactness',
+  ],
   pagination: { maxTotalHits: 1000 },
 };
 
@@ -45,11 +54,13 @@ const setup = (
   const index = {
     getSettings: vi.fn(async () => ({
       searchableAttributes: SETTINGS.searchableAttributes,
+      rankingRules: SETTINGS.rankingRules,
       pagination: { maxTotalHits: 1000 },
       ...options.currentSettings,
     })),
     updateSettings: vi.fn(() => enqueued(options.task ?? {})),
     addDocuments: vi.fn(() => enqueued(options.task ?? {})),
+    updateDocuments: vi.fn(() => enqueued(options.task ?? {})),
     search: vi.fn(async () => ({ hits: options.searchHits ?? [] })),
     getDocument: vi.fn(async () => {
       if (options.document === undefined) {
@@ -92,6 +103,7 @@ describe('MeilisearchIndex', () => {
     it('leaves an index that is already up to date alone', async () => {
       const { meili, client, index } = setup();
 
+      await meili.ensure(SETTINGS);
       await meili.ensure(SETTINGS);
 
       expect(client.createIndex).not.toHaveBeenCalled();

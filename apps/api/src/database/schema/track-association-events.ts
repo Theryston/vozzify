@@ -19,6 +19,8 @@ export const trackAssociationEvents = pgTable(
     trackId: text()
       .notNull()
       .references(() => tracks.id, { onDelete: 'cascade' }),
+    businessScore: integer().notNull().default(1),
+    revision: integer().notNull().default(1),
     attempts: integer().notNull().default(0),
     nextAttemptAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     claimedUntil: timestamp({ withTimezone: true }),

@@ -17,6 +17,7 @@ export type DocumentRecordingRow = {
   artistCreditId: number;
   artistCreditName: string;
   trackId?: string | null;
+  businessScore?: number | null;
 };
 
 /** The primary release selected for one Recording during index construction. */

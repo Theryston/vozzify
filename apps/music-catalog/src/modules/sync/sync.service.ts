@@ -1,5 +1,8 @@
 import type { MeilisearchIndex } from '../../integrations/meilisearch/meilisearch-index.js';
-import type { RecordingDocument } from '../../lib/recordings-index.js';
+import {
+  RECORDINGS_INDEX_SETTINGS,
+  type RecordingDocument,
+} from '../../lib/recordings-index.js';
 import type { Logger } from '../../logger.js';
 import type { BootstrapService } from '../bootstrap/bootstrap.service.js';
 import type {
@@ -67,6 +70,9 @@ export class SyncService {
     if (phase !== 'ready') {
       return;
     }
+    // Roll out the new rule on the existing index before score projections
+    // start adding the field; this settings update never rewrites documents.
+    await index.ensure(RECORDINGS_INDEX_SETTINGS);
     let synced = 0;
     while (!signal.aborted) {
       const entries = await outbox.peekPending(batchSize);
@@ -95,29 +101,41 @@ export class SyncService {
         recordings: ids.length,
       });
     }
-    await this.drainAssociations();
+    await this.drainPendingAssociations(batchSize);
     logger.info('Sync drained the pending MusicBrainz changes', { synced });
   }
 
   async drainAssociations(): Promise<void> {
-    await this.drainPendingAssociations(this.deps.batchSize);
+    const { associations, index, batchSize } = this.deps;
+    if (associations === undefined) return;
+    await index.ensure(RECORDINGS_INDEX_SETTINGS);
+    await this.drainPendingAssociations(batchSize);
   }
 
   private async drainPendingAssociations(limit: number): Promise<void> {
-    const { associations, documents, index, writeLock } = this.deps;
+    const { associations, index, writeLock } = this.deps;
     if (associations === undefined) return;
     let afterMbid: string | undefined;
     const processBatch = async (): Promise<string[]> => {
-      const mbids = await associations.peekPending(limit, afterMbid);
-      const ids = await documents.findIdsByMbids(mbids);
-      const current = await documents.findDocumentsByIds(ids);
-      if (current.length > 0) {
-        await index.upsert(current.map((recording) => recording.document));
-        await associations.markIndexed(
-          current.map((recording) => recording.mbid),
+      const entries = await associations.peekPending(limit, afterMbid);
+      const projected = await Promise.all(
+        entries.map(async (entry) => ({
+          entry,
+          exists: await index.hasDocument(entry.mbid),
+        })),
+      );
+      const indexed = projected.filter((item) => item.exists);
+      if (indexed.length > 0) {
+        await index.updateDocuments(
+          indexed.map(({ entry }) => ({
+            mbid: entry.mbid,
+            trackId: entry.trackId,
+            businessScore: entry.trackId === null ? null : entry.businessScore,
+          })),
         );
+        await associations.markIndexed(indexed.map(({ entry }) => entry));
       }
-      return mbids;
+      return entries.map((entry) => entry.mbid);
     };
     while (true) {
       const mbids = await (writeLock?.(processBatch) ?? processBatch());

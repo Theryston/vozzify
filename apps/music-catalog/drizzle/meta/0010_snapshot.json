@@ -1,0 +1,333 @@
+{
+  "id": "85073a2f-da6f-405b-a749-7041c9288957",
+  "prevId": "d97a4972-6c17-4b4f-91dd-89ecab54fbcb",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "music_catalog.bootstrap_state": {
+      "name": "bootstrap_state",
+      "schema": "music_catalog",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "boolean",
+          "primaryKey": true,
+          "notNull": true,
+          "default": true
+        },
+        "phase": {
+          "name": "phase",
+          "type": "bootstrap_phase",
+          "typeSchema": "music_catalog",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'restoring'"
+        },
+        "dataset": {
+          "name": "dataset",
+          "type": "catalog_dataset",
+          "typeSchema": "music_catalog",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "bootstrap_state_single_row": {
+          "name": "bootstrap_state_single_row",
+          "value": "\"music_catalog\".\"bootstrap_state\".\"id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "music_catalog.indexing_checkpoint": {
+      "name": "indexing_checkpoint",
+      "schema": "music_catalog",
+      "columns": {
+        "index_uid": {
+          "name": "index_uid",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "last_recording_id": {
+          "name": "last_recording_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "music_catalog.recording_outbox": {
+      "name": "recording_outbox",
+      "schema": "music_catalog",
+      "columns": {
+        "recording_id": {
+          "name": "recording_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recording_mbid": {
+          "name": "recording_mbid",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enqueued_at": {
+          "name": "enqueued_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "processed_at": {
+          "name": "processed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "recording_outbox_recording_id_recording_mbid_pk": {
+          "name": "recording_outbox_recording_id_recording_mbid_pk",
+          "columns": ["recording_id", "recording_mbid"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "music_catalog.reimport_state": {
+      "name": "reimport_state",
+      "schema": "music_catalog",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "boolean",
+          "primaryKey": true,
+          "notNull": true,
+          "default": true
+        },
+        "phase": {
+          "name": "phase",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "progress_pct": {
+          "name": "progress_pct",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "detail": {
+          "name": "detail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "reimport_state_single_row": {
+          "name": "reimport_state_single_row",
+          "value": "\"music_catalog\".\"reimport_state\".\"id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "music_catalog.replication_state": {
+      "name": "replication_state",
+      "schema": "music_catalog",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "boolean",
+          "primaryKey": true,
+          "notNull": true,
+          "default": true
+        },
+        "last_sequence": {
+          "name": "last_sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stalled_reason": {
+          "name": "stalled_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stalled_detail": {
+          "name": "stalled_detail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stalled_mbslave_ref": {
+          "name": "stalled_mbslave_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "replication_state_single_row": {
+          "name": "replication_state_single_row",
+          "value": "\"music_catalog\".\"replication_state\".\"id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "music_catalog.track_association": {
+      "name": "track_association",
+      "schema": "music_catalog",
+      "columns": {
+        "recording_mbid": {
+          "name": "recording_mbid",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "track_id": {
+          "name": "track_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pending": {
+          "name": "pending",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "business_score": {
+          "name": "business_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "indexed_revision": {
+          "name": "indexed_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "music_catalog.bootstrap_phase": {
+      "name": "bootstrap_phase",
+      "schema": "music_catalog",
+      "values": ["restoring", "restored", "indexing", "ready"]
+    },
+    "music_catalog.catalog_dataset": {
+      "name": "catalog_dataset",
+      "schema": "music_catalog",
+      "values": ["full", "tiny"]
+    }
+  },
+  "schemas": {
+    "music_catalog": "music_catalog"
+  },
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
