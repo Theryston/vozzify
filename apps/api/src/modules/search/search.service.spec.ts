@@ -183,6 +183,31 @@ describe('SearchService', () => {
     vi.useRealTimers();
   });
 
+  it('keeps routing to Sonic when the probe reply races a socket close', async () => {
+    vi.useFakeTimers();
+    catalog.searchRoutingState
+      .mockReturnValueOnce({ connected: true, generation: 0 })
+      .mockReturnValueOnce({ connected: true, generation: 1 })
+      .mockReturnValueOnce({ connected: false, generation: 1 })
+      .mockReturnValue({ connected: false, generation: 1 });
+    catalog.searchIfConnected
+      .mockRejectedValueOnce(
+        new AppException('SERVICE_UNAVAILABLE', 'catalog down'),
+      )
+      .mockResolvedValueOnce({ results: [] });
+    sonic.search.mockResolvedValue([]);
+    tracks.findSearchResults.mockResolvedValue([]);
+
+    await service.search({ query: 'outage', limit: 20, offset: 0 });
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    await expect(
+      service.search({ query: 'after-probe-close', limit: 20, offset: 0 }),
+    ).resolves.toMatchObject({ source: 'sonic' });
+    expect(catalog.searchIfConnected).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
   it('keeps recovery single-flight while visitors continue using Sonic', async () => {
     vi.useFakeTimers();
     let rejectProbe: ((error: Error) => void) | undefined;

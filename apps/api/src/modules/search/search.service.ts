@@ -167,6 +167,7 @@ export class SearchService implements OnModuleDestroy, OnModuleInit {
         );
         return;
       }
+      if (!verifiedState.connected) return;
       if (this.outageGeneration !== probeGeneration) return;
       this.observedGeneration = verifiedState.generation;
       this.primaryUnavailable = false;
