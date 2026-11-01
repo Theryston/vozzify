@@ -59,6 +59,7 @@ test('silently restarts pages after a timed primary fallback switches source', a
   page,
 }) => {
   await mockAuthApi(page, { user: { ...ADA, username: 'ada' } });
+  await page.clock.install();
   const search = await mockSearchApi(page, {
     totalCount: 25,
     source: 'music-catalog',
@@ -72,7 +73,8 @@ test('silently restarts pages after a timed primary fallback switches source', a
       const offsets = search.calls.map(
         (request) => searchParamsOf(request).offset,
       );
-      return offsets.slice(offsets.indexOf('20') + 1).includes('0');
+      const timedPage = offsets.indexOf('20');
+      return timedPage >= 0 && offsets.slice(timedPage + 1).includes('0');
     })
     .toBe(true);
   await expect(main.getByText('Song 25', { exact: true })).toBeVisible();
@@ -80,6 +82,22 @@ test('silently restarts pages after a timed primary fallback switches source', a
     main.getByRole('link', { name: /Bohemian Rhapsody/ }),
   ).toHaveAttribute('href', /\/tracks\/clxlinkedtrack01/);
   await expect(main.getByRole('alert')).toHaveCount(0);
+
+  const requestsAfterFallback = search.calls.length;
+  search.source = 'music-catalog';
+  await page.clock.fastForward(60_000);
+  expect(search.calls).toHaveLength(requestsAfterFallback);
+
+  await page.goto('/en/search?q=fresh-after-recovery');
+  await expect
+    .poll(() => search.calls.map((request) => searchParamsOf(request)))
+    .toContainEqual(
+      expect.objectContaining({ query: 'fresh-after-recovery', offset: '0' }),
+    );
+  await expect(
+    main.getByText('Bohemian Rhapsody', { exact: true }),
+  ).toBeVisible();
+  expect(search.source).toBe('music-catalog');
 });
 
 test('a delayed restart cannot restore pages after the query changes', async ({

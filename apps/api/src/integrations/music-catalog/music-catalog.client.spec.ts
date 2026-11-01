@@ -368,7 +368,6 @@ describe('MusicCatalogClient', () => {
     fake = {
       url,
       seenAuth: [],
-      disablePong: () => undefined,
       close: () =>
         new Promise<void>((resolve, reject) => {
           server.close((error) => (error ? reject(error) : resolve()));
@@ -430,7 +429,6 @@ describe('MusicCatalogClient', () => {
     fake = {
       url,
       seenAuth: [],
-      disablePong: () => undefined,
       close: () =>
         new Promise<void>((resolve, reject) => {
           server.close((error) => (error ? reject(error) : resolve()));

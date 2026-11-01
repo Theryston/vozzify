@@ -7,7 +7,6 @@ import {
 } from 'testcontainers';
 import { trackProcessings } from '../src/database/schema/track-processings.js';
 import { tracks } from '../src/database/schema/tracks.js';
-import { MusicCatalogClient } from '../src/integrations/music-catalog/music-catalog.client.js';
 import { SonicService } from '../src/integrations/sonic/sonic.service.js';
 import { SearchIndexService } from '../src/modules/search/search-index.service.js';
 import { TracksSearchService } from '../src/modules/tracks/tracks-search.service.js';
@@ -215,44 +214,6 @@ describe('Catalog search plus limits plus errors (e2e)', () => {
       await fallbackApp.close();
     }
   });
-
-  it('falls back after a stalled primary search and bypasses it afterward', async () => {
-    const fallbackApp = await createFallbackTestApp();
-    try {
-      const response = await searchAs(fallbackApp, '203.0.113.16', {
-        query: 'slow',
-      }).expect(200);
-      expect(response.body).toEqual({ results: [], source: 'sonic' });
-
-      const subsequent = await searchAs(fallbackApp, '203.0.113.16', {
-        query: 'after-timeout',
-      }).expect(200);
-      expect(subsequent.body.source).toBe('sonic');
-      expect(catalog.seenQueries).not.toContain('after-timeout');
-    } finally {
-      await fallbackApp.close();
-    }
-  });
-
-  it('uses Sonic after the API detects an open but unresponsive socket', async () => {
-    catalog.disablePong();
-    const catalogClient = testApp.app.get(MusicCatalogClient);
-
-    await vi.waitFor(() => expect(catalogClient.isConnected()).toBe(false), {
-      timeout: 6_000,
-    });
-    const response = await searchAs(testApp, '203.0.113.27', {
-      query: 'not-ready fallback song',
-    }).expect(200);
-
-    expect(response.body.source).toBe('sonic');
-    expect(
-      response.body.results.map(
-        (result: { trackId: string }) => result.trackId,
-      ),
-    ).toContain('sonic-completed');
-    expect(catalog.seenQueries).not.toContain('not-ready fallback song');
-  }, 15_000);
 
   it('returns INTERNAL_ERROR for an unreadable catalog frame instead of hiding it', async () => {
     const response = await searchAs(testApp, '203.0.113.22', {

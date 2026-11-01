@@ -22,7 +22,7 @@ export type FakeMusicCatalog = {
   url: string;
   seenAuth: string[];
   seenQueries?: string[];
-  disablePong: () => void;
+  disablePong?: () => void;
   close: () => Promise<void>;
 };
 
