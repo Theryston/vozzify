@@ -71,6 +71,13 @@
       "when": 1793046400397,
       "tag": "0009_mature_wasp",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793534400000,
+      "tag": "0010_track_usage_score",
+      "breakpoints": true
     }
   ]
 }

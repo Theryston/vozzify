@@ -18,9 +18,12 @@ export class TrackAssociationSyncService {
   async synchronize(): Promise<void> {
     let afterId: string | undefined;
     for (;;) {
-      const page = await this.tracks.findPage(afterId, PAGE_SIZE);
+      const page = await this.tracks.findAndEnqueuePage(
+        afterId,
+        PAGE_SIZE,
+        (rows) => this.events.enqueueSynchronizationPage(rows),
+      );
       if (page.length === 0) break;
-      await this.events.enqueueSynchronizationPage(page);
       await this.waitForPage(page.map((track) => track.id));
       afterId = page.at(-1)?.id;
     }

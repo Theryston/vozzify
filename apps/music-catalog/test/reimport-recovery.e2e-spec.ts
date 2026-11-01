@@ -43,6 +43,7 @@ import {
   useParallelDatabase,
 } from './utils/reimport-harness.js';
 import { createTestWorker, useEmptySearchIndex } from './utils/test-worker.js';
+import { requestTrackAssociation } from './utils/track-association-client.js';
 
 // The yearly schema change: recovering from an interrupted reimport (see
 // test/utils/reimport-harness.ts for the shared setup and the faked
@@ -159,6 +160,12 @@ describe('yearly schema change: recovering an interrupted reimport (e2e)', {
 
   it('resumes a worker restarted mid-reimport on the parallel copy', async () => {
     const worker = await serveCatalog();
+    await requestTrackAssociation(client(), {
+      mbid: mbid(901),
+      trackId: '00000000-0000-4000-8000-000000000401',
+      businessScore: 8,
+      revision: 1,
+    });
     await restoreParallel(seedNewDump);
 
     // The crash: the first worker indexes and never comes back.
@@ -182,6 +189,15 @@ describe('yearly schema change: recovering an interrupted reimport (e2e)', {
       mbid(903),
     ]);
     await expect(statusResult()).resolves.not.toHaveProperty('reimport');
+    const indexed = await meilisearchRequest(
+      inject('meilisearch'),
+      'GET',
+      `/indexes/recordings/documents/${mbid(901)}`,
+    );
+    expect(indexed.json).toMatchObject({
+      trackId: '00000000-0000-4000-8000-000000000401',
+      businessScore: 8,
+    });
   });
 
   it('redoes a container run lost mid-restore without touching serving', async () => {

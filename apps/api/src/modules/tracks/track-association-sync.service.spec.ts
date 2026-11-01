@@ -1,10 +1,26 @@
 import { TrackAssociationService } from './track-association.service.js';
 import { TrackAssociationEventRepository } from './track-association-event.repository.js';
-import { TrackAssociationSyncRepository } from './track-association-sync.repository.js';
+import {
+  type TrackAssociationSyncRepository,
+  type TrackAssociationSyncRow,
+} from './track-association-sync.repository.js';
 import { TrackAssociationSyncService } from './track-association-sync.service.js';
 
 describe('TrackAssociationSyncService', () => {
-  const tracks = { findPage: vi.fn() };
+  const pages: TrackAssociationSyncRow[][] = [];
+  const tracks = {
+    findAndEnqueuePage: vi.fn(
+      async (
+        _afterId: string | undefined,
+        _limit: number,
+        enqueue: (rows: TrackAssociationSyncRow[]) => Promise<void>,
+      ) => {
+        const page = pages.shift() ?? [];
+        if (page.length > 0) await enqueue(page);
+        return page;
+      },
+    ),
+  };
   const events = {
     enqueueSynchronizationPage: vi.fn(),
     countPendingForTracks: vi.fn(),
@@ -15,7 +31,18 @@ describe('TrackAssociationSyncService', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
-    tracks.findPage.mockResolvedValue([]);
+    pages.length = 0;
+    tracks.findAndEnqueuePage.mockImplementation(
+      async (
+        _afterId: string | undefined,
+        _limit: number,
+        enqueue: (rows: TrackAssociationSyncRow[]) => Promise<void>,
+      ) => {
+        const page = pages.shift() ?? [];
+        if (page.length > 0) await enqueue(page);
+        return page;
+      },
+    );
     events.enqueueSynchronizationPage.mockResolvedValue(undefined);
     events.countPendingForTracks.mockResolvedValue([{ count: 0 }]);
     events.countPending.mockResolvedValue([{ count: 0 }]);
@@ -30,16 +57,29 @@ describe('TrackAssociationSyncService', () => {
     const page = Array.from({ length: 250 }, (_, index) => ({
       id: `track-${String(index).padStart(3, '0')}`,
       recordingMbid: `mbid-${index}`,
+      businessScore: 1,
+      revision: 1,
     }));
-    tracks.findPage
-      .mockResolvedValueOnce(page)
-      .mockResolvedValueOnce([{ id: 'track-z', recordingMbid: 'mbid-z' }])
-      .mockResolvedValueOnce([]);
+    pages.push(
+      page,
+      [
+        {
+          id: 'track-z',
+          recordingMbid: 'mbid-z',
+          businessScore: 1,
+          revision: 1,
+        },
+      ],
+      [],
+    );
 
     await service.synchronize();
 
     expect(
-      tracks.findPage.mock.calls.map(([after, limit]) => [after, limit]),
+      tracks.findAndEnqueuePage.mock.calls.map(([after, limit]) => [
+        after,
+        limit,
+      ]),
     ).toEqual([
       [undefined, 250],
       ['track-249', 250],
@@ -50,27 +90,38 @@ describe('TrackAssociationSyncService', () => {
   });
 
   it('reruns from the beginning to restore previously lost projection state', async () => {
-    tracks.findPage
-      .mockResolvedValueOnce([{ id: 'track-a', recordingMbid: 'mbid-a' }])
-      .mockResolvedValueOnce([]);
+    const page = [
+      {
+        id: 'track-a',
+        recordingMbid: 'mbid-a',
+        businessScore: 1,
+        revision: 1,
+      },
+    ];
+    pages.push(page, []);
     await service.synchronize();
-    tracks.findPage.mockClear();
-    tracks.findPage
-      .mockResolvedValueOnce([{ id: 'track-a', recordingMbid: 'mbid-a' }])
-      .mockResolvedValueOnce([]);
+    tracks.findAndEnqueuePage.mockClear();
+    pages.push(page, []);
 
     await service.synchronize();
 
-    expect(tracks.findPage).toHaveBeenNthCalledWith(1, undefined, 250);
+    expect(tracks.findAndEnqueuePage.mock.calls[0]?.slice(0, 2)).toEqual([
+      undefined,
+      250,
+    ]);
     expect(events.enqueueSynchronizationPage).toHaveBeenCalledTimes(2);
   });
 
   it('restarts from the first page after an interrupted delivery', async () => {
-    const page = [{ id: 'track-a', recordingMbid: 'mbid-a' }];
-    tracks.findPage
-      .mockResolvedValueOnce(page)
-      .mockResolvedValueOnce(page)
-      .mockResolvedValueOnce([]);
+    const page = [
+      {
+        id: 'track-a',
+        recordingMbid: 'mbid-a',
+        businessScore: 1,
+        revision: 1,
+      },
+    ];
+    pages.push(page, page, []);
     delivery.dispatchPending
       .mockRejectedValueOnce(new Error('database connection lost'))
       .mockResolvedValue(undefined);
@@ -80,8 +131,14 @@ describe('TrackAssociationSyncService', () => {
     );
     await service.synchronize();
 
-    expect(tracks.findPage).toHaveBeenNthCalledWith(1, undefined, 250);
-    expect(tracks.findPage).toHaveBeenNthCalledWith(2, undefined, 250);
+    expect(tracks.findAndEnqueuePage.mock.calls[0]?.slice(0, 2)).toEqual([
+      undefined,
+      250,
+    ]);
+    expect(tracks.findAndEnqueuePage.mock.calls[1]?.slice(0, 2)).toEqual([
+      undefined,
+      250,
+    ]);
     expect(events.enqueueSynchronizationPage).toHaveBeenCalledTimes(2);
   });
 });

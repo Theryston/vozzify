@@ -42,21 +42,25 @@ export class TrackAssociationService {
       recordingMbid: string;
       trackId: string;
       attempts: number;
+      businessScore: number;
+      revision: number;
     },
     now: Date,
   ): Promise<void> {
     const payload: MusicCatalogTrackAssociationPayload = {
       mbid: row.recordingMbid,
       trackId: row.trackId,
+      businessScore: row.businessScore,
+      revision: row.revision,
     };
     try {
       await this.catalog.associateTrack(payload);
-      await this.events.markDelivered(row.id, now);
+      await this.events.markDelivered(row.id, row.revision, now);
     } catch (error) {
       const retryAt = new Date(
         now.getTime() + trackAssociationRetryDelay(row.attempts),
       );
-      await this.events.scheduleRetry(row.id, retryAt);
+      await this.events.scheduleRetry(row.id, row.revision, retryAt);
       this.logger.warn(
         `Track association delivery failed; retry scheduled for ${retryAt.toISOString()}`,
       );

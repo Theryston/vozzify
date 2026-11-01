@@ -21,6 +21,8 @@ const row = {
   recordingMbid: '11111111-1111-1111-8111-111111111111',
   trackId: 'track-1',
   attempts: 1,
+  businessScore: 4,
+  revision: 3,
 };
 const now = new Date('2026-10-27T12:00:00.000Z');
 
@@ -72,8 +74,15 @@ describe('TrackAssociationService', () => {
     expect(catalog.associateTrack).toHaveBeenCalledWith({
       mbid: row.recordingMbid,
       trackId: row.trackId,
+      businessScore: row.businessScore,
+      revision: row.revision,
     });
     expect(order).toEqual(['catalog', 'ack']);
+    expect(events.markDelivered).toHaveBeenCalledWith(
+      row.id,
+      row.revision,
+      now,
+    );
   });
 
   it('leaves failed delivery pending with a durable retry time', async () => {
@@ -84,6 +93,7 @@ describe('TrackAssociationService', () => {
     expect(events.markDelivered).not.toHaveBeenCalled();
     expect(events.scheduleRetry).toHaveBeenCalledWith(
       row.id,
+      row.revision,
       new Date(now.getTime() + 5_000),
     );
   });
@@ -95,6 +105,7 @@ describe('TrackAssociationService', () => {
     await service.dispatchPending(now);
     expect(events.scheduleRetry).toHaveBeenCalledWith(
       row.id,
+      row.revision,
       new Date(now.getTime() + 5_000),
     );
 
