@@ -57,8 +57,8 @@ export function requestOnSocket<TOutput>(
         return true;
       },
       fail: (error) => {
-        clearTimeout(timer);
-        reject(error);
+        settle();
+        reject(unreadable && strictProtocol ? invalidResponse() : error);
       },
     });
     try {
@@ -76,9 +76,10 @@ export function requestOnSocket<TOutput>(
 }
 
 const timeoutError = (unreadable: boolean): AppException =>
-  unreadable
-    ? new AppException(
-        'INTERNAL_ERROR',
-        'Music catalog sent an invalid response',
-      )
-    : new AppException('GATEWAY_TIMEOUT', 'Music catalog request timed out');
+  unreadable ? invalidResponse() : requestTimeout();
+
+const invalidResponse = (): AppException =>
+  new AppException('INTERNAL_ERROR', 'Music catalog sent an invalid response');
+
+const requestTimeout = (): AppException =>
+  new AppException('GATEWAY_TIMEOUT', 'Music catalog request timed out');

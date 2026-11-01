@@ -22,7 +22,9 @@ export class SearchService implements OnModuleDestroy, OnModuleInit {
   private primaryUnavailable = false;
   private shuttingDown = false;
   private recoveryTimer: NodeJS.Timeout | undefined;
+  private verificationInFlight = false;
   private observedGeneration = 0;
+  private outageGeneration = 0;
   private removeCloseListener: (() => void) | undefined;
 
   constructor(
@@ -36,6 +38,7 @@ export class SearchService implements OnModuleDestroy, OnModuleInit {
       if (this.shuttingDown) return;
       this.markPrimaryUnavailable(
         new AppException('SERVICE_UNAVAILABLE', 'Music catalog disconnected'),
+        true,
       );
     });
   }
@@ -50,7 +53,10 @@ export class SearchService implements OnModuleDestroy, OnModuleInit {
     const state = this.catalog.searchRoutingState();
     if (state.generation !== this.observedGeneration) {
       this.observedGeneration = state.generation;
-      this.primaryUnavailable = true;
+      this.markPrimaryUnavailable(
+        new AppException('SERVICE_UNAVAILABLE', 'Music catalog disconnected'),
+        true,
+      );
     }
     if (this.primaryUnavailable) {
       this.markPrimaryUnavailable(
@@ -62,12 +68,18 @@ export class SearchService implements OnModuleDestroy, OnModuleInit {
       const result = state.connected
         ? await this.catalog.searchIfConnected(params)
         : await this.catalog.search(params);
-      this.observedGeneration = this.catalog.searchRoutingState().generation;
-      this.primaryUnavailable = false;
+      const currentState = this.catalog.searchRoutingState();
+      if (currentState.generation !== this.observedGeneration) {
+        this.observedGeneration = currentState.generation;
+        this.markPrimaryUnavailable(
+          new AppException('SERVICE_UNAVAILABLE', 'Music catalog disconnected'),
+          true,
+        );
+      }
       return { ...result, source: 'music-catalog' };
     } catch (error: unknown) {
       if (!isAvailabilityFailure(error)) throw error;
-      this.markPrimaryUnavailable(error);
+      this.markPrimaryUnavailable(error, true);
       return this.searchSonic(params);
     }
   }
@@ -84,7 +96,7 @@ export class SearchService implements OnModuleDestroy, OnModuleInit {
     return { results, source: 'sonic' };
   }
 
-  private markPrimaryUnavailable(error: unknown): void {
+  private markPrimaryUnavailable(error: unknown, newOutage = false): void {
     if (!this.primaryUnavailable) {
       this.logger.warn(
         `Music catalog search unavailable; using Sonic: ${
@@ -92,55 +104,75 @@ export class SearchService implements OnModuleDestroy, OnModuleInit {
         }`,
       );
     }
+    if (!this.primaryUnavailable || newOutage) this.outageGeneration += 1;
     this.primaryUnavailable = true;
     this.scheduleVerification();
   }
 
   private scheduleVerification(): void {
-    if (this.shuttingDown || this.recoveryTimer !== undefined) return;
+    if (
+      this.shuttingDown ||
+      this.verificationInFlight ||
+      this.recoveryTimer !== undefined
+    ) {
+      return;
+    }
     this.recoveryTimer = setTimeout(() => {
       this.recoveryTimer = undefined;
-      void this.verifyPrimary().catch((error: unknown) => {
-        this.logger.warn(
-          `Music catalog verification failed: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-        this.scheduleVerification();
-      });
+      if (this.shuttingDown) return;
+      this.verificationInFlight = true;
+      void this.verifyPrimary()
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `Music catalog verification failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        })
+        .finally(() => {
+          this.verificationInFlight = false;
+          if (!this.shuttingDown && this.primaryUnavailable) {
+            this.scheduleVerification();
+          }
+        });
     }, RECOVERY_RETRY_MS);
     this.recoveryTimer.unref();
   }
 
   private async verifyPrimary(): Promise<void> {
     if (this.shuttingDown || !this.primaryUnavailable) return;
+    let probeGeneration = this.outageGeneration;
     const state = this.catalog.searchRoutingState();
     if (state.generation !== this.observedGeneration) {
       this.observedGeneration = state.generation;
+      this.markPrimaryUnavailable(
+        new AppException('SERVICE_UNAVAILABLE', 'Music catalog reconnected'),
+        true,
+      );
+      probeGeneration = this.outageGeneration;
     }
     if (state.connected) {
-      try {
-        await this.catalog.searchIfConnected({
-          query: PROBE_QUERY,
-          limit: 1,
-          offset: 0,
-        });
-        if (this.shuttingDown) return;
-        this.observedGeneration = this.catalog.searchRoutingState().generation;
-        this.primaryUnavailable = false;
-        this.logger.log(
-          'Music catalog search verified; primary routing resumed',
+      await this.catalog.searchIfConnected({
+        query: PROBE_QUERY,
+        limit: 1,
+        offset: 0,
+      });
+      if (this.shuttingDown) return;
+      const verifiedState = this.catalog.searchRoutingState();
+      if (verifiedState.generation !== state.generation) {
+        this.observedGeneration = verifiedState.generation;
+        this.markPrimaryUnavailable(
+          new AppException('SERVICE_UNAVAILABLE', 'Music catalog disconnected'),
+          true,
         );
         return;
-      } catch (error: unknown) {
-        this.logger.warn(
-          `Music catalog verification failed: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
       }
+      if (this.outageGeneration !== probeGeneration) return;
+      this.observedGeneration = verifiedState.generation;
+      this.primaryUnavailable = false;
+      this.logger.log('Music catalog search verified; primary routing resumed');
+      return;
     }
-    this.scheduleVerification();
   }
 }
 

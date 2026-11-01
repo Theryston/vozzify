@@ -9,6 +9,7 @@ export type FakeCatalogHandler = (payload: Record<string, unknown>) => {
   error?: unknown;
   closeConnection?: boolean;
   sendUnreadableFrame?: boolean;
+  closeAfterUnreadableFrame?: boolean;
 };
 
 /**
@@ -53,10 +54,7 @@ export const startFakeMusicCatalog = async (
         if (socket.readyState !== socket.OPEN) {
           return;
         }
-        if (answer.sendUnreadableFrame === true) {
-          socket.send('not json');
-          return;
-        }
+        if (sendUnreadableFrame(answer, socket)) return;
         if (answer.error !== undefined) {
           socket.send(
             JSON.stringify({ id: message.id, ok: false, error: answer.error }),
@@ -86,4 +84,14 @@ export const startFakeMusicCatalog = async (
         server.close((error) => (error ? reject(error) : resolve()));
       }),
   };
+};
+
+const sendUnreadableFrame = (
+  answer: ReturnType<FakeCatalogHandler>,
+  socket: WebSocket,
+): boolean => {
+  if (answer.sendUnreadableFrame !== true) return false;
+  socket.send('not json');
+  if (answer.closeAfterUnreadableFrame === true) socket.close();
+  return true;
 };

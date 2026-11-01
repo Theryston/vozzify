@@ -32,7 +32,6 @@ describe('Catalog search plus limits plus errors (e2e)', () => {
   let probeReady = false;
 
   beforeAll(async () => {
-    probeReady = false;
     sonic = await new GenericContainer('valeriansaliou/sonic:v1.10.1')
       .withCommand(['sonic', '-c', '/etc/sonic/config.toml'])
       .withCopyFilesToContainer([
@@ -47,6 +46,10 @@ describe('Catalog search plus limits plus errors (e2e)', () => {
       .withWaitStrategy(Wait.forLogMessage('reading config file', 1))
       .withStartupTimeout(120_000)
       .start();
+  }, 120_000);
+
+  beforeEach(async () => {
+    probeReady = false;
     catalog = await startFakeMusicCatalog((payload) =>
       fakeCatalogAnswer(payload, probeReady),
     );
@@ -96,12 +99,14 @@ describe('Catalog search plus limits plus errors (e2e)', () => {
     ]);
     const index = testApp.app.get(SearchIndexService);
     await index.rebuild();
-    await index.rebuild();
-  }, 120_000);
+  }, 30_000);
 
-  afterAll(async () => {
+  afterEach(async () => {
     await testApp?.close();
     await catalog?.close();
+  });
+
+  afterAll(async () => {
     await sonic?.stop();
   });
 
@@ -236,6 +241,17 @@ describe('Catalog search plus limits plus errors (e2e)', () => {
   it('returns INTERNAL_ERROR when the catalog sends only an unreadable frame', async () => {
     const response = await searchAs(testApp, '203.0.113.23', {
       query: 'garbage',
+    }).expect(500);
+
+    expect(response.body).toMatchObject({
+      statusCode: 500,
+      code: 'INTERNAL_ERROR',
+    });
+  });
+
+  it('does not hide an unreadable response when the catalog closes', async () => {
+    const response = await searchAs(testApp, '203.0.113.26', {
+      query: 'garbage-close',
     }).expect(500);
 
     expect(response.body).toMatchObject({
@@ -433,6 +449,9 @@ function fakeCatalogAnswer(
 ): ReturnType<FakeCatalogHandler> {
   const query = String(payload.query ?? '');
   if (query === 'garbage') return { sendUnreadableFrame: true };
+  if (query === 'garbage-close') {
+    return { sendUnreadableFrame: true, closeAfterUnreadableFrame: true };
+  }
   if (query === 'slow') return { delayMs: 1_000, result: { results: [] } };
   const exceptional = exceptionalCatalogAnswer(query, probeReady);
   if (exceptional !== undefined) return exceptional;

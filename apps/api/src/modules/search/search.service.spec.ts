@@ -91,6 +91,43 @@ describe('SearchService', () => {
     expect(sonic.search).toHaveBeenCalledTimes(2);
   });
 
+  it('does not let a late visitor success restore routing after a concurrent outage', async () => {
+    let resolveLate: ((value: { results: [] }) => void) | undefined;
+    catalog.searchIfConnected.mockImplementation(({ query }) => {
+      if (query === 'late-success') {
+        return new Promise((resolve) => {
+          resolveLate = resolve;
+        });
+      }
+      return Promise.reject(
+        new AppException('SERVICE_UNAVAILABLE', 'catalog not ready'),
+      );
+    });
+    sonic.search.mockResolvedValue([]);
+    tracks.findSearchResults.mockResolvedValue([]);
+
+    const lateRequest = service.search({
+      query: 'late-success',
+      limit: 20,
+      offset: 0,
+    });
+    const failedRequest = service.search({
+      query: 'not-ready',
+      limit: 20,
+      offset: 0,
+    });
+    await expect(failedRequest).resolves.toMatchObject({ source: 'sonic' });
+    resolveLate?.({ results: [] });
+    await expect(lateRequest).resolves.toMatchObject({
+      source: 'music-catalog',
+    });
+
+    await expect(
+      service.search({ query: 'after-outage', limit: 20, offset: 0 }),
+    ).resolves.toMatchObject({ source: 'sonic' });
+    expect(catalog.searchIfConnected).toHaveBeenCalledTimes(2);
+  });
+
   it('bypasses a catalog disconnected while no visitor request is running', async () => {
     catalog.searchRoutingState.mockReturnValue({
       connected: false,
@@ -143,6 +180,65 @@ describe('SearchService', () => {
     await expect(
       service.search({ query: 'song', limit: 20, offset: 0 }),
     ).resolves.toMatchObject({ source: 'music-catalog' });
+    vi.useRealTimers();
+  });
+
+  it('keeps recovery single-flight while visitors continue using Sonic', async () => {
+    vi.useFakeTimers();
+    let rejectProbe: ((error: Error) => void) | undefined;
+    catalog.searchIfConnected.mockImplementation(({ query }) => {
+      if (query === 'outage') {
+        return Promise.reject(
+          new AppException('SERVICE_UNAVAILABLE', 'catalog down'),
+        );
+      }
+      return new Promise((_resolve, reject) => {
+        rejectProbe = reject;
+      });
+    });
+    sonic.search.mockResolvedValue([]);
+    tracks.findSearchResults.mockResolvedValue([]);
+
+    await service.search({ query: 'outage', limit: 20, offset: 0 });
+    await vi.advanceTimersByTimeAsync(3_000);
+    await service.search({ query: 'visitor-one', limit: 20, offset: 0 });
+    await service.search({ query: 'visitor-two', limit: 20, offset: 0 });
+    await vi.advanceTimersByTimeAsync(6_000);
+    expect(catalog.searchIfConnected).toHaveBeenCalledTimes(2);
+
+    rejectProbe?.(new AppException('SERVICE_UNAVAILABLE', 'still down'));
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(catalog.searchIfConnected).toHaveBeenCalledTimes(3);
+    vi.useRealTimers();
+  });
+
+  it('does not accept a probe that overlaps a newer disconnect', async () => {
+    vi.useFakeTimers();
+    let finishProbe: ((value: { results: [] }) => void) | undefined;
+    catalog.searchIfConnected
+      .mockRejectedValueOnce(
+        new AppException('SERVICE_UNAVAILABLE', 'catalog down'),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishProbe = resolve;
+          }),
+      );
+    sonic.search.mockResolvedValue([]);
+    tracks.findSearchResults.mockResolvedValue([]);
+
+    await service.search({ query: 'outage', limit: 20, offset: 0 });
+    await vi.advanceTimersByTimeAsync(3_000);
+    reportClose?.();
+    finishProbe?.({ results: [] });
+    await vi.advanceTimersByTimeAsync(0);
+
+    await expect(
+      service.search({ query: 'after-close', limit: 20, offset: 0 }),
+    ).resolves.toMatchObject({ source: 'sonic' });
+    expect(catalog.searchIfConnected).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
   });
 
