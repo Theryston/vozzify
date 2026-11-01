@@ -32,6 +32,8 @@ export type SearchMockState = {
   calls: Request[];
   /** Added latency per reply, so the loading skeleton can be seen. */
   delayMs: number;
+  /** Added latency for selected offsets. */
+  delayByOffsetMs: Record<number, number>;
   /** When true, every reply is a retryable 503 like a catalog outage. */
   shouldFail: boolean;
   /** When true, every query answers no matches. */
@@ -113,6 +115,7 @@ export async function mockSearchApi(
     calls: [],
     reverseResults: false,
     delayMs: 0,
+    delayByOffsetMs: {},
     shouldFail: false,
     emptyResults: false,
     totalCount: 2,
@@ -138,8 +141,12 @@ export async function mockSearchApi(
     }
     state.calls.push(request);
     const reply = searchReply(state, request);
-    if (state.delayMs > 0) {
-      await new Promise((resolve) => setTimeout(resolve, state.delayMs));
+    const offset = Number(
+      new URL(request.url()).searchParams.get('offset') ?? 0,
+    );
+    const delayMs = state.delayByOffsetMs[offset] ?? state.delayMs;
+    if (delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
     try {
       await route.fulfill({

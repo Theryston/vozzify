@@ -27,6 +27,7 @@ import type { z } from 'zod';
 import { AppException } from '../../common/errors/app-exception.js';
 import { ENV, type Env } from '../../config/env.js';
 import { MusicCatalogConnection } from './music-catalog.connection.js';
+import { MUSIC_CATALOG_SEARCH_TIMEOUT_MS } from './music-catalog-socket.js';
 
 /**
  * What the catalog answers for one Recording. `moved` carries the MBID the
@@ -182,9 +183,14 @@ export class MusicCatalogClient implements OnModuleInit, OnModuleDestroy {
   async search(
     params: MusicCatalogSearchParams,
   ): Promise<MusicCatalogSearchResult> {
+    if (!this.isConfigured()) {
+      throw new AppException(
+        'INTERNAL_ERROR',
+        'Music catalog is not configured',
+      );
+    }
     return resultOrThrow(
-      await this.requestOrFail(
-        'search',
+      await this.connection.requestSearch(
         params,
         musicCatalogSearchResponseSchema,
       ),
@@ -206,6 +212,11 @@ export class MusicCatalogClient implements OnModuleInit, OnModuleDestroy {
         'search',
         params,
         musicCatalogSearchResponseSchema,
+        Math.min(
+          MUSIC_CATALOG_SEARCH_TIMEOUT_MS,
+          this.env.MUSIC_CATALOG_REQUEST_TIMEOUT_MS ??
+            MUSIC_CATALOG_SEARCH_TIMEOUT_MS,
+        ),
       ),
     );
   }

@@ -22,21 +22,33 @@ export type FakeMusicCatalog = {
   url: string;
   seenAuth: string[];
   seenQueries?: string[];
+  disablePong: () => void;
   close: () => Promise<void>;
+};
+
+type FakeMusicCatalogOptions = {
+  autoPong?: boolean;
 };
 
 export const startFakeMusicCatalog = async (
   handler: FakeCatalogHandler,
+  options: FakeMusicCatalogOptions = {},
 ): Promise<FakeMusicCatalog> => {
   const seenAuth: string[] = [];
   const seenQueries: string[] = [];
-  const server = new WebSocketServer({ port: 0 });
+  const sockets = new Set<WebSocket>();
+  const server = new WebSocketServer({
+    port: 0,
+    autoPong: options.autoPong ?? true,
+  });
   await new Promise<void>((resolve) => server.on('listening', () => resolve()));
   const address = server.address();
   const port =
     typeof address === 'object' && address !== null ? address.port : 0;
 
   server.on('connection', (socket: WebSocket, request) => {
+    sockets.add(socket);
+    socket.once('close', () => sockets.delete(socket));
     seenAuth.push(String(request.headers.authorization ?? ''));
     socket.on('message', (data) => {
       const message = JSON.parse(String(data)) as {
@@ -77,6 +89,10 @@ export const startFakeMusicCatalog = async (
     url: `ws://127.0.0.1:${port}`,
     seenAuth,
     seenQueries,
+    disablePong: () => {
+      server.options.autoPong = false;
+      for (const socket of sockets) socket.pong = () => undefined;
+    },
     // `server.close` waits for open peers, so specs close their app (and
     // its catalog socket) before calling this.
     close: () =>

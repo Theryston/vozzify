@@ -55,6 +55,33 @@ for (const { from, to, locale, signedIn } of cases) {
   });
 }
 
+test('silently restarts pages after a timed primary fallback switches source', async ({
+  page,
+}) => {
+  await mockAuthApi(page, { user: { ...ADA, username: 'ada' } });
+  const search = await mockSearchApi(page, {
+    totalCount: 25,
+    source: 'music-catalog',
+    sourceOnNextPage: 'sonic',
+    delayByOffsetMs: { 20: 2_100 },
+  });
+  await page.goto('/en/search?q=timed-fallback');
+  const main = page.getByRole('main');
+  await expect
+    .poll(() => {
+      const offsets = search.calls.map(
+        (request) => searchParamsOf(request).offset,
+      );
+      return offsets.slice(offsets.indexOf('20') + 1).includes('0');
+    })
+    .toBe(true);
+  await expect(main.getByText('Song 25', { exact: true })).toBeVisible();
+  await expect(
+    main.getByRole('link', { name: /Bohemian Rhapsody/ }),
+  ).toHaveAttribute('href', /\/tracks\/clxlinkedtrack01/);
+  await expect(main.getByRole('alert')).toHaveCount(0);
+});
+
 test('a delayed restart cannot restore pages after the query changes', async ({
   page,
 }) => {

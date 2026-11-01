@@ -3,13 +3,21 @@ import WebSocket from 'ws';
 import type { z } from 'zod';
 import { AppException } from '../../common/errors/app-exception.js';
 import type { Env } from '../../config/env.js';
+import { MusicCatalogLiveness } from './music-catalog-liveness.js';
 import {
+  failPendingRequests,
   type PendingRequest,
+  requestIdOf,
   requestOnSocket,
 } from './music-catalog-request.js';
+import {
+  connectMusicCatalog,
+  MUSIC_CATALOG_SEARCH_TIMEOUT_MS,
+  notConnected,
+  waitForConnection,
+} from './music-catalog-socket.js';
 
-const INITIAL_RECONNECT_DELAY_MS = 500;
-const MAX_RECONNECT_DELAY_MS = 10_000;
+const RECONNECT_DELAY_MS = { initial: 500, maximum: 10_000 };
 
 const MUSIC_CATALOG_DEFAULT_TIMEOUT_MS = 5_000;
 
@@ -17,14 +25,16 @@ const MUSIC_CATALOG_DEFAULT_TIMEOUT_MS = 5_000;
 export class MusicCatalogConnection {
   private readonly logger = new Logger('MusicCatalogClient');
   private socket: WebSocket | undefined;
+  private connectingSocket: WebSocket | undefined;
   private connecting: Promise<void> | undefined;
   private readonly pending = new Map<string, PendingRequest>();
-  private reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS;
+  private reconnectDelayMs = RECONNECT_DELAY_MS.initial;
   private reconnectTimer: NodeJS.Timeout | undefined;
   private stopped = false;
   private searchGeneration = 0;
   private authenticationFailure: string | undefined;
   private readonly closeListeners = new Set<() => void>();
+  private liveness: MusicCatalogLiveness | undefined;
 
   constructor(private readonly env: Env) {}
 
@@ -62,9 +72,14 @@ export class MusicCatalogConnection {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
     }
-    this.socket?.close();
+    this.liveness?.stop();
+    this.liveness = undefined;
+    this.connectingSocket?.terminate();
+    this.connectingSocket = undefined;
+    this.socket?.terminate();
     this.socket = undefined;
-    this.failPending(
+    failPendingRequests(
+      this.pending,
       new AppException('INTERNAL_ERROR', 'Music catalog is shutting down'),
     );
   }
@@ -85,10 +100,38 @@ export class MusicCatalogConnection {
     });
   }
 
+  async requestSearch<TOutput>(
+    payload: unknown,
+    responseSchema: z.ZodType<TOutput>,
+  ): Promise<TOutput> {
+    const startedAt = Date.now();
+    const budget = Math.min(
+      MUSIC_CATALOG_SEARCH_TIMEOUT_MS,
+      this.requestTimeoutMs(),
+    );
+    const socket = await this.openSocket(budget);
+    const remaining = budget - (Date.now() - startedAt);
+    if (remaining <= 0) {
+      throw new AppException(
+        'GATEWAY_TIMEOUT',
+        'Music catalog request timed out',
+      );
+    }
+    return requestOnSocket({
+      pending: this.pending,
+      socket,
+      type: 'search',
+      payload,
+      responseSchema,
+      timeoutMs: remaining,
+    });
+  }
+
   requestIfConnected<TOutput>(
     type: string,
     payload: unknown,
     responseSchema: z.ZodType<TOutput>,
+    timeoutMs = this.requestTimeoutMs(),
   ): Promise<TOutput> {
     const socket = this.socket;
     if (socket === undefined || socket.readyState !== WebSocket.OPEN) {
@@ -100,13 +143,15 @@ export class MusicCatalogConnection {
       type,
       payload,
       responseSchema,
-      timeoutMs: this.requestTimeoutMs(),
+      timeoutMs,
     });
   }
 
-  private async openSocket(): Promise<WebSocket> {
+  private async openSocket(
+    timeoutMs = this.requestTimeoutMs(),
+  ): Promise<WebSocket> {
     try {
-      await this.ensureConnected();
+      await waitForConnection(this.ensureConnected(), timeoutMs);
     } catch (error: unknown) {
       this.logger.warn(
         `Music catalog dial failed: ${
@@ -154,36 +199,17 @@ export class MusicCatalogConnection {
         'Music catalog is not configured',
       );
     }
-    const socket = new WebSocket(url, {
-      headers: { Authorization: `Bearer ${key}` },
-    });
-    await new Promise<void>((resolve, reject) => {
-      const onOpen = (): void => {
-        socket.off('error', onError);
-        socket.off('close', onClose);
-        resolve();
-      };
-      const onError = (error: Error): void => {
-        if (
-          /Unexpected server response: 401|Unexpected server response: 403/.test(
-            error.message,
-          )
-        ) {
-          this.authenticationFailure = error.message;
-        }
-        socket.off('open', onOpen);
-        socket.off('close', onClose);
-        reject(error);
-      };
-      const onClose = (): void => {
-        socket.off('open', onOpen);
-        socket.off('error', onError);
-        reject(new Error('Connection closed'));
-      };
-      socket.once('open', onOpen);
-      socket.once('error', onError);
-      socket.once('close', onClose);
-    });
+    const socket = await connectMusicCatalog(
+      url,
+      key,
+      (message) => {
+        this.authenticationFailure = message;
+      },
+      (connectingSocket) => {
+        this.connectingSocket = connectingSocket;
+      },
+    );
+    this.connectingSocket = undefined;
     if (this.stopped) {
       socket.close();
       throw new AppException(
@@ -193,16 +219,21 @@ export class MusicCatalogConnection {
     }
     this.attachSocket(socket);
     this.socket = socket;
+    this.liveness = new MusicCatalogLiveness(socket);
     this.authenticationFailure = undefined;
-    this.reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS;
+    this.reconnectDelayMs = RECONNECT_DELAY_MS.initial;
     this.logger.log('Connected to the Music catalog');
   }
 
   private attachSocket(socket: WebSocket): void {
     socket.on('message', (data, isBinary) => {
+      if (this.socket !== socket) {
+        return;
+      }
       if (isBinary === true) {
         this.logger.warn('Dropping a binary frame from the Music catalog');
-        this.failPending(
+        failPendingRequests(
+          this.pending,
           new AppException(
             'INTERNAL_ERROR',
             'Music catalog sent a binary response',
@@ -252,9 +283,12 @@ export class MusicCatalogConnection {
       return;
     }
     this.socket = undefined;
+    this.liveness?.stop();
+    this.liveness = undefined;
     this.searchGeneration += 1;
     for (const listener of this.closeListeners) listener();
-    this.failPending(
+    failPendingRequests(
+      this.pending,
       new AppException('SERVICE_UNAVAILABLE', 'Music catalog disconnected'),
     );
     if (this.stopped) {
@@ -269,7 +303,7 @@ export class MusicCatalogConnection {
       return;
     }
     const delay = this.reconnectDelayMs;
-    this.reconnectDelayMs = Math.min(delay * 2, MAX_RECONNECT_DELAY_MS);
+    this.reconnectDelayMs = Math.min(delay * 2, RECONNECT_DELAY_MS.maximum);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = undefined;
       if (this.stopped) {
@@ -285,21 +319,4 @@ export class MusicCatalogConnection {
       });
     }, delay);
   }
-
-  private failPending(error: Error): void {
-    for (const [id, pending] of this.pending) {
-      this.pending.delete(id);
-      pending.fail(error);
-    }
-  }
-}
-
-const notConnected = (): AppException =>
-  new AppException('SERVICE_UNAVAILABLE', 'Music catalog is not connected');
-
-function requestIdOf(frame: unknown): string | undefined {
-  if (typeof frame !== 'object' || frame === null || !('id' in frame)) {
-    return undefined;
-  }
-  return typeof frame.id === 'string' ? frame.id : undefined;
 }
