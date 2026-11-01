@@ -1,5 +1,4 @@
 import { searchResultSchema } from '@vozzify/contracts';
-import type { StartedTestContainer } from 'testcontainers';
 import { trackProcessings } from '../src/database/schema/track-processings.js';
 import { tracks } from '../src/database/schema/tracks.js';
 import { SonicService } from '../src/integrations/sonic/sonic.service.js';
@@ -24,7 +23,7 @@ import { startSonicContainer } from './utils/sonic-container.js';
 describe('Catalog search plus limits plus errors (e2e)', () => {
   let catalog: FakeMusicCatalog;
   let testApp: TestApp;
-  let sonic: StartedTestContainer;
+  let sonic: Awaited<ReturnType<typeof startSonicContainer>>;
   let probeReady = false;
 
   beforeAll(async () => {

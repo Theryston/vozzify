@@ -1,4 +1,3 @@
-import type { StartedTestContainer } from 'testcontainers';
 import { trackProcessings } from '../src/database/schema/track-processings.js';
 import { tracks } from '../src/database/schema/tracks.js';
 import { MusicCatalogClient } from '../src/integrations/music-catalog/music-catalog.client.js';
@@ -15,7 +14,7 @@ import { startSonicContainer } from './utils/sonic-container.js';
 describe('Music catalog search deadline (e2e)', () => {
   let catalog: DelayedHandshakeMusicCatalog;
   let testApp: TestApp;
-  let sonic: StartedTestContainer;
+  let sonic: Awaited<ReturnType<typeof startSonicContainer>>;
 
   beforeAll(async () => {
     sonic = await startSonicContainer();
