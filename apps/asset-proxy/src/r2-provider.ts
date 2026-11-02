@@ -10,7 +10,7 @@ type AssetMetadata = {
 };
 
 const parseRange = (header: string, size: number): ByteRange | null => {
-  const match = /^bytes=(\d*)-(\d*)$/.exec(header);
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(header);
   const first = match?.[1];
   const last = match?.[2];
   if (first === undefined || last === undefined || (!first && !last))
@@ -65,7 +65,7 @@ const weakTagValue = (tag: string): string =>
 const ifMatchPasses = (header: string, etag: string): boolean =>
   header.trim() === '*' || tags(header).includes(etag);
 
-const ifNoneMatchPasses = (header: string, etag: string): boolean =>
+const matchesIfNoneMatch = (header: string, etag: string): boolean =>
   header.trim() === '*' ||
   tags(header).some((candidate) => weakTagValue(candidate) === etag);
 
@@ -86,7 +86,7 @@ const conditionalStatus = (
   }
 
   const ifNoneMatch = request.headers.get('If-None-Match');
-  if (ifNoneMatch && ifNoneMatchPasses(ifNoneMatch, etag)) return 304;
+  if (ifNoneMatch && matchesIfNoneMatch(ifNoneMatch, etag)) return 304;
 
   const modifiedSince = request.headers.get('If-Modified-Since');
   if (
@@ -107,11 +107,7 @@ const ifRangeMatches = (
   if (value === null) return true;
   if (value.startsWith('W/')) return false;
   if (value.startsWith('"')) return value === etag;
-  const date = Date.parse(value);
-  return (
-    Number.isFinite(date) &&
-    Math.floor(uploaded.getTime() / 1000) <= date / 1000
-  );
+  return value === uploaded.toUTCString();
 };
 
 const conditionalResponse = (
@@ -139,11 +135,6 @@ const headResponse = async (
   });
 };
 
-const bodylessGetResponse = (request: Request, object: R2Object): Response => {
-  const metadata = metadataFor(object);
-  return conditionalResponse(request, metadata);
-};
-
 const rangeGetResponse = async (
   bucket: R2Bucket,
   request: Request,
@@ -151,13 +142,19 @@ const rangeGetResponse = async (
   range: ByteRange,
 ): Promise<Response> => {
   const object = await bucket.get(key, {
-    onlyIf: request.headers,
     range: { offset: range.start, length: range.end - range.start + 1 },
   });
   if (!object) return new Response(null, { status: 404 });
-  if (!('body' in object)) return bodylessGetResponse(request, object);
 
   const responseMetadata = metadataFor(object);
+  const status = conditionalStatus(request, responseMetadata);
+  if (status !== undefined) {
+    if (status === 412) responseMetadata.headers.delete('Content-Length');
+    return new Response(null, {
+      status,
+      headers: responseMetadata.headers,
+    });
+  }
   if (!ifRangeMatches(request, responseMetadata)) {
     return fullGetResponse(bucket, request, key);
   }
@@ -188,9 +185,16 @@ const fullGetResponse = async (
   request: Request,
   key: string,
 ): Promise<Response> => {
-  const object = await bucket.get(key, { onlyIf: request.headers });
+  const head = await bucket.head(key);
+  if (!head) return new Response(null, { status: 404 });
+  const headMetadata = metadataFor(head);
+  const headStatus = conditionalStatus(request, headMetadata);
+  if (headStatus !== undefined) {
+    return conditionalResponse(request, headMetadata);
+  }
+
+  const object = await bucket.get(key);
   if (!object) return new Response(null, { status: 404 });
-  if (!('body' in object)) return bodylessGetResponse(request, object);
 
   const metadata = metadataFor(object);
   const status = conditionalStatus(request, metadata);
@@ -209,6 +213,10 @@ const getResponse = async (
 ): Promise<Response> => {
   const rangeRequest = request.headers.get('Range');
   if (rangeRequest === null) return fullGetResponse(bucket, request, key);
+  const rangeUnit = rangeRequest.split('=', 1)[0]?.toLowerCase();
+  if (rangeUnit !== 'bytes' || rangeRequest.includes(',')) {
+    return fullGetResponse(bucket, request, key);
+  }
 
   const head = await bucket.head(key);
   if (!head) return new Response(null, { status: 404 });

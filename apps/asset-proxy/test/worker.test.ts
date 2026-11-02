@@ -129,6 +129,44 @@ describe('public asset HTTP delivery', () => {
     expect(failure.headers.get('Cache-Control')).toBe('no-store');
   });
 
+  it('accepts an exact Last-Modified If-Unmodified-Since date', async () => {
+    const initial = await SELF.fetch(assetUrl(objects[2].key));
+    const lastModified = initial.headers.get('Last-Modified');
+    expect(lastModified).not.toBeNull();
+
+    const response = await SELF.fetch(assetUrl(objects[2].key), {
+      headers: { 'If-Unmodified-Since': lastModified ?? '' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes.binary);
+  });
+
+  it('uses an exact Last-Modified match for an If-Range date', async () => {
+    const initial = await SELF.fetch(assetUrl(objects[1].key));
+    const lastModified = initial.headers.get('Last-Modified') ?? '';
+    const response = await SELF.fetch(assetUrl(objects[1].key), {
+      headers: { Range: 'bytes=44-47', 'If-Range': lastModified },
+    });
+
+    expect(response.status).toBe(206);
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+      bytes.audio.slice(44, 48),
+    );
+  });
+
+  it('ignores Range when an If-Range date differs from Last-Modified', async () => {
+    const response = await SELF.fetch(assetUrl(objects[1].key), {
+      headers: {
+        Range: 'bytes=44-47',
+        'If-Range': 'Thu, 01 Jan 2099 00:00:00 GMT',
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes.audio);
+  });
+
   it('returns partial audio bytes for a satisfiable range', async () => {
     const response = await SELF.fetch(assetUrl(objects[1].key), {
       headers: { Range: 'bytes=44-47' },
@@ -141,6 +179,29 @@ describe('public asset HTTP delivery', () => {
       bytes.audio.slice(44, 48),
     );
   });
+
+  it('accepts byte-range units without case sensitivity', async () => {
+    const response = await SELF.fetch(assetUrl(objects[1].key), {
+      headers: { Range: 'Bytes=44-47' },
+    });
+
+    expect(response.status).toBe(206);
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+      bytes.audio.slice(44, 48),
+    );
+  });
+
+  it.each(['items=0-1', 'bytes=0-1,4-5'])(
+    'serves the full object for unsupported Range value %s',
+    async (range) => {
+      const response = await SELF.fetch(assetUrl(objects[1].key), {
+        headers: { Range: range },
+      });
+
+      expect(response.status).toBe(200);
+      expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes.audio);
+    },
+  );
 
   it('ignores a byte range when If-Range does not match', async () => {
     const response = await SELF.fetch(assetUrl(objects[1].key), {
