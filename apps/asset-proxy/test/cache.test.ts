@@ -41,6 +41,42 @@ const clear = async (url: string, key: string): Promise<void> => {
   await env.PUBLIC_ASSETS.delete(key);
 };
 
+type RevalidationFailureCase = {
+  key: string;
+  oldBytes: Uint8Array;
+  newBytes: Uint8Array;
+  makeOriginFail(key: string): Promise<void>;
+};
+
+const expectRevalidationFailureToEvictAndRecover = async ({
+  key,
+  oldBytes,
+  newBytes,
+  makeOriginFail,
+}: RevalidationFailureCase): Promise<void> => {
+  const url = pathFor(key);
+  await clear(url, key);
+  await putObject(key, oldBytes);
+
+  try {
+    const initial = await fetchAsset(url);
+    await bodyOf(initial);
+    vi.setSystemTime(Date.now() + 10_800_000);
+    await makeOriginFail(key);
+
+    const stale = await fetchAsset(url);
+    expect(await bodyOf(stale)).toEqual(oldBytes);
+    expect(await cache.match(cacheKeyFor(url))).toBeUndefined();
+
+    await putObject(key, newBytes);
+    const recovered = await fetchAsset(url);
+    expect(recovered.status).toBe(200);
+    expect(await bodyOf(recovered)).toEqual(newBytes);
+  } finally {
+    await clear(url, key);
+  }
+};
+
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -199,60 +235,28 @@ describe('asset cache over the public Worker endpoint', () => {
   });
 
   it('evicts stale bytes on origin failure and lets a later request recover', async () => {
-    const key = 'cache/recovery.bin';
-    const url = pathFor(key);
-    const oldBytes = new Uint8Array([31, 32]);
-    const newBytes = new Uint8Array([41, 42]);
-    await clear(url, key);
-    await putObject(key, oldBytes);
-
-    try {
-      const initial = await fetchAsset(url);
-      await bodyOf(initial);
-      vi.setSystemTime(Date.now() + 10_800_000);
-      await putObject(key, new Uint8Array([33, 34, 35]));
-      vi.spyOn(env.PUBLIC_ASSETS, 'get').mockRejectedValueOnce(
-        new Error('R2 unavailable'),
-      );
-
-      const stale = await fetchAsset(url);
-      expect(await bodyOf(stale)).toEqual(oldBytes);
-      expect(await cache.match(cacheKeyFor(url))).toBeUndefined();
-
-      await putObject(key, newBytes);
-      const recovered = await fetchAsset(url);
-      expect(recovered.status).toBe(200);
-      expect(await bodyOf(recovered)).toEqual(newBytes);
-    } finally {
-      await clear(url, key);
-    }
+    await expectRevalidationFailureToEvictAndRecover({
+      key: 'cache/recovery.bin',
+      oldBytes: new Uint8Array([31, 32]),
+      newBytes: new Uint8Array([41, 42]),
+      async makeOriginFail(key) {
+        await putObject(key, new Uint8Array([33, 34, 35]));
+        vi.spyOn(env.PUBLIC_ASSETS, 'get').mockRejectedValueOnce(
+          new Error('R2 unavailable'),
+        );
+      },
+    });
   });
 
   it('evicts stale bytes when the object disappears and retries after recovery', async () => {
-    const key = 'cache/missing-on-refresh.bin';
-    const url = pathFor(key);
-    const oldBytes = new Uint8Array([45, 46]);
-    const newBytes = new Uint8Array([47, 48]);
-    await clear(url, key);
-    await putObject(key, oldBytes);
-
-    try {
-      const initial = await fetchAsset(url);
-      await bodyOf(initial);
-      vi.setSystemTime(Date.now() + 10_800_000);
-      await env.PUBLIC_ASSETS.delete(key);
-
-      const stale = await fetchAsset(url);
-      expect(await bodyOf(stale)).toEqual(oldBytes);
-      expect(await cache.match(cacheKeyFor(url))).toBeUndefined();
-
-      await putObject(key, newBytes);
-      const recovered = await fetchAsset(url);
-      expect(recovered.status).toBe(200);
-      expect(await bodyOf(recovered)).toEqual(newBytes);
-    } finally {
-      await clear(url, key);
-    }
+    await expectRevalidationFailureToEvictAndRecover({
+      key: 'cache/missing-on-refresh.bin',
+      oldBytes: new Uint8Array([45, 46]),
+      newBytes: new Uint8Array([47, 48]),
+      async makeOriginFail(key) {
+        await env.PUBLIC_ASSETS.delete(key);
+      },
+    });
   });
 
   it('evicts a cached copy when background revalidation times out', async () => {
