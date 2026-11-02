@@ -15,6 +15,29 @@ type CacheRequest = {
   execution: ExecutionContext;
 };
 
+type RefreshState = {
+  timedOut: boolean;
+  cancelBody?: () => void;
+};
+
+const deleteSafely = async (cache: Cache, key: Request): Promise<void> => {
+  try {
+    await cache.delete(key);
+  } catch {
+    // Cleanup is best effort when the runtime cache is unavailable.
+  }
+};
+
+const cancelReaderSafely = async (
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+): Promise<void> => {
+  try {
+    await reader.cancel();
+  } catch {
+    // A body can finish or fail between timeout and cancellation.
+  }
+};
+
 const cacheKeyFor = (request: Request): Request =>
   new Request(new URL(request.url), { method: 'GET' });
 
@@ -68,14 +91,14 @@ const storeRefreshed = async (
   cache: Cache,
   cacheKey: Request,
   response: Response,
-  timedOut: () => boolean,
+  state: RefreshState,
 ): Promise<void> => {
   const retained = await store(
     cache,
     cacheKey,
     toStoredResponse(response, Date.now()),
   );
-  if (timedOut() || !retained) await cache.delete(cacheKey);
+  if (state.timedOut || !retained) await deleteSafely(cache, cacheKey);
 };
 
 const refreshResponse = async ({
@@ -83,15 +106,13 @@ const refreshResponse = async ({
   cacheKey,
   cached,
   response,
-  setCancel,
-  timedOut,
+  state,
 }: {
   cache: Cache;
   cacheKey: Request;
   cached: Response;
   response: Response;
-  setCancel: (cancel: () => void) => void;
-  timedOut: () => boolean;
+  state: RefreshState;
 }): Promise<void> => {
   if (response.status === 304) {
     const headers = new Headers(cached.headers);
@@ -102,7 +123,7 @@ const refreshResponse = async ({
       cache,
       cacheKey,
       new Response(cached.body, { status: 200, headers }),
-      timedOut,
+      state,
     );
     return;
   }
@@ -115,19 +136,14 @@ const refreshResponse = async ({
           if (chunk.done) controller.close();
           else controller.enqueue(chunk.value);
         },
-        async cancel() {
-          await reader.cancel();
-        },
       });
-      setCancel(() => {
-        void reader.cancel().catch(() => undefined);
-      });
+      state.cancelBody = () => void cancelReaderSafely(reader);
       response = new Response(body, response);
     }
-    await storeRefreshed(cache, cacheKey, response, timedOut);
+    await storeRefreshed(cache, cacheKey, response, state);
     return;
   }
-  await cache.delete(cacheKey);
+  await deleteSafely(cache, cacheKey);
 };
 
 const refresh = async (
@@ -137,15 +153,20 @@ const refresh = async (
   resolve: () => Promise<Response>,
 ): Promise<void> => {
   let timeout: ReturnType<typeof setTimeout> | undefined;
+  const state: RefreshState = { timedOut: false };
   let response: Response | undefined;
-  let cancelBody: (() => void) | undefined;
-  let timedOut = false;
   let revalidation: Promise<void> | undefined;
   try {
     revalidation = (async (): Promise<void> => {
       response = await resolve();
-      if (timedOut) {
-        void response.body?.cancel().catch(() => undefined);
+      if (state.timedOut) {
+        if (response.body) {
+          try {
+            await response.body.cancel();
+          } catch {
+            // The provider may have already consumed or locked its body.
+          }
+        }
         return;
       }
       await refreshResponse({
@@ -153,30 +174,28 @@ const refresh = async (
         cacheKey,
         cached,
         response,
-        setCancel: (cancel) => {
-          cancelBody = cancel;
-        },
-        timedOut: () => timedOut,
+        state,
       });
     })();
     await Promise.race([
       revalidation,
       new Promise<void>((_resolve, reject) => {
         timeout = setTimeout(() => {
-          timedOut = true;
+          state.timedOut = true;
           reject(new Error('Asset revalidation timed out'));
         }, REVALIDATION_TIMEOUT_MS);
       }),
     ]);
   } catch {
-    if (!timedOut) await cache.delete(cacheKey).catch(() => false);
+    if (!state.timedOut) await deleteSafely(cache, cacheKey);
   } finally {
-    if (timedOut) cancelBody?.();
+    if (state.timedOut) state.cancelBody?.();
     if (timeout !== undefined) clearTimeout(timeout);
   }
-  if (timedOut && revalidation !== undefined) {
-    void revalidation.finally(() => cache.delete(cacheKey)).catch(() => false);
-    await cache.delete(cacheKey).catch(() => false);
+  if (state.timedOut && revalidation !== undefined) {
+    const clean = (): Promise<void> => deleteSafely(cache, cacheKey);
+    void revalidation.then(clean, clean);
+    await deleteSafely(cache, cacheKey);
   }
 };
 

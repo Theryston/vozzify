@@ -38,6 +38,53 @@ describe('asset cache edge behavior', () => {
     expect(await bodyOf(result)).toEqual(new Uint8Array([9]));
   });
 
+  it('cancels a refresh stream when cache admission abandons its body', async () => {
+    const url = 'https://assets.test/cancel/item.bin';
+    const entry = new Request(url);
+    let calls = 0;
+    const provider: AssetProvider = {
+      freshnessSeconds: 30,
+      cacheMode: 'stale-while-revalidate',
+      async resolve() {
+        calls += 1;
+        return new Response(new Uint8Array([calls]), {
+          headers: { 'Content-Length': '1' },
+        });
+      },
+    };
+    await cache.delete(entry);
+    try {
+      const coldContext = createExecutionContext();
+      const cold = await dispatchAssetRequest(
+        new Request(url),
+        new Map([['cancel', provider]]),
+        cache,
+        coldContext,
+      );
+      await bodyOf(cold);
+      await waitOnExecutionContext(coldContext);
+      vi.useFakeTimers();
+      vi.setSystemTime(Date.now() + 30_000);
+      const originalPut = cache.put.bind(cache);
+      vi.spyOn(cache, 'put')
+        .mockImplementationOnce(originalPut)
+        .mockImplementationOnce(async (_key, response) => {
+          await response.body?.cancel();
+        });
+      const context = createExecutionContext();
+      const stale = await dispatchAssetRequest(
+        new Request(url),
+        new Map([['cancel', provider]]),
+        cache,
+        context,
+      );
+      expect(await bodyOf(stale)).toEqual(new Uint8Array([1]));
+      await waitOnExecutionContext(context);
+    } finally {
+      await cache.delete(entry);
+    }
+  });
+
   it('cleans up when a revalidation response arrives after timeout', async () => {
     const url = 'https://assets.test/late/item.bin';
     const entry = new Request(url);
