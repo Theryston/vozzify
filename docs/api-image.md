@@ -10,8 +10,9 @@ checks native image processing, ffmpeg, migrations (including a second run),
 and HTTP liveness/readiness. It uses fake integration credentials and an
 isolated Docker network. It removes its containers, network and temporary files.
 
-A push to `main` runs the same checks, then publishes the tested image to
+A push to `main` only builds and publishes the image to
 `ghcr.io/theryston/vozzify/api` with `latest` and `sha-<short-commit>` tags.
+It does not repeat the checks or smoke tests already run on the pull request.
 Publication uses the workflow's `GITHUB_TOKEN` with `packages: write`.
 BuildKit caches layers separately from the other applications.
 
