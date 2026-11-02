@@ -62,7 +62,7 @@ describe('search: what a result shows and the order of the results (e2e)', () =>
         mbid: mbid(150),
         title: 'Rich Girl',
         artistCredit: 'Daryl Hall and John Oates',
-        coverUrl: `https://coverartarchive.org/release/${mbid(350)}/front-500`,
+        coverUrl: `https://assets.vozzify.com/cover-art-archive/release/${mbid(350)}/front-500`,
         trackId: null,
       });
       expect(Object.keys(result ?? {}).sort()).toEqual([
@@ -138,7 +138,7 @@ describe('search: what a result shows and the order of the results (e2e)', () =>
       }
       const listedFirst = full.result.releases[0];
       expect(result?.coverUrl).toBe(
-        `https://coverartarchive.org/release/${listedFirst?.mbid}/front-500`,
+        `https://assets.vozzify.com/cover-art-archive/release/${listedFirst?.mbid}/front-500`,
       );
     });
 
@@ -162,7 +162,7 @@ describe('search: what a result shows and the order of the results (e2e)', () =>
 
       await expect(search({ query: 'song' })).resolves.toMatchObject([
         {
-          coverUrl: `https://coverartarchive.org/release/${mbid(400)}/front-500`,
+          coverUrl: `https://assets.vozzify.com/cover-art-archive/release/${mbid(400)}/front-500`,
         },
       ]);
 
@@ -177,7 +177,7 @@ describe('search: what a result shows and the order of the results (e2e)', () =>
 
       await expect(search({ query: 'song' })).resolves.toMatchObject([
         {
-          coverUrl: `https://coverartarchive.org/release/${mbid(401)}/front-500`,
+          coverUrl: `https://assets.vozzify.com/cover-art-archive/release/${mbid(401)}/front-500`,
         },
       ]);
     });

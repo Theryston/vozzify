@@ -1,7 +1,7 @@
+import { toStoredResponse } from './cache-retention.js';
 import type { AssetProvider } from './provider.js';
 
 const VALIDATED_AT = 'X-Vozzify-Validated-At';
-const CACHE_CONTROL = 'public, max-age=14400';
 const REVALIDATION_TIMEOUT_MS = 10_000;
 
 export const getDefaultCache = (): Cache =>
@@ -18,6 +18,7 @@ type CacheRequest = {
 type RefreshState = {
   timedOut: boolean;
   cancelBody?: () => void;
+  provider: AssetProvider;
 };
 
 const deleteSafely = async (cache: Cache, key: Request): Promise<void> => {
@@ -40,20 +41,6 @@ const cancelReaderSafely = async (
 
 const cacheKeyFor = (request: Request): Request =>
   new Request(new URL(request.url), { method: 'GET' });
-
-const toStoredResponse = (
-  response: Response,
-  validatedAt: number,
-): Response => {
-  const headers = new Headers(response.headers);
-  headers.set(VALIDATED_AT, String(validatedAt));
-  headers.set('Cache-Control', CACHE_CONTROL);
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
-};
 
 const validatedAtOf = (response: Response): number | undefined => {
   const value = Number(response.headers.get(VALIDATED_AT));
@@ -96,7 +83,7 @@ const storeRefreshed = async (
   const retained = await store(
     cache,
     cacheKey,
-    toStoredResponse(response, Date.now()),
+    toStoredResponse(response, Date.now(), state.provider),
   );
   if (state.timedOut || !retained) await deleteSafely(cache, cacheKey);
 };
@@ -149,14 +136,21 @@ const refreshResponse = async ({
   await deleteSafely(cache, cacheKey);
 };
 
-const refresh = async (
-  cache: Cache,
-  cacheKey: Request,
-  cached: Response,
-  resolve: () => Promise<Response>,
-): Promise<void> => {
+const refresh = async ({
+  cache,
+  cacheKey,
+  cached,
+  resolve,
+  provider,
+}: {
+  cache: Cache;
+  cacheKey: Request;
+  cached: Response;
+  resolve: () => Promise<Response>;
+  provider: AssetProvider;
+}): Promise<void> => {
   let timeout: ReturnType<typeof setTimeout> | undefined;
-  const state: RefreshState = { timedOut: false };
+  const state: RefreshState = { timedOut: false, provider };
   let response: Response | undefined;
   let revalidation: Promise<void> | undefined;
   try {
@@ -202,9 +196,17 @@ const refresh = async (
   }
 };
 
+const weakTagValue = (tag: string): string => tag.trim().replace(/^W\//, '');
+
 const tagMatches = (value: string, etag: string): boolean =>
   value.trim() === '*' ||
-  value.split(',').some((tag) => tag.trim().replace(/^W\//, '') === etag);
+  value.split(',').some((tag) => weakTagValue(tag) === weakTagValue(etag));
+
+const strongTagMatches = (value: string, etag: string): boolean =>
+  !etag.startsWith('W/') &&
+  value
+    .split(',')
+    .some((tag) => !tag.trim().startsWith('W/') && tag.trim() === etag);
 
 const conditional = (
   request: Request,
@@ -213,14 +215,7 @@ const conditional = (
   const etag = response.headers.get('ETag') ?? '';
   const modified = Date.parse(response.headers.get('Last-Modified') ?? '');
   const ifMatch = request.headers.get('If-Match');
-  if (
-    ifMatch &&
-    ifMatch.trim() !== '*' &&
-    !ifMatch
-      .split(',')
-      .map((tag) => tag.trim())
-      .includes(etag)
-  )
+  if (ifMatch && ifMatch.trim() !== '*' && !strongTagMatches(ifMatch, etag))
     return 412;
   const unmodified = request.headers.get('If-Unmodified-Since');
   if (!ifMatch && unmodified && modified > Date.parse(unmodified) + 999)
@@ -305,9 +300,13 @@ export const deliverCachedAsset = async ({
     const etag = cached.headers.get('ETag');
     if (etag) conditionalRequest.headers.set('If-None-Match', etag);
     execution.waitUntil(
-      refresh(cache, cacheKey, cached.clone(), () =>
-        provider.resolve({ request: conditionalRequest, key }),
-      ),
+      refresh({
+        cache,
+        cacheKey,
+        cached: cached.clone(),
+        resolve: () => provider.resolve({ request: conditionalRequest, key }),
+        provider,
+      }),
     );
     return clientResponse(request, cached, cache);
   }
@@ -315,7 +314,11 @@ export const deliverCachedAsset = async ({
   const response = await resolve();
   if (cacheable(response)) {
     execution.waitUntil(
-      store(cache, cacheKey, toStoredResponse(response.clone(), Date.now())),
+      store(
+        cache,
+        cacheKey,
+        toStoredResponse(response.clone(), Date.now(), provider),
+      ),
     );
   }
   return response;

@@ -116,7 +116,7 @@ describe('assembleRecording', () => {
         country: 'GB',
         mediumPosition: 2,
         trackPosition: 5,
-        coverArtUrl: `https://coverartarchive.org/release/${release(1).mbid}/front-500`,
+        coverArtUrl: `https://assets.vozzify.com/cover-art-archive/release/${release(1).mbid}/front-500`,
       },
       {
         mbid: release(2).mbid,
@@ -127,7 +127,7 @@ describe('assembleRecording', () => {
         country: 'FR',
         mediumPosition: 1,
         trackPosition: 1,
-        coverArtUrl: `https://coverartarchive.org/release/${release(2).mbid}/front-500`,
+        coverArtUrl: `https://assets.vozzify.com/cover-art-archive/release/${release(2).mbid}/front-500`,
       },
     ]);
   });

@@ -149,7 +149,7 @@ describe('getRecording: releases, works and links (e2e)', () => {
     const [release] = await releasesOf();
 
     expect(release?.coverArtUrl).toBe(
-      `https://coverartarchive.org/release/${mbid(201)}/front-500`,
+      `https://assets.vozzify.com/cover-art-archive/release/${mbid(201)}/front-500`,
     );
   });
 

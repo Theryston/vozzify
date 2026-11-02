@@ -183,7 +183,7 @@ describe('getRecording: the Recording (e2e)', () => {
           country: 'GB',
           mediumPosition: 1,
           trackPosition: 11,
-          coverArtUrl: `https://coverartarchive.org/release/${mbid(200)}/front-500`,
+          coverArtUrl: `https://assets.vozzify.com/cover-art-archive/release/${mbid(200)}/front-500`,
         },
       ],
       works: [{ mbid: mbid(400), title: 'Bohemian Rhapsody (composition)' }],
