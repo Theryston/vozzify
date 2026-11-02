@@ -42,12 +42,26 @@ describe('asset cache edge behavior', () => {
     const url = 'https://assets.test/cancel/item.bin';
     const entry = new Request(url);
     let calls = 0;
+    let originCancelled = false;
     const provider: AssetProvider = {
       freshnessSeconds: 30,
       cacheMode: 'stale-while-revalidate',
       async resolve() {
         calls += 1;
-        return new Response(new Uint8Array([calls]), {
+        if (calls === 2) {
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(new Uint8Array([2]));
+              },
+              cancel() {
+                originCancelled = true;
+              },
+            }),
+            { headers: { 'Content-Length': '1' } },
+          );
+        }
+        return new Response(new Uint8Array([calls === 1 ? 1 : 2]), {
           headers: { 'Content-Length': '1' },
         });
       },
@@ -65,12 +79,9 @@ describe('asset cache edge behavior', () => {
       await waitOnExecutionContext(coldContext);
       vi.useFakeTimers();
       vi.setSystemTime(Date.now() + 30_000);
-      const originalPut = cache.put.bind(cache);
-      vi.spyOn(cache, 'put')
-        .mockImplementationOnce(originalPut)
-        .mockImplementationOnce(async (_key, response) => {
-          await response.body?.cancel();
-        });
+      vi.spyOn(cache, 'put').mockImplementationOnce(async (_key, response) => {
+        await response.body?.cancel();
+      });
       const context = createExecutionContext();
       const stale = await dispatchAssetRequest(
         new Request(url),
@@ -80,6 +91,24 @@ describe('asset cache edge behavior', () => {
       );
       expect(await bodyOf(stale)).toEqual(new Uint8Array([1]));
       await waitOnExecutionContext(context);
+      expect(originCancelled).toBe(true);
+
+      const recoveryContext = createExecutionContext();
+      const recovering = await dispatchAssetRequest(
+        new Request(url),
+        new Map([['cancel', provider]]),
+        cache,
+        recoveryContext,
+      );
+      expect(await bodyOf(recovering)).toEqual(new Uint8Array([1]));
+      await waitOnExecutionContext(recoveryContext);
+      const recovered = await dispatchAssetRequest(
+        new Request(url),
+        new Map([['cancel', provider]]),
+        cache,
+        createExecutionContext(),
+      );
+      expect(await bodyOf(recovered)).toEqual(new Uint8Array([2]));
     } finally {
       await cache.delete(entry);
     }
@@ -122,6 +151,7 @@ describe('asset cache edge behavior', () => {
     try {
       const cold = await execute();
       await bodyOf(cold.response);
+      await waitOnExecutionContext(cold.context);
       vi.useFakeTimers();
       vi.setSystemTime(Date.now() + 30_000);
       const stale = await execute();

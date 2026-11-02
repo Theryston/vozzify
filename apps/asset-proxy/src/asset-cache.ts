@@ -136,6 +136,9 @@ const refreshResponse = async ({
           if (chunk.done) controller.close();
           else controller.enqueue(chunk.value);
         },
+        cancel() {
+          return cancelReaderSafely(reader);
+        },
       });
       state.cancelBody = () => void cancelReaderSafely(reader);
       response = new Response(body, response);
