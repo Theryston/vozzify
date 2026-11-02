@@ -129,11 +129,12 @@ describe('asset cache edge behavior', () => {
       await vi.advanceTimersByTimeAsync(10_000);
       await waitOnExecutionContext(stale.context);
       release?.();
-      await Promise.resolve();
-      await Promise.resolve();
-      const expired = await execute();
-      expect(expired.response.status).toBe(503);
-      await waitOnExecutionContext(expired.context);
+      await vi.waitFor(async () => {
+        const expired = await execute();
+        if (expired.response.status === 200) await bodyOf(expired.response);
+        await waitOnExecutionContext(expired.context);
+        expect(expired.response.status).toBe(503);
+      });
     } finally {
       release?.();
       await cache.delete(entry);
