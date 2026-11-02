@@ -1,0 +1,134 @@
+name: API image
+
+on:
+  pull_request:
+    paths:
+      - apps/api/**
+      - packages/contracts/**
+      - apps/*/package.json
+      - packages/*/package.json
+      - package.json
+      - nub.lock
+      - .node-version
+      - tsconfig.base.json
+      - .github/workflows/api-image.yml
+      - .github/scripts/test-api-image.sh
+      - .github/scripts/deploy-coolify*
+  push:
+    branches: [main]
+    paths:
+      - apps/api/**
+      - packages/contracts/**
+      - apps/*/package.json
+      - packages/*/package.json
+      - package.json
+      - nub.lock
+      - .node-version
+      - tsconfig.base.json
+      - .github/workflows/api-image.yml
+      - .github/scripts/test-api-image.sh
+      - .github/scripts/deploy-coolify*
+
+concurrency:
+  group: api-image-${{ github.ref }}
+  # Serialize main publications through the deploy request so latest cannot
+  # move while another run is still publishing or requesting deployment.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: nubjs/setup-nub@v0
+        with:
+          nub-version: 0.9.5
+
+      - name: Install dependencies
+        run: nub install --frozen-lockfile
+
+      - name: Check the API and contracts
+        run: |
+          nub run lint --filter=api --filter=@vozzify/contracts
+          nub run check-types --filter=api --filter=@vozzify/contracts
+          nub run test:cov --filter=api
+
+      - name: Test the Coolify deployment request
+        run: bash .github/scripts/deploy-coolify.test.sh
+
+      - name: Name the image
+        id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}/api" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Tags and labels
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.name.outputs.image }}
+          tags: |
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      # Load first: only publish tags after testing this exact runtime image.
+      - name: Build the image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          target: runtime
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            ${{ steps.name.outputs.image }}:smoke
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      - name: Test the runtime image and migrations
+        env:
+          IMAGE: ${{ steps.name.outputs.image }}:smoke
+        run: bash .github/scripts/test-api-image.sh
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish the tested image
+        if: github.event_name == 'push'
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          while IFS= read -r tag; do
+            docker push "$tag"
+          done <<< "$IMAGE_TAGS"
+
+  deploy:
+    needs: image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy the published API image to Coolify
+        env:
+          COOLIFY_DEPLOY_URL: ${{ secrets.API_COOLIFY_DEPLOY_URL }}
+          COOLIFY_DEPLOY_TOKEN: ${{ secrets.COOLIFY_DEPLOY_TOKEN }}
+        run: bash .github/scripts/deploy-coolify.sh
