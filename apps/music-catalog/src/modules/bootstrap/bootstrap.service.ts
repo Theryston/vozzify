@@ -33,8 +33,8 @@ export type ReimportStatusSource = {
 /**
  * Adopts the reimported copy without restarting: flips this process's reads
  * to the parallel database once `reimport_state` says `switched`. Runs on
- * every `getStatus` (which every catalog read starts with), and short-
- * circuits once adopted, so the steady state costs nothing.
+ * phase and status reads, and short-circuits once adopted, so the steady
+ * state costs nothing.
  */
 export type CutoverWatcher = {
   adoptIfSwitched: (
@@ -83,8 +83,8 @@ export class BootstrapService {
   }
 
   /**
-   * Reads the first-import phase for the search readiness cache, adopting a
-   * completed blue-green cutover before the database reference is read.
+   * Reads the first-import phase for metadata and search readiness, adopting
+   * a completed blue-green cutover before the database reference is read.
    */
   async getImportPhase(options?: {
     queryTimeoutMs?: number;
@@ -103,10 +103,11 @@ export class BootstrapService {
   /**
    * Refuses the request while the first import has not finished, for every
    * operation that reads the catalog (`status` is the one that may answer
-   * meanwhile). The state is read on every call, so it follows the worker.
+   * meanwhile). Only the phase gates reads: status statistics may be slow.
+   * The state is read on every call, so it follows the worker.
    */
   async assertReady(): Promise<void> {
-    const { phase } = await this.getStatus();
+    const phase = await this.getImportPhase();
     if (phase !== 'ready') {
       throw new CatalogError(
         'CATALOG_NOT_READY',
