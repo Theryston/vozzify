@@ -1,5 +1,13 @@
-import { env, SELF } from 'cloudflare:test';
+import {
+  createExecutionContext,
+  env,
+  SELF,
+  waitOnExecutionContext,
+} from 'cloudflare:test';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { getDefaultCache } from '../src/asset-cache.js';
+import { dispatchAssetRequest } from '../src/asset-delivery.js';
+import type { AssetProvider } from '../src/provider.js';
 
 const bytes = {
   image: new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>'),
@@ -323,13 +331,98 @@ describe('public asset HTTP delivery', () => {
   });
 
   it('returns a non-cacheable response when the R2 read fails', async () => {
+    const key = objects[2].key;
+    await getDefaultCache().delete(
+      new Request(assetUrl(key), { method: 'GET' }),
+    );
     const read = vi
       .spyOn(env.PUBLIC_ASSETS, 'get')
       .mockRejectedValueOnce(new Error('R2 read failed'));
-    const response = await SELF.fetch(assetUrl(objects[2].key));
+    const response = await SELF.fetch(assetUrl(key));
     read.mockRestore();
     expect(response.status).toBe(502);
     expect(response.headers.get('Cache-Control')).toBe('no-store');
+  });
+
+  it('preserves byte ranges when clients accept compression', async () => {
+    const response = await SELF.fetch(assetUrl(objects[2].key), {
+      headers: { 'Accept-Encoding': 'gzip;q=0.8' },
+    });
+    expect(response.headers.get('Content-Encoding')).toBe('identity');
+    expect(response.headers.get('Cache-Control')).toContain('no-transform');
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes.binary);
+
+    const ranged = await SELF.fetch(assetUrl(objects[2].key), {
+      headers: { 'Accept-Encoding': 'identity', Range: 'bytes=1-2' },
+    });
+    expect(ranged.status).toBe(206);
+    expect(ranged.headers.get('Content-Encoding')).toBe('identity');
+    expect(new Uint8Array(await ranged.arrayBuffer())).toEqual(
+      bytes.binary.slice(1, 3),
+    );
+  });
+
+  it('evaluates origin validators on a cold object', async () => {
+    const key = objects[3].key;
+    const cold = await SELF.fetch(assetUrl(key), {
+      headers: { 'If-None-Match': '*' },
+    });
+    expect(cold.status).toBe(304);
+    expect(cold.body).toBeNull();
+    const matched = await SELF.fetch(assetUrl(key), {
+      headers: { 'If-Match': '*' },
+    });
+    expect(matched.status).toBe(200);
+    await matched.arrayBuffer();
+    const full = await SELF.fetch(assetUrl(key));
+    expect(full.status).toBe(200);
+    expect(new Uint8Array(await full.arrayBuffer())).toEqual(bytes.binary);
+  });
+
+  it('evicts stale copies for rejected statuses and recovers on a later success', async () => {
+    const cache = getDefaultCache();
+    for (const status of [401, 403, 429, 500]) {
+      const url = `https://assets.test/rejected/${status}`;
+      const entry = new Request(url);
+      let calls = 0;
+      const provider: AssetProvider = {
+        freshnessSeconds: 10_800,
+        cacheMode: 'stale-while-revalidate',
+        async resolve() {
+          calls += 1;
+          return calls === 1 || calls > 3
+            ? new Response(new Uint8Array([1, 2]), {
+                headers: { 'Content-Length': '2' },
+              })
+            : new Response(null, { status });
+        },
+      };
+      const execute = async () => {
+        const context = createExecutionContext();
+        const result = await dispatchAssetRequest(
+          new Request(url),
+          new Map([['rejected', provider]]),
+          cache,
+          context,
+        );
+        await waitOnExecutionContext(context);
+        return result;
+      };
+      await cache.delete(entry);
+      try {
+        await (await execute()).arrayBuffer();
+        vi.setSystemTime(Date.now() + 10_800_000);
+        await (await execute()).arrayBuffer();
+        const rejected = await execute();
+        expect(rejected.status).toBe(status);
+        expect(rejected.headers.get('Cache-Control')).toBe('no-store');
+        expect(new Uint8Array(await (await execute()).arrayBuffer())).toEqual(
+          new Uint8Array([1, 2]),
+        );
+      } finally {
+        await cache.delete(entry);
+      }
+    }
   });
 
   it('does not serve unknown providers, missing objects or write methods', async () => {
