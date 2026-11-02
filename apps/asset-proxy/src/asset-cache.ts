@@ -1,7 +1,7 @@
-import { toStoredResponse } from './cache-retention.js';
+import { conditionalStatus } from './cache-conditionals.js';
+import { toStoredResponse, VALIDATED_AT_HEADER } from './cache-retention.js';
 import type { AssetProvider } from './provider.js';
 
-const VALIDATED_AT = 'X-Vozzify-Validated-At';
 const REVALIDATION_TIMEOUT_MS = 10_000;
 
 export const getDefaultCache = (): Cache =>
@@ -43,7 +43,7 @@ const cacheKeyFor = (request: Request): Request =>
   new Request(new URL(request.url), { method: 'GET' });
 
 const validatedAtOf = (response: Response): number | undefined => {
-  const value = Number(response.headers.get(VALIDATED_AT));
+  const value = Number(response.headers.get(VALIDATED_AT_HEADER));
   return Number.isFinite(value) && value >= 0 ? value : undefined;
 };
 
@@ -196,46 +196,15 @@ const refresh = async ({
   }
 };
 
-const weakTagValue = (tag: string): string => tag.trim().replace(/^W\//, '');
-
-const tagMatches = (value: string, etag: string): boolean =>
-  value.trim() === '*' ||
-  value.split(',').some((tag) => weakTagValue(tag) === weakTagValue(etag));
-
-const strongTagMatches = (value: string, etag: string): boolean =>
-  !etag.startsWith('W/') &&
-  value
-    .split(',')
-    .some((tag) => !tag.trim().startsWith('W/') && tag.trim() === etag);
-
-const conditional = (
-  request: Request,
-  response: Response,
-): number | undefined => {
-  const etag = response.headers.get('ETag') ?? '';
-  const modified = Date.parse(response.headers.get('Last-Modified') ?? '');
-  const ifMatch = request.headers.get('If-Match');
-  if (ifMatch && ifMatch.trim() !== '*' && !strongTagMatches(ifMatch, etag))
-    return 412;
-  const unmodified = request.headers.get('If-Unmodified-Since');
-  if (!ifMatch && unmodified && modified > Date.parse(unmodified) + 999)
-    return 412;
-  const ifNone = request.headers.get('If-None-Match');
-  if (ifNone && tagMatches(ifNone, etag)) return 304;
-  const since = request.headers.get('If-Modified-Since');
-  if (!ifNone && since && modified <= Date.parse(since) + 999) return 304;
-  return undefined;
-};
-
 const clientResponse = async (
   request: Request,
   cached: Response,
   cache: Cache,
 ): Promise<Response> => {
   const headers = new Headers(cached.headers);
-  headers.delete(VALIDATED_AT);
+  headers.delete(VALIDATED_AT_HEADER);
   headers.delete('Cache-Control');
-  const status = conditional(request, cached);
+  const status = conditionalStatus(request, cached);
   if (status !== undefined) {
     if (status === 412) headers.delete('Content-Length');
     return new Response(null, { status, headers });
@@ -260,7 +229,7 @@ const clientResponse = async (
   const ranged = await cache.match(request);
   if (!ranged) return new Response(cached.body, { headers });
   const rangedHeaders = new Headers(ranged.headers);
-  rangedHeaders.delete(VALIDATED_AT);
+  rangedHeaders.delete(VALIDATED_AT_HEADER);
   rangedHeaders.delete('Cache-Control');
   return new Response(ranged.body, {
     status: ranged.status,

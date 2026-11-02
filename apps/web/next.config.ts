@@ -35,7 +35,6 @@ const nextConfig: NextConfig = {
         hostname: 'coverartarchive.org',
         pathname: '/release-group/**',
       },
-      // Track covers are front covers of a release...
       {
         protocol: 'https',
         hostname: 'assets.vozzify.com',

@@ -1,5 +1,7 @@
 import type { AssetProvider } from './provider.js';
 
+export const VALIDATED_AT_HEADER = 'X-Vozzify-Validated-At';
+
 const RETAINED_SWR_SECONDS = 14_400;
 
 export const toStoredResponse = (
@@ -8,7 +10,7 @@ export const toStoredResponse = (
   provider: AssetProvider,
 ): Response => {
   const headers = new Headers(response.headers);
-  headers.set('X-Vozzify-Validated-At', String(validatedAt));
+  headers.set(VALIDATED_AT_HEADER, String(validatedAt));
   const maxAge =
     provider.cacheMode === 'stale-while-revalidate'
       ? RETAINED_SWR_SECONDS

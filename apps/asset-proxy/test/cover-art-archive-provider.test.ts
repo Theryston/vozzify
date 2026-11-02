@@ -1,6 +1,12 @@
-import { SELF } from 'cloudflare:test';
+import {
+  createExecutionContext,
+  env,
+  SELF,
+  waitOnExecutionContext,
+} from 'cloudflare:test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getDefaultCache } from '../src/asset-cache.js';
+import worker from '../src/index.js';
 
 const MBID = '76df3287-6cda-33eb-8e9a-044b5e15ffdd';
 const RELEASE_URL = `https://assets.test/cover-art-archive/release/${MBID}/front-500`;
@@ -60,6 +66,57 @@ describe('Cover Art Archive public HTTP delivery', () => {
       expect(stored?.headers.get('Cache-Control')).toBe(
         'public, max-age=2592000',
       );
+    } finally {
+      await clearCache(RELEASE_URL);
+    }
+  });
+
+  it('serves a warm hit just before 30 days and refreshes at the boundary', async () => {
+    let originCalls = 0;
+    const fetchOrigin = vi.fn(async () => {
+      originCalls += 1;
+      return new Response(new Uint8Array([originCalls]), {
+        headers: {
+          'Content-Length': '1',
+          'Content-Type': 'image/jpeg',
+        },
+      });
+    });
+    vi.stubGlobal('fetch', fetchOrigin);
+    await clearCache(RELEASE_URL);
+
+    const request = new Request(RELEASE_URL);
+    const fetchThroughWorker = async (): Promise<Response> => {
+      const context = createExecutionContext();
+      const response = await worker.fetch(request, env, context);
+      await waitOnExecutionContext(context);
+      return response;
+    };
+
+    try {
+      vi.useFakeTimers();
+      const startedAt = new Date();
+      vi.setSystemTime(startedAt);
+
+      const cold = await fetchThroughWorker();
+      expect(new Uint8Array(await cold.arrayBuffer())).toEqual(
+        new Uint8Array([1]),
+      );
+      expect(originCalls).toBe(1);
+
+      vi.setSystemTime(startedAt.getTime() + 30 * 24 * 60 * 60 * 1000 - 1);
+      const justBeforeBoundary = await fetchThroughWorker();
+      expect(new Uint8Array(await justBeforeBoundary.arrayBuffer())).toEqual(
+        new Uint8Array([1]),
+      );
+      expect(originCalls).toBe(1);
+
+      vi.setSystemTime(startedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const atBoundary = await fetchThroughWorker();
+      expect(new Uint8Array(await atBoundary.arrayBuffer())).toEqual(
+        new Uint8Array([2]),
+      );
+      expect(originCalls).toBe(2);
     } finally {
       await clearCache(RELEASE_URL);
     }
