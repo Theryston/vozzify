@@ -121,19 +121,24 @@ describe('Stripe catalog network boundary', () => {
       new StripeCatalogService(env()).syncProduct(input),
     ).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
   });
-  it('refuses live credentials and live-mode provider objects', async () => {
-    expect(() => env('sk_live_secret')).toThrow(
-      'Invalid environment variables',
-    );
-    network
-      .mockResolvedValueOnce(Response.json(object))
-      .mockResolvedValueOnce(Response.json({ ...object, livemode: true }));
-    await expect(
-      new StripeCatalogService(env()).syncProduct({
-        planId: 'studio',
-        copy,
-        operationId: 'operation',
-      }),
-    ).rejects.toThrow();
-  });
+  it.each([false, true])(
+    'accepts matching credentials but refuses mismatched provider objects: %s',
+    async (livemode) => {
+      const secret = livemode ? 'sk_live_secret' : 'sk_test_secret';
+      const config = env(secret);
+      expect(config.STRIPE_SECRET_KEY).toBe(secret);
+      network
+        .mockResolvedValueOnce(Response.json({ ...object, livemode }))
+        .mockResolvedValueOnce(
+          Response.json({ ...object, livemode: !livemode }),
+        );
+      await expect(
+        new StripeCatalogService(config).syncProduct({
+          planId: 'studio',
+          copy,
+          operationId: 'operation',
+        }),
+      ).rejects.toThrow();
+    },
+  );
 });

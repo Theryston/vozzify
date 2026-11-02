@@ -10,7 +10,7 @@ export async function trialPayment(
   const customer = z
     .object({
       id: z.literal(subscription.customer),
-      livemode: z.literal(false),
+      livemode: z.boolean(),
       invoice_settings: z.object({
         default_payment_method: z.string().nullable(),
       }),
@@ -23,7 +23,7 @@ export async function trialPayment(
   const method = z
     .object({
       id: z.literal(methodId),
-      livemode: z.literal(false),
+      livemode: z.boolean(),
       customer: z.literal(subscription.customer),
       type: z.literal('card'),
     })

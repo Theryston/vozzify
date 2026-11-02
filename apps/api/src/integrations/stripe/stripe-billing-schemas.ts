@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const sessionSchema = z.object({
   id: z.string(),
-  livemode: z.literal(false),
+  livemode: z.boolean(),
   url: z.url().nullable(),
   status: z.enum(['open', 'complete', 'expired']),
   customer: z.string(),
@@ -11,7 +11,7 @@ export const sessionSchema = z.object({
 export type StripeCheckout = z.infer<typeof sessionSchema>;
 export const subscriptionSchema = z.object({
   id: z.string(),
-  livemode: z.literal(false),
+  livemode: z.boolean(),
   customer: z.string(),
   status: z.enum([
     'incomplete',

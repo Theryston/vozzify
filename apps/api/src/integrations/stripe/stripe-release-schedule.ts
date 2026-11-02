@@ -20,7 +20,7 @@ export async function releaseSchedule(
   const result = z
     .object({
       id: z.literal(schedule),
-      livemode: z.literal(false),
+      livemode: z.boolean(),
       status: z.literal('released'),
       released_subscription: z.literal(input.subscription),
     })
