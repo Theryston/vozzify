@@ -148,10 +148,18 @@ describe('asset cache over the public Worker endpoint', () => {
     await putObject(key, oldBytes);
 
     try {
+      vi.useFakeTimers();
+      const admittedAt = Date.now();
+      vi.setSystemTime(admittedAt);
       const cold = await fetchAsset(url);
       expect(await bodyOf(cold)).toEqual(oldBytes);
-      const validatedAt = Date.now();
-      vi.setSystemTime(validatedAt + 10_800_000);
+      const retained = await cache.match(cacheKeyFor(url));
+      expect(retained?.headers.get('Cache-Control')).toBe(
+        'public, max-age=14400',
+      );
+      vi.setSystemTime(admittedAt + 10_799_999);
+      expect(await bodyOf(await fetchAsset(url))).toEqual(oldBytes);
+      vi.setSystemTime(admittedAt + 10_800_000);
       await putObject(key, newBytes);
 
       const stale = await fetchAsset(url);
@@ -260,30 +268,77 @@ describe('asset cache over the public Worker endpoint', () => {
   });
 
   it('evicts a cached copy when background revalidation times out', async () => {
-    const key = 'cache/timeout.bin';
-    const url = pathFor(key);
+    const url = 'https://assets.test/timeout/item.bin';
+    const entry = cacheKeyFor(url);
     const oldBytes = new Uint8Array([81, 82]);
-    await clear(url, key);
-    await putObject(key, oldBytes);
+    let calls = 0;
+    let cancelled = false;
+    const provider: AssetProvider = {
+      freshnessSeconds: 10_800,
+      cacheMode: 'stale-while-revalidate',
+      async resolve() {
+        calls += 1;
+        if (calls === 1) {
+          return new Response(oldBytes, {
+            headers: {
+              'Content-Length': String(oldBytes.length),
+              ETag: '"old"',
+            },
+          });
+        }
+        if (calls > 2) return new Response(null, { status: 503 });
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new Uint8Array([83]));
+            },
+            cancel() {
+              cancelled = true;
+            },
+          }),
+          {
+            headers: { 'Content-Length': '2', ETag: '"new"' },
+          },
+        );
+      },
+    };
+    const providers = new Map([['timeout', provider]]);
+    const execute = async (): Promise<Response> => {
+      const context = createExecutionContext();
+      const response = await dispatchAssetRequest(
+        new Request(url),
+        providers,
+        cache,
+        context,
+      );
+      await waitOnExecutionContext(context);
+      return response;
+    };
+    await cache.delete(entry);
 
     try {
-      const initial = await fetchAsset(url);
+      const initial = await execute();
       await bodyOf(initial);
       vi.useFakeTimers();
       vi.setSystemTime(Date.now() + 10_800_000);
-      await putObject(key, new Uint8Array([83, 84]));
-      vi.spyOn(env.PUBLIC_ASSETS, 'get').mockImplementation(
-        () => new Promise<R2ObjectBody | null>(() => {}),
-      );
 
-      const staleCall = requestAsset(url);
-      const stale = await staleCall.response;
+      const context = createExecutionContext();
+      const stale = await dispatchAssetRequest(
+        new Request(url),
+        providers,
+        cache,
+        context,
+      );
       expect(await bodyOf(stale)).toEqual(oldBytes);
       await vi.advanceTimersByTimeAsync(10_000);
-      await staleCall.finish();
-      expect(await cache.match(cacheKeyFor(url))).toBeUndefined();
+      await waitOnExecutionContext(context);
+      expect(cancelled).toBe(true);
+
+      const unavailable = await execute();
+      expect(unavailable.status).toBe(503);
+      expect(unavailable.headers.get('Cache-Control')).toBe('no-store');
     } finally {
-      await clear(url, key);
+      await cache.delete(entry);
     }
   });
 
@@ -363,6 +418,30 @@ describe('asset cache over the public Worker endpoint', () => {
       expect(await bodyOf(stillFull)).toEqual(bytes);
     } finally {
       await clear(url, key);
+    }
+  });
+
+  it('does not admit cold HEAD or conditional responses as full objects', async () => {
+    for (const method of ['HEAD', 'conditional'] as const) {
+      const key = `cache/cold-${method}.bin`;
+      const url = pathFor(key);
+      const bytes = new Uint8Array([111, 112, 113]);
+      await clear(url, key);
+      await putObject(key, bytes);
+      try {
+        const options =
+          method === 'HEAD'
+            ? { method: 'HEAD' as const }
+            : { headers: { 'If-None-Match': '*' } };
+        const partial = await fetchAsset(url, options);
+        expect(partial.status).toBe(method === 'HEAD' ? 200 : 304);
+        expect(await cache.match(cacheKeyFor(url))).toBeUndefined();
+        const full = await fetchAsset(url);
+        expect(full.status).toBe(200);
+        expect(await bodyOf(full)).toEqual(bytes);
+      } finally {
+        await clear(url, key);
+      }
     }
   });
 

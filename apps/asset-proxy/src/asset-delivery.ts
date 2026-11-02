@@ -37,14 +37,43 @@ const decodeObjectKey = (
   }
 };
 
-const withDeliveryHeaders = (response: Response): Response => {
+const acceptsCompression = (request: Request): boolean => {
+  const accepted = request.headers.get('Accept-Encoding');
+  if (!accepted) return false;
+  return accepted.split(',').some((coding) => {
+    const [name, ...parameters] = coding.split(';');
+    if (!['gzip', 'br', 'zstd'].includes(name?.trim().toLowerCase() ?? '')) {
+      return false;
+    }
+    const quality = parameters
+      .map((parameter) => parameter.trim())
+      .find((parameter) => parameter.startsWith('q='));
+    return quality === undefined || Number(quality.slice(2)) > 0;
+  });
+};
+
+const withDeliveryHeaders = (
+  response: Response,
+  request: Request,
+): Response => {
   const headers = new Headers(response.headers);
   for (const [name, value] of corsHeaders()) headers.set(name, value);
-  headers.set(
-    'Cache-Control',
-    response.status >= 400 ? FAILURE_CACHE_CONTROL : SUCCESS_CACHE_CONTROL,
-  );
-  return new Response(response.body, { status: response.status, headers });
+  const cacheControl =
+    response.status >= 400
+      ? FAILURE_CACHE_CONTROL
+      : acceptsCompression(request)
+        ? `${SUCCESS_CACHE_CONTROL}, no-transform`
+        : SUCCESS_CACHE_CONTROL;
+  headers.set('Cache-Control', cacheControl);
+  if (response.status < 400 && !headers.has('Content-Encoding')) {
+    // Range offsets must refer to the same bytes browsers receive and cache.
+    headers.set('Content-Encoding', 'identity');
+  }
+  return new Response(response.body, {
+    status: response.status,
+    headers,
+    encodeBody: 'manual',
+  });
 };
 
 export const dispatchAssetRequest = async (
@@ -73,6 +102,7 @@ export const dispatchAssetRequest = async (
   try {
     return withDeliveryHeaders(
       await deliverCachedAsset({ request, provider, key, cache, execution }),
+      request,
     );
   } catch {
     return failureResponse(502);
