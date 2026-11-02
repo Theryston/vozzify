@@ -177,6 +177,6 @@ jobs:
 
       - name: Deploy the published images to Coolify
         env:
-          COOLIFY_DEPLOY_URL: ${{ secrets.COOLIFY_MUSIC_CATALOG_DEPLOY_URL }}
-          COOLIFY_DEPLOY_TOKEN: ${{ secrets.COOLIFY_DEPLOY_TOKEN }}
+          COOLIFY_DEPLOY_URL: ${{ secrets.MUSIC_CATALOG_COOLIFY_DEPLOY_URL }}
+          COOLIFY_DEPLOY_TOKEN: ${{ secrets.MUSIC_CATALOG_COOLIFY_DEPLOY_TOKEN }}
         run: bash .github/scripts/deploy-coolify.sh
