@@ -99,6 +99,7 @@ export class StripeWebhookController {
       body: Buffer.isBuffer(body) ? body : Buffer.alloc(0),
       signature: signature ?? '',
       secret: this.env.STRIPE_WEBHOOK_SECRET,
+      apiKey: this.env.STRIPE_SECRET_KEY,
     });
     await this.subscriptions.webhook(event);
     return { received: true };

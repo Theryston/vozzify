@@ -46,7 +46,7 @@ export function schedulePhases(input: ScheduleInput) {
 
 const scheduleSchema = z.object({
   id: z.string(),
-  livemode: z.literal(false),
+  livemode: z.boolean(),
   subscription: z.string(),
   status: z.literal('active'),
   end_behavior: z.literal('release').optional(),

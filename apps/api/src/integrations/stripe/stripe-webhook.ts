@@ -1,12 +1,13 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { AppException } from '../../common/errors/app-exception.js';
+import { stripeModeSchema } from './stripe-mode.js';
 
 const eventSchema = z.object({
   id: z.string().min(1),
   type: z.string(),
   created: z.number().int().nonnegative().optional(),
-  livemode: z.literal(false),
+  livemode: z.boolean(),
   data: z.object({
     object: z.object({
       customer: z.string().optional(),
@@ -20,6 +21,7 @@ export function verifyStripeEvent(input: {
   body: Buffer;
   signature: string;
   secret: string | undefined;
+  apiKey: string | undefined;
 }) {
   const pieces = input.signature.split(',').map((part) => part.split('='));
   const timestamp = pieces.find(([key]) => key === 't')?.[1];
@@ -40,7 +42,9 @@ export function verifyStripeEvent(input: {
     !valid
   )
     throw new AppException('BAD_REQUEST', 'Invalid Stripe signature');
-  const result = eventSchema.safeParse(JSON.parse(input.body.toString('utf8')));
+  const result = eventSchema
+    .extend({ livemode: stripeModeSchema(input.apiKey) })
+    .safeParse(JSON.parse(input.body.toString('utf8')));
   if (!result.success)
     throw new AppException('BAD_REQUEST', 'Invalid Stripe event');
   return result.data;

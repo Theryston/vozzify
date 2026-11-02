@@ -13,7 +13,7 @@ const pageSchema = z.object({
     z.object({
       id: z.string(),
       created: z.number(),
-      livemode: z.literal(false),
+      livemode: z.boolean(),
       data: z.object({
         object: z.object({ id: z.string(), customer: z.string().nullable() }),
       }),

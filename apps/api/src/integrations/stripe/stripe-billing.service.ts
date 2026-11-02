@@ -18,6 +18,7 @@ export type {
 } from './stripe-billing-schemas.js';
 
 import { firstInvoiceFailure } from './stripe-failure-history.js';
+import { parseStripeResponse } from './stripe-mode.js';
 import { portalConfiguration } from './stripe-portal-schema.js';
 import {
   type ScheduleInput,
@@ -31,7 +32,7 @@ import { updateSchedule } from './stripe-update-schedule.js';
 export class StripeBillingService {
   constructor(@Inject(ENV) private readonly env: Env) {}
   async createCustomer(userId: string) {
-    return z.object({ id: z.string(), livemode: z.literal(false) }).parse(
+    return z.object({ id: z.string(), livemode: z.boolean() }).parse(
       await this.request(
         'customers',
         {
@@ -93,16 +94,14 @@ export class StripeBillingService {
         'SERVICE_UNAVAILABLE',
         'Stripe portal configuration is unsafe',
       );
-    const session = z
-      .object({ url: z.url(), livemode: z.literal(false) })
-      .parse(
-        await this.request('billing_portal/sessions', {
-          customer,
-          configuration,
-          return_url: `${this.env.WEB_URL}/${locale}/subscription`,
-          locale: locale === 'pt-BR' ? 'pt-BR' : 'en',
-        }),
-      );
+    const session = z.object({ url: z.url(), livemode: z.boolean() }).parse(
+      await this.request('billing_portal/sessions', {
+        customer,
+        configuration,
+        return_url: `${this.env.WEB_URL}/${locale}/subscription`,
+        locale: locale === 'pt-BR' ? 'pt-BR' : 'en',
+      }),
+    );
     return session.url;
   }
   async findCheckout(
@@ -183,7 +182,7 @@ export class StripeBillingService {
       input.schedule ??
       provider.schedule ??
       z
-        .object({ id: z.string(), livemode: z.literal(false) })
+        .object({ id: z.string(), livemode: z.boolean() })
         .parse(
           await this.request(
             'subscription_schedules',
@@ -273,7 +272,7 @@ export class StripeBillingService {
     if (!this.env.STRIPE_SECRET_KEY)
       throw new AppException(
         'SERVICE_UNAVAILABLE',
-        'Stripe test configuration is missing',
+        'Stripe configuration is missing',
       );
     const response = await fetch(`https://api.stripe.com/v1/${path}`, {
       method: body ? 'POST' : 'GET',
@@ -293,6 +292,9 @@ export class StripeBillingService {
         'SERVICE_UNAVAILABLE',
         'Stripe billing request failed',
       );
-    return response.json();
+    return parseStripeResponse(
+      await response.json(),
+      this.env.STRIPE_SECRET_KEY,
+    );
   }
 }

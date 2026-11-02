@@ -3,10 +3,11 @@ import type { AdminPlanPrice, LocalizedCatalogCopy } from '@vozzify/contracts';
 import { z } from 'zod';
 import { AppException } from '../../common/errors/app-exception.js';
 import { ENV, type Env } from '../../config/env.js';
+import { parseStripeResponse } from './stripe-mode.js';
 
 const objectSchema = z.object({
   id: z.string().min(1),
-  livemode: z.literal(false),
+  livemode: z.boolean(),
 });
 
 /** Only Stripe network operations live here; catalog policy stays in plans. */
@@ -78,7 +79,7 @@ export class StripeCatalogService {
     if (!secret)
       throw new AppException(
         'SERVICE_UNAVAILABLE',
-        'Stripe test configuration is missing',
+        'Stripe configuration is missing',
       );
     const response = await fetch(`https://api.stripe.com/v1/${path}`, {
       method,
@@ -98,6 +99,6 @@ export class StripeCatalogService {
         'SERVICE_UNAVAILABLE',
         'Stripe catalog synchronization failed',
       );
-    return response.json();
+    return parseStripeResponse(await response.json(), secret);
   }
 }

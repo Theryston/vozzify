@@ -1,7 +1,7 @@
 import { z } from 'zod';
 export const portalConfiguration = z.object({
   active: z.literal(true),
-  livemode: z.literal(false),
+  livemode: z.boolean(),
   features: z.object({
     invoice_history: z.object({ enabled: z.literal(true) }),
     payment_method_update: z.object({ enabled: z.literal(true) }),
