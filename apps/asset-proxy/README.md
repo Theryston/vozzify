@@ -5,7 +5,10 @@ from the `PUBLIC_ASSETS` native R2 binding at
 `https://assets.vozzify.com/storage/<object-key>`. The `storage` route streams
 R2 objects without S3 credentials. Uploads, signed uploads and API-side reads
 remain on the API's S3-compatible storage integration, which still needs R2's
-S3 endpoint credentials in production.
+S3 endpoint credentials in production. Cover Art Archive release and
+release-group covers are served through the registered
+`/cover-art-archive/` provider at the same asset domain; it follows the
+archive's redirects internally and retains successful images for 30 days.
 
 Successful storage responses are fresh in the Worker's Cache API for three
 hours. Cache entries are retained for up to four hours so the Worker can read
@@ -65,7 +68,10 @@ No production object or large download is needed.
 
 Create the R2 bucket `vozzify-public-assets`, bind it as `PUBLIC_ASSETS`, and
 attach `assets.vozzify.com` as a Workers custom domain in Cloudflare. DNS and
-deployment are operator steps. Set the API's `S3_PUBLIC_URL` to
+deployment are operator steps. Publish the Worker with the storage and
+`cover-art-archive` providers before deploying the Music catalog version that
+emits cover URLs under `/cover-art-archive/`. The catalog derives these URLs
+from MBIDs at response time. Set the API's `S3_PUBLIC_URL` to
 `https://assets.vozzify.com/storage`; API S3-compatible endpoint, region,
 bucket and credentials continue to configure upload, presign and backend
 read operations. The Worker uses only the native binding and has no secret.

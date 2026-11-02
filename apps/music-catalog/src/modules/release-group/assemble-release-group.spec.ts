@@ -109,7 +109,7 @@ describe('assembleReleaseGroup', () => {
           },
         ],
       },
-      coverArtUrl: `https://coverartarchive.org/release-group/${MBID}/front-500`,
+      coverArtUrl: `https://assets.vozzify.com/cover-art-archive/release-group/${MBID}/front-500`,
       representativeRelease: null,
     });
   });

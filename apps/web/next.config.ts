@@ -25,13 +25,11 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   images: {
     remotePatterns: [
-      // Track covers are front covers of a release...
       {
         protocol: 'https',
         hostname: 'coverartarchive.org',
         pathname: '/release/**',
       },
-      // ...and album covers are front covers of a release group.
       {
         protocol: 'https',
         hostname: 'coverartarchive.org',
@@ -41,6 +39,11 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'assets.vozzify.com',
         pathname: '/storage/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'assets.vozzify.com',
+        pathname: '/cover-art-archive/**',
       },
     ],
   },

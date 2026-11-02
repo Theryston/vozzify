@@ -13,7 +13,7 @@ import { useReadyCatalog } from './utils/use-ready-catalog.js';
 import { useTestClient } from './utils/use-test-client.js';
 
 const coverOf = (releaseGroupMbid: string): string =>
-  `https://coverartarchive.org/release-group/${releaseGroupMbid}/front-500`;
+  `https://assets.vozzify.com/cover-art-archive/release-group/${releaseGroupMbid}/front-500`;
 
 describe('getReleaseGroup: the release group (e2e)', () => {
   const server = useTestServer();

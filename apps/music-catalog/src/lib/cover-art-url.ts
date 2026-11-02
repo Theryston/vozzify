@@ -1,4 +1,4 @@
-const COVER_ART_ARCHIVE = 'https://coverartarchive.org';
+const COVER_ART_ARCHIVE = 'https://assets.vozzify.com/cover-art-archive';
 
 /**
  * The Cover Art Archive URL of a release's front cover, a 500 px image: big

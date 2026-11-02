@@ -111,7 +111,7 @@ describe('SearchService', () => {
           title: 'Title of a',
           artistCredit: 'Artist',
           coverUrl:
-            'https://coverartarchive.org/release/00000000-0000-4000-8000-000000000050/front-500',
+            'https://assets.vozzify.com/cover-art-archive/release/00000000-0000-4000-8000-000000000050/front-500',
           trackId: null,
         },
       ],

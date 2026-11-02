@@ -338,7 +338,7 @@ integer ids of MusicBrainz are internal and never leave the service.
   (dates keep their precision: `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; a dated
   event beats an undated one; ties go to the smaller country code). Releases
   come oldest first, undated last, then by title and MBID.
-- `coverArtUrl` is `https://coverartarchive.org/release/<release MBID>/front-500`,
+- `coverArtUrl` is `https://assets.vozzify.com/cover-art-archive/release/<release MBID>/front-500`,
   built from the MBID alone (`cover_art` is loaded in neither dataset), so it can
   answer 404. `src/lib/cover-art-url.ts` is the one place that builds it; the
   search ticket reuses it.
@@ -420,7 +420,7 @@ is an Album (ADR 0003), so the answer is its header, not one edition.
   representative release, which is chosen among the Official releases first.
 - `genres`: the group's own genres (`lib/tag-votes.ts`: the voted tags that
   MusicBrainz also lists as genres, most voted first, by name on a tie).
-- `coverArtUrl`: `https://coverartarchive.org/release-group/<MBID>/front-500`,
+- `coverArtUrl`: `https://assets.vozzify.com/cover-art-archive/release-group/<MBID>/front-500`,
   built by `releaseGroupCoverArtUrl` from the MBID alone, so always set, never
   null. It may answer 404: that means there is no cover, and consumers must
   treat it so (the API does, from #143).
