@@ -197,7 +197,8 @@
         "apps/web/app/**/robots.ts",
         "apps/web/app/**/manifest.ts",
         "apps/web/lib/i18n/request.ts",
-        "apps/web/cache-handlers/redis.ts"
+        "apps/web/cache-handlers/redis.ts",
+        "apps/asset-proxy/src/index.ts"
       ],
       "linter": {
         "rules": {

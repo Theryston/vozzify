@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" />
+  <title>Vozzify asset proxy smoke test</title>
+  <h1>Audio and binary delivery</h1>
+  <audio
+    id="tone"
+    controls
+    crossorigin="anonymous"
+    src="http://localhost:8787/storage/smoke/tone.wav"
+  >
+    <track kind="captions" src="/captions.vtt" srclang="en" label="English" default />
+  </audio>
+  <button id="seek" type="button">Seek to 0.5 seconds</button>
+  <pre id="result">Loading binary fixture…</pre>
+  <script>
+    const audio = document.querySelector('#tone');
+    document.querySelector('#seek').addEventListener('click', () => {
+      audio.currentTime = 0.5;
+    });
+    fetch('http://localhost:8787/storage/smoke/pitch.bin')
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Binary request failed: ${response.status}`);
+        const bytes = [...new Uint8Array(await response.arrayBuffer())];
+        document.querySelector('#result').textContent =
+          `Binary bytes: ${bytes.join(', ')}`;
+      })
+      .catch((error) => {
+        document.querySelector('#result').textContent = error.message;
+      });
+  </script>
+</html>
