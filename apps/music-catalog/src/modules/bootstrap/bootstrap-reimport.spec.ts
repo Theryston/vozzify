@@ -78,12 +78,20 @@ describe('BootstrapService getStatus with reimport', () => {
   });
 
   it('stays ready while a reimport runs', async () => {
+    const reportReimport = vi.fn(async () => ({
+      phase: 'restoring' as const,
+    }));
     const { service } = setup({ phase: 'ready', dataset: 'full' }, undefined, {
-      status: {
-        reportReimport: async () => ({ phase: 'restoring' as const }),
-      },
+      status: { reportReimport },
     });
 
+    await expect(service.getStatus()).resolves.toMatchObject({
+      phase: 'ready',
+      reimport: { phase: 'restoring' },
+    });
+    expect(reportReimport).toHaveBeenCalledTimes(1);
+
     await expect(service.assertReady()).resolves.toBeUndefined();
+    expect(reportReimport).toHaveBeenCalledTimes(1);
   });
 });
