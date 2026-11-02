@@ -50,8 +50,7 @@ Uploads (Avatars) go to an S3-compatible bucket through `StorageService`
 stores a publicly readable object and `publicUrl(key)` gives the URL it is
 served from. Locally that is the MinIO started by `nub run infra:up` (bucket
 created on start; console at <http://localhost:9001>, user `vozzify`,
-password `vozzify-local`); production uses AWS S3 behind a public files
-domain. The `S3_*` variables in [`.env.example`](./.env.example) go together:
+password `vozzify-local`); production uses R2 behind the public `assets.vozzify.com/storage` Worker route. The `S3_*` variables in [`.env.example`](./.env.example) go together:
 the API refuses to boot when they are incomplete or missing. E2E tests start
 their own MinIO; without Docker, point them at a server dedicated to tests
 with `E2E_S3_ENDPOINT`, `E2E_S3_ACCESS_KEY_ID` and `E2E_S3_SECRET_ACCESS_KEY`.

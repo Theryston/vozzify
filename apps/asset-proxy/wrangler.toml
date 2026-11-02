@@ -1,0 +1,11 @@
+name = "vozzify-asset-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-10-30"
+workers_dev = true
+
+[[r2_buckets]]
+binding = "PUBLIC_ASSETS"
+bucket_name = "vozzify-public-assets"
+
+# Configure the assets.vozzify.com custom domain in Cloudflare after creating
+# the Worker. Production DNS and deployment are intentionally operator steps.

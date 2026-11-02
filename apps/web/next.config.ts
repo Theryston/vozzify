@@ -39,7 +39,8 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'files.vozzify.com',
+        hostname: 'assets.vozzify.com',
+        pathname: '/storage/**',
       },
     ],
   },
