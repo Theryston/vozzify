@@ -7,6 +7,22 @@ R2 objects without S3 credentials. Uploads, signed uploads and API-side reads
 remain on the API's S3-compatible storage integration, which still needs R2's
 S3 endpoint credentials in production.
 
+Successful storage responses are fresh in the Worker's Cache API for three
+hours. Cache entries are retained for up to four hours so the Worker can read
+an expired application entry and return it while demand-driven revalidation
+runs in the background. A successful revalidation replaces changed bytes or
+confirms unchanged bytes with the origin validator and starts a new three-hour
+window. A missing object, failed origin read or ten-second revalidation timeout
+evicts the old entry from that cache location; the next request retries R2.
+The request that starts a refresh can still receive the old representation.
+Cache entries and eviction are local to the serving Cloudflare datacenter, so
+there is no global purge or globally coordinated refresh. Cache API eviction
+may happen earlier, in which case the request simply reads R2 and can be
+admitted again. Cache admission is best effort under Cloudflare's object-size
+and execution limits; responses remain streamed when an object cannot be
+cached. Browser responses retain `public, max-age=0, must-revalidate`, so every
+reuse still reaches the Worker even while its internal edge entry is fresh.
+
 ## Local development
 
 From the repository root:

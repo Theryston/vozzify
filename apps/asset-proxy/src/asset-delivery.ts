@@ -1,3 +1,4 @@
+import { deliverCachedAsset } from './asset-cache.js';
 import type { ProviderRegistry } from './provider.js';
 
 const SUCCESS_CACHE_CONTROL = 'public, max-age=0, must-revalidate';
@@ -49,6 +50,8 @@ const withDeliveryHeaders = (response: Response): Response => {
 export const dispatchAssetRequest = async (
   request: Request,
   providers: ProviderRegistry,
+  cache: Cache,
+  execution: ExecutionContext,
 ): Promise<Response> => {
   const pathname = new URL(request.url).pathname;
   const providerName = pathname.split('/')[1];
@@ -68,7 +71,9 @@ export const dispatchAssetRequest = async (
   }
 
   try {
-    return withDeliveryHeaders(await provider.resolve({ request, key }));
+    return withDeliveryHeaders(
+      await deliverCachedAsset({ request, provider, key, cache, execution }),
+    );
   } catch {
     return failureResponse(502);
   }
