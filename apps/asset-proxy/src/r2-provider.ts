@@ -9,6 +9,14 @@ type AssetMetadata = {
   headers: Headers;
 };
 
+type RangeGetOptions = {
+  bucket: R2Bucket;
+  request: Request;
+  key: string;
+  head: R2Object;
+  range: ByteRange;
+};
+
 const parseRange = (header: string, size: number): ByteRange | null => {
   const match = /^bytes=(\d*)-(\d*)$/i.exec(header);
   const first = match?.[1];
@@ -135,16 +143,19 @@ const headResponse = async (
   });
 };
 
-const rangeGetResponse = async (
-  bucket: R2Bucket,
-  request: Request,
-  key: string,
-  range: ByteRange,
-): Promise<Response> => {
+const rangeGetResponse = async ({
+  bucket,
+  request,
+  key,
+  head,
+  range,
+}: RangeGetOptions): Promise<Response | null> => {
   const object = await bucket.get(key, {
+    onlyIf: { etagMatches: head.etag },
     range: { offset: range.start, length: range.end - range.start + 1 },
   });
-  if (!object) return new Response(null, { status: 404 });
+  if (!object) return null;
+  if (!('body' in object)) return null;
 
   const responseMetadata = metadataFor(object);
   const status = conditionalStatus(request, responseMetadata);
@@ -210,6 +221,7 @@ const getResponse = async (
   bucket: R2Bucket,
   request: Request,
   key: string,
+  retryCount = 0,
 ): Promise<Response> => {
   const rangeRequest = request.headers.get('Range');
   if (rangeRequest === null) return fullGetResponse(bucket, request, key);
@@ -232,7 +244,18 @@ const getResponse = async (
     metadata.headers.delete('Content-Length');
     return new Response(null, { status: 416, headers: metadata.headers });
   }
-  return rangeGetResponse(bucket, request, key, range);
+  const response = await rangeGetResponse({
+    bucket,
+    request,
+    key,
+    head,
+    range,
+  });
+  if (response) return response;
+  if (retryCount === 0) {
+    return getResponse(bucket, request, key, retryCount + 1);
+  }
+  return fullGetResponse(bucket, request, key);
 };
 
 export const createR2Provider = (bucket: R2Bucket): AssetProvider => ({

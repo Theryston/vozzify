@@ -34,6 +34,51 @@ const encodeKey = (key: string): string =>
 const assetUrl = (key: string, query = '') =>
   `https://assets.test/storage/${encodeKey(key)}${query}`;
 
+type RangeRace = {
+  range: string;
+  previousBytes: Uint8Array;
+  currentBytes: Uint8Array;
+  contentRange: string;
+  expectedBytes: Uint8Array;
+};
+
+const expectRangeAfterOverwrite = async ({
+  range,
+  previousBytes,
+  currentBytes,
+  contentRange,
+  expectedBytes,
+}: RangeRace): Promise<void> => {
+  const key = 'fixtures/range-overwrite.bin';
+  await env.PUBLIC_ASSETS.put(key, previousBytes);
+  const originalGet = env.PUBLIC_ASSETS.get.bind(env.PUBLIC_ASSETS);
+  const read = vi
+    .spyOn(env.PUBLIC_ASSETS, 'get')
+    .mockImplementationOnce(async (requestedKey, options) => {
+      await env.PUBLIC_ASSETS.put(key, currentBytes);
+      return originalGet(requestedKey, options);
+    });
+
+  try {
+    const response = await SELF.fetch(assetUrl(key), {
+      headers: { Range: range },
+    });
+
+    expect(response.status).toBe(206);
+    expect(response.headers.get('Content-Range')).toBe(contentRange);
+    expect(response.headers.get('Content-Length')).toBe(
+      String(expectedBytes.length),
+    );
+    expect(response.headers.get('ETag')).toBe(
+      (await env.PUBLIC_ASSETS.head(key))?.httpEtag,
+    );
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(expectedBytes);
+  } finally {
+    read.mockRestore();
+    await env.PUBLIC_ASSETS.delete(key);
+  }
+};
+
 const makeWav = (): void => {
   const view = new DataView(bytes.audio.buffer);
   bytes.audio.set([82, 73, 70, 70], 0);
@@ -178,6 +223,41 @@ describe('public asset HTTP delivery', () => {
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(
       bytes.audio.slice(44, 48),
     );
+  });
+
+  it.each([
+    ['bytes=-2', 8],
+    ['bytes=2-', 2],
+    ['bytes=2-99', 2],
+  ])(
+    'recalculates %s after a representation overwrite',
+    async (range, start) => {
+      const currentBytes = new Uint8Array([
+        10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+      ]);
+      await expectRangeAfterOverwrite({
+        range,
+        previousBytes: new Uint8Array([0, 1, 2, 3, 4, 5]),
+        currentBytes,
+        contentRange: `bytes ${start}-9/10`,
+        expectedBytes: currentBytes.slice(start),
+      });
+    },
+  );
+
+  it.each([
+    ['bytes=-2', 2],
+    ['bytes=2-', 2],
+    ['bytes=2-99', 2],
+  ])('recalculates %s after a representation shrinks', async (range, start) => {
+    const currentBytes = new Uint8Array([20, 21, 22, 23]);
+    await expectRangeAfterOverwrite({
+      range,
+      previousBytes: new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      currentBytes,
+      contentRange: 'bytes 2-3/4',
+      expectedBytes: currentBytes.slice(start),
+    });
   });
 
   it('accepts byte-range units without case sensitivity', async () => {
