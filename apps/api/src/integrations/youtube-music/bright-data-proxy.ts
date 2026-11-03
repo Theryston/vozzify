@@ -37,15 +37,27 @@ export function brightDataProxyOf(
 
 /**
  * A `fetch` that sends its requests through the proxy. It is undici's fetch,
- * because only undici's dispatchers can route through a proxy; its types are
- * the same runtime API as the global ones, but are declared apart, hence the
- * cast.
+ * because the dispatcher and fetch must use the same undici version. The
+ * SDK builds native Requests, which undici does not recognize as its own;
+ * unpack them before crossing that boundary. Response types are declared
+ * apart despite sharing the fetch API, hence the cast.
  */
 export function createProxiedFetch(proxy: BrightDataProxy): typeof fetch {
   const dispatcher = new ProxyAgent({ uri: proxy.uri, token: proxy.token });
   const proxied = (
     input: Parameters<typeof undiciFetch>[0],
     init?: Parameters<typeof undiciFetch>[1],
-  ) => undiciFetch(input, { ...init, dispatcher });
+  ) =>
+    input instanceof Request
+      ? undiciFetch(input.url, {
+          method: input.method,
+          headers: Object.fromEntries(input.headers),
+          body: input.body,
+          signal: input.signal,
+          duplex: 'half',
+          ...init,
+          dispatcher,
+        })
+      : undiciFetch(input, { ...init, dispatcher });
   return proxied as unknown as typeof fetch;
 }

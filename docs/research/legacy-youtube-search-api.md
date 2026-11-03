@@ -86,6 +86,12 @@ and the live observations below.
   were observed. Authentication requirements, rate limits, billing, SLA,
   pagination and a structured error contract are not documented by the
   legacy caller.
+- Follow-up playback checks exposed regional releases: the player metadata
+  for `uP1ywAv8rEY` listed 89 available countries, including the USA but not
+  Brazil. `fEL_ySZce3U` listed 32, including Brazil but not the USA. The proxy
+  and direct connection consequently returned opposite playback statuses.
+  Checking only the proxy's playback status cannot establish availability
+  for visitors in another country.
 
 ## Companion service source
 
@@ -128,17 +134,30 @@ JSON at the integration boundary, and test mapping, timeouts and failures.
 The maintainer requested this narrow replacement: `searchSongs` now sends
 the complete legacy request to the fixed base URL above, with a 30-second
 timeout and no proxy. The existing `YouTubeVideo` mapping is retained.
-Search candidates are reconciled against the Recording's metadata and
-trusted without an additional direct YouTube playback check, as explicitly
-requested. This trust policy does not add playback guarantees to the
-upstream response; the live observations above still apply.
+Search candidates are reconciled against the Recording's metadata. After
+the regional playback failure was reproduced, the maintainer required each
+chosen video to be available in **both Brazil and the USA**. Selection now
+checks the WEB player's status, embed permission and `available_countries`
+metadata, rejecting a result that excludes either country and trying the
+next matching result. The same policy applies to MusicBrainz links. A bot
+challenge or missing country metadata is a retryable lookup failure, not
+evidence that the Recording has no video. This preserves the hosted search
+service and adds no dependency or API key.
+
+The compiled selection flow accepted `xTvyyoF_LZY` for Shape of You under
+this policy. The One Life reproduction returned `VIDEO_NOT_FOUND`: no
+returned candidate satisfied both the Recording metadata and the two-country
+policy. This change prevents new blocked selections; it does not replace
+video IDs on already completed Tracks or make a region-blocked upload
+playable. Replacing an existing Track's source also requires reprocessing
+its audio and notes to preserve synchronization.
 
 Replacing the **whole** current integration is **medium complexity and
 needs an availability design**: `TrackVideoService` also calls `getVideo`
 for MusicBrainz links and `canPlayVideo` before selecting any candidate.
 Those operations are not supplied by the evidenced search contract. Direct
-lookups and playback checks remain for MusicBrainz links, while hosted
-search results bypass the latter check. Extending the owned service with
+lookups remain for MusicBrainz links; playback checks apply to both linked
+and hosted-search candidates. Extending the owned service with
 explicit detail/availability endpoints is a possible separate change, not
 existing functionality.
 

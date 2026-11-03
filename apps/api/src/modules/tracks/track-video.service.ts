@@ -85,12 +85,19 @@ export class TrackVideoService {
     return undefined;
   }
 
-  /** Trust hosted search results; only reconcile their metadata locally. */
+  /** Reconcile hosted results and require playback in the supported markets. */
   private async searchBestMatch(
     target: RecordingTarget,
   ): Promise<YouTubeVideo | undefined> {
     const results = await this.youtube.searchSongs(searchQueryOf(target));
-    return chooseSearchMatch(target, results);
+    let remaining = results;
+    while (true) {
+      const best = chooseSearchMatch(target, remaining);
+      if (best === undefined) return undefined;
+      if (await this.youtube.canPlayVideo(best.videoId)) return best;
+      this.logger.warn(`Skipping unavailable YouTube video ${best.videoId}`);
+      remaining = remaining.filter((item) => item.videoId !== best.videoId);
+    }
   }
 
   /**

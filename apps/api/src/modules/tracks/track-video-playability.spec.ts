@@ -49,17 +49,16 @@ describe('Track video playback eligibility', () => {
       candidate(searchId),
       candidate('zzzzzzzzzzz'),
     ]);
-    youtube.canPlayVideo.mockResolvedValue(false);
+    youtube.canPlayVideo.mockImplementation(async (id) => id === searchId);
   });
 
-  it('trusts the best hosted search match without a direct playback check', async () => {
-    youtube.canPlayVideo.mockRejectedValue(new Error('YouTube timeout'));
+  it('validates the best hosted search match before selecting it', async () => {
     const { service, moduleRef } = await createService();
     try {
       await expect(service.findVideo(recording)).resolves.toMatchObject({
         video: { videoId: searchId, source: 'youtube_music' },
       });
-      expect(youtube.canPlayVideo).not.toHaveBeenCalled();
+      expect(youtube.canPlayVideo.mock.calls).toEqual([[searchId]]);
     } finally {
       await moduleRef.close();
     }
@@ -77,7 +76,7 @@ describe('Track video playback eligibility', () => {
       ).resolves.toMatchObject({
         video: { videoId: searchId, source: 'youtube_music' },
       });
-      expect(youtube.canPlayVideo.mock.calls).toEqual([[linkedId]]);
+      expect(youtube.canPlayVideo.mock.calls).toEqual([[linkedId], [searchId]]);
     } finally {
       await moduleRef.close();
     }

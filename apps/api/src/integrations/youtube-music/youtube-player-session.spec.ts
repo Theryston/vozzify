@@ -31,6 +31,11 @@ describe('YouTube player session', () => {
           status: timestamp === signatureTimestamp ? 'OK' : 'UNPLAYABLE',
           playableInEmbed: true,
         },
+        microformat: {
+          playerMicroformatRenderer: {
+            availableCountries: ['BR', 'US'],
+          },
+        },
       });
     };
     const createSession = Innertube.create.bind(Innertube);

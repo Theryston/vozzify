@@ -32,6 +32,7 @@ describe('YouTube browser playability', () => {
   it('checks the web client instead of trusting YouTube Music metadata', async () => {
     getBasicInfo.mockResolvedValue({
       playability_status: { status: 'OK', embeddable: true },
+      page: [{ microformat: { available_countries: ['BR', 'US'] } }],
     });
 
     await expect(client.canPlayVideo('uP1ywAv8rEY')).resolves.toBe(true);

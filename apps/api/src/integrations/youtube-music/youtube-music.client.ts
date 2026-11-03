@@ -11,6 +11,11 @@ import {
 
 const SEARCH_URL = 'https://j2v0n2sold.execute-api.us-east-1.amazonaws.com/';
 const SEARCH_TIMEOUT_MS = 30_000;
+// A Recording has one shared video, so both supported markets must allow it.
+const PLAYBACK_COUNTRIES = ['BR', 'US'];
+const availabilitySchema = z.object({
+  available_countries: z.array(z.string()),
+});
 const searchResponseSchema = z.array(
   z.object({
     videoId: z.string().nullish(),
@@ -91,15 +96,28 @@ export class YouTubeMusicClient {
     const yt = await this.innertube();
     try {
       const info = await yt.getBasicInfo(videoId, { client: 'WEB' });
-      return (
-        info.playability_status?.status === 'OK' &&
-        info.playability_status.embeddable
+      assertNoBotChallenge(info.playability_status);
+      if (
+        info.playability_status?.status !== 'OK' ||
+        !info.playability_status.embeddable
+      ) {
+        return false;
+      }
+      const availability = availabilitySchema.safeParse(
+        info.page?.[0]?.microformat,
+      );
+      if (!availability.success) {
+        throw new Error('YouTube did not return video availability countries');
+      }
+      return PLAYBACK_COUNTRIES.every((country) =>
+        availability.data.available_countries.includes(country),
       );
     } catch (error) {
       // The SDK throws for ERROR before returning the playability status.
       // Transport and parser failures must still reach the pipeline's retries.
       const detail: unknown =
         error instanceof Utils.InnertubeError ? error.info : undefined;
+      assertNoBotChallenge(detail);
       if (
         typeof detail === 'object' &&
         detail !== null &&
@@ -123,5 +141,19 @@ export class YouTubeMusicClient {
       throw error;
     });
     return this.session;
+  }
+}
+
+function assertNoBotChallenge(value: unknown): void {
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'reason' in value &&
+    typeof value.reason === 'string' &&
+    value.reason.toLowerCase().includes('not a bot')
+  ) {
+    throw new Error(
+      'YouTube blocked the playback availability check with bot verification',
+    );
   }
 }
