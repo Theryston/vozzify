@@ -301,19 +301,21 @@ isn't obvious), so the import script can be written from those notes.
   `test/redis-test-overrides.ts`, so e2e tests keep running without Redis.
 - Scheduled work (track score recalculation, daily practice reminders) uses
   BullMQ repeatable jobs, not in-process timers.
-- A Track's Processing is a BullMQ job in this process: it downloads the
-  audio through the RapidAPI service, converts it to WAV with `ffmpeg` (the
-  API needs `ffmpeg` installed; `FFMPEG_PATH` names the binary) and stores it,
-  then starts `apps/note-detector` on RunPod (its job contract is in its
-  CLAUDE.md and `note_detector/contract.py`: the input carries a vocals and a
-  Pitch curve upload, the output the notes `{ pitch, start, end }`, both
-  URLs and the detector version) and polls its status with delayed
-  jobs (no inbound callback). A step that waits (a RapidAPI conversion) answers
-  a wait outcome and is checked again by a delayed run of the same step, with a
-  round number in its job payload; the budget of checks is in
-  `track-audio-polling.ts`. `RAPIDAPI_API_KEY`, `RUNPOD_API_KEY` and
-  `RUNPOD_ENDPOINT_ID` are required in production. See
-  `docs/adr/0004-processing-pipeline.md`.
+- A Track's Processing is a BullMQ job in this process. Audio is downloaded
+  directly through `youtubei.js` and the configured `PROXY_*` HTTP proxy,
+  without a PO Token provider. Use a Brazilian sticky session for downloads.
+  The SDK's player decipher evaluator has a bounded execution time.
+  `AudioDownloadClient` streams to a unique temporary file, `ffmpeg` converts
+  it to WAV on disk, and `StorageService.putPublicFile` streams it to S3.
+  Keep media out of whole-file buffers in this path. `TrackAudioService`
+  removes the input after conversion and the workspace in `finally`, even
+  when conversion, upload or persistence fails. Old queued download waits
+  restart the direct download; an existing WAV is reused. The API image
+  needs `ffmpeg` (`FFMPEG_PATH` overrides the binary).
+  Note detection still starts `apps/note-detector` on RunPod and polls with
+  delayed jobs. `RUNPOD_API_KEY` and `RUNPOD_ENDPOINT_ID` are required in
+  production. See `docs/adr/0004-processing-pipeline.md` and
+  `docs/adr/0014-direct-youtube-audio-downloads.md`.
 - The last step, the lyrics, stores the vocals as MP3 and transcribes them
   with ElevenLabs Scribe v2 (`ELEVENLABS_API_KEY`, required in production: the
   transcription factory refuses to boot without it). Its failures are retried;
@@ -374,7 +376,7 @@ isn't obvious), so the import script can be written from those notes.
     (`fileParallelism: false`); tests must not depend on order.
   - Test-only controllers live in separate non-spec files under `test/` and
     need `@Public()` unless they test auth.
-- External services (RapidAPI, RunPod, ElevenLabs, YT Music, email) are always mocked at the
+- External services (RunPod, ElevenLabs, YouTube, email) are always mocked at the
   integration-module boundary. `ffmpeg` is a local binary, not a service: e2e
   runs it for real (CI installs it), on the MP3 fixture in `test/fixtures/`.
   File storage is the exception: e2e runs

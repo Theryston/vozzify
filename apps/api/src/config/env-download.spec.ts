@@ -1,61 +1,37 @@
 import { parseEnv } from './env.js';
 
-// The audio download settings, kept apart from env.spec.ts.
 const required = {
   NODE_ENV: 'test',
   DATABASE_URL: 'postgres://user:pass@localhost:5432/vozzify',
   REDIS_URL: 'redis://localhost:6379',
 };
 
-describe('parseEnv download settings', () => {
-  it('leaves the RapidAPI key and the ffmpeg path unset when they are not configured', () => {
-    const env = parseEnv(required);
-
-    expect(env.RAPIDAPI_API_KEY).toBeUndefined();
-    expect(env.FFMPEG_PATH).toBeUndefined();
+describe('parseEnv direct audio download', () => {
+  it('uses the ffmpeg executable from PATH by default', () => {
+    expect(parseEnv(required).FFMPEG_PATH).toBeUndefined();
   });
-
-  it('parses the RapidAPI key and the ffmpeg path', () => {
+  it('accepts a custom ffmpeg executable', () => {
+    expect(
+      parseEnv({ ...required, FFMPEG_PATH: '/opt/ffmpeg/bin/ffmpeg' })
+        .FFMPEG_PATH,
+    ).toBe('/opt/ffmpeg/bin/ffmpeg');
+  });
+  it('boots in production without a third-party download API key', () => {
     expect(
       parseEnv({
         ...required,
-        RAPIDAPI_API_KEY: 'rapid-key',
-        FFMPEG_PATH: '/opt/ffmpeg/bin/ffmpeg',
-      }),
-    ).toMatchObject({
-      RAPIDAPI_API_KEY: 'rapid-key',
-      FFMPEG_PATH: '/opt/ffmpeg/bin/ffmpeg',
-    });
-  });
-
-  it('requires the RapidAPI key in production', () => {
-    const production = {
-      ...required,
-      NODE_ENV: 'production',
-      BETTER_AUTH_SECRET: 'a'.repeat(32),
-      REVALIDATE_SECRET: 'x'.repeat(32),
-      RESEND_API_KEY: 're_123',
-    };
-
-    expect(() => parseEnv(production)).toThrow('RAPIDAPI_API_KEY');
-    expect(
-      parseEnv({
-        ...production,
-        RAPIDAPI_API_KEY: 'rapid-key',
+        NODE_ENV: 'production',
+        BETTER_AUTH_SECRET: 'a'.repeat(32),
+        REVALIDATE_SECRET: 'x'.repeat(32),
+        RESEND_API_KEY: 're_123',
         RUNPOD_API_KEY: 'runpod-key',
         RUNPOD_ENDPOINT_ID: 'endpoint-1',
-      }).RAPIDAPI_API_KEY,
-    ).toBe('rapid-key');
+      }).NODE_ENV,
+    ).toBe('production');
   });
-
-  it('counts blank values as unset', () => {
-    const env = parseEnv({
-      ...required,
-      RAPIDAPI_API_KEY: '',
-      FFMPEG_PATH: '',
-    });
-
-    expect(env.RAPIDAPI_API_KEY).toBeUndefined();
-    expect(env.FFMPEG_PATH).toBeUndefined();
+  it('counts a blank executable setting as unset', () => {
+    expect(
+      parseEnv({ ...required, FFMPEG_PATH: '' }).FFMPEG_PATH,
+    ).toBeUndefined();
   });
 });

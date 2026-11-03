@@ -170,10 +170,7 @@ const envSchema = z
     PROXY_PORT: optional(z.coerce.number().int().min(1).max(65_535)),
     PROXY_USERNAME: optional(z.string().min(1)),
     PROXY_PASSWORD: optional(z.string().min(1)),
-    // RapidAPI key of the audio download a Processing starts with (ADR 0004).
-    // Required in production, where a Processing cannot download without it.
-    RAPIDAPI_API_KEY: optional(z.string().min(1)),
-    // The ffmpeg binary that converts the downloaded MP3 to WAV. Unset, the
+    // The ffmpeg binary that converts downloaded audio to WAV. Unset, the
     // client runs `ffmpeg` from the PATH (FfmpegClient).
     FFMPEG_PATH: optional(z.string().min(1)),
     // RunPod endpoint that separates the vocals and detects the notes of a
@@ -246,11 +243,6 @@ const envSchema = z
   .refine(
     (env) => env.NODE_ENV !== 'production' || env.RESEND_API_KEY !== undefined,
     { path: ['RESEND_API_KEY'], message: 'Required in production' },
-  )
-  .refine(
-    (env) =>
-      env.NODE_ENV !== 'production' || env.RAPIDAPI_API_KEY !== undefined,
-    { path: ['RAPIDAPI_API_KEY'], message: 'Required in production' },
   )
   .refine(
     (env) => env.NODE_ENV !== 'production' || env.RUNPOD_API_KEY !== undefined,

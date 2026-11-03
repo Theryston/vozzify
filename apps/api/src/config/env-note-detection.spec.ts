@@ -13,7 +13,6 @@ const production = {
   BETTER_AUTH_SECRET: 'a'.repeat(32),
   REVALIDATE_SECRET: 'x'.repeat(32),
   RESEND_API_KEY: 're_123',
-  RAPIDAPI_API_KEY: 'rapid-key',
 };
 
 describe('parseEnv note detection settings', () => {

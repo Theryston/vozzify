@@ -1,5 +1,9 @@
 # 4. Processing pipeline: BullMQ in the API, RunPod by polling, RapidAPI for audio
 
+The audio-download decision below is superseded by
+[ADR 0014](0014-direct-youtube-audio-downloads.md). The rest of this
+Processing design remains in effect.
+
 - Status: accepted
 - Date: 2026-10-08
 

@@ -115,7 +115,7 @@ export type TrackProcessingApp = {
   recordings: Map<string, Recording>;
   youtube: FakeYouTubeMusic;
   coverArt: FakeCoverArt;
-  /** RapidAPI's audio download; the conversion and ffmpeg run for real. */
+  /** YouTube audio download; ffmpeg and S3 run for real. */
   audio: FakeAudioDownload;
   /** RunPod's note detection; each spec sets the answers of its job. */
   noteDetection: FakeNoteDetection;

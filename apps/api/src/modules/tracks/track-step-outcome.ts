@@ -1,8 +1,7 @@
 import type { TrackProcessingFailureCode } from '@vozzify/contracts';
 
 // What a step leaves for the pipeline (pure). A step is done and the pipeline
-// moves on; it has to be checked again later (a long wait, such as a RapidAPI
-// conversion, is a delayed re-check job, never a blocking loop); it ends the
+// moves on; it has to be checked again later (a long wait, such as note detection, is a delayed re-check job, never a blocking loop); it ends the
 // Processing now with a failure that retrying would not change; or the
 // Processing moved on while the step ran and the step stops without advancing.
 

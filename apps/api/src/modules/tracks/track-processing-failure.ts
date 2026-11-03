@@ -20,7 +20,7 @@ export function messageOf(error: unknown): string {
 }
 
 /**
- * One call to an external service of a step (RapidAPI, RunPod, ...). Any
+ * One call to an external service of a step (YouTube, RunPod, ...). Any
  * failure of it is a `code` failure, which BullMQ retries until the last
  * attempt; the cause goes to `logger`.
  */

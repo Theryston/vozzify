@@ -16,11 +16,17 @@ cp apps/api/.env.example apps/api/.env
 nub run dev --filter=api     # http://localhost:3333
 ```
 
-The API needs `ffmpeg` installed: a Processing converts the audio it downloads
-with it (install it with your package manager, e.g. `apt install ffmpeg` or
-`brew install ffmpeg`, or point `FFMPEG_PATH` at the binary). The download
-itself goes through RapidAPI and needs `RAPIDAPI_API_KEY`, required in
-production (the API refuses to boot without it there).
+The API needs `ffmpeg` installed (`FFMPEG_PATH` can override its location).
+Processing downloads audio directly through `youtubei.js`, using `PROXY_*`
+when configured. Use a Brazilian sticky proxy session so metadata and media
+requests keep a consistent exit. There is no external download API key or
+PO Token provider.
+
+Audio is streamed to a unique temporary directory, converted to WAV on disk,
+and uploaded to S3 as a file stream. Input audio is capped at 64 MiB, output
+WAV at 256 MiB; download, conversion and upload each have a two-minute
+budget. The directory is removed after success or failure. See
+[ADR 0014](../../docs/adr/0014-direct-youtube-audio-downloads.md).
 
 ## Database
 

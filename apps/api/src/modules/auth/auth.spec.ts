@@ -17,7 +17,6 @@ const productionEnv = {
   BETTER_AUTH_SECRET: 'a'.repeat(32),
   REVALIDATE_SECRET: 'b'.repeat(32),
   RESEND_API_KEY: 're_123',
-  RAPIDAPI_API_KEY: 'rapid-key',
   RUNPOD_API_KEY: 'runpod-key',
   RUNPOD_ENDPOINT_ID: 'endpoint-1',
 };
