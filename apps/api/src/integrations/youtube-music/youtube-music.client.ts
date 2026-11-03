@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Innertube } from 'youtubei.js';
+import { Innertube, Utils } from 'youtubei.js';
 import { ENV, type Env } from '../../config/env.js';
 import { brightDataProxyOf, createProxiedFetch } from './bright-data-proxy.js';
 import {
@@ -49,6 +49,32 @@ export class YouTubeMusicClient {
     const yt = await this.innertube();
     const info = await yt.music.getInfo(videoId);
     return youtubeVideoOfInfo(videoId, info.basic_info);
+  }
+
+  /** Music search metadata does not establish browser playback eligibility. */
+  async canPlayVideo(videoId: string): Promise<boolean> {
+    const yt = await this.innertube();
+    try {
+      const info = await yt.getBasicInfo(videoId, { client: 'WEB' });
+      return (
+        info.playability_status?.status === 'OK' &&
+        info.playability_status.embeddable
+      );
+    } catch (error) {
+      // The SDK throws for ERROR before returning the playability status.
+      // Transport and parser failures must still reach the pipeline's retries.
+      const detail: unknown =
+        error instanceof Utils.InnertubeError ? error.info : undefined;
+      if (
+        typeof detail === 'object' &&
+        detail !== null &&
+        'status' in detail &&
+        detail.status === 'ERROR'
+      ) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   private innertube(): Promise<Innertube> {

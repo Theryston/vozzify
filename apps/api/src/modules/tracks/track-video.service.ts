@@ -79,7 +79,11 @@ export class TrackVideoService {
   ): Promise<FoundVideo | undefined> {
     for (const videoId of youtubeVideoIdsOf(externalUrls)) {
       const video = await this.lookUp(videoId);
-      if (video !== undefined && isValidCandidate(target, video)) {
+      if (
+        video !== undefined &&
+        isValidCandidate(target, video) &&
+        (await this.youtube.canPlayVideo(videoId))
+      ) {
         return { video, source: 'musicbrainz' };
       }
     }
@@ -97,7 +101,9 @@ export class TrackVideoService {
   ): Promise<YouTubeVideo | undefined> {
     try {
       const results = await this.youtube.searchSongs(searchQueryOf(target));
-      return chooseSearchMatch(target, results);
+      // Artwork does not need playback validation when a playable link won.
+      if (hasLink) return chooseSearchMatch(target, results);
+      return await this.firstPlayableMatch(target, results);
     } catch (error) {
       if (!hasLink) {
         throw error;
@@ -106,6 +112,20 @@ export class TrackVideoService {
         `The YouTube Music search failed, the linked video is kept: ${messageOf(error)}`,
       );
       return undefined;
+    }
+  }
+
+  private async firstPlayableMatch(
+    target: RecordingTarget,
+    candidates: readonly YouTubeVideo[],
+  ): Promise<YouTubeVideo | undefined> {
+    let remaining = candidates;
+    while (true) {
+      const best = chooseSearchMatch(target, remaining);
+      if (best === undefined) return undefined;
+      if (await this.youtube.canPlayVideo(best.videoId)) return best;
+      this.logger.warn(`Skipping unavailable YouTube video ${best.videoId}`);
+      remaining = remaining.filter((item) => item.videoId !== best.videoId);
     }
   }
 
