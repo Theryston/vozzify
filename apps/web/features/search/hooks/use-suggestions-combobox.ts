@@ -102,7 +102,10 @@ export function useSuggestionsCombobox({
       sendIfEnabled({ type: 'input-changed', query: value });
     },
     onFocus: () => sendIfEnabled({ type: 'focused', query: inputValue }),
-    onBlur: () => store.send({ type: 'blurred' }),
+    onBlur: () => {
+      store.send({ type: 'blurred' });
+      if (enabled) collapse();
+    },
     /** Cancel on a small screen: close the list and collapse, never navigate. */
     onCancel: () => leaveWith(cancelEffects),
     /** A Track row: the next page must not reopen the old query. */
