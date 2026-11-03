@@ -1,36 +1,33 @@
 import { ProxyAgent, fetch as undiciFetch } from 'undici';
 import type { Env } from '../../config/env.js';
 
-// YouTube Music blocks some datacenter IPs. The Bright Data proxy is a way
-// around that, so it is used only when its variables are all set: without
-// them requests leave straight from the server, at no cost.
+// YouTube Music blocks some datacenter IPs. Route requests through the
+// configured HTTP proxy when all four variables are set; otherwise they
+// leave directly from the server.
 
-/** Where the Bright Data proxy listens, and how to authenticate to it. */
-export type BrightDataProxy = { uri: string; token: string };
+/** Where the HTTP proxy listens, and how to authenticate to it. */
+export type HttpProxy = { uri: string; token: string };
 
 /** The proxy the environment configures, or undefined when it does not. */
-export function brightDataProxyOf(
+export function proxyOf(
   env: Pick<
     Env,
-    | 'BRIGHT_DATA_PROXY_HOST'
-    | 'BRIGHT_DATA_PROXY_PORT'
-    | 'BRIGHT_DATA_PROXY_USERNAME'
-    | 'BRIGHT_DATA_PROXY_PASSWORD'
+    'PROXY_HOST' | 'PROXY_PORT' | 'PROXY_USERNAME' | 'PROXY_PASSWORD'
   >,
-): BrightDataProxy | undefined {
-  const { BRIGHT_DATA_PROXY_HOST, BRIGHT_DATA_PROXY_PORT } = env;
-  const { BRIGHT_DATA_PROXY_USERNAME, BRIGHT_DATA_PROXY_PASSWORD } = env;
+): HttpProxy | undefined {
+  const { PROXY_HOST, PROXY_PORT } = env;
+  const { PROXY_USERNAME, PROXY_PASSWORD } = env;
   if (
-    BRIGHT_DATA_PROXY_HOST === undefined ||
-    BRIGHT_DATA_PROXY_PORT === undefined ||
-    BRIGHT_DATA_PROXY_USERNAME === undefined ||
-    BRIGHT_DATA_PROXY_PASSWORD === undefined
+    PROXY_HOST === undefined ||
+    PROXY_PORT === undefined ||
+    PROXY_USERNAME === undefined ||
+    PROXY_PASSWORD === undefined
   ) {
     return undefined;
   }
-  const credentials = `${BRIGHT_DATA_PROXY_USERNAME}:${BRIGHT_DATA_PROXY_PASSWORD}`;
+  const credentials = `${PROXY_USERNAME}:${PROXY_PASSWORD}`;
   return {
-    uri: `http://${BRIGHT_DATA_PROXY_HOST}:${BRIGHT_DATA_PROXY_PORT}`,
+    uri: `http://${PROXY_HOST}:${PROXY_PORT}`,
     token: `Basic ${Buffer.from(credentials).toString('base64')}`,
   };
 }
@@ -42,7 +39,7 @@ export function brightDataProxyOf(
  * unpack them before crossing that boundary. Response types are declared
  * apart despite sharing the fetch API, hence the cast.
  */
-export function createProxiedFetch(proxy: BrightDataProxy): typeof fetch {
+export function createProxiedFetch(proxy: HttpProxy): typeof fetch {
   const dispatcher = new ProxyAgent({ uri: proxy.uri, token: proxy.token });
   const proxied = (
     input: Parameters<typeof undiciFetch>[0],

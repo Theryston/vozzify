@@ -131,20 +131,30 @@ pipeline.
 Keep the current Recording title/artist/duration matching, validate external
 JSON at the integration boundary, and test mapping, timeouts and failures.
 
-The maintainer requested this narrow replacement: `searchSongs` now sends
-the complete legacy request to the fixed base URL above, with a 30-second
-timeout and no proxy. The existing `YouTubeVideo` mapping is retained.
-Search candidates are reconciled against the Recording's metadata. After
-the regional playback failure was reproduced, the maintainer chose this
-priority: **both Brazil and the USA, then Brazil, then the USA, otherwise
-no video**. Selection checks the WEB player's status, embed permission and
-`available_countries` metadata. Country coverage wins over metadata ranking
-among matching results; MusicBrainz links win ties with hosted results.
-A regional link still triggers a search for a better country tier, while a
-link available in both markets needs no search. A bot
-challenge or missing country metadata is a retryable lookup failure, not
-evidence that the Recording has no video. This preserves the hosted search
-service and adds no dependency or API key.
+The hosted integration described above has since been replaced by direct
+`youtubei.js` searches. `YouTubeMusicClient.searchSongs` now calls
+`yt.music.search(query, { type: 'song' })` through the same fetch adapter as
+video details and playback checks. The session uses `location: 'BR'` and
+`lang: 'en'`: country context guides discovery, while English keeps the
+SDK's named result shelves recognizable. The optional HTTP proxy is
+configured with `PROXY_HOST`, `PROXY_PORT`, `PROXY_USERNAME` and
+`PROXY_PASSWORD`; all four must be supplied together. The previous
+provider-specific variable names are no longer read, so deployment
+configuration must be renamed before restarting the API. The adapter normalizes native
+Node Requests before passing them to Undici, preserving the SDK's POST
+body, headers and cancellation signal.
+
+Search candidates are still reconciled against the Recording's metadata.
+The maintainer's country priority remains **both Brazil and the USA, then
+Brazil, then the USA, otherwise no video**. Selection checks the WEB
+player's status, embed permission and `available_countries` metadata.
+Country coverage wins over metadata ranking among matching results;
+MusicBrainz links win ties with search results. A regional link still
+triggers a search for a better country tier, while a link available in both
+markets needs no search. A bot challenge or missing country metadata is a
+retryable lookup failure, not evidence that the Recording has no video.
+Setting the session location does not guarantee playback or move the
+proxy's exit IP; choose a Brazilian exit separately when needed.
 
 The compiled selection flow accepted `xTvyyoF_LZY` for Shape of You under
 the earlier strict two-country policy. That policy rejected One Life's
@@ -160,7 +170,7 @@ needs an availability design**: `TrackVideoService` also calls `getVideo`
 for MusicBrainz links and `getPlaybackAvailability` to rank candidates.
 Those operations are not supplied by the evidenced search contract. Direct
 lookups remain for MusicBrainz links; playback checks apply to both linked
-and hosted-search candidates. Extending the owned service with
+and search candidates. Extending the owned service with
 explicit detail/availability endpoints is a possible separate change, not
 existing functionality.
 

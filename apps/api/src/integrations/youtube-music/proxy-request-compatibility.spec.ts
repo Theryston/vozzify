@@ -1,5 +1,5 @@
 import { Response as HttpResponse, MockAgent, ProxyAgent } from 'undici';
-import { createProxiedFetch } from './bright-data-proxy.js';
+import { createProxiedFetch } from './http-proxy.js';
 
 describe('YouTube proxy Request compatibility', () => {
   const upstream = 'https://youtube.test';

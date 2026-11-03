@@ -2,36 +2,23 @@ import { Inject, Injectable } from '@nestjs/common';
 import { Innertube, Utils } from 'youtubei.js';
 import { z } from 'zod';
 import { ENV, type Env } from '../../config/env.js';
-import { brightDataProxyOf, createProxiedFetch } from './bright-data-proxy.js';
+import { createProxiedFetch, proxyOf } from './http-proxy.js';
 import {
   type YouTubePlaybackAvailability,
+  type YouTubeSearchItemLike,
   type YouTubeVideo,
   youtubeVideoOfInfo,
   youtubeVideoOfSearchItem,
 } from './youtube-video.js';
 
-const SEARCH_URL = 'https://j2v0n2sold.execute-api.us-east-1.amazonaws.com/';
-const SEARCH_TIMEOUT_MS = 30_000;
 const availabilitySchema = z.object({
   available_countries: z.array(z.string()),
 });
-const searchResponseSchema = z.array(
-  z.object({
-    videoId: z.string().nullish(),
-    title: z.string().nullish(),
-    artists: z.array(z.object({ name: z.string() })).nullish(),
-    duration_seconds: z.number().nullish(),
-    resultType: z.string().nullish(),
-    thumbnails: z
-      .array(z.object({ url: z.string(), width: z.number() }))
-      .nullish(),
-  }),
-);
 
 /**
- * Searches through notefinder's hosted service. Video info and browser
- * playback checks use the SDK; features depend on these plain video results.
- * The SDK session is opened on first use, so searches need no YouTube session.
+ * Searches, video info and playback checks share one Brazilian SDK session
+ * and its configured proxy. Features depend only on plain video results.
+ * The session is opened on first use, so booting makes no external request.
  */
 @Injectable()
 export class YouTubeMusicClient {
@@ -39,43 +26,20 @@ export class YouTubeMusicClient {
   private readonly fetchImplementation: typeof fetch;
 
   constructor(@Inject(ENV) env: Env) {
-    const proxy = brightDataProxyOf(env);
+    const proxy = proxyOf(env);
     this.fetchImplementation =
       proxy === undefined ? fetch : createProxiedFetch(proxy);
   }
 
   /**
-   * Uses the legacy caller's complete parameter set: the hosted service
-   * fails when called with only the query. This request bypasses the proxy.
+   * Restrict searches to artist audio so title, artist and duration matching
+   * does not accidentally choose a music video or live performance.
    */
   async searchSongs(query: string): Promise<YouTubeVideo[]> {
-    const url = new URL(SEARCH_URL);
-    url.search = new URLSearchParams({
-      query,
-      filter: 'songs',
-      ignore_spelling: 'false',
-      limit: '30',
-    }).toString();
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
-    });
-    if (!response.ok) {
-      await response.body?.cancel();
-      throw new Error(
-        `YouTube Music search failed with HTTP ${response.status}`,
-      );
-    }
-    const results = searchResponseSchema.parse(await response.json());
-    return results.flatMap(
-      (item) =>
-        youtubeVideoOfSearchItem({
-          id: item.videoId ?? undefined,
-          title: item.title ?? undefined,
-          artists: item.artists ?? undefined,
-          duration: { seconds: item.duration_seconds ?? 0 },
-          item_type: item.resultType ?? undefined,
-          thumbnails: item.thumbnails ?? [],
-        }) ?? [],
+    const yt = await this.innertube();
+    const results = await yt.music.search(query, { type: 'song' });
+    return itemsOf(results.songs).flatMap(
+      (item) => youtubeVideoOfSearchItem(item) ?? [],
     );
   }
 
@@ -131,6 +95,10 @@ export class YouTubeMusicClient {
 
   private innertube(): Promise<Innertube> {
     this.session ??= Innertube.create({
+      // Country context guides discovery; playback is checked separately.
+      location: 'BR',
+      // The SDK identifies result shelves by their English names.
+      lang: 'en',
       // WEB playback checks require the player's signature timestamp.
       retrieve_player: true,
       fetch: this.fetchImplementation,
@@ -142,6 +110,10 @@ export class YouTubeMusicClient {
     return this.session;
   }
 }
+
+const itemsOf = (
+  shelf: { contents?: readonly YouTubeSearchItemLike[] } | undefined,
+): readonly YouTubeSearchItemLike[] => shelf?.contents ?? [];
 
 function playbackAvailabilityOf(
   countries: readonly string[],

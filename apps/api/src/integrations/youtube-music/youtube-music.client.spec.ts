@@ -3,36 +3,28 @@ import { Innertube } from 'youtubei.js';
 import { ENV } from '../../config/env.js';
 import { YouTubeMusicClient } from './youtube-music.client.js';
 
-// Replace external I/O at both boundaries: searches use HTTP, details the SDK.
 vi.mock('youtubei.js', () => ({ Innertube: { create: vi.fn() } }));
 
-const music = {
-  search: vi.fn(),
-  getInfo: vi.fn(),
-};
+const music = { search: vi.fn(), getInfo: vi.fn() };
 const session = { music };
 const create = vi.mocked(Innertube.create);
-const fetchMock = vi.fn<typeof fetch>();
-
-const BRIGHT_DATA_ENV = {
-  BRIGHT_DATA_PROXY_HOST: 'brd.superproxy.io',
-  BRIGHT_DATA_PROXY_PORT: 33335,
-  BRIGHT_DATA_PROXY_USERNAME: 'user',
-  BRIGHT_DATA_PROXY_PASSWORD: 'secret',
+const proxyEnv = {
+  PROXY_HOST: 'proxy.test',
+  PROXY_PORT: 8080,
+  PROXY_USERNAME: 'user',
+  PROXY_PASSWORD: 'secret',
 };
-
 const song = {
-  videoId: 'aaaaaaaaaaa',
+  id: 'aaaaaaaaaaa',
   title: 'Bohemian Rhapsody',
-  resultType: 'song',
-  artists: [{ name: 'Queen', id: 'artist-id' }],
-  duration_seconds: 354,
+  item_type: 'song',
+  artists: [{ name: 'Queen' }],
+  duration: { seconds: 354 },
   thumbnails: [
-    { url: 'https://img.test/small.jpg', width: 60, height: 60 },
-    { url: 'https://img.test/a.jpg', width: 226, height: 226 },
+    { url: 'https://img.test/small.jpg', width: 60 },
+    { url: 'https://img.test/a.jpg', width: 226 },
   ],
 };
-
 const video = {
   videoId: 'aaaaaaaaaaa',
   title: 'Bohemian Rhapsody',
@@ -56,64 +48,52 @@ describe('YouTubeMusicClient', () => {
   beforeEach(async () => {
     vi.resetAllMocks();
     create.mockResolvedValue(session as unknown as Innertube);
+    music.search.mockResolvedValue({ songs: { contents: [] } });
     music.getInfo.mockResolvedValue({ basic_info: {} });
-    vi.stubGlobal('fetch', fetchMock);
     await configure();
   });
 
   afterEach(async () => {
     await moduleRef.close();
-    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it('opens its session on the first video lookup, not at boot or during searches', async () => {
+  it('opens a single session on the first search, not at boot', async () => {
     expect(create).not.toHaveBeenCalled();
-    fetchMock.mockImplementation(async () => Response.json([]));
 
     await client.searchSongs('Queen Bohemian Rhapsody');
-    expect(create).not.toHaveBeenCalled();
-    await client.getVideo('aaaaaaaaaaa');
+    await client.searchSongs('Queen Bohemian Rhapsody');
     await client.getVideo('aaaaaaaaaaa');
 
     expect(create).toHaveBeenCalledTimes(1);
   });
 
-  it('searches the hosted service, mapping songs to the existing plain videos', async () => {
-    fetchMock.mockResolvedValue(Response.json([song]));
+  it('maps the SDK songs to the existing plain videos', async () => {
+    music.search.mockResolvedValue({ songs: { contents: [song] } });
 
     await expect(
       client.searchSongs('Queen Bohemian Rhapsody'),
     ).resolves.toEqual([video]);
-    expect(create).not.toHaveBeenCalled();
-    expect(music.search).not.toHaveBeenCalled();
   });
 
-  it('sends the complete legacy songs-only parameters and encodes the query', async () => {
-    fetchMock.mockResolvedValue(Response.json([]));
+  it('sends the original query with the songs-only filter', async () => {
     const query = 'Beyoncé & Queen / live?';
 
     await client.searchSongs(query);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const url = new URL(String(fetchMock.mock.calls[0]?.[0]));
-    expect(url.origin).toBe(
-      'https://j2v0n2sold.execute-api.us-east-1.amazonaws.com',
-    );
-    expect(url.pathname).toBe('/');
-    expect(Object.fromEntries(url.searchParams)).toEqual({
-      query,
-      filter: 'songs',
-      ignore_spelling: 'false',
-      limit: '30',
+    expect(music.search).toHaveBeenCalledExactlyOnceWith(query, {
+      type: 'song',
     });
   });
 
-  it('answers no results when the service returns an empty array', async () => {
-    fetchMock.mockResolvedValue(Response.json([]));
+  it.each([{}, { songs: {} }, { songs: { contents: [] } }])(
+    'answers no results when the SDK has no songs: %j',
+    async (response) => {
+      music.search.mockResolvedValue(response);
 
-    await expect(client.searchSongs('nothing')).resolves.toEqual([]);
-  });
+      await expect(client.searchSongs('nothing')).resolves.toEqual([]);
+    },
+  );
 
   it('reads the basic info of a video', async () => {
     music.getInfo.mockResolvedValue({
@@ -134,10 +114,17 @@ describe('YouTubeMusicClient', () => {
       artworkUrl: null,
     });
     expect(music.getInfo).toHaveBeenCalledWith('aaaaaaaaaaa');
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('retries opening the video session after a failure, instead of keeping it', async () => {
+  it('retries opening the search session after a failure', async () => {
+    create.mockRejectedValueOnce(new Error('network down'));
+
+    await expect(client.searchSongs('Queen')).rejects.toThrow('network down');
+    await expect(client.searchSongs('Queen')).resolves.toEqual([]);
+    expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries opening the video session after a failure', async () => {
     create.mockRejectedValueOnce(new Error('network down'));
 
     await expect(client.getVideo('aaaaaaaaaaa')).rejects.toThrow(
@@ -147,58 +134,61 @@ describe('YouTubeMusicClient', () => {
     expect(create).toHaveBeenCalledTimes(2);
   });
 
-  it('uses the global fetch for video lookups when no proxy is configured', async () => {
-    await client.getVideo('aaaaaaaaaaa');
+  it('uses global fetch when no proxy is configured', async () => {
+    await client.searchSongs('Queen');
 
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({ fetch: globalThis.fetch }),
     );
   });
 
-  it('routes video lookups through the configured proxy', async () => {
-    await moduleRef.close();
-    await configure(BRIGHT_DATA_ENV);
+  it('uses Brazilian location and keeps English shelf names for the SDK parser', async () => {
+    await client.searchSongs('Queen');
 
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        location: 'BR',
+        lang: 'en',
+        retrieve_player: true,
+      }),
+    );
+  });
+
+  it('shares the configured proxy between searches and video lookups', async () => {
+    await moduleRef.close();
+    await configure(proxyEnv);
+
+    await client.searchSongs('Queen');
     await client.getVideo('aaaaaaaaaaa');
 
+    expect(create).toHaveBeenCalledOnce();
     const options = create.mock.calls[0]?.[0];
     expect(options?.fetch).toEqual(expect.any(Function));
     expect(options?.fetch).not.toBe(globalThis.fetch);
   });
 
-  it('searches without the YouTube SDK or proxy even when its session cannot open', async () => {
-    await moduleRef.close();
-    await configure(BRIGHT_DATA_ENV);
-    create.mockRejectedValue(
-      new Error('Failed to parse URL from [object Request]'),
-    );
-    fetchMock.mockResolvedValue(Response.json([song]));
-
-    await expect(
-      client.searchSongs('Queen Bohemian Rhapsody'),
-    ).resolves.toEqual([video]);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(create).not.toHaveBeenCalled();
-  });
-
   it('omits results without a video ID or title', async () => {
-    fetchMock.mockResolvedValue(
-      Response.json([
-        { ...song, videoId: null },
-        { ...song, title: null },
-        { title: 'Missing ID' },
-        { videoId: 'bbbbbbbbbbb' },
-        song,
-      ]),
-    );
+    music.search.mockResolvedValue({
+      songs: {
+        contents: [
+          { ...song, id: undefined },
+          { ...song, title: undefined },
+          { title: 'Missing ID', thumbnails: [] },
+          { id: 'bbbbbbbbbbb', thumbnails: [] },
+          song,
+        ],
+      },
+    });
 
     await expect(client.searchSongs('Queen')).resolves.toEqual([video]);
   });
 
   it('maps missing optional metadata to the existing empty values', async () => {
-    fetchMock.mockResolvedValue(
-      Response.json([{ videoId: 'bbbbbbbbbbb', title: 'Song' }]),
-    );
+    music.search.mockResolvedValue({
+      songs: {
+        contents: [{ id: 'bbbbbbbbbbb', title: 'Song', thumbnails: [] }],
+      },
+    });
 
     await expect(client.searchSongs('Song')).resolves.toEqual([
       {
@@ -212,62 +202,23 @@ describe('YouTubeMusicClient', () => {
     ]);
   });
 
-  it.each([429, 500, 503])(
-    'propagates HTTP %i for pipeline retries',
-    async (status) => {
-      const response = new Response('upstream unavailable', { status });
-      const body = response.body;
-      if (body === null) throw new Error('The fixture needs a response body');
-      const cancel = vi.spyOn(body, 'cancel');
-      fetchMock.mockResolvedValue(response);
-
-      await expect(client.searchSongs('Queen')).rejects.toThrow(
-        `YouTube Music search failed with HTTP ${status}`,
-      );
-      expect(cancel).toHaveBeenCalledOnce();
-    },
-  );
-
-  it('propagates an HTTP error even without a response body', async () => {
-    fetchMock.mockResolvedValue(new Response(null, { status: 502 }));
-
-    await expect(client.searchSongs('Queen')).rejects.toThrow('HTTP 502');
-  });
-
-  it.each([{ message: 'Internal Server Error' }, [null], [{ videoId: 123 }]])(
-    'rejects malformed response data instead of treating it as no matching video: %j',
-    async (body) => {
-      fetchMock.mockResolvedValue(Response.json(body));
-
-      await expect(client.searchSongs('Queen')).rejects.toThrow();
-    },
-  );
-
-  it('propagates invalid JSON for pipeline retries', async () => {
-    fetchMock.mockResolvedValue(new Response('<html>upstream error</html>'));
-
-    await expect(client.searchSongs('Queen')).rejects.toBeInstanceOf(
-      SyntaxError,
-    );
-  });
-
   it.each([
+    new Error('HTTP 429'),
+    new Error('HTTP 500'),
+    new Error('HTTP 502'),
+    new Error('HTTP 503'),
+    new Error('Response did not contain any contents'),
+    new SyntaxError('Invalid JSON'),
     new TypeError('fetch failed'),
     new DOMException('Timed out', 'TimeoutError'),
-  ])('propagates transport failures: %s', async (error) => {
-    fetchMock.mockRejectedValue(error);
+  ])(
+    'propagates SDK search failures for pipeline retries: %s',
+    async (error) => {
+      music.search.mockRejectedValueOnce(error);
 
-    await expect(client.searchSongs('Queen')).rejects.toBe(error);
-  });
-
-  it('bounds the search request to thirty seconds', async () => {
-    const signal = new AbortController().signal;
-    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(signal);
-    fetchMock.mockResolvedValue(Response.json([]));
-
-    await client.searchSongs('Queen');
-
-    expect(timeout).toHaveBeenCalledWith(30_000);
-    expect(fetchMock).toHaveBeenCalledWith(expect.any(URL), { signal });
-  });
+      await expect(client.searchSongs('Queen')).rejects.toBe(error);
+      await expect(client.searchSongs('Queen')).resolves.toEqual([]);
+      expect(create).toHaveBeenCalledOnce();
+    },
+  );
 });
