@@ -43,7 +43,6 @@ const queued = {
 };
 const finding = {
   video: { videoId: 'aaaaaaaaaaa', source: 'musicbrainz' as const },
-  artworkUrl: 'https://img.test/a.jpg',
 };
 
 describe('TrackVideoStepService', () => {
@@ -75,10 +74,10 @@ describe('TrackVideoStepService', () => {
     await moduleRef.close();
   });
 
-  it('saves the chosen video on the Processing and on its Track, and answers its artwork', async () => {
+  it('saves the chosen video on the Processing and on its Track', async () => {
     videos.findVideo.mockResolvedValue(finding);
 
-    await expect(step.run(queued)).resolves.toBe('https://img.test/a.jpg');
+    await expect(step.run(queued)).resolves.toBeUndefined();
 
     expect(videos.findVideo).toHaveBeenCalledWith(TRACK);
     expect(processings.saveVideo).toHaveBeenCalledWith(

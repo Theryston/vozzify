@@ -142,16 +142,14 @@ export class TrackPipelineService {
   }
 
   /**
-   * Chooses the video, then queues the cover with the artwork the search
-   * found, so the cover job does not search again. The cover job does not hold
-   * the next step back.
+   * Saves the chosen video before queuing the cover, so its fallback can use
+   * that exact video's thumbnail. The cover never holds the next step back.
    */
   private async findVideo(processing: ProcessingForStep): Promise<StepOutcome> {
-    const artworkUrl = await this.steps.findVideo(processing);
+    await this.steps.findVideo(processing);
     await this.enqueueCover({
       trackId: processing.trackId,
       processingId: processing.id,
-      artworkUrl,
     });
     return DONE;
   }

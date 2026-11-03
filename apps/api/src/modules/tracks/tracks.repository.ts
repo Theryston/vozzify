@@ -134,6 +134,8 @@ export class TracksRepository {
         title: true,
         lengthMs: true,
         coverUrl: true,
+        primaryReleaseMbid: true,
+        youtubeVideoId: true,
         artistCredit: true,
       },
       with: {
@@ -149,6 +151,8 @@ export class TracksRepository {
       title: row.title,
       lengthMs: row.lengthMs,
       coverUrl: row.coverUrl,
+      primaryReleaseMbid: row.primaryReleaseMbid,
+      youtubeVideoId: row.youtubeVideoId,
       artistNames: row.artistCredit.map((entry) => entry.name),
       externalUrls: row.externalLinks.map((link) => link.url),
       releases: row.releases,
@@ -178,11 +182,14 @@ export class TracksRepository {
     return rows.length > 0;
   }
 
-  /** Stores the Track's cover, in our storage, once a Processing has found one. */
-  async setCoverUrl(trackId: string, coverUrl: string): Promise<void> {
+  /** Stores the cover and its source together, including a recovered source without an image. */
+  async setCover(
+    trackId: string,
+    cover: { coverUrl: string | null; primaryReleaseMbid: string | null },
+  ): Promise<void> {
     await this.txHost.tx
       .update(tracks)
-      .set({ coverUrl })
+      .set(cover)
       .where(eq(tracks.id, trackId));
   }
 

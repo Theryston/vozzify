@@ -21,8 +21,8 @@ export class TrackStepsService {
     private readonly lyrics: TrackLyricsStepService,
   ) {}
 
-  /** The find-video step; answers the artwork of the best search match (see TrackVideoStepService). */
-  findVideo(processing: ProcessingForStep): Promise<string | null | undefined> {
+  /** The find-video step saves the video used by playback and cover fallback. */
+  findVideo(processing: ProcessingForStep): Promise<void> {
     return this.video.run(processing);
   }
 

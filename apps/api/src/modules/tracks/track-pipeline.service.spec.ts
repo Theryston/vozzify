@@ -63,7 +63,7 @@ describe('TrackPipelineService', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     // `clearAllMocks` keeps implementations: each case starts from success.
-    videoStep.run.mockResolvedValue('https://img.test/artwork.jpg');
+    videoStep.run.mockResolvedValue(undefined);
     audio.run.mockResolvedValue({ kind: 'done' });
     noteDetection.extractVocals.mockResolvedValue({ kind: 'done' });
     noteDetection.detectNotes.mockResolvedValue({ kind: 'done' });
@@ -272,7 +272,7 @@ describe('TrackPipelineService', () => {
       ).toBeLessThan(completion.complete.mock.invocationCallOrder[0] ?? 0);
     });
 
-    it('queues the cover keyed by its Processing, with the artwork the video step found', async () => {
+    it('queues the cover keyed by its Processing after saving the video', async () => {
       processings.findProcessing.mockResolvedValue(processing());
 
       await pipeline.runStep(findingVideoJob, true);
@@ -282,13 +282,12 @@ describe('TrackPipelineService', () => {
         {
           trackId: 'track-1',
           processingId: 'processing-1',
-          artworkUrl: 'https://img.test/artwork.jpg',
         },
         { jobId: coverJobId('processing-1') },
       );
     });
 
-    it('keeps the cover job without artwork when the video step did not search', async () => {
+    it('queues a cover after a replay that kept the previously chosen video', async () => {
       processings.findProcessing.mockResolvedValue(processing());
       videoStep.run.mockResolvedValue(undefined);
 
@@ -296,7 +295,7 @@ describe('TrackPipelineService', () => {
 
       expect(queue.add).toHaveBeenCalledWith(
         'store-cover',
-        expect.not.objectContaining({ artworkUrl: expect.anything() }),
+        { trackId: 'track-1', processingId: 'processing-1' },
         { jobId: coverJobId('processing-1') },
       );
     });

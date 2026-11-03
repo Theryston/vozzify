@@ -79,8 +79,8 @@ export const bohemian = (overrides: Partial<Recording> = {}): Recording =>
   recordingFixture({
     artistCredit: QUEEN,
     releases: [
-      release(LATER_RELEASE, '1990-06-01'),
       release(PRIMARY_RELEASE, '1975-10-31'),
+      release(LATER_RELEASE, '1990-06-01'),
     ],
     ...overrides,
   });

@@ -59,27 +59,24 @@ describe('TrackJobRunnerService', () => {
   });
 
   describe('a cover job', () => {
-    it('stores the cover with the artwork it was given, then refreshes the Track', async () => {
+    it('ignores artwork from old queued jobs and refreshes the Track', async () => {
       await runner.run('store-cover', coverJob, true);
 
-      expect(covers.storeCover).toHaveBeenCalledWith(
-        'track-1',
-        'https://img.test/hit.jpg',
-      );
+      expect(covers.storeCover).toHaveBeenCalledWith('track-1');
       expect(revalidation.revalidate).toHaveBeenCalledWith([
         'track:track-1',
         'tracks',
       ]);
     });
 
-    it('passes an absent artwork on, so the cover searches for itself', async () => {
+    it('accepts cover jobs without legacy artwork', async () => {
       await runner.run(
         'store-cover',
         { trackId: 'track-1', processingId: 'processing-1' },
         true,
       );
 
-      expect(covers.storeCover).toHaveBeenCalledWith('track-1', undefined);
+      expect(covers.storeCover).toHaveBeenCalledWith('track-1');
     });
 
     it('refreshes the pages after a pass that stored nothing too, so a replay refreshes', async () => {
