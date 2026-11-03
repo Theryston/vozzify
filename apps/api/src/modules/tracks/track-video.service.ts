@@ -2,7 +2,10 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { TrackProcessingVideoSource } from '@vozzify/contracts';
 import { ENV, type Env } from '../../config/env.js';
 import { YouTubeMusicClient } from '../../integrations/youtube-music/youtube-music.client.js';
-import type { YouTubeVideo } from '../../integrations/youtube-music/youtube-video.js';
+import type {
+  YouTubePlaybackAvailability,
+  YouTubeVideo,
+} from '../../integrations/youtube-music/youtube-video.js';
 import { trackLimitsFrom } from './track-limits.js';
 import {
   messageOf,
@@ -29,14 +32,17 @@ export type VideoFinding = {
   video: ChosenVideo;
 };
 
-type FoundVideo = { video: YouTubeVideo; source: TrackProcessingVideoSource };
+type FoundVideo = {
+  video: YouTubeVideo;
+  source: TrackProcessingVideoSource;
+  availability: NonNullable<YouTubePlaybackAvailability>;
+};
+const PLAYBACK_PRIORITY = { both: 0, BR: 1, US: 2 };
 
 /**
- * Finds the YouTube video the timeline will play (ADR 0004): the Recording's
- * own YouTube link when it matches, else the best YouTube Music search result.
- * The length limit is checked before any search, so a Recording too long costs
- * nothing. A playable linked video needs no search: the cover uses its own
- * catalog release or that chosen video's thumbnail.
+ * Finds the matching video with the best country coverage (ADR 0004).
+ * MusicBrainz links win ties; a link available in both markets needs no search.
+ * The length limit is checked first, so an overlong Recording costs nothing.
  */
 @Injectable()
 export class TrackVideoService {
@@ -58,7 +64,13 @@ export class TrackVideoService {
       this.assertWithinMaxDuration(track.lengthMs / 1000);
     }
     const linked = await this.findLinkedVideo(target, track.externalUrls);
-    const found = linked ?? foundBySearch(await this.searchBestMatch(target));
+    const found =
+      linked?.availability === 'both'
+        ? linked
+        : preferredVideo(linked, await this.searchBestMatch(target));
+    if (found === undefined) {
+      throw new TrackProcessingFailure('VIDEO_NOT_FOUND');
+    }
     if (track.lengthMs === null) {
       this.assertWithinMaxDuration(found.video.durationSeconds);
     }
@@ -67,30 +79,57 @@ export class TrackVideoService {
     };
   }
 
-  /** The first of the Recording's YouTube links whose video matches it. */
+  /** The matching linked video with the best country coverage. */
   private async findLinkedVideo(
     target: RecordingTarget,
     externalUrls: readonly string[],
   ): Promise<FoundVideo | undefined> {
+    let best: FoundVideo | undefined;
     for (const videoId of youtubeVideoIdsOf(externalUrls)) {
       const video = await this.lookUp(videoId);
-      if (
-        video !== undefined &&
-        isValidCandidate(target, video) &&
-        (await this.youtube.canPlayVideo(videoId))
-      ) {
-        return { video, source: 'musicbrainz' };
+      if (video !== undefined && isValidCandidate(target, video)) {
+        best = preferredVideo(
+          best,
+          await this.assessVideo(video, 'musicbrainz'),
+        );
+        if (best?.availability === 'both') return best;
       }
     }
-    return undefined;
+    return best;
   }
 
-  /** Trust hosted search results; only reconcile their metadata locally. */
+  /** Country coverage wins first; metadata matching breaks ties within it. */
   private async searchBestMatch(
     target: RecordingTarget,
-  ): Promise<YouTubeVideo | undefined> {
+  ): Promise<FoundVideo | undefined> {
     const results = await this.youtube.searchSongs(searchQueryOf(target));
-    return chooseSearchMatch(target, results);
+    let remaining = results;
+    let best: FoundVideo | undefined;
+    while (true) {
+      const candidate = chooseSearchMatch(target, remaining);
+      if (candidate === undefined) return best;
+      const assessed = await this.assessVideo(candidate, 'youtube_music');
+      best = preferredVideo(best, assessed);
+      if (best?.availability === 'both') return best;
+      if (assessed === undefined) {
+        this.logger.warn(
+          `Skipping unavailable YouTube video ${candidate.videoId}`,
+        );
+      }
+      remaining = remaining.filter(
+        (item) => item.videoId !== candidate.videoId,
+      );
+    }
+  }
+
+  private async assessVideo(
+    video: YouTubeVideo,
+    source: TrackProcessingVideoSource,
+  ): Promise<FoundVideo | undefined> {
+    const availability = await this.youtube.getPlaybackAvailability(
+      video.videoId,
+    );
+    return availability === null ? undefined : { video, source, availability };
   }
 
   /**
@@ -120,12 +159,20 @@ export class TrackVideoService {
   }
 }
 
-/** The best search result as the chosen video; no match is a failure. */
-function foundBySearch(best: YouTubeVideo | undefined): FoundVideo {
-  if (best === undefined) {
-    throw new TrackProcessingFailure('VIDEO_NOT_FOUND');
+/** Keep the earlier metadata match or linked source when country tiers tie. */
+function preferredVideo(
+  current: FoundVideo | undefined,
+  candidate: FoundVideo | undefined,
+): FoundVideo | undefined {
+  if (candidate === undefined) return current;
+  if (
+    current === undefined ||
+    PLAYBACK_PRIORITY[candidate.availability] <
+      PLAYBACK_PRIORITY[current.availability]
+  ) {
+    return candidate;
   }
-  return { video: best, source: 'youtube_music' };
+  return current;
 }
 
 /** The distinct YouTube video IDs the URLs name, in the order given. */

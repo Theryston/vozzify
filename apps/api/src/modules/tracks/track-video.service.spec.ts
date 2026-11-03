@@ -1,7 +1,10 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ENV } from '../../config/env.js';
 import { YouTubeMusicClient } from '../../integrations/youtube-music/youtube-music.client.js';
-import type { YouTubeVideo } from '../../integrations/youtube-music/youtube-video.js';
+import type {
+  YouTubePlaybackAvailability,
+  YouTubeVideo,
+} from '../../integrations/youtube-music/youtube-video.js';
 import { TrackProcessingFailure } from './track-processing-failure.js';
 import type { PipelineTrack } from './track-repository.helpers.js';
 import { TrackVideoService } from './track-video.service.js';
@@ -38,7 +41,8 @@ const linkOf = (id: string) => `https://music.youtube.com/watch?v=${id}`;
 const youtube = {
   searchSongs: vi.fn<(query: string) => Promise<YouTubeVideo[]>>(),
   getVideo: vi.fn<(videoId: string) => Promise<YouTubeVideo | undefined>>(),
-  canPlayVideo: vi.fn<(videoId: string) => Promise<boolean>>(),
+  getPlaybackAvailability:
+    vi.fn<(videoId: string) => Promise<YouTubePlaybackAvailability>>(),
 };
 
 describe('TrackVideoService', () => {
@@ -63,7 +67,7 @@ describe('TrackVideoService', () => {
     vi.clearAllMocks();
     youtube.searchSongs.mockResolvedValue([]);
     youtube.getVideo.mockResolvedValue(undefined);
-    youtube.canPlayVideo.mockResolvedValue(true);
+    youtube.getPlaybackAvailability.mockResolvedValue('both');
     await configure();
   });
 

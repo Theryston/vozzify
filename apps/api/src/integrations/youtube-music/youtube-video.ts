@@ -5,6 +5,9 @@
 /** What YouTube lists the video as: a song (artist audio), a video, or other. */
 type YouTubeVideoKind = 'song' | 'video' | 'other';
 
+/** Country coverage for a playable candidate; null excludes both markets. */
+export type YouTubePlaybackAvailability = 'both' | 'BR' | 'US' | null;
+
 export type YouTubeVideo = {
   videoId: string;
   title: string;

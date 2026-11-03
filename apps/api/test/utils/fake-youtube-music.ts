@@ -1,4 +1,7 @@
-import type { YouTubeVideo } from '../../src/integrations/youtube-music/youtube-video.js';
+import type {
+  YouTubePlaybackAvailability,
+  YouTubeVideo,
+} from '../../src/integrations/youtube-music/youtube-video.js';
 
 /** A YouTube video with the Recording's own length and artist by default. */
 export const youtubeVideo = (
@@ -54,7 +57,9 @@ export class FakeYouTubeMusic {
     return answer;
   }
 
-  async canPlayVideo(_videoId: string): Promise<boolean> {
-    return true;
+  async getPlaybackAvailability(
+    _videoId: string,
+  ): Promise<YouTubePlaybackAvailability> {
+    return 'both';
   }
 }

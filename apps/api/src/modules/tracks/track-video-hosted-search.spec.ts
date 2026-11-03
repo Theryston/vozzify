@@ -16,12 +16,22 @@ describe('Track selection through the hosted search service', () => {
     { externalUrls: [] },
     { externalUrls: ['https://youtu.be/bbbbbbbbbbb'] },
   ])(
-    'finds the hosted result when direct YouTube access fails, with links $externalUrls',
+    'validates the hosted result even when linked metadata fails, with links $externalUrls',
     async ({ externalUrls }) => {
       const create = vi.mocked(Innertube.create);
-      create.mockRejectedValue(
-        new TypeError('Failed to parse URL from [object Request]'),
-      );
+      const getInfo = vi
+        .fn()
+        .mockRejectedValue(
+          new TypeError('Failed to parse URL from [object Request]'),
+        );
+      const getBasicInfo = vi.fn().mockResolvedValue({
+        playability_status: { status: 'OK', embeddable: true },
+        page: [{ microformat: { available_countries: ['BR', 'US'] } }],
+      });
+      create.mockResolvedValue({
+        music: { getInfo },
+        getBasicInfo,
+      } as unknown as Innertube);
       const request = vi.fn<typeof fetch>().mockResolvedValue(
         Response.json([
           {
@@ -59,7 +69,11 @@ describe('Track selection through the hosted search service', () => {
           video: { videoId: 'aaaaaaaaaaa', source: 'youtube_music' },
         });
         expect(request).toHaveBeenCalledOnce();
-        expect(create).toHaveBeenCalledTimes(externalUrls.length);
+        expect(create).toHaveBeenCalledOnce();
+        expect(getInfo).toHaveBeenCalledTimes(externalUrls.length);
+        expect(getBasicInfo).toHaveBeenCalledWith('aaaaaaaaaaa', {
+          client: 'WEB',
+        });
       } finally {
         await moduleRef.close();
       }

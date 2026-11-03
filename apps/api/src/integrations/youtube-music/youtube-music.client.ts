@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { ENV, type Env } from '../../config/env.js';
 import { brightDataProxyOf, createProxiedFetch } from './bright-data-proxy.js';
 import {
+  type YouTubePlaybackAvailability,
   type YouTubeVideo,
   youtubeVideoOfInfo,
   youtubeVideoOfSearchItem,
@@ -11,6 +12,9 @@ import {
 
 const SEARCH_URL = 'https://j2v0n2sold.execute-api.us-east-1.amazonaws.com/';
 const SEARCH_TIMEOUT_MS = 30_000;
+const availabilitySchema = z.object({
+  available_countries: z.array(z.string()),
+});
 const searchResponseSchema = z.array(
   z.object({
     videoId: z.string().nullish(),
@@ -87,26 +91,39 @@ export class YouTubeMusicClient {
   }
 
   /** Music search metadata does not establish browser playback eligibility. */
-  async canPlayVideo(videoId: string): Promise<boolean> {
+  async getPlaybackAvailability(
+    videoId: string,
+  ): Promise<YouTubePlaybackAvailability> {
     const yt = await this.innertube();
     try {
       const info = await yt.getBasicInfo(videoId, { client: 'WEB' });
-      return (
-        info.playability_status?.status === 'OK' &&
-        info.playability_status.embeddable
+      assertNoBotChallenge(info.playability_status);
+      if (
+        info.playability_status?.status !== 'OK' ||
+        !info.playability_status.embeddable
+      ) {
+        return null;
+      }
+      const availability = availabilitySchema.safeParse(
+        info.page?.[0]?.microformat,
       );
+      if (!availability.success) {
+        throw new Error('YouTube did not return video availability countries');
+      }
+      return playbackAvailabilityOf(availability.data.available_countries);
     } catch (error) {
       // The SDK throws for ERROR before returning the playability status.
       // Transport and parser failures must still reach the pipeline's retries.
       const detail: unknown =
         error instanceof Utils.InnertubeError ? error.info : undefined;
+      assertNoBotChallenge(detail);
       if (
         typeof detail === 'object' &&
         detail !== null &&
         'status' in detail &&
         detail.status === 'ERROR'
       ) {
-        return false;
+        return null;
       }
       throw error;
     }
@@ -123,5 +140,29 @@ export class YouTubeMusicClient {
       throw error;
     });
     return this.session;
+  }
+}
+
+function playbackAvailabilityOf(
+  countries: readonly string[],
+): YouTubePlaybackAvailability {
+  const brazil = countries.includes('BR');
+  const usa = countries.includes('US');
+  if (brazil && usa) return 'both';
+  if (brazil) return 'BR';
+  return usa ? 'US' : null;
+}
+
+function assertNoBotChallenge(value: unknown): void {
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'reason' in value &&
+    typeof value.reason === 'string' &&
+    value.reason.toLowerCase().includes('not a bot')
+  ) {
+    throw new Error(
+      'YouTube blocked the playback availability check with bot verification',
+    );
   }
 }

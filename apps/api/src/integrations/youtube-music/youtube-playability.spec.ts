@@ -32,9 +32,12 @@ describe('YouTube browser playability', () => {
   it('checks the web client instead of trusting YouTube Music metadata', async () => {
     getBasicInfo.mockResolvedValue({
       playability_status: { status: 'OK', embeddable: true },
+      page: [{ microformat: { available_countries: ['BR', 'US'] } }],
     });
 
-    await expect(client.canPlayVideo('uP1ywAv8rEY')).resolves.toBe(true);
+    await expect(client.getPlaybackAvailability('uP1ywAv8rEY')).resolves.toBe(
+      'both',
+    );
     expect(getBasicInfo).toHaveBeenCalledWith('uP1ywAv8rEY', {
       client: 'WEB',
     });
@@ -48,7 +51,9 @@ describe('YouTube browser playability', () => {
         playability_status: { status, embeddable: true },
       });
 
-      await expect(client.canPlayVideo('uP1ywAv8rEY')).resolves.toBe(false);
+      await expect(client.getPlaybackAvailability('uP1ywAv8rEY')).resolves.toBe(
+        null,
+      );
     },
   );
 
@@ -61,7 +66,9 @@ describe('YouTube browser playability', () => {
     async (info) => {
       getBasicInfo.mockResolvedValue(info);
 
-      await expect(client.canPlayVideo('uP1ywAv8rEY')).resolves.toBe(false);
+      await expect(client.getPlaybackAvailability('uP1ywAv8rEY')).resolves.toBe(
+        null,
+      );
     },
   );
 
@@ -72,7 +79,9 @@ describe('YouTube browser playability', () => {
       }),
     );
 
-    await expect(client.canPlayVideo('uP1ywAv8rEY')).resolves.toBe(false);
+    await expect(client.getPlaybackAvailability('uP1ywAv8rEY')).resolves.toBe(
+      null,
+    );
   });
 
   it.each([
@@ -87,7 +96,9 @@ describe('YouTube browser playability', () => {
     async (error) => {
       getBasicInfo.mockRejectedValue(error);
 
-      await expect(client.canPlayVideo('uP1ywAv8rEY')).rejects.toBe(error);
+      await expect(client.getPlaybackAvailability('uP1ywAv8rEY')).rejects.toBe(
+        error,
+      );
     },
   );
 });

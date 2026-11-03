@@ -31,6 +31,11 @@ describe('YouTube player session', () => {
           status: timestamp === signatureTimestamp ? 'OK' : 'UNPLAYABLE',
           playableInEmbed: true,
         },
+        microformat: {
+          playerMicroformatRenderer: {
+            availableCountries: ['BR', 'US'],
+          },
+        },
       });
     };
     const createSession = Innertube.create.bind(Innertube);
@@ -51,7 +56,9 @@ describe('YouTube player session', () => {
     }).compile();
     try {
       const client = moduleRef.get(YouTubeMusicClient);
-      await expect(client.canPlayVideo('xTvyyoF_LZY')).resolves.toBe(true);
+      await expect(client.getPlaybackAvailability('xTvyyoF_LZY')).resolves.toBe(
+        'both',
+      );
       expect(requests).toEqual([
         {
           context: { client: { clientName: 'WEB' } },
