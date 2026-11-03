@@ -8,6 +8,8 @@ import {
   webRevalidationJobSchema,
 } from './web-revalidation.job.js';
 
+const TAGS_PER_JOB = 50;
+
 /**
  * Asks the web app to revalidate cached pages after the data they render
  * changed. Runs in the background with retries, so a slow or briefly
@@ -23,11 +25,23 @@ export class WebRevalidationService {
     private readonly queue: Queue<WebRevalidationJob>,
   ) {}
 
-  /** @throws {ZodError} when the (deduplicated) tags break the limits. */
+  /** @throws {ZodError} when tags are empty or contain an invalid tag. */
   async revalidate(tags: readonly string[]): Promise<void> {
-    const payload = webRevalidationJobSchema.parse({
-      tags: [...new Set(tags)],
-    });
-    await this.queue.add(WEB_REVALIDATION_JOB, payload);
+    const uniqueTags = [...new Set(tags)];
+    // Catalog pages can exceed the endpoint's per-request limit. Validate all
+    // batches first so an invalid tag never queues a partial revalidation.
+    const payloads = Array.from(
+      { length: Math.max(1, Math.ceil(uniqueTags.length / TAGS_PER_JOB)) },
+      (_, index) =>
+        webRevalidationJobSchema.parse({
+          tags: uniqueTags.slice(
+            index * TAGS_PER_JOB,
+            (index + 1) * TAGS_PER_JOB,
+          ),
+        }),
+    );
+    for (const payload of payloads) {
+      await this.queue.add(WEB_REVALIDATION_JOB, payload);
+    }
   }
 }
