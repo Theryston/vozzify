@@ -79,7 +79,8 @@ export class YouTubeMusicClient {
 
   private innertube(): Promise<Innertube> {
     this.session ??= Innertube.create({
-      retrieve_player: false,
+      // WEB playback checks require the player's signature timestamp.
+      retrieve_player: true,
       fetch: this.fetchImplementation,
     }).catch((error: unknown) => {
       // A failed session is retried on the next request, not kept.
