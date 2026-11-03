@@ -36,6 +36,8 @@ export const tracks = pgTable(
     // The MBID of the MusicBrainz Recording, the only identity of a Track's
     // source. Unique, so the API can decide linked versus static per hit.
     recordingMbid: text().notNull(),
+    // Preserve the catalog's cover choice before release dates become years.
+    primaryReleaseMbid: text(),
     // Display title, as the artist card and Track page show it. No default: the
     // contract requires a non-empty title, so a missing one must fail at
     // insert time, never as a 500 at read time.

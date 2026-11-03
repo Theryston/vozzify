@@ -20,6 +20,8 @@ const recording = {
   artistNames: ['Ed Sheeran'],
   lengthMs: 232_000,
   coverUrl: null,
+  primaryReleaseMbid: null,
+  youtubeVideoId: null,
   externalUrls: [],
   releases: [],
 };

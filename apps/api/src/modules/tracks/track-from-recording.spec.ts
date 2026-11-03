@@ -24,6 +24,7 @@ describe('trackRowsFromRecording', () => {
 
     expect(rows.track).toEqual({
       recordingMbid: testMbid(1),
+      primaryReleaseMbid: null,
       title: 'Bohemian Rhapsody',
       lengthMs: 354_000,
       disambiguation: 'single version',

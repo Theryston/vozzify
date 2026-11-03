@@ -58,7 +58,7 @@ describe('Track Processing pipeline (e2e)', () => {
   });
 
   describe('finding the video', () => {
-    it('chooses the Recording’s own YouTube link when it matches; the search only supplies the artwork', async () => {
+    it('chooses the Recording’s own YouTube link without searching for artwork', async () => {
       app.recordings.set(
         testMbid(1),
         bohemian({ externalUrls: [linkTo(LINKED_VIDEO)] }),
@@ -80,7 +80,7 @@ describe('Track Processing pipeline (e2e)', () => {
         LINKED_VIDEO,
       );
       expect(youtube.lookups).toEqual([LINKED_VIDEO]);
-      expect(youtube.searches).toEqual(['Queen Bohemian Rhapsody']);
+      expect(youtube.searches).toEqual([]);
     });
 
     it('falls back to the best YouTube Music match when the link does not match', async () => {
@@ -102,7 +102,7 @@ describe('Track Processing pipeline (e2e)', () => {
         video: { id: SEARCH_VIDEO, source: 'youtube_music' },
       });
       expect(youtube.lookups).toEqual([LINKED_VIDEO]);
-      // One search for the whole Processing: the cover reuses its artwork.
+      // Cover fallback uses the saved video and needs no additional search.
       expect(youtube.searches).toEqual(['Queen Bohemian Rhapsody']);
     });
 
@@ -186,6 +186,47 @@ describe('Track Processing pipeline (e2e)', () => {
   });
 
   describe('the cover', () => {
+    it('keeps the catalog release when a later same-year compilation sorts first by title', async () => {
+      const recording = bohemian();
+      app.recordings.set(
+        testMbid(1),
+        bohemian({
+          releases: recording.releases.map((release, index) => ({
+            ...release,
+            title: index === 0 ? 'Shape of You' : 'Bravo: The Hits 2017',
+            date: index === 0 ? '2017-01-06' : '2017-11-10',
+          })),
+        }),
+      );
+      coverArt.releaseCovers.set(PRIMARY_RELEASE, await coverImage());
+      const trackId = await requestTrack(app);
+
+      await runTrackJobs(testApp);
+
+      expect((await trackRowOf(testApp, trackId)).primaryReleaseMbid).toBe(
+        PRIMARY_RELEASE,
+      );
+      expect(coverArt.releaseRequests).toEqual([PRIMARY_RELEASE]);
+      expect((await trackRowOf(testApp, trackId)).coverUrl).not.toBeNull();
+    });
+
+    it('uses the linked video thumbnail instead of an unrelated search artwork', async () => {
+      app.recordings.set(
+        testMbid(1),
+        bohemian({ externalUrls: [linkTo(LINKED_VIDEO)] }),
+      );
+      youtube.videos.set(LINKED_VIDEO, youtubeVideo({ videoId: LINKED_VIDEO }));
+      const thumbnail = `https://i.ytimg.com/vi/${LINKED_VIDEO}/hqdefault.jpg`;
+      coverArt.images.set(thumbnail, await coverImage());
+      const trackId = await requestTrack(app);
+
+      await runTrackJobs(testApp);
+
+      expect(coverArt.imageRequests).toEqual([thumbnail]);
+      expect(youtube.searches).toEqual([]);
+      expect((await trackRowOf(testApp, trackId)).coverUrl).not.toBeNull();
+    });
+
     it('stores the front cover of the primary release in our storage and saves its URL', async () => {
       coverArt.releaseCovers.set(PRIMARY_RELEASE, await coverImage());
       const trackId = await requestTrack(app);
@@ -204,9 +245,11 @@ describe('Track Processing pipeline (e2e)', () => {
       );
     });
 
-    it('falls back to the artwork of the best search match when the archive has no cover', async () => {
-      const artwork = 'https://img.test/artwork.jpg';
-      youtube.results = [youtubeVideo({ artworkUrl: artwork })];
+    it('falls back to the chosen video thumbnail when the archive has no cover', async () => {
+      const artwork = `https://i.ytimg.com/vi/${SEARCH_VIDEO}/hqdefault.jpg`;
+      youtube.results = [
+        youtubeVideo({ artworkUrl: 'https://img.test/other.jpg' }),
+      ];
       coverArt.images.set(artwork, await coverImage());
       const trackId = await requestTrack(app);
 
@@ -214,7 +257,7 @@ describe('Track Processing pipeline (e2e)', () => {
 
       expect(coverArt.imageRequests).toEqual([artwork]);
       expect((await trackRowOf(testApp, trackId)).coverUrl).not.toBeNull();
-      // The video step's search is the only one: the cover reuses its artwork.
+      // Only choosing the video needs a search.
       expect(youtube.searches).toHaveLength(1);
     });
 

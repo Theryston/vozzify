@@ -47,7 +47,7 @@ describe('TrackPipelineService waits', () => {
       albumIds: [],
     });
     queue.add.mockResolvedValue(undefined);
-    steps.findVideo.mockResolvedValue('https://img.test/artwork.jpg');
+    steps.findVideo.mockResolvedValue(undefined);
     moduleRef = await Test.createTestingModule({
       providers: [
         TrackPipelineService,

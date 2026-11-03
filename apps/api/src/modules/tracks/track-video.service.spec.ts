@@ -15,6 +15,8 @@ const track = (overrides: Partial<PipelineTrack> = {}): PipelineTrack => ({
   title: 'Bohemian Rhapsody',
   lengthMs: 354_000,
   coverUrl: null,
+  primaryReleaseMbid: null,
+  youtubeVideoId: null,
   artistNames: ['Queen'],
   externalUrls: [],
   releases: [],
@@ -87,7 +89,7 @@ describe('TrackVideoService', () => {
       });
     });
 
-    it('searches too, for the artwork of the cover', async () => {
+    it('does not search for artwork once the linked video is playable', async () => {
       youtube.searchSongs.mockResolvedValue([
         video({ videoId: SEARCH_ID, artworkUrl: 'https://img.test/a.jpg' }),
       ]);
@@ -96,11 +98,13 @@ describe('TrackVideoService', () => {
         track({ externalUrls: [linkOf(LINK_ID)] }),
       );
 
-      expect(youtube.searchSongs).toHaveBeenCalledTimes(1);
-      expect(finding.artworkUrl).toBe('https://img.test/a.jpg');
+      expect(youtube.searchSongs).not.toHaveBeenCalled();
+      expect(finding).toEqual({
+        video: { videoId: LINK_ID, source: 'musicbrainz' },
+      });
     });
 
-    it('keeps the link when the search fails', async () => {
+    it('chooses the link without depending on search availability', async () => {
       youtube.searchSongs.mockRejectedValue(new Error('YouTube is down'));
 
       const finding = await service.findVideo(
@@ -109,8 +113,8 @@ describe('TrackVideoService', () => {
 
       expect(finding).toEqual({
         video: { videoId: LINK_ID, source: 'musicbrainz' },
-        artworkUrl: null,
       });
+      expect(youtube.searchSongs).not.toHaveBeenCalled();
     });
   });
 

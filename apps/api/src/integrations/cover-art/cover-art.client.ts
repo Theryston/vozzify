@@ -12,7 +12,7 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 /**
  * Downloads cover images: the Cover Art Archive's front cover of a release,
- * and any image by URL (a YouTube Music artwork). The only code that fetches
+ * and any image by URL (the chosen YouTube video thumbnail). The only code that fetches
  * them; features depend on this class, so tests replace it at this boundary.
  */
 @Injectable()

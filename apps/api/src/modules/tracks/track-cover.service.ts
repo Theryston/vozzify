@@ -4,25 +4,11 @@ import {
   type DownloadedImage,
 } from '../../integrations/cover-art/cover-art.client.js';
 import { StorageService } from '../../integrations/storage/storage.service.js';
-import { YouTubeMusicClient } from '../../integrations/youtube-music/youtube-music.client.js';
 import { COVER_CONTENT_TYPE, toStoredCover } from './track-cover-image.js';
-import { primaryReleaseOf } from './track-primary-release.js';
 import type { PipelineTrack } from './track-repository.helpers.js';
-import {
-  chooseSearchMatch,
-  recordingTargetOf,
-  searchQueryOf,
-} from './track-video-matching.js';
 import { TracksRepository } from './tracks.repository.js';
 
-/** The key a Track's cover is stored under; one per Track. */
-const coverKey = (trackId: string): string => `track-covers/${trackId}.webp`;
-
-/**
- * Stores a Track's cover (ADR 0004): the front cover of its primary release
- * from the Cover Art Archive, else the artwork of the best search match, else
- * no cover (the page keeps its placeholder).
- */
+/** The catalog's chosen release, with the chosen video's thumbnail as fallback. */
 @Injectable()
 export class TrackCoverService {
   private readonly logger = new Logger(TrackCoverService.name);
@@ -30,70 +16,84 @@ export class TrackCoverService {
   constructor(
     private readonly tracks: TracksRepository,
     private readonly coverArt: CoverArtClient,
-    private readonly youtube: YouTubeMusicClient,
     private readonly storage: StorageService,
   ) {}
 
-  /**
-   * Stores the cover of a Track that has none yet; answers whether one was
-   * stored now. A replayed job, or a Track that already has a cover, changes
-   * nothing.
-   *
-   * @param artworkUrl the artwork of the best search match, as the video step
-   * found it; `undefined` when that step did not search, and the search runs
-   * here.
-   */
-  async storeCover(
+  /** Replayed jobs keep any cover already stored. */
+  storeCover(trackId: string): Promise<boolean> {
+    return this.store(trackId);
+  }
+
+  /** Repair uses a distinct key so a failed replacement preserves the old image. */
+  repairCover(
     trackId: string,
-    artworkUrl: string | null | undefined,
+    primaryReleaseMbid: string | null,
+  ): Promise<boolean> {
+    return this.store(trackId, primaryReleaseMbid);
+  }
+
+  private async store(
+    trackId: string,
+    replacementRelease?: string | null,
   ): Promise<boolean> {
     const track = await this.tracks.findPipelineTrack(trackId);
-    if (track === undefined || track.coverUrl !== null) {
-      return false;
-    }
-    const image = await this.findCoverImage(track, artworkUrl);
-    if (image === undefined) {
-      return false;
-    }
-    const body = await toStoredCover(image.bytes);
+    if (track === undefined) return false;
+    const repairing = replacementRelease !== undefined;
+    if (!repairing && track.coverUrl !== null) return false;
+    const primaryReleaseMbid = repairing
+      ? replacementRelease
+      : track.primaryReleaseMbid;
+    const source = primaryReleaseMbid ?? `youtube-${track.youtubeVideoId}`;
+    const key = repairing
+      ? `track-covers/${trackId}/${source}.webp`
+      : `track-covers/${trackId}.webp`;
+    const coverUrl = this.storage.publicUrl(key);
+    if (track.coverUrl === coverUrl) return false;
+    const image = await this.findCoverImage({ ...track, primaryReleaseMbid });
+    const body =
+      image === undefined ? undefined : await toStoredCover(image.bytes);
     if (body === undefined) {
-      this.logger.warn(`The cover of Track ${trackId} is not an image`);
-      return false;
+      return this.missingCover(track, replacementRelease);
     }
-    const key = coverKey(trackId);
     await this.storage.putPublicObject({
       key,
       body,
       contentType: COVER_CONTENT_TYPE,
     });
-    await this.tracks.setCoverUrl(trackId, this.storage.publicUrl(key));
+    await this.tracks.setCover(trackId, { coverUrl, primaryReleaseMbid });
     return true;
+  }
+
+  private async missingCover(
+    track: PipelineTrack,
+    replacementRelease: string | null | undefined,
+  ): Promise<false> {
+    if (replacementRelease !== undefined) {
+      if (track.coverUrl !== null) {
+        throw new Error(`No replacement cover for Track ${track.id}`);
+      }
+      await this.tracks.setCover(track.id, {
+        coverUrl: null,
+        primaryReleaseMbid: replacementRelease,
+      });
+    }
+    this.logger.warn(`No usable cover for Track ${track.id}`);
+    return false;
   }
 
   private async findCoverImage(
     track: PipelineTrack,
-    artworkUrl: string | null | undefined,
   ): Promise<DownloadedImage | undefined> {
-    const primary = primaryReleaseOf(track.releases);
-    if (primary !== undefined) {
-      const releaseCover = await this.coverArt.fetchReleaseFrontCover(
-        primary.mbid,
+    if (track.primaryReleaseMbid !== null) {
+      const image = await this.coverArt.fetchReleaseFrontCover(
+        track.primaryReleaseMbid,
       );
-      if (releaseCover !== undefined) {
-        return releaseCover;
-      }
+      if (image !== undefined) return image;
     }
-    const url =
-      artworkUrl === undefined
-        ? await this.searchArtworkUrl(track)
-        : artworkUrl;
-    return url === null ? undefined : this.coverArt.fetchImage(url);
-  }
-
-  /** The artwork of the best search match, when it has one. */
-  private async searchArtworkUrl(track: PipelineTrack): Promise<string | null> {
-    const target = recordingTargetOf(track);
-    const results = await this.youtube.searchSongs(searchQueryOf(target));
-    return chooseSearchMatch(target, results)?.artworkUrl ?? null;
+    return track.youtubeVideoId === null
+      ? undefined
+      : this.coverArt.fetchImage(
+          `https://i.ytimg.com/vi/${track.youtubeVideoId}/hqdefault.jpg`,
+        );
   }
 }

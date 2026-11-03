@@ -2,120 +2,96 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import sharp from 'sharp';
 import { CoverArtClient } from '../../integrations/cover-art/cover-art.client.js';
 import { StorageService } from '../../integrations/storage/storage.service.js';
-import { YouTubeMusicClient } from '../../integrations/youtube-music/youtube-music.client.js';
-import type { YouTubeVideo } from '../../integrations/youtube-music/youtube-video.js';
 import { TrackCoverService } from './track-cover.service.js';
 import type { PipelineTrack } from './track-repository.helpers.js';
 import { TracksRepository } from './tracks.repository.js';
 
-// The cover choice and what is stored: the Cover Art Archive first, then the
-// artwork the video step found (or the search, when it did not), and a webp
-// that fits in 500 px.
-
-const png = (width: number, height: number) =>
-  sharp({
-    create: {
-      width,
-      height,
-      channels: 3,
-      background: { r: 200, g: 40, b: 40 },
-    },
-  })
-    .png()
-    .toBuffer();
-
 const track = (overrides: Partial<PipelineTrack> = {}): PipelineTrack => ({
   id: 'track-1',
-  title: 'Bohemian Rhapsody',
-  lengthMs: 354_000,
+  title: 'Shape of You',
+  lengthMs: 234_000,
   coverUrl: null,
-  artistNames: ['Queen'],
+  primaryReleaseMbid: 'original',
+  youtubeVideoId: 'aaaaaaaaaaa',
+  artistNames: ['Ed Sheeran'],
   externalUrls: [],
   releases: [
-    { mbid: 'release-late', title: 'Greatest Hits', year: 1990 },
-    { mbid: 'release-early', title: 'A Night at the Opera', year: 1975 },
+    { mbid: 'compilation', title: 'Bravo: The Hits 2017', year: 2017 },
+    { mbid: 'original', title: 'Shape of You', year: 2017 },
   ],
   ...overrides,
 });
-
-const searchHit = (overrides: Partial<YouTubeVideo> = {}): YouTubeVideo => ({
-  videoId: 'bbbbbbbbbbb',
-  title: 'Queen - Bohemian Rhapsody',
-  artists: ['Queen'],
-  durationSeconds: 354,
-  kind: 'song',
-  artworkUrl: 'https://img.test/hit.jpg',
-  ...overrides,
-});
-
+const thumbnail = 'https://i.ytimg.com/vi/aaaaaaaaaaa/hqdefault.jpg';
+const oldCover = 'https://files.test/track-covers/track-1.webp';
+const repairedCover = 'https://files.test/track-covers/track-1/original.webp';
 const tracks = {
   findPipelineTrack:
     vi.fn<(trackId: string) => Promise<PipelineTrack | undefined>>(),
-  setCoverUrl: vi.fn(),
+  setCover: vi.fn(),
 };
 const coverArt = {
   fetchReleaseFrontCover: vi.fn(),
   fetchImage: vi.fn(),
 };
-const youtube = { searchSongs: vi.fn() };
 const storage = {
   putPublicObject: vi.fn(),
   publicUrl: vi.fn((key: string) => `https://files.test/${key}`),
 };
+const image = async () => ({
+  bytes: await sharp({
+    create: {
+      width: 800,
+      height: 800,
+      channels: 3,
+      background: { r: 200, g: 40, b: 40 },
+    },
+  })
+    .png()
+    .toBuffer(),
+  contentType: 'image/png',
+});
 
 describe('TrackCoverService', () => {
   let service: TrackCoverService;
   let moduleRef: TestingModule;
 
   beforeEach(async () => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    storage.publicUrl.mockImplementation((key) => `https://files.test/${key}`);
     moduleRef = await Test.createTestingModule({
       providers: [
         TrackCoverService,
         { provide: TracksRepository, useValue: tracks },
         { provide: CoverArtClient, useValue: coverArt },
-        { provide: YouTubeMusicClient, useValue: youtube },
         { provide: StorageService, useValue: storage },
       ],
     }).compile();
     service = moduleRef.get(TrackCoverService);
     tracks.findPipelineTrack.mockResolvedValue(track());
-    youtube.searchSongs.mockResolvedValue([]);
-    coverArt.fetchReleaseFrontCover.mockResolvedValue(undefined);
-    coverArt.fetchImage.mockResolvedValue(undefined);
   });
 
   afterEach(async () => {
     await moduleRef.close();
   });
 
-  const releaseImage = async () => ({
-    bytes: await png(800, 800),
-    contentType: 'image/png',
-  });
-
   it('stores nothing for a Track that is unknown or has a cover already', async () => {
     tracks.findPipelineTrack.mockResolvedValueOnce(undefined);
-    await expect(service.storeCover('track-1', undefined)).resolves.toBe(false);
-
+    await expect(service.storeCover('track-1')).resolves.toBe(false);
     tracks.findPipelineTrack.mockResolvedValueOnce(
-      track({ coverUrl: 'https://files.test/old.webp' }),
+      track({ coverUrl: oldCover }),
     );
-    await expect(service.storeCover('track-1', undefined)).resolves.toBe(false);
-
+    await expect(service.storeCover('track-1')).resolves.toBe(false);
     expect(coverArt.fetchReleaseFrontCover).not.toHaveBeenCalled();
     expect(storage.putPublicObject).not.toHaveBeenCalled();
   });
 
-  it('stores the front cover of the primary release as a webp', async () => {
-    coverArt.fetchReleaseFrontCover.mockResolvedValue(await releaseImage());
+  it('stores the catalog release even when a same-year compilation sorts first', async () => {
+    coverArt.fetchReleaseFrontCover.mockResolvedValue(await image());
 
-    await expect(service.storeCover('track-1', null)).resolves.toBe(true);
+    await expect(service.storeCover('track-1')).resolves.toBe(true);
 
-    expect(coverArt.fetchReleaseFrontCover).toHaveBeenCalledWith(
-      'release-early',
-    );
-    expect(youtube.searchSongs).not.toHaveBeenCalled();
+    expect(coverArt.fetchReleaseFrontCover).toHaveBeenCalledWith('original');
+    expect(coverArt.fetchImage).not.toHaveBeenCalled();
     expect(storage.putPublicObject).toHaveBeenCalledTimes(1);
     const [stored] = storage.putPublicObject.mock.calls[0] ?? [];
     expect(stored).toMatchObject({
@@ -125,74 +101,150 @@ describe('TrackCoverService', () => {
     const metadata = await sharp(stored.body).metadata();
     expect(metadata.format).toBe('webp');
     expect(Math.max(metadata.width ?? 0, metadata.height ?? 0)).toBe(500);
-    expect(tracks.setCoverUrl).toHaveBeenCalledWith(
-      'track-1',
-      'https://files.test/track-covers/track-1.webp',
+    expect(tracks.setCover).toHaveBeenCalledWith('track-1', {
+      coverUrl: oldCover,
+      primaryReleaseMbid: 'original',
+    });
+    expect(tracks.setCover.mock.invocationCallOrder[0]).toBeGreaterThan(
+      storage.putPublicObject.mock.invocationCallOrder[0] ?? 0,
     );
   });
 
-  it('falls back to the artwork the video step found, without searching again', async () => {
-    coverArt.fetchImage.mockResolvedValue(await releaseImage());
-
-    await expect(
-      service.storeCover('track-1', 'https://img.test/found.jpg'),
-    ).resolves.toBe(true);
-
-    expect(youtube.searchSongs).not.toHaveBeenCalled();
-    expect(coverArt.fetchImage).toHaveBeenCalledWith(
-      'https://img.test/found.jpg',
-    );
-    expect(tracks.setCoverUrl).toHaveBeenCalled();
+  it('uses the selected video thumbnail when the archive has no image', async () => {
+    coverArt.fetchImage.mockResolvedValue(await image());
+    await expect(service.storeCover('track-1')).resolves.toBe(true);
+    expect(coverArt.fetchImage).toHaveBeenCalledExactlyOnceWith(thumbnail);
   });
 
-  it('searches for the artwork itself when the video step did not search', async () => {
-    coverArt.fetchImage.mockResolvedValue(await releaseImage());
-    youtube.searchSongs.mockResolvedValue([searchHit()]);
-
-    await expect(service.storeCover('track-1', undefined)).resolves.toBe(true);
-
-    expect(youtube.searchSongs).toHaveBeenCalledWith('Queen Bohemian Rhapsody');
-    expect(coverArt.fetchImage).toHaveBeenCalledWith(
-      'https://img.test/hit.jpg',
+  it('uses the selected video when the catalog has no release', async () => {
+    tracks.findPipelineTrack.mockResolvedValue(
+      track({ primaryReleaseMbid: null }),
     );
-  });
-
-  it('searches for the artwork when the Track has no release', async () => {
-    tracks.findPipelineTrack.mockResolvedValue(track({ releases: [] }));
-    coverArt.fetchImage.mockResolvedValue(await releaseImage());
-    youtube.searchSongs.mockResolvedValue([searchHit()]);
-
-    await expect(service.storeCover('track-1', undefined)).resolves.toBe(true);
-
+    coverArt.fetchImage.mockResolvedValue(await image());
+    await expect(service.storeCover('track-1')).resolves.toBe(true);
     expect(coverArt.fetchReleaseFrontCover).not.toHaveBeenCalled();
+    expect(coverArt.fetchImage).toHaveBeenCalledWith(thumbnail);
   });
 
-  it('stores nothing when the archive and the search have no image', async () => {
-    await expect(service.storeCover('track-1', null)).resolves.toBe(false);
-
-    expect(coverArt.fetchImage).not.toHaveBeenCalled();
+  it('stores nothing when neither source has an image', async () => {
+    await expect(service.storeCover('track-1')).resolves.toBe(false);
     expect(storage.putPublicObject).not.toHaveBeenCalled();
-    expect(tracks.setCoverUrl).not.toHaveBeenCalled();
+    expect(tracks.setCover).not.toHaveBeenCalled();
   });
 
-  it('stores nothing when the search has no match to take artwork from', async () => {
-    youtube.searchSongs.mockResolvedValue([
-      searchHit({ artists: ['Adele'], title: 'Hello' }),
-    ]);
-
-    await expect(service.storeCover('track-1', undefined)).resolves.toBe(false);
-
+  it('does not request a thumbnail when no video has been chosen', async () => {
+    tracks.findPipelineTrack.mockResolvedValue(track({ youtubeVideoId: null }));
+    await expect(service.storeCover('track-1')).resolves.toBe(false);
     expect(coverArt.fetchImage).not.toHaveBeenCalled();
   });
 
-  it('stores nothing when the downloaded bytes are not an image', async () => {
+  it('rejects downloaded bytes that cannot be decoded', async () => {
     coverArt.fetchReleaseFrontCover.mockResolvedValue({
-      bytes: new TextEncoder().encode('definitely not a picture'),
+      bytes: new TextEncoder().encode('not a picture'),
       contentType: 'image/png',
     });
-
-    await expect(service.storeCover('track-1', null)).resolves.toBe(false);
-
+    await expect(service.storeCover('track-1')).resolves.toBe(false);
     expect(storage.putPublicObject).not.toHaveBeenCalled();
+    expect(tracks.setCover).not.toHaveBeenCalled();
+  });
+
+  describe('repairing existing covers', () => {
+    beforeEach(() => {
+      tracks.findPipelineTrack.mockResolvedValue(
+        track({
+          primaryReleaseMbid: null,
+          coverUrl: oldCover,
+        }),
+      );
+    });
+
+    it('keeps the recovered identity for a later cover job when no image exists yet', async () => {
+      tracks.findPipelineTrack.mockResolvedValue(
+        track({
+          primaryReleaseMbid: null,
+          youtubeVideoId: null,
+        }),
+      );
+
+      await expect(service.repairCover('track-1', 'original')).resolves.toBe(
+        false,
+      );
+
+      expect(tracks.setCover).toHaveBeenCalledWith('track-1', {
+        coverUrl: null,
+        primaryReleaseMbid: 'original',
+      });
+      tracks.findPipelineTrack.mockResolvedValue(track());
+      coverArt.fetchReleaseFrontCover.mockResolvedValue(await image());
+
+      await expect(service.storeCover('track-1')).resolves.toBe(true);
+
+      expect(coverArt.fetchReleaseFrontCover).toHaveBeenLastCalledWith(
+        'original',
+      );
+      expect(coverArt.fetchImage).not.toHaveBeenCalled();
+    });
+
+    it('uses a separate key and saves the release identity with its cover', async () => {
+      coverArt.fetchReleaseFrontCover.mockResolvedValue(await image());
+      await expect(service.repairCover('track-1', 'original')).resolves.toBe(
+        true,
+      );
+      expect(storage.putPublicObject).toHaveBeenCalledWith(
+        expect.objectContaining({
+          key: 'track-covers/track-1/original.webp',
+        }),
+      );
+      expect(tracks.setCover).toHaveBeenCalledWith('track-1', {
+        coverUrl: repairedCover,
+        primaryReleaseMbid: 'original',
+      });
+    });
+
+    it('keeps the old cover when the replacement is absent', async () => {
+      await expect(service.repairCover('track-1', 'original')).rejects.toThrow(
+        'No replacement cover',
+      );
+      expect(storage.putPublicObject).not.toHaveBeenCalled();
+      expect(tracks.setCover).not.toHaveBeenCalled();
+    });
+
+    it('preserves the old URL when downloading or uploading fails', async () => {
+      coverArt.fetchReleaseFrontCover.mockRejectedValueOnce(
+        new Error('download failed'),
+      );
+      await expect(service.repairCover('track-1', 'original')).rejects.toThrow(
+        'download failed',
+      );
+      coverArt.fetchReleaseFrontCover.mockResolvedValue(await image());
+      storage.putPublicObject.mockRejectedValueOnce(new Error('upload failed'));
+      await expect(service.repairCover('track-1', 'original')).rejects.toThrow(
+        'upload failed',
+      );
+      expect(tracks.setCover).not.toHaveBeenCalled();
+    });
+
+    it('replays a successful repair without downloading or overwriting images', async () => {
+      tracks.findPipelineTrack.mockResolvedValue(
+        track({ coverUrl: repairedCover }),
+      );
+      await expect(service.repairCover('track-1', 'original')).resolves.toBe(
+        false,
+      );
+      expect(coverArt.fetchReleaseFrontCover).not.toHaveBeenCalled();
+      expect(storage.putPublicObject).not.toHaveBeenCalled();
+    });
+
+    it('uses a versioned video fallback when the catalog has no release', async () => {
+      coverArt.fetchImage.mockResolvedValue(await image());
+      await expect(service.repairCover('track-1', null)).resolves.toBe(true);
+      expect(coverArt.fetchReleaseFrontCover).not.toHaveBeenCalled();
+      expect(coverArt.fetchImage).toHaveBeenCalledWith(thumbnail);
+      expect(tracks.setCover).toHaveBeenCalledWith('track-1', {
+        primaryReleaseMbid: null,
+        coverUrl:
+          'https://files.test/track-covers/track-1/youtube-aaaaaaaaaaa.webp',
+      });
+    });
   });
 });

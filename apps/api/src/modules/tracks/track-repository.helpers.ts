@@ -8,6 +8,8 @@ export type PipelineTrack = {
   /** In milliseconds; null when MusicBrainz has none. */
   lengthMs: number | null;
   coverUrl: string | null;
+  primaryReleaseMbid: string | null;
+  youtubeVideoId: string | null;
   /** The artists as the credit prints them, in credit order. */
   artistNames: string[];
   /** Every URL the Recording links to. */

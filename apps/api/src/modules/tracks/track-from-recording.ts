@@ -7,6 +7,7 @@ import type { Recording, TrackArtistCreditEntry } from '@vozzify/contracts';
 
 export type NewTrackCoreRow = {
   recordingMbid: string;
+  primaryReleaseMbid: string | null;
   title: string;
   lengthMs: number | null;
   disambiguation: string;
@@ -66,6 +67,8 @@ export function trackRowsFromRecording(recording: Recording): NewTrackRows {
   return {
     track: {
       recordingMbid: recording.mbid,
+      // The catalog orders releases by the same full date used in search.
+      primaryReleaseMbid: recording.releases[0]?.mbid ?? null,
       title: recording.title,
       lengthMs: recording.lengthMs,
       disambiguation: recording.disambiguation,

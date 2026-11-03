@@ -21,13 +21,9 @@ export class TrackVideoStepService {
   ) {}
 
   /**
-   * Answers the artwork of the best search match, for the cover job: `null`
-   * when the search had none, `undefined` when this run did not search (the
-   * video was chosen earlier, so the cover job searches for itself).
-   *
    * @throws {TrackProcessingFailure} when no video can be chosen.
    */
-  async run(processing: ProcessingForStep): Promise<string | null | undefined> {
+  async run(processing: ProcessingForStep): Promise<void> {
     if (processing.videoId !== null && processing.videoSource !== null) {
       return undefined;
     }
@@ -39,7 +35,6 @@ export class TrackVideoStepService {
     }
     const finding = await this.videos.findVideo(track);
     await this.save(processing, finding.video);
-    return finding.artworkUrl;
   }
 
   /**

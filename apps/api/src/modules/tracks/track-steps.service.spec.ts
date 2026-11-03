@@ -43,12 +43,10 @@ describe('TrackStepsService', () => {
     await moduleRef.close();
   });
 
-  it('runs the find-video step and answers its artwork', async () => {
-    video.run.mockResolvedValue('https://img.test/a.jpg');
+  it('runs the find-video step to persist the chosen video', async () => {
+    video.run.mockResolvedValue(undefined);
 
-    await expect(steps.findVideo(processing)).resolves.toBe(
-      'https://img.test/a.jpg',
-    );
+    await expect(steps.findVideo(processing)).resolves.toBeUndefined();
     expect(video.run).toHaveBeenCalledWith(processing);
   });
 

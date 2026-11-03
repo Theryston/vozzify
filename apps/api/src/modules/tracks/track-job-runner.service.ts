@@ -61,7 +61,7 @@ export class TrackJobRunnerService {
     finalAttempt: boolean,
   ): Promise<void> {
     try {
-      await this.covers.storeCover(job.trackId, job.artworkUrl);
+      await this.covers.storeCover(job.trackId);
       await this.revalidation.revalidate([
         cacheTags.track(job.trackId),
         cacheTags.tracks,

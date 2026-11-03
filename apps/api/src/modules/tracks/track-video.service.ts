@@ -24,11 +24,9 @@ export type ChosenVideo = {
   source: TrackProcessingVideoSource;
 };
 
-/** The video a finding chose, and the artwork of the best search match. */
+/** The video a finding chose. */
 export type VideoFinding = {
   video: ChosenVideo;
-  /** The artwork of the best search match, or null when it has none. */
-  artworkUrl: string | null;
 };
 
 type FoundVideo = { video: YouTubeVideo; source: TrackProcessingVideoSource };
@@ -37,9 +35,8 @@ type FoundVideo = { video: YouTubeVideo; source: TrackProcessingVideoSource };
  * Finds the YouTube video the timeline will play (ADR 0004): the Recording's
  * own YouTube link when it matches, else the best YouTube Music search result.
  * The length limit is checked before any search, so a Recording too long costs
- * nothing. The search runs even when a link matches, because the candidates
- * are the links and the search, and the search's best match is also where the
- * cover's artwork comes from.
+ * nothing. A playable linked video needs no search: the cover uses its own
+ * catalog release or that chosen video's thumbnail.
  */
 @Injectable()
 export class TrackVideoService {
@@ -61,14 +58,12 @@ export class TrackVideoService {
       this.assertWithinMaxDuration(track.lengthMs / 1000);
     }
     const linked = await this.findLinkedVideo(target, track.externalUrls);
-    const best = await this.searchBestMatch(target, linked !== undefined);
-    const found = linked ?? foundBySearch(best);
+    const found = linked ?? foundBySearch(await this.searchBestMatch(target));
     if (track.lengthMs === null) {
       this.assertWithinMaxDuration(found.video.durationSeconds);
     }
     return {
       video: { videoId: found.video.videoId, source: found.source },
-      artworkUrl: best?.artworkUrl ?? null,
     };
   }
 
@@ -90,29 +85,12 @@ export class TrackVideoService {
     return undefined;
   }
 
-  /**
-   * The best search result. A failed search fails the Processing, unless a
-   * link already matched: the link does not depend on the search, so the
-   * video is kept and only the artwork is missing.
-   */
+  /** The best playable search result when no linked video matches. */
   private async searchBestMatch(
     target: RecordingTarget,
-    hasLink: boolean,
   ): Promise<YouTubeVideo | undefined> {
-    try {
-      const results = await this.youtube.searchSongs(searchQueryOf(target));
-      // Artwork does not need playback validation when a playable link won.
-      if (hasLink) return chooseSearchMatch(target, results);
-      return await this.firstPlayableMatch(target, results);
-    } catch (error) {
-      if (!hasLink) {
-        throw error;
-      }
-      this.logger.warn(
-        `The YouTube Music search failed, the linked video is kept: ${messageOf(error)}`,
-      );
-      return undefined;
-    }
+    const results = await this.youtube.searchSongs(searchQueryOf(target));
+    return this.firstPlayableMatch(target, results);
   }
 
   private async firstPlayableMatch(
