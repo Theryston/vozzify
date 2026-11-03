@@ -1,158 +1,152 @@
-import { Test, type TestingModule } from '@nestjs/testing';
-import { ENV } from '../../config/env.js';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { YouTubeMusicClient } from '../youtube-music/youtube-music.client.js';
 import { AudioDownloadClient } from './audio-download.client.js';
 
-// `fetch` is stubbed: RapidAPI and the file host are never reached from a test.
-const fetchMock =
-  vi.fn<(url: string, init?: RequestInit) => Promise<Response>>();
+const youtube = { downloadAudio: vi.fn() };
+const client = new AudioDownloadClient(
+  youtube as unknown as YouTubeMusicClient,
+);
 
-const jsonResponse = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
-
-const PROGRESS_URL = 'https://rapidapi.test/progress/abc';
-
-describe('AudioDownloadClient', () => {
-  let client: AudioDownloadClient;
-  let moduleRef: TestingModule | undefined;
-
-  // Builds the client with this env, closing the module of the previous build.
-  const configure = async (env: Record<string, unknown> = {}) => {
-    await moduleRef?.close();
-    moduleRef = undefined;
-    const built = await Test.createTestingModule({
-      providers: [
-        AudioDownloadClient,
-        { provide: ENV, useValue: { NODE_ENV: 'test', ...env } },
-      ],
-    }).compile();
-    moduleRef = built;
-    client = built.get(AudioDownloadClient);
-  };
+describe('AudioDownloadClient direct streaming', () => {
+  let dir: string;
+  let path: string;
 
   beforeEach(async () => {
-    vi.clearAllMocks();
-    vi.stubGlobal('fetch', fetchMock);
-    await configure({ RAPIDAPI_API_KEY: 'rapid-key' });
+    vi.resetAllMocks();
+    dir = await mkdtemp(join(tmpdir(), 'download-spec-'));
+    path = join(dir, 'audio.source');
   });
 
   afterEach(async () => {
-    vi.unstubAllGlobals();
-    await moduleRef?.close();
-    moduleRef = undefined;
+    vi.restoreAllMocks();
+    await rm(dir, { recursive: true, force: true });
   });
 
-  describe('requestConversion', () => {
-    it('asks RapidAPI for the same MP3 of the video as the legacy service', async () => {
-      fetchMock.mockResolvedValue(jsonResponse({ progress_url: PROGRESS_URL }));
+  it('writes successive chunks to disk without returning a complete audio buffer', async () => {
+    youtube.downloadAudio.mockResolvedValue(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array([1, 2]));
+          controller.enqueue(new Uint8Array([3, 4]));
+          controller.close();
+        },
+      }),
+    );
 
-      await expect(client.requestConversion('abc')).resolves.toBe(PROGRESS_URL);
+    await expect(
+      client.downloadToFile('video-id', path),
+    ).resolves.toBeUndefined();
 
-      const [url, init] = fetchMock.mock.calls[0] ?? [];
-      const requested = new URL(url ?? '');
-      expect(`${requested.origin}${requested.pathname}`).toBe(
-        'https://youtube-info-download-api.p.rapidapi.com/ajax/download.php',
-      );
-      expect(Object.fromEntries(requested.searchParams)).toEqual({
-        format: 'mp3',
-        add_info: '0',
-        url: 'https://www.youtube.com/watch?v=abc',
-        audio_quality: '128',
-        allow_extended_duration: 'false',
-        no_merge: 'true',
-        audio_language: 'en',
-      });
-      const headers = new Headers(init?.headers);
-      expect(headers.get('x-rapidapi-key')).toBe('rapid-key');
-      expect(headers.get('x-rapidapi-host')).toBe(
-        'youtube-info-download-api.p.rapidapi.com',
-      );
-    });
-
-    it('fails on an error answer, so the step can be retried', async () => {
-      fetchMock.mockResolvedValue(new Response(null, { status: 503 }));
-
-      await expect(client.requestConversion('abc')).rejects.toThrow(
-        'RapidAPI answered HTTP 503',
-      );
-    });
-
-    it('fails without calling RapidAPI when no key is configured', async () => {
-      await configure();
-
-      await expect(client.requestConversion('abc')).rejects.toThrow(
-        'RAPIDAPI_API_KEY is not set',
-      );
-      expect(fetchMock).not.toHaveBeenCalled();
-    });
+    expect(await readFile(path)).toEqual(Buffer.from([1, 2, 3, 4]));
+    expect(youtube.downloadAudio).toHaveBeenCalledExactlyOnceWith(
+      'video-id',
+      expect.any(AbortSignal),
+    );
   });
 
-  describe('checkConversion', () => {
-    it('answers that the conversion is still running', async () => {
-      fetchMock.mockResolvedValue(jsonResponse({ progress: 400 }));
+  it('bounds initialization and transfer with the same two-minute deadline', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
+    const failure = new Error('YouTube refused the video');
+    youtube.downloadAudio.mockRejectedValue(failure);
 
-      await expect(client.checkConversion(PROGRESS_URL)).resolves.toEqual({
-        ready: false,
-      });
-      expect(fetchMock.mock.calls[0]?.[0]).toBe(PROGRESS_URL);
-    });
+    await expect(client.downloadToFile('video-id', path)).rejects.toBe(failure);
 
-    it('answers the download URL once the conversion has finished', async () => {
-      fetchMock.mockResolvedValue(
-        jsonResponse({
-          progress: 1000,
-          download_url: 'https://files.test/a.mp3',
-        }),
-      );
-
-      await expect(client.checkConversion(PROGRESS_URL)).resolves.toEqual({
-        ready: true,
-        downloadUrl: 'https://files.test/a.mp3',
-      });
-    });
-
-    it('fails on an error answer', async () => {
-      fetchMock.mockResolvedValue(new Response(null, { status: 500 }));
-
-      await expect(client.checkConversion(PROGRESS_URL)).rejects.toThrow(
-        'RapidAPI answered HTTP 500',
-      );
-    });
+    expect(timeout).toHaveBeenCalledWith(120_000);
+    expect(youtube.downloadAudio.mock.calls[0]?.[1]).toBe(
+      timeout.mock.results[0]?.value,
+    );
   });
 
-  describe('downloadMp3', () => {
-    it('answers the bytes of the MP3', async () => {
-      fetchMock.mockResolvedValue(
-        new Response(new Uint8Array([1, 2, 3]), {
-          headers: { 'content-length': '3' },
-        }),
-      );
+  it('rejects empty media instead of uploading an empty object', async () => {
+    youtube.downloadAudio.mockResolvedValue(
+      new ReadableStream({
+        start(controller) {
+          controller.close();
+        },
+      }),
+    );
 
-      await expect(
-        client.downloadMp3('https://files.test/a.mp3'),
-      ).resolves.toEqual(new Uint8Array([1, 2, 3]));
+    await expect(client.downloadToFile('video-id', path)).rejects.toThrow(
+      'empty',
+    );
+  });
+
+  it('rejects an oversized transfer and cancels its producer', async () => {
+    const chunk = new Uint8Array(1024 * 1024);
+    const cancel = vi.fn();
+    youtube.downloadAudio.mockResolvedValue(
+      new ReadableStream({
+        pull(controller) {
+          controller.enqueue(chunk);
+        },
+        cancel,
+      }),
+    );
+
+    await expect(client.downloadToFile('video-id', path)).rejects.toThrow(
+      'larger than the accepted size',
+    );
+
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it('propagates a media connection failure after partial data', async () => {
+    let sent = false;
+    youtube.downloadAudio.mockResolvedValue(
+      new ReadableStream({
+        pull(controller) {
+          if (sent) controller.error(new Error('connection lost'));
+          else {
+            controller.enqueue(new Uint8Array([1]));
+            sent = true;
+          }
+        },
+      }),
+    );
+
+    await expect(client.downloadToFile('video-id', path)).rejects.toThrow(
+      'connection lost',
+    );
+  });
+
+  it('cancels a stalled stream when its deadline expires', async () => {
+    const abort = new AbortController();
+    vi.spyOn(AbortSignal, 'timeout').mockReturnValue(abort.signal);
+    const cancel = vi.fn();
+    let started: (() => void) | undefined;
+    const streaming = new Promise<void>((resolve) => {
+      started = resolve;
     });
-
-    it('fails on an error answer', async () => {
-      fetchMock.mockResolvedValue(new Response(null, { status: 404 }));
-
-      await expect(
-        client.downloadMp3('https://files.test/a.mp3'),
-      ).rejects.toThrow('The MP3 download answered HTTP 404');
+    youtube.downloadAudio.mockResolvedValue(
+      new ReadableStream({
+        pull() {
+          started?.();
+        },
+        cancel,
+      }),
+    );
+    const download = client.downloadToFile('video-id', path);
+    const rejected = expect(download).rejects.toMatchObject({
+      name: 'AbortError',
     });
+    await streaming;
+    abort.abort();
 
-    it('refuses a file declared larger than the accepted size, before reading it', async () => {
-      fetchMock.mockResolvedValue(
-        new Response(new Uint8Array([1]), {
-          headers: { 'content-length': String(65 * 1024 * 1024) },
-        }),
-      );
+    await rejected;
+    expect(cancel).toHaveBeenCalledOnce();
+  });
 
-      await expect(
-        client.downloadMp3('https://files.test/a.mp3'),
-      ).rejects.toThrow('larger than the accepted size');
-    });
+  it('does not overwrite an existing file', async () => {
+    youtube.downloadAudio.mockImplementation(
+      async () => new Response('audio').body,
+    );
+    await client.downloadToFile('video-id', path);
+
+    await expect(client.downloadToFile('video-id', path)).rejects.toThrow(
+      'EEXIST',
+    );
+    expect(await readFile(path, 'utf8')).toBe('audio');
   });
 });

@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { trackProcessings } from '../src/database/schema/track-processings.js';
 import { StorageService } from '../src/integrations/storage/storage.service.js';
@@ -23,13 +25,8 @@ import {
   type TrackProcessingApp,
 } from './utils/track-processing-harness.js';
 
-// The download step of a Processing, end to end: the RapidAPI conversion is
-// faked at its integration boundary, while ffmpeg converts the MP3 for real
-// and the WAV is stored in MinIO, then fetched from its public URL. The
-// conversion is polled by delayed re-check jobs; the budget and its failure
-// are the ones of the audio service.
-
-const PROGRESS_URL = `https://rapidapi.test/progress/${LINKED_VIDEO}`;
+// The YouTube stream is faked at its integration boundary. FFmpeg converts
+// the temporary audio for real and the WAV is streamed to MinIO.
 
 describe('Track Processing download (e2e)', () => {
   let app: TrackProcessingApp;
@@ -62,18 +59,11 @@ describe('Track Processing download (e2e)', () => {
 
   it('converts the chosen video to WAV, stores it publicly and completes', async () => {
     linkedRecording();
-    app.audio.pendingChecks = 2;
     const trackId = await requestTrack(app);
 
     await runTrackJobs(testApp);
 
     expect(app.audio.requests).toEqual([LINKED_VIDEO]);
-    // Two checks found the conversion still running, the third found it ready.
-    expect(app.audio.checks).toEqual([
-      PROGRESS_URL,
-      PROGRESS_URL,
-      PROGRESS_URL,
-    ]);
     expect(app.audio.downloads).toHaveLength(1);
     expect((await processingOf(testApp, trackId)).processing).toMatchObject({
       status: 'COMPLETED',
@@ -94,36 +84,28 @@ describe('Track Processing download (e2e)', () => {
     expect(header.subarray(8, 12).toString('ascii')).toBe('WAVE');
   });
 
-  it('waits for the conversion with a delayed re-check that carries its progress URL', async () => {
+  it('finishes the download in one job and queues note detection without conversion polling', async () => {
     linkedRecording();
     const trackId = await requestTrack(app);
-    // The video step, then the cover, then the download's first run.
     await runNextTrackJob(testApp);
     await runNextTrackJob(testApp);
     await runNextTrackJob(testApp);
 
     const processing = await processingRowOf(testApp, trackId);
-    expect(processing).toMatchObject({
-      status: 'DOWNLOADING_AUDIO',
-      musicWavUrl: null,
-    });
+    expect(processing).toMatchObject({ status: 'DOWNLOADING_AUDIO' });
+    expect(processing.musicWavUrl).not.toBeNull();
     expect(queuedTrackJobs(testApp)).toEqual([
       {
         name: 'run-step',
-        data: {
-          processingId: processing.id,
-          step: 'DOWNLOADING_AUDIO',
-          wait: { round: 1, state: { progressUrl: PROGRESS_URL } },
-        },
+        data: { processingId: processing.id, step: 'EXTRACTING_VOCALS' },
       },
     ]);
-    expect((await processingOf(testApp, trackId)).processing?.status).toBe(
-      'DOWNLOADING_AUDIO',
-    );
+    for (const path of app.audio.downloads)
+      expect(existsSync(dirname(path))).toBe(false);
   });
 
-  it('fails with DOWNLOAD_FAILED, retryable, when RapidAPI refuses the conversion', async () => {
-    app.audio.requestFailure = new Error('RapidAPI answered HTTP 503');
+  it('fails with DOWNLOAD_FAILED, retryable, when YouTube refuses the download', async () => {
+    app.audio.requestFailure = new Error('YouTube answered HTTP 403');
     const trackId = await requestTrack(app);
 
     await runTrackJobs(testApp);
@@ -139,22 +121,32 @@ describe('Track Processing download (e2e)', () => {
     expect((await processingRowOf(testApp, trackId)).musicWavUrl).toBeNull();
   });
 
-  it('fails with DOWNLOAD_FAILED when the conversion is still running at the last check', async () => {
-    app.audio.pendingChecks = Number.POSITIVE_INFINITY;
+  it('resumes a queued legacy conversion wait with the direct download', async () => {
+    linkedRecording();
     const trackId = await requestTrack(app);
-
+    await runNextTrackJob(testApp);
+    await runNextTrackJob(testApp);
+    const processing = await processingRowOf(testApp, trackId);
+    await testApp.app.get(TrackJobRunnerService).run(
+      'run-step',
+      {
+        processingId: processing.id,
+        step: 'DOWNLOADING_AUDIO',
+        wait: {
+          round: 180,
+          state: { progressUrl: 'https://old.test/progress' },
+        },
+      },
+      true,
+    );
     await runTrackJobs(testApp);
 
-    // The budget of the audio service: 180 checks, then the download gives up.
-    expect(app.audio.checks).toHaveLength(180);
     expect((await processingOf(testApp, trackId)).processing).toMatchObject({
-      status: 'FAILED',
-      failureCode: 'DOWNLOAD_FAILED',
-      retryable: true,
-      resumeFrom: 'DOWNLOADING_AUDIO',
+      status: 'COMPLETED',
+      failureCode: null,
     });
-    expect(app.audio.downloads).toEqual([]);
-    expect(queuedTrackJobs(testApp)).toEqual([]);
+    expect(app.audio.requests).toEqual([LINKED_VIDEO]);
+    expect(app.audio.downloads).toHaveLength(1);
   });
 
   it('fails with DOWNLOAD_FAILED when the download is not audio ffmpeg can convert', async () => {
@@ -205,7 +197,6 @@ describe('Track Processing download (e2e)', () => {
     await runTrackJobs(testApp);
 
     expect(app.audio.requests).toEqual([]);
-    expect(app.audio.checks).toEqual([]);
     expect(app.audio.downloads).toEqual([]);
     expect(await processingRowOf(testApp, trackId)).toMatchObject({
       status: 'COMPLETED',

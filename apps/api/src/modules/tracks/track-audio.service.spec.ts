@@ -1,7 +1,13 @@
+import { existsSync } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { AudioDownloadClient } from '../../integrations/audio-download/audio-download.client.js';
 import { FfmpegClient } from '../../integrations/ffmpeg/ffmpeg.client.js';
-import { StorageService } from '../../integrations/storage/storage.service.js';
+import {
+  type PublicFile,
+  StorageService,
+} from '../../integrations/storage/storage.service.js';
 import { TrackAudioService } from './track-audio.service.js';
 import {
   type ProcessingForStep,
@@ -9,30 +15,17 @@ import {
 } from './track-processing.repository.js';
 import { TrackProcessingFailure } from './track-processing-failure.js';
 
-// The download step's decisions: when to ask, check again, give up, store, or
-// stop because the row moved on. The services it calls are fakes; the rows and
-// the object store are the e2e spec's.
-
-const downloads = {
-  requestConversion: vi.fn(),
-  checkConversion: vi.fn(),
-  downloadMp3: vi.fn(),
-};
-const ffmpeg = { convertMp3ToWav: vi.fn() };
+const downloads = { downloadToFile: vi.fn() };
+const ffmpeg = { convertAudioFileToWav: vi.fn() };
 const storage = {
-  putPublicObject: vi.fn(),
+  putPublicFile: vi.fn(),
   publicUrl: vi.fn(),
   objectExists: vi.fn(),
 };
 const processings = { findMusicWavUrl: vi.fn(), saveMusicWavUrl: vi.fn() };
-
-const PROGRESS_URL = 'https://rapidapi.test/progress/aaaaaaaaaaa';
-const DOWNLOAD_URL = 'https://files.test/aaaaaaaaaaa.mp3';
-const MP3 = new Uint8Array([1, 2, 3]);
-const WAV = new Uint8Array([82, 73, 70, 70]);
-const KEY = 'track-audio/track-1/processing-1.wav';
-const STORED_URL = `https://files.test/${KEY}`;
-
+const wav = new Uint8Array([82, 73, 70, 70]);
+const key = 'track-audio/track-1/processing-1.wav';
+const storedUrl = `https://files.test/${key}`;
 const processing = (
   overrides: Partial<ProcessingForStep> = {},
 ): ProcessingForStep => ({
@@ -44,32 +37,32 @@ const processing = (
   ...overrides,
 });
 
-/** The state a re-check carries, and the round it runs as. */
-const waitingAt = (round: number) => ({
-  round,
-  state: { progressUrl: PROGRESS_URL },
-});
-
-const failureWith = (code: string) =>
-  expect.objectContaining({ code, message: `Processing failed: ${code}` });
-
-describe('TrackAudioService', () => {
+describe('TrackAudioService direct downloads', () => {
   let service: TrackAudioService;
   let moduleRef: TestingModule;
+  let paths: string[];
 
   beforeEach(async () => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    paths = [];
     processings.findMusicWavUrl.mockResolvedValue(null);
     processings.saveMusicWavUrl.mockResolvedValue(true);
     storage.objectExists.mockResolvedValue(false);
-    downloads.requestConversion.mockResolvedValue(PROGRESS_URL);
-    downloads.checkConversion.mockResolvedValue({ ready: false });
-    downloads.downloadMp3.mockResolvedValue(MP3);
-    ffmpeg.convertMp3ToWav.mockResolvedValue(WAV);
-    storage.putPublicObject.mockResolvedValue(undefined);
-    storage.publicUrl.mockImplementation(
-      (key: string) => `https://files.test/${key}`,
+    storage.publicUrl.mockReturnValue(storedUrl);
+    downloads.downloadToFile.mockImplementation(
+      async (_id: string, path: string) => {
+        paths.push(path);
+        await writeFile(path, new Uint8Array([1, 2]));
+      },
     );
+    ffmpeg.convertAudioFileToWav.mockImplementation(
+      async (_input: string, output: string) => {
+        await writeFile(output, wav);
+      },
+    );
+    storage.putPublicFile.mockImplementation(async (file: PublicFile) => {
+      expect(await readFile(file.filePath)).toEqual(Buffer.from(wav));
+    });
     moduleRef = await Test.createTestingModule({
       providers: [
         TrackAudioService,
@@ -84,203 +77,132 @@ describe('TrackAudioService', () => {
 
   afterEach(async () => {
     await moduleRef.close();
+    for (const path of paths) expect(existsSync(dirname(path))).toBe(false);
   });
 
-  describe('the first run', () => {
-    it('asks RapidAPI to convert the chosen video, and waits one poll for its progress', async () => {
-      await expect(service.run(processing(), undefined)).resolves.toEqual({
-        kind: 'wait',
-        delayMs: 10_000,
-        state: { progressUrl: PROGRESS_URL },
-      });
-
-      expect(downloads.requestConversion).toHaveBeenCalledWith('aaaaaaaaaaa');
-      expect(downloads.checkConversion).not.toHaveBeenCalled();
+  it('downloads the chosen ID, converts files, streams to S3 and only then saves its URL', async () => {
+    await expect(service.run(processing(), undefined)).resolves.toEqual({
+      kind: 'done',
     });
 
-    it('fails a Processing with no chosen video as an unexpected error, not a download failure', async () => {
-      const failure = service.run(processing({ videoId: null }), undefined);
-
-      await expect(failure).rejects.toThrow('has no video to download');
-      await expect(failure).rejects.not.toBeInstanceOf(TrackProcessingFailure);
+    expect(downloads.downloadToFile).toHaveBeenCalledWith(
+      'aaaaaaaaaaa',
+      expect.any(String),
+    );
+    const source = paths[0];
+    expect(source).toBeDefined();
+    expect(ffmpeg.convertAudioFileToWav).toHaveBeenCalledWith(
+      source,
+      expect.stringMatching(/music\.wav$/),
+    );
+    expect(storage.putPublicFile).toHaveBeenCalledWith({
+      key,
+      filePath: expect.any(String),
+      contentType: 'audio/wav',
     });
-
-    it('fails with DOWNLOAD_FAILED when RapidAPI refuses the conversion', async () => {
-      downloads.requestConversion.mockRejectedValue(
-        new Error('RapidAPI answered HTTP 503'),
-      );
-
-      await expect(service.run(processing(), undefined)).rejects.toMatchObject(
-        failureWith('DOWNLOAD_FAILED'),
-      );
-    });
+    expect(processings.saveMusicWavUrl).toHaveBeenCalledWith(
+      'processing-1',
+      storedUrl,
+    );
+    expect(storage.putPublicFile.mock.invocationCallOrder[0]).toBeLessThan(
+      processings.saveMusicWavUrl.mock.invocationCallOrder[0] ?? 0,
+    );
   });
 
-  describe('the re-checks', () => {
-    it('checks a conversion still running again, after the same delay, with the same progress URL', async () => {
-      await expect(service.run(processing(), waitingAt(1))).resolves.toEqual({
-        kind: 'wait',
-        delayMs: 10_000,
-        state: { progressUrl: PROGRESS_URL },
-      });
+  it('restarts an old queued conversion wait with the direct downloader', async () => {
+    await expect(
+      service.run(processing(), {
+        round: 180,
+        state: { progressUrl: 'https://old.test/progress' },
+      }),
+    ).resolves.toEqual({ kind: 'done' });
+    expect(downloads.downloadToFile).toHaveBeenCalledOnce();
+  });
 
-      expect(downloads.checkConversion).toHaveBeenCalledWith(PROGRESS_URL);
-      expect(downloads.downloadMp3).not.toHaveBeenCalled();
-    });
+  it.each(['download', 'conversion'])(
+    'cleans partial files after a %s failure and preserves DOWNLOAD_FAILED',
+    async (stage) => {
+      const fail = async (_input: string, path: string) => {
+        paths.push(path);
+        await writeFile(path, new Uint8Array([1]));
+        throw new Error('upstream failed');
+      };
+      if (stage === 'download')
+        downloads.downloadToFile.mockImplementation(fail);
+      else ffmpeg.convertAudioFileToWav.mockImplementation(fail);
 
-    it('waits again on the check before the last one of the budget', async () => {
-      await expect(
-        service.run(processing(), waitingAt(179)),
-      ).resolves.toMatchObject({ kind: 'wait' });
-    });
-
-    it('ends the Processing as DOWNLOAD_FAILED at the last check of the budget, without a retry to run', async () => {
-      await expect(service.run(processing(), waitingAt(180))).resolves.toEqual({
-        kind: 'failed',
+      await expect(service.run(processing(), undefined)).rejects.toMatchObject({
         code: 'DOWNLOAD_FAILED',
       });
-
-      expect(downloads.downloadMp3).not.toHaveBeenCalled();
-      expect(storage.putPublicObject).not.toHaveBeenCalled();
-    });
-
-    it('stores a conversion that is ready on the last check of the budget', async () => {
-      downloads.checkConversion.mockResolvedValue({
-        ready: true,
-        downloadUrl: DOWNLOAD_URL,
-      });
-
-      await expect(service.run(processing(), waitingAt(180))).resolves.toEqual({
-        kind: 'done',
-      });
-    });
-
-    it('fails with DOWNLOAD_FAILED when a check fails, so BullMQ retries it', async () => {
-      downloads.checkConversion.mockRejectedValue(new Error('timed out'));
-
-      await expect(
-        service.run(processing(), waitingAt(3)),
-      ).rejects.toMatchObject(failureWith('DOWNLOAD_FAILED'));
-    });
-
-    it('refuses a re-check whose state is not a progress URL', async () => {
-      await expect(
-        service.run(processing(), { round: 1, state: { progressUrl: 'nope' } }),
-      ).rejects.toThrow();
-      expect(downloads.checkConversion).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('storing the audio', () => {
-    beforeEach(() => {
-      downloads.checkConversion.mockResolvedValue({
-        ready: true,
-        downloadUrl: DOWNLOAD_URL,
-      });
-    });
-
-    it('downloads the MP3, converts it, stores the WAV under the Processing key and saves its URL', async () => {
-      await expect(service.run(processing(), waitingAt(2))).resolves.toEqual({
-        kind: 'done',
-      });
-
-      expect(downloads.downloadMp3).toHaveBeenCalledWith(DOWNLOAD_URL);
-      expect(ffmpeg.convertMp3ToWav).toHaveBeenCalledWith(MP3);
-      expect(storage.putPublicObject).toHaveBeenCalledWith({
-        key: KEY,
-        body: WAV,
-        contentType: 'audio/wav',
-      });
-      expect(processings.saveMusicWavUrl).toHaveBeenCalledWith(
-        'processing-1',
-        STORED_URL,
-      );
-      // The object is stored before its URL is saved on the Processing.
-      expect(storage.putPublicObject.mock.invocationCallOrder[0]).toBeLessThan(
-        processings.saveMusicWavUrl.mock.invocationCallOrder[0] ?? 0,
-      );
-    });
-
-    it('fails with DOWNLOAD_FAILED when the MP3 cannot be downloaded', async () => {
-      downloads.downloadMp3.mockRejectedValue(new Error('HTTP 404'));
-
-      await expect(
-        service.run(processing(), waitingAt(2)),
-      ).rejects.toMatchObject(failureWith('DOWNLOAD_FAILED'));
-      expect(storage.putPublicObject).not.toHaveBeenCalled();
-    });
-
-    it('fails with DOWNLOAD_FAILED when ffmpeg cannot convert the MP3', async () => {
-      ffmpeg.convertMp3ToWav.mockRejectedValue(
-        new Error('ffmpeg exited with code 1'),
-      );
-
-      await expect(
-        service.run(processing(), waitingAt(2)),
-      ).rejects.toMatchObject(failureWith('DOWNLOAD_FAILED'));
-      expect(storage.putPublicObject).not.toHaveBeenCalled();
-    });
-
-    it('lets a storage failure through as it is, not as a download failure', async () => {
-      storage.putPublicObject.mockRejectedValue(new Error('S3 is down'));
-
-      const failure = service.run(processing(), waitingAt(2));
-
-      await expect(failure).rejects.toThrow('S3 is down');
-      await expect(failure).rejects.not.toBeInstanceOf(TrackProcessingFailure);
+      expect(storage.putPublicFile).not.toHaveBeenCalled();
       expect(processings.saveMusicWavUrl).not.toHaveBeenCalled();
-    });
+    },
+  );
 
-    it('stops without advancing when the Processing moved on before its URL was saved', async () => {
-      processings.saveMusicWavUrl.mockResolvedValue(false);
+  it('cleans files and leaves the URL unset after an S3 failure, without misclassifying it', async () => {
+    const failure = new Error('S3 is down');
+    storage.putPublicFile.mockRejectedValue(failure);
 
-      await expect(service.run(processing(), waitingAt(2))).resolves.toEqual({
-        kind: 'stopped',
-      });
+    await expect(service.run(processing(), undefined)).rejects.toBe(failure);
+    expect(processings.saveMusicWavUrl).not.toHaveBeenCalled();
+  });
+
+  it('cleans files when saving the uploaded URL fails', async () => {
+    processings.saveMusicWavUrl.mockRejectedValue(new Error('database down'));
+
+    await expect(service.run(processing(), undefined)).rejects.toThrow(
+      'database down',
+    );
+    expect(storage.putPublicFile).toHaveBeenCalledOnce();
+  });
+
+  it('stops after uploading if the Processing has moved on', async () => {
+    processings.saveMusicWavUrl.mockResolvedValue(false);
+    await expect(service.run(processing(), undefined)).resolves.toEqual({
+      kind: 'stopped',
     });
   });
 
-  describe('a WAV already stored', () => {
-    it('downloads nothing when the Processing already has its WAV URL', async () => {
-      processings.findMusicWavUrl.mockResolvedValue(STORED_URL);
-
-      await expect(service.run(processing(), undefined)).resolves.toEqual({
-        kind: 'done',
-      });
-      await expect(service.run(processing(), waitingAt(5))).resolves.toEqual({
-        kind: 'done',
-      });
-
-      expect(downloads.requestConversion).not.toHaveBeenCalled();
-      expect(downloads.checkConversion).not.toHaveBeenCalled();
-      expect(downloads.downloadMp3).not.toHaveBeenCalled();
-      expect(storage.objectExists).not.toHaveBeenCalled();
+  it('does not download or upload again when its stored URL exists', async () => {
+    processings.findMusicWavUrl.mockResolvedValue(storedUrl);
+    await expect(service.run(processing(), undefined)).resolves.toEqual({
+      kind: 'done',
     });
+    expect(downloads.downloadToFile).not.toHaveBeenCalled();
+    expect(storage.objectExists).not.toHaveBeenCalled();
+    expect(storage.putPublicFile).not.toHaveBeenCalled();
+  });
 
-    it('saves the URL of a WAV an earlier run stored, without polling or downloading again', async () => {
-      storage.objectExists.mockResolvedValue(true);
-
-      await expect(service.run(processing(), waitingAt(7))).resolves.toEqual({
-        kind: 'done',
-      });
-
-      expect(storage.objectExists).toHaveBeenCalledWith(KEY);
-      expect(processings.saveMusicWavUrl).toHaveBeenCalledWith(
-        'processing-1',
-        STORED_URL,
-      );
-      expect(downloads.checkConversion).not.toHaveBeenCalled();
-      expect(downloads.downloadMp3).not.toHaveBeenCalled();
-      expect(downloads.requestConversion).not.toHaveBeenCalled();
+  it('recovers an object uploaded before a crash without downloading again', async () => {
+    storage.objectExists.mockResolvedValue(true);
+    await expect(service.run(processing(), undefined)).resolves.toEqual({
+      kind: 'done',
     });
+    expect(downloads.downloadToFile).not.toHaveBeenCalled();
+    expect(processings.saveMusicWavUrl).toHaveBeenCalledWith(
+      'processing-1',
+      storedUrl,
+    );
+  });
 
-    it('fails with INTERNAL, not DOWNLOAD_FAILED, when the storage cannot say whether the WAV exists', async () => {
-      storage.objectExists.mockRejectedValue(new Error('S3 is down'));
+  it('keeps a storage lookup failure internal', async () => {
+    const failure = new Error('S3 cannot check the key');
+    storage.objectExists.mockRejectedValue(failure);
+    await expect(service.run(processing(), undefined)).rejects.toBe(failure);
+    expect(downloads.downloadToFile).not.toHaveBeenCalled();
+  });
 
-      const failure = service.run(processing(), undefined);
+  it('rejects a missing video as an internal invariant failure', async () => {
+    const failure = service.run(processing({ videoId: null }), undefined);
+    await expect(failure).rejects.toThrow('has no video to download');
+    await expect(failure).rejects.not.toBeInstanceOf(TrackProcessingFailure);
+  });
 
-      await expect(failure).rejects.toThrow('S3 is down');
-      await expect(failure).rejects.not.toBeInstanceOf(TrackProcessingFailure);
-    });
+  it('isolates concurrent jobs in separate directories', async () => {
+    await Promise.all([
+      service.run(processing(), undefined),
+      service.run(processing({ id: 'processing-2' }), undefined),
+    ]);
+    expect(new Set(paths.map(dirname)).size).toBe(2);
   });
 });

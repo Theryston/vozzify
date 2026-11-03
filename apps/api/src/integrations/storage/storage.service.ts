@@ -5,6 +5,8 @@ export type PublicObject = {
   contentType: string;
 };
 
+export type PublicFile = Omit<PublicObject, 'body'> & { filePath: string };
+
 /** The upload a presigned URL allows: one object, at one key, for a limited time. */
 export type PresignedPut = {
   key: string;
@@ -32,6 +34,9 @@ export class StorageError extends Error {
 export abstract class StorageService {
   /** @throws {StorageError} when the object could not be stored. */
   abstract putPublicObject(object: PublicObject): Promise<void>;
+
+  /** Stream a caller-owned file without loading the complete object in memory. */
+  abstract putPublicFile(file: PublicFile): Promise<void>;
 
   /**
    * Whether an object is stored under this key. A key that is not there is

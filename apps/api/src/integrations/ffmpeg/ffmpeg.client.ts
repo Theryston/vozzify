@@ -1,11 +1,11 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Inject, Injectable } from '@nestjs/common';
 import { ENV, type Env } from '../../config/env.js';
 
-// The ffmpeg binary that converts the downloaded audio (ADR 0004). It is the
+// The ffmpeg binary that converts the downloaded audio (ADR 0014). It is the
 // only code that runs ffmpeg: features depend on this class, so tests replace
 // it at this boundary.
 const DEFAULT_FFMPEG_PATH = 'ffmpeg';
@@ -13,22 +13,31 @@ const DEFAULT_FFMPEG_PATH = 'ffmpeg';
 const CONVERSION_TIMEOUT_MS = 2 * 60_000;
 // The end of ffmpeg's log is where its error is.
 const STDERR_TAIL_CHARS = 2_000;
+const MAX_WAV_BYTES = 256 * 1024 * 1024;
 
 @Injectable()
 export class FfmpegClient {
   constructor(@Inject(ENV) private readonly env: Env) {}
 
   /**
-   * Converts an MP3 to WAV with the parameters of the legacy service: the
-   * audio only, as 16-bit PCM. The files live in a temporary directory that is
-   * removed whatever the outcome.
+   * Converts any supported audio container without buffering either file.
+   * The caller owns both temporary paths and removes them after uploading.
    */
-  async convertMp3ToWav(mp3: Uint8Array): Promise<Uint8Array> {
-    return this.convert(mp3, 'music.mp3', 'music.wav', [
+  async convertAudioFileToWav(input: string, output: string): Promise<void> {
+    await this.run([
+      '-y',
+      '-i',
+      input,
       '-vn',
       '-acodec',
       'pcm_s16le',
+      '-fs',
+      String(MAX_WAV_BYTES + 1),
+      output,
     ]);
+    if ((await stat(output)).size > MAX_WAV_BYTES) {
+      throw new Error('The WAV is larger than the accepted size');
+    }
   }
 
   /**

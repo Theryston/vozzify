@@ -1,26 +1,20 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { existsSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { mkdtemp, readFile, rm, truncate, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Readable } from 'node:stream';
-import { Test, type TestingModule } from '@nestjs/testing';
-import { ENV } from '../../config/env.js';
+import { type Env } from '../../config/env.js';
 import { FfmpegClient } from './ffmpeg.client.js';
 
-// ffmpeg is replaced at the process boundary: the spec checks the arguments it
-// is run with and what the client does with its files and its exit.
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }));
-
 const spawnMock = vi.mocked(spawn);
-const WAV = new Uint8Array([82, 73, 70, 70]);
-const MP3 = new Uint8Array([1, 2, 3]);
-
-/** A child process that writes `output` (or fails) and then closes. */
+const wav = new Uint8Array([82, 73, 70, 70]);
 const runningFfmpeg = (outcome: {
   code?: number;
   stderr?: string;
   error?: Error;
+  oversized?: boolean;
 }) => {
   spawnMock.mockImplementation((_command, args) => {
     const child = new EventEmitter() as ChildProcess & EventEmitter;
@@ -32,7 +26,8 @@ const runningFfmpeg = (outcome: {
         return;
       }
       if ((outcome.code ?? 0) === 0) {
-        await writeFile(output, WAV);
+        await writeFile(output, wav);
+        if (outcome.oversized) await truncate(output, 256 * 1024 * 1024 + 1);
       }
       child.emit('close', outcome.code ?? 0);
     });
@@ -40,85 +35,76 @@ const runningFfmpeg = (outcome: {
   });
 };
 
-describe('FfmpegClient', () => {
+describe('FfmpegClient file conversion', () => {
+  let dir: string;
+  let input: string;
+  let output: string;
   let client: FfmpegClient;
-  let moduleRef: TestingModule;
-
-  const configure = async (env: Record<string, unknown> = {}) => {
-    moduleRef = await Test.createTestingModule({
-      providers: [FfmpegClient, { provide: ENV, useValue: env }],
-    }).compile();
-    client = moduleRef.get(FfmpegClient);
-  };
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    await configure();
+    dir = await mkdtemp(join(tmpdir(), 'ffmpeg-file-spec-'));
+    input = join(dir, 'audio.source');
+    output = join(dir, 'music.wav');
+    await writeFile(input, new Uint8Array([1, 2, 3]));
+    client = new FfmpegClient({} as Env);
   });
-
   afterEach(async () => {
-    await moduleRef.close();
+    await rm(dir, { recursive: true, force: true });
   });
 
-  it('converts with the legacy parameters: the audio only, as 16-bit PCM WAV', async () => {
+  it('converts audio files to bounded 16-bit PCM WAV without buffering the output', async () => {
     runningFfmpeg({});
-
-    await client.convertMp3ToWav(MP3);
-
-    const [command, args] = spawnMock.mock.calls[0] ?? [];
-    expect(command).toBe('ffmpeg');
-    expect(args?.slice(0, 2)).toEqual(['-y', '-i']);
-    expect(args?.slice(3)).toEqual([
+    await expect(
+      client.convertAudioFileToWav(input, output),
+    ).resolves.toBeUndefined();
+    expect(spawnMock.mock.calls[0]?.[0]).toBe('ffmpeg');
+    expect(spawnMock.mock.calls[0]?.[1]).toEqual([
+      '-y',
+      '-i',
+      input,
       '-vn',
       '-acodec',
       'pcm_s16le',
-      expect.stringMatching(/music\.wav$/),
+      '-fs',
+      '268435457',
+      output,
     ]);
+    expect(await readFile(output)).toEqual(Buffer.from(wav));
+    expect(await readFile(input)).toEqual(Buffer.from([1, 2, 3]));
   });
-
   it('runs the binary named by FFMPEG_PATH', async () => {
-    await moduleRef.close();
-    await configure({ FFMPEG_PATH: '/opt/ffmpeg/bin/ffmpeg' });
+    client = new FfmpegClient({ FFMPEG_PATH: '/opt/ffmpeg/bin/ffmpeg' } as Env);
     runningFfmpeg({});
-
-    await client.convertMp3ToWav(MP3);
-
+    await client.convertAudioFileToWav(input, output);
     expect(spawnMock.mock.calls[0]?.[0]).toBe('/opt/ffmpeg/bin/ffmpeg');
   });
-
-  it('answers the WAV ffmpeg wrote', async () => {
+  it('bounds the conversion duration', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
     runningFfmpeg({});
-
-    await expect(client.convertMp3ToWav(MP3)).resolves.toEqual(WAV);
+    try {
+      await client.convertAudioFileToWav(input, output);
+      expect(timeout).toHaveBeenCalledWith(120_000);
+    } finally {
+      timeout.mockRestore();
+    }
   });
-
-  it('removes its temporary directory after a conversion', async () => {
-    runningFfmpeg({});
-
-    await client.convertMp3ToWav(MP3);
-
-    const input = spawnMock.mock.calls[0]?.[1]?.[2] ?? '';
-    expect(existsSync(dirname(input))).toBe(false);
-  });
-
-  it('fails with the exit code and the end of ffmpeg log, and still removes its directory', async () => {
-    runningFfmpeg({
-      code: 1,
-      stderr: 'Invalid data found when processing input',
-    });
-
-    await expect(client.convertMp3ToWav(MP3)).rejects.toThrow(
-      'ffmpeg exited with code 1: Invalid data found when processing input',
+  it('propagates ffmpeg failure with a bounded stderr tail', async () => {
+    runningFfmpeg({ code: 1, stderr: `${'x'.repeat(3000)}Invalid audio` });
+    await expect(client.convertAudioFileToWav(input, output)).rejects.toThrow(
+      `ffmpeg exited with code 1: ${'x'.repeat(1987)}Invalid audio`,
     );
-    const input = spawnMock.mock.calls[0]?.[1]?.[2] ?? '';
-    expect(existsSync(dirname(input))).toBe(false);
   });
-
-  it('fails when ffmpeg cannot be started', async () => {
+  it('propagates a process startup failure', async () => {
     runningFfmpeg({ error: new Error('spawn ffmpeg ENOENT') });
-
-    await expect(client.convertMp3ToWav(MP3)).rejects.toThrow(
+    await expect(client.convertAudioFileToWav(input, output)).rejects.toThrow(
       'spawn ffmpeg ENOENT',
+    );
+  });
+  it('rejects a WAV that reaches the output cap instead of uploading truncated audio', async () => {
+    runningFfmpeg({ oversized: true });
+    await expect(client.convertAudioFileToWav(input, output)).rejects.toThrow(
+      'WAV is larger',
     );
   });
 });

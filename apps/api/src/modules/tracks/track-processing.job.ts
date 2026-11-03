@@ -12,7 +12,7 @@ export const TRACK_PROCESSING_QUEUE = 'track-processing';
 export const RUN_STEP_JOB = 'run-step';
 export const STORE_COVER_JOB = 'store-cover';
 
-// A step that waits (a RapidAPI conversion) is checked again by a delayed run
+// A step that waits is checked again by a delayed run
 // of the same step. `round` numbers the checks, from 1, and `state` is what the
 // step needs to check again (its own schema parses it).
 const stepWaitSchema = z.object({

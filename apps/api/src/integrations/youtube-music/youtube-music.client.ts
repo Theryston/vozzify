@@ -1,8 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Innertube, Utils } from 'youtubei.js';
+import { Innertube, Platform, Utils } from 'youtubei.js';
 import { z } from 'zod';
 import { ENV, type Env } from '../../config/env.js';
 import { createProxiedFetch, proxyOf } from './http-proxy.js';
+import { evaluatePlayerScript } from './youtube-player-evaluator.js';
 import {
   type YouTubePlaybackAvailability,
   type YouTubeSearchItemLike,
@@ -41,6 +42,32 @@ export class YouTubeMusicClient {
     return itemsOf(results.songs).flatMap(
       (item) => youtubeVideoOfSearchItem(item) ?? [],
     );
+  }
+
+  /** Bind every metadata and media request to the same download deadline. */
+  async downloadAudio(
+    videoId: string,
+    signal: AbortSignal,
+  ): Promise<ReadableStream<Uint8Array>> {
+    signal.throwIfAborted();
+    Platform.shim.eval = evaluatePlayerScript;
+    const yt = await this.createSession((input, init) => {
+      const requestSignal =
+        init?.signal ?? (input instanceof Request ? input.signal : undefined);
+      return this.fetchImplementation(input, {
+        ...init,
+        signal: requestSignal
+          ? AbortSignal.any([signal, requestSignal])
+          : signal,
+      });
+    });
+    return yt.download(videoId, {
+      type: 'audio',
+      quality: 'best',
+      format: 'any',
+      // ANDROID_VR URLs stop serving after about 1 MiB, even with a proxy.
+      client: 'VISIONOS',
+    });
   }
 
   /**
@@ -94,20 +121,26 @@ export class YouTubeMusicClient {
   }
 
   private innertube(): Promise<Innertube> {
-    this.session ??= Innertube.create({
+    this.session ??= this.createSession(this.fetchImplementation).catch(
+      (error: unknown) => {
+        // A failed session is retried on the next request, not kept.
+        this.session = undefined;
+        throw error;
+      },
+    );
+    return this.session;
+  }
+
+  private createSession(fetchImplementation: typeof fetch): Promise<Innertube> {
+    return Innertube.create({
       // Country context guides discovery; playback is checked separately.
       location: 'BR',
       // The SDK identifies result shelves by their English names.
       lang: 'en',
       // WEB playback checks require the player's signature timestamp.
       retrieve_player: true,
-      fetch: this.fetchImplementation,
-    }).catch((error: unknown) => {
-      // A failed session is retried on the next request, not kept.
-      this.session = undefined;
-      throw error;
+      fetch: fetchImplementation,
     });
-    return this.session;
   }
 }
 

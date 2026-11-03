@@ -1,3 +1,5 @@
+import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import {
   HeadObjectCommand,
   PutObjectCommand,
@@ -7,6 +9,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { OnModuleDestroy } from '@nestjs/common';
 import {
   type PresignedPut,
+  type PublicFile,
   type PublicObject,
   StorageError,
   StorageService,
@@ -122,6 +125,33 @@ export class S3StorageService
         return false;
       }
       throw new StorageError(`Could not check "${key}"`, { cause: error });
+    }
+  }
+
+  async putPublicFile({
+    key,
+    filePath,
+    contentType,
+  }: PublicFile): Promise<void> {
+    let body: ReturnType<typeof createReadStream> | undefined;
+    try {
+      const { size } = await stat(filePath);
+      body = createReadStream(filePath);
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: this.config.bucket,
+          Key: key,
+          Body: body,
+          ContentLength: size,
+          ContentType: contentType,
+          ACL: 'public-read',
+        }),
+        { abortSignal: AbortSignal.timeout(2 * 60_000) },
+      );
+    } catch (error) {
+      throw new StorageError(`Could not store "${key}"`, { cause: error });
+    } finally {
+      body?.destroy();
     }
   }
 

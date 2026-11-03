@@ -6,7 +6,6 @@ const required = {
   BETTER_AUTH_SECRET: 'auth-secret-for-stripe-tests-only-1234',
   REVALIDATE_SECRET: 'revalidate-secret-for-stripe-tests-1234',
   RESEND_API_KEY: 'resend-test-only',
-  RAPIDAPI_API_KEY: 'rapidapi-test-only',
   RUNPOD_API_KEY: 'runpod-test-only',
   RUNPOD_ENDPOINT_ID: 'endpoint-test-only',
 };
