@@ -6,9 +6,8 @@ import { TrackVideoService } from './track-video.service.js';
 
 vi.mock('youtubei.js', () => ({ Innertube: { create: vi.fn() } }));
 
-describe('Track selection through the hosted search service', () => {
+describe('Track selection through the YouTube Music SDK', () => {
   afterEach(() => {
-    vi.unstubAllGlobals();
     vi.resetAllMocks();
   });
 
@@ -16,7 +15,7 @@ describe('Track selection through the hosted search service', () => {
     { externalUrls: [] },
     { externalUrls: ['https://youtu.be/bbbbbbbbbbb'] },
   ])(
-    'validates the hosted result even when linked metadata fails, with links $externalUrls',
+    'validates the search result even when linked metadata fails, with links $externalUrls',
     async ({ externalUrls }) => {
       const create = vi.mocked(Innertube.create);
       const getInfo = vi
@@ -28,23 +27,24 @@ describe('Track selection through the hosted search service', () => {
         playability_status: { status: 'OK', embeddable: true },
         page: [{ microformat: { available_countries: ['BR', 'US'] } }],
       });
+      const search = vi.fn().mockResolvedValue({
+        songs: {
+          contents: [
+            {
+              id: 'aaaaaaaaaaa',
+              title: 'Shape of You',
+              artists: [{ name: 'Ed Sheeran' }],
+              duration: { seconds: 234 },
+              item_type: 'song',
+              thumbnails: [],
+            },
+          ],
+        },
+      });
       create.mockResolvedValue({
-        music: { getInfo },
+        music: { getInfo, search },
         getBasicInfo,
       } as unknown as Innertube);
-      const request = vi.fn<typeof fetch>().mockResolvedValue(
-        Response.json([
-          {
-            videoId: 'aaaaaaaaaaa',
-            title: 'Shape of You',
-            artists: [{ name: 'Ed Sheeran' }],
-            duration_seconds: 234,
-            resultType: 'song',
-            thumbnails: [],
-          },
-        ]),
-      );
-      vi.stubGlobal('fetch', request);
       const moduleRef = await Test.createTestingModule({
         providers: [
           TrackVideoService,
@@ -68,7 +68,12 @@ describe('Track selection through the hosted search service', () => {
         ).resolves.toEqual({
           video: { videoId: 'aaaaaaaaaaa', source: 'youtube_music' },
         });
-        expect(request).toHaveBeenCalledOnce();
+        expect(search).toHaveBeenCalledExactlyOnceWith(
+          'Ed Sheeran Shape of You',
+          {
+            type: 'song',
+          },
+        );
         expect(create).toHaveBeenCalledOnce();
         expect(getInfo).toHaveBeenCalledTimes(externalUrls.length);
         expect(getBasicInfo).toHaveBeenCalledWith('aaaaaaaaaaa', {

@@ -25,8 +25,8 @@ video has to be found for it, and there is no Trigger.dev.
   YouTube links from MusicBrainz plus a YouTube Music song search
   (`youtubei.js`), each checked against the Recording's duration, title and
   artists. The chosen video is also the one the timeline plays, so the notes
-  stay in sync with it. The Bright Data proxy is used for YouTube Music
-  requests only when its env vars are set.
+  stay in sync with it. The configured HTTP proxy is used for YouTube Music
+  requests only when all four `PROXY_*` env vars are set.
 - **Audio is downloaded through the RapidAPI service the legacy used**, not
   self-hosted `yt-dlp`. From a datacenter IP, YouTube answers "Sign in to
   confirm you're not a bot" unless a residential proxy, a PO token provider and

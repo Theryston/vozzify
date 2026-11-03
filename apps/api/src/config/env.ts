@@ -36,11 +36,11 @@ const S3_MANDATORY = [
 ] as const;
 const S3_OPTIONAL = ['S3_ENDPOINT', 'S3_FORCE_PATH_STYLE'] as const;
 
-const BRIGHT_DATA_KEYS = [
-  'BRIGHT_DATA_PROXY_HOST',
-  'BRIGHT_DATA_PROXY_PORT',
-  'BRIGHT_DATA_PROXY_USERNAME',
-  'BRIGHT_DATA_PROXY_PASSWORD',
+const PROXY_KEYS = [
+  'PROXY_HOST',
+  'PROXY_PORT',
+  'PROXY_USERNAME',
+  'PROXY_PASSWORD',
 ] as const;
 
 // https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
@@ -164,14 +164,12 @@ const envSchema = z
     PROCESSING_MAX_DURATION_SECONDS: optional(
       z.coerce.number().int().positive(),
     ),
-    // Bright Data proxy for YouTube Music requests, used only when set. All
+    // HTTP proxy for YouTube Music requests, used only when set. All
     // four are needed together, see the check below.
-    BRIGHT_DATA_PROXY_HOST: optional(z.string().min(1)),
-    BRIGHT_DATA_PROXY_PORT: optional(
-      z.coerce.number().int().min(1).max(65_535),
-    ),
-    BRIGHT_DATA_PROXY_USERNAME: optional(z.string().min(1)),
-    BRIGHT_DATA_PROXY_PASSWORD: optional(z.string().min(1)),
+    PROXY_HOST: optional(z.string().min(1)),
+    PROXY_PORT: optional(z.coerce.number().int().min(1).max(65_535)),
+    PROXY_USERNAME: optional(z.string().min(1)),
+    PROXY_PASSWORD: optional(z.string().min(1)),
     // RapidAPI key of the audio download a Processing starts with (ADR 0004).
     // Required in production, where a Processing cannot download without it.
     RAPIDAPI_API_KEY: optional(z.string().min(1)),
@@ -221,16 +219,14 @@ const envSchema = z
         });
       }
     }
-    const brightDataAnySet = BRIGHT_DATA_KEYS.some(
-      (key) => env[key] !== undefined,
-    );
-    for (const key of BRIGHT_DATA_KEYS) {
-      if (brightDataAnySet && env[key] === undefined) {
+    const proxyAnySet = PROXY_KEYS.some((key) => env[key] !== undefined);
+    for (const key of PROXY_KEYS) {
+      if (proxyAnySet && env[key] === undefined) {
         ctx.issues.push({
           code: 'custom',
           input: env,
           path: [key],
-          message: 'Required when any BRIGHT_DATA_PROXY_ variable is set',
+          message: 'Required when any PROXY_ variable is set',
         });
       }
     }
