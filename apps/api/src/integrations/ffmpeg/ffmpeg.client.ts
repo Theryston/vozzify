@@ -21,6 +21,7 @@ export class FfmpegClient {
 
   /**
    * Converts any supported audio container without buffering either file.
+   * The detector requires 44.1 kHz PCM, regardless of the source sample rate.
    * The caller owns both temporary paths and removes them after uploading.
    */
   async convertAudioFileToWav(input: string, output: string): Promise<void> {
@@ -31,6 +32,8 @@ export class FfmpegClient {
       '-vn',
       '-acodec',
       'pcm_s16le',
+      '-ar',
+      '44100',
       '-fs',
       String(MAX_WAV_BYTES + 1),
       output,

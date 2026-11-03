@@ -66,6 +66,8 @@ describe('FfmpegClient file conversion', () => {
       '-vn',
       '-acodec',
       'pcm_s16le',
+      '-ar',
+      '44100',
       '-fs',
       '268435457',
       output,
