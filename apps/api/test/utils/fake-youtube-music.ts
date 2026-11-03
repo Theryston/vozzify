@@ -53,4 +53,8 @@ export class FakeYouTubeMusic {
     }
     return answer;
   }
+
+  async canPlayVideo(_videoId: string): Promise<boolean> {
+    return true;
+  }
 }

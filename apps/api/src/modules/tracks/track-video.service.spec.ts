@@ -36,6 +36,7 @@ const linkOf = (id: string) => `https://music.youtube.com/watch?v=${id}`;
 const youtube = {
   searchSongs: vi.fn<(query: string) => Promise<YouTubeVideo[]>>(),
   getVideo: vi.fn<(videoId: string) => Promise<YouTubeVideo | undefined>>(),
+  canPlayVideo: vi.fn<(videoId: string) => Promise<boolean>>(),
 };
 
 describe('TrackVideoService', () => {
@@ -60,6 +61,7 @@ describe('TrackVideoService', () => {
     vi.clearAllMocks();
     youtube.searchSongs.mockResolvedValue([]);
     youtube.getVideo.mockResolvedValue(undefined);
+    youtube.canPlayVideo.mockResolvedValue(true);
     await configure();
   });
 
