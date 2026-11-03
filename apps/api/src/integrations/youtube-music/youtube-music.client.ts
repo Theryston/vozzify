@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { ENV, type Env } from '../../config/env.js';
 import { brightDataProxyOf, createProxiedFetch } from './bright-data-proxy.js';
 import {
+  type YouTubePlaybackAvailability,
   type YouTubeVideo,
   youtubeVideoOfInfo,
   youtubeVideoOfSearchItem,
@@ -11,8 +12,6 @@ import {
 
 const SEARCH_URL = 'https://j2v0n2sold.execute-api.us-east-1.amazonaws.com/';
 const SEARCH_TIMEOUT_MS = 30_000;
-// A Recording has one shared video, so both supported markets must allow it.
-const PLAYBACK_COUNTRIES = ['BR', 'US'];
 const availabilitySchema = z.object({
   available_countries: z.array(z.string()),
 });
@@ -92,7 +91,9 @@ export class YouTubeMusicClient {
   }
 
   /** Music search metadata does not establish browser playback eligibility. */
-  async canPlayVideo(videoId: string): Promise<boolean> {
+  async getPlaybackAvailability(
+    videoId: string,
+  ): Promise<YouTubePlaybackAvailability> {
     const yt = await this.innertube();
     try {
       const info = await yt.getBasicInfo(videoId, { client: 'WEB' });
@@ -101,7 +102,7 @@ export class YouTubeMusicClient {
         info.playability_status?.status !== 'OK' ||
         !info.playability_status.embeddable
       ) {
-        return false;
+        return null;
       }
       const availability = availabilitySchema.safeParse(
         info.page?.[0]?.microformat,
@@ -109,9 +110,7 @@ export class YouTubeMusicClient {
       if (!availability.success) {
         throw new Error('YouTube did not return video availability countries');
       }
-      return PLAYBACK_COUNTRIES.every((country) =>
-        availability.data.available_countries.includes(country),
-      );
+      return playbackAvailabilityOf(availability.data.available_countries);
     } catch (error) {
       // The SDK throws for ERROR before returning the playability status.
       // Transport and parser failures must still reach the pipeline's retries.
@@ -124,7 +123,7 @@ export class YouTubeMusicClient {
         'status' in detail &&
         detail.status === 'ERROR'
       ) {
-        return false;
+        return null;
       }
       throw error;
     }
@@ -142,6 +141,16 @@ export class YouTubeMusicClient {
     });
     return this.session;
   }
+}
+
+function playbackAvailabilityOf(
+  countries: readonly string[],
+): YouTubePlaybackAvailability {
+  const brazil = countries.includes('BR');
+  const usa = countries.includes('US');
+  if (brazil && usa) return 'both';
+  if (brazil) return 'BR';
+  return usa ? 'US' : null;
 }
 
 function assertNoBotChallenge(value: unknown): void {

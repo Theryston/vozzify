@@ -28,20 +28,22 @@ describe('YouTube availability in the supported playback countries', () => {
   });
 
   it.each([
-    { countries: ['US'], playable: false },
-    { countries: ['BR'], playable: false },
-    { countries: [], playable: false },
-    { countries: ['BR', 'US'], playable: true },
-    { countries: ['DE', 'US', 'BR'], playable: true },
+    { countries: ['US'], availability: 'US' },
+    { countries: ['BR'], availability: 'BR' },
+    { countries: [], availability: null },
+    { countries: ['BR', 'US'], availability: 'both' },
+    { countries: ['DE', 'US', 'BR'], availability: 'both' },
   ])(
-    'requires Brazil and the USA: $countries',
-    async ({ countries, playable }) => {
+    'reports playback country coverage: $countries',
+    async ({ countries, availability }) => {
       sdk.getBasicInfo.mockResolvedValue({
         playability_status: { status: 'OK', embeddable: true },
         page: [{ microformat: { available_countries: countries } }],
       });
 
-      await expect(client.canPlayVideo('aaaaaaaaaaa')).resolves.toBe(playable);
+      await expect(client.getPlaybackAvailability('aaaaaaaaaaa')).resolves.toBe(
+        availability,
+      );
     },
   );
 
@@ -53,9 +55,9 @@ describe('YouTube availability in the supported playback countries', () => {
         page,
       });
 
-      await expect(client.canPlayVideo('aaaaaaaaaaa')).rejects.toThrow(
-        'YouTube did not return video availability countries',
-      );
+      await expect(
+        client.getPlaybackAvailability('aaaaaaaaaaa'),
+      ).rejects.toThrow('YouTube did not return video availability countries');
     },
   );
 
@@ -67,7 +69,7 @@ describe('YouTube availability in the supported playback countries', () => {
       },
     });
 
-    await expect(client.canPlayVideo('aaaaaaaaaaa')).rejects.toThrow(
+    await expect(client.getPlaybackAvailability('aaaaaaaaaaa')).rejects.toThrow(
       'bot verification',
     );
   });
@@ -80,7 +82,7 @@ describe('YouTube availability in the supported playback countries', () => {
       }),
     );
 
-    await expect(client.canPlayVideo('aaaaaaaaaaa')).rejects.toThrow(
+    await expect(client.getPlaybackAvailability('aaaaaaaaaaa')).rejects.toThrow(
       'bot verification',
     );
   });

@@ -135,26 +135,29 @@ The maintainer requested this narrow replacement: `searchSongs` now sends
 the complete legacy request to the fixed base URL above, with a 30-second
 timeout and no proxy. The existing `YouTubeVideo` mapping is retained.
 Search candidates are reconciled against the Recording's metadata. After
-the regional playback failure was reproduced, the maintainer required each
-chosen video to be available in **both Brazil and the USA**. Selection now
-checks the WEB player's status, embed permission and `available_countries`
-metadata, rejecting a result that excludes either country and trying the
-next matching result. The same policy applies to MusicBrainz links. A bot
+the regional playback failure was reproduced, the maintainer chose this
+priority: **both Brazil and the USA, then Brazil, then the USA, otherwise
+no video**. Selection checks the WEB player's status, embed permission and
+`available_countries` metadata. Country coverage wins over metadata ranking
+among matching results; MusicBrainz links win ties with hosted results.
+A regional link still triggers a search for a better country tier, while a
+link available in both markets needs no search. A bot
 challenge or missing country metadata is a retryable lookup failure, not
 evidence that the Recording has no video. This preserves the hosted search
 service and adds no dependency or API key.
 
 The compiled selection flow accepted `xTvyyoF_LZY` for Shape of You under
-this policy. The One Life reproduction returned `VIDEO_NOT_FOUND`: no
-returned candidate satisfied both the Recording metadata and the two-country
-policy. This change prevents new blocked selections; it does not replace
-video IDs on already completed Tracks or make a region-blocked upload
-playable. Replacing an existing Track's source also requires reprocessing
-its audio and notes to preserve synchronization.
+the earlier strict two-country policy. That policy rejected One Life's
+US-only candidate; the new preference order permits it as the last regional
+fallback. A US-only selection can still be blocked for a Brazilian visitor:
+this is a single shared video, not selection per visitor. This change does
+not replace video IDs on already completed Tracks or make a region-blocked
+upload playable. Replacing an existing Track's source also requires
+reprocessing its audio and notes to preserve synchronization.
 
 Replacing the **whole** current integration is **medium complexity and
 needs an availability design**: `TrackVideoService` also calls `getVideo`
-for MusicBrainz links and `canPlayVideo` before selecting any candidate.
+for MusicBrainz links and `getPlaybackAvailability` to rank candidates.
 Those operations are not supplied by the evidenced search contract. Direct
 lookups remain for MusicBrainz links; playback checks apply to both linked
 and hosted-search candidates. Extending the owned service with

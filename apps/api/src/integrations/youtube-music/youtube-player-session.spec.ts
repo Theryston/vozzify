@@ -56,7 +56,9 @@ describe('YouTube player session', () => {
     }).compile();
     try {
       const client = moduleRef.get(YouTubeMusicClient);
-      await expect(client.canPlayVideo('xTvyyoF_LZY')).resolves.toBe(true);
+      await expect(client.getPlaybackAvailability('xTvyyoF_LZY')).resolves.toBe(
+        'both',
+      );
       expect(requests).toEqual([
         {
           context: { client: { clientName: 'WEB' } },

@@ -1,7 +1,10 @@
 import { Test } from '@nestjs/testing';
 import { ENV } from '../../config/env.js';
 import { YouTubeMusicClient } from '../../integrations/youtube-music/youtube-music.client.js';
-import type { YouTubeVideo } from '../../integrations/youtube-music/youtube-video.js';
+import type {
+  YouTubePlaybackAvailability,
+  YouTubeVideo,
+} from '../../integrations/youtube-music/youtube-video.js';
 import { TrackVideoService } from './track-video.service.js';
 
 const linkedId = 'bbbbbbbbbbb';
@@ -30,7 +33,8 @@ describe('Track video playback eligibility', () => {
   const youtube = {
     searchSongs: vi.fn<() => Promise<YouTubeVideo[]>>(),
     getVideo: vi.fn<(id: string) => Promise<YouTubeVideo | undefined>>(),
-    canPlayVideo: vi.fn<(id: string) => Promise<boolean>>(),
+    getPlaybackAvailability:
+      vi.fn<(id: string) => Promise<YouTubePlaybackAvailability>>(),
   };
   const createService = async () => {
     const moduleRef = await Test.createTestingModule({
@@ -49,7 +53,9 @@ describe('Track video playback eligibility', () => {
       candidate(searchId),
       candidate('zzzzzzzzzzz'),
     ]);
-    youtube.canPlayVideo.mockImplementation(async (id) => id === searchId);
+    youtube.getPlaybackAvailability.mockImplementation(async (id) =>
+      id === searchId ? 'both' : null,
+    );
   });
 
   it('validates the best hosted search match before selecting it', async () => {
@@ -58,7 +64,7 @@ describe('Track video playback eligibility', () => {
       await expect(service.findVideo(recording)).resolves.toMatchObject({
         video: { videoId: searchId, source: 'youtube_music' },
       });
-      expect(youtube.canPlayVideo.mock.calls).toEqual([[searchId]]);
+      expect(youtube.getPlaybackAvailability.mock.calls).toEqual([[searchId]]);
     } finally {
       await moduleRef.close();
     }
@@ -76,7 +82,10 @@ describe('Track video playback eligibility', () => {
       ).resolves.toMatchObject({
         video: { videoId: searchId, source: 'youtube_music' },
       });
-      expect(youtube.canPlayVideo.mock.calls).toEqual([[linkedId], [searchId]]);
+      expect(youtube.getPlaybackAvailability.mock.calls).toEqual([
+        [linkedId],
+        [searchId],
+      ]);
     } finally {
       await moduleRef.close();
     }
@@ -91,7 +100,7 @@ describe('Track video playback eligibility', () => {
       await expect(service.findVideo(recording)).rejects.toMatchObject({
         code: 'VIDEO_NOT_FOUND',
       });
-      expect(youtube.canPlayVideo).not.toHaveBeenCalled();
+      expect(youtube.getPlaybackAvailability).not.toHaveBeenCalled();
     } finally {
       await moduleRef.close();
     }
@@ -99,7 +108,9 @@ describe('Track video playback eligibility', () => {
 
   it('keeps direct playback check outages retryable for MusicBrainz links', async () => {
     youtube.getVideo.mockResolvedValue(candidate(linkedId));
-    youtube.canPlayVideo.mockRejectedValue(new Error('YouTube timeout'));
+    youtube.getPlaybackAvailability.mockRejectedValue(
+      new Error('YouTube timeout'),
+    );
     const { service, moduleRef } = await createService();
     try {
       await expect(

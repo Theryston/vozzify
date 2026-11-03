@@ -24,7 +24,7 @@ const candidate = (videoId: string) => ({
 });
 
 describe('Track selection after hosted search', () => {
-  const youtube = { searchSongs: vi.fn(), canPlayVideo: vi.fn() };
+  const youtube = { searchSongs: vi.fn(), getPlaybackAvailability: vi.fn() };
   let service: TrackVideoService;
   let close: () => Promise<void>;
 
@@ -50,21 +50,21 @@ describe('Track selection after hosted search', () => {
   });
 
   it('skips a regional release and selects the next eligible result', async () => {
-    youtube.canPlayVideo
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true);
+    youtube.getPlaybackAvailability
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce('both');
 
     await expect(service.findVideo(recording)).resolves.toEqual({
       video: { videoId: 'bbbbbbbbbbb', source: 'youtube_music' },
     });
-    expect(youtube.canPlayVideo.mock.calls).toEqual([
+    expect(youtube.getPlaybackAvailability.mock.calls).toEqual([
       ['aaaaaaaaaaa'],
       ['bbbbbbbbbbb'],
     ]);
   });
 
   it('refuses to store a result when none passes the playback policy', async () => {
-    youtube.canPlayVideo.mockResolvedValue(false);
+    youtube.getPlaybackAvailability.mockResolvedValue(null);
 
     await expect(service.findVideo(recording)).rejects.toMatchObject({
       code: 'VIDEO_NOT_FOUND',
@@ -72,7 +72,9 @@ describe('Track selection after hosted search', () => {
   });
 
   it('keeps playback lookup failures retryable', async () => {
-    youtube.canPlayVideo.mockRejectedValue(new Error('YouTube timeout'));
+    youtube.getPlaybackAvailability.mockRejectedValue(
+      new Error('YouTube timeout'),
+    );
 
     await expect(service.findVideo(recording)).rejects.toThrow(
       'YouTube timeout',
