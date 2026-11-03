@@ -131,7 +131,8 @@ times, vocal ranges and other data that must line up. Use
 - The wordmark is **Vozzify** (capital V), Figtree `font-bold`,
   `tracking-tight`, placed to the right of the symbol with a gap of ~0.3× the
   symbol size. The symbol is ~1.15× the wordmark's font size.
-- Compact contexts (favicon, app icon, tight mobile header) use the symbol
+- The site header keeps the wordmark visible on mobile, with a 28px symbol
+  (22px from `md` up). Compact contexts (favicon, app icon) use the symbol
   alone.
 - App icons live in `apps/web/app/` and are the symbol drawn from
   `logo-mark.tsx`: `icon.svg` and `favicon.ico` (16/32/48) are the orange

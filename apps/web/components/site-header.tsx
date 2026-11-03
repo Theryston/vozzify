@@ -39,8 +39,8 @@ export function SiteHeader({
               aria-label={t('home')}
               className="flex shrink-0 items-center gap-1.5 rounded-full px-1 py-1 outline-none transition-opacity duration-150 ease-out hover:opacity-80 focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              <LogoMark className="size-5.5" />
-              <span className="hidden font-bold text-lg tracking-tight sm:inline">
+              <LogoMark className="size-7 md:size-5.5" />
+              <span className="font-bold text-lg tracking-tight">
                 {t('wordmark')}
               </span>
             </Link>
