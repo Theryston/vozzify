@@ -4,8 +4,8 @@ import { YouTubeMusicClient } from '../../integrations/youtube-music/youtube-mus
 import type { YouTubeVideo } from '../../integrations/youtube-music/youtube-video.js';
 import { TrackVideoService } from './track-video.service.js';
 
-const unavailableId = 'uP1ywAv8rEY';
-const playableId = 'zzzzzzzzzzz';
+const linkedId = 'bbbbbbbbbbb';
+const searchId = 'aaaaaaaaaaa';
 const candidate = (videoId: string): YouTubeVideo => ({
   videoId,
   title: 'One Life',
@@ -46,61 +46,70 @@ describe('Track video playback eligibility', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     youtube.searchSongs.mockResolvedValue([
-      candidate(unavailableId),
-      candidate(playableId),
+      candidate(searchId),
+      candidate('zzzzzzzzzzz'),
     ]);
-    youtube.canPlayVideo.mockImplementation(async (id) => id === playableId);
+    youtube.canPlayVideo.mockResolvedValue(false);
   });
 
-  it('skips the best metadata match when it cannot play on the web', async () => {
+  it('trusts the best hosted search match without a direct playback check', async () => {
+    youtube.canPlayVideo.mockRejectedValue(new Error('YouTube timeout'));
     const { service, moduleRef } = await createService();
     try {
       await expect(service.findVideo(recording)).resolves.toMatchObject({
-        video: { videoId: playableId, source: 'youtube_music' },
+        video: { videoId: searchId, source: 'youtube_music' },
       });
-      expect(youtube.canPlayVideo.mock.calls).toEqual([
-        [unavailableId],
-        [playableId],
-      ]);
+      expect(youtube.canPlayVideo).not.toHaveBeenCalled();
     } finally {
       await moduleRef.close();
     }
   });
 
   it('rejects an unavailable MusicBrainz link and uses the search', async () => {
-    youtube.getVideo.mockResolvedValue(candidate(unavailableId));
+    youtube.getVideo.mockResolvedValue(candidate(linkedId));
     const { service, moduleRef } = await createService();
     try {
       await expect(
         service.findVideo({
           ...recording,
-          externalUrls: [`https://youtu.be/${unavailableId}`],
+          externalUrls: [`https://youtu.be/${linkedId}`],
         }),
-      ).resolves.toMatchObject({ video: { videoId: playableId } });
+      ).resolves.toMatchObject({
+        video: { videoId: searchId, source: 'youtube_music' },
+      });
+      expect(youtube.canPlayVideo.mock.calls).toEqual([[linkedId]]);
     } finally {
       await moduleRef.close();
     }
   });
 
-  it('reports VIDEO_NOT_FOUND when every matching video is unavailable', async () => {
-    youtube.canPlayVideo.mockResolvedValue(false);
+  it('reports VIDEO_NOT_FOUND when the hosted results do not match', async () => {
+    youtube.searchSongs.mockResolvedValue([
+      { ...candidate(searchId), artists: ['Another artist'] },
+    ]);
     const { service, moduleRef } = await createService();
     try {
       await expect(service.findVideo(recording)).rejects.toMatchObject({
         code: 'VIDEO_NOT_FOUND',
       });
+      expect(youtube.canPlayVideo).not.toHaveBeenCalled();
     } finally {
       await moduleRef.close();
     }
   });
 
-  it('keeps lookup outages retryable instead of accepting unchecked videos', async () => {
+  it('keeps direct playback check outages retryable for MusicBrainz links', async () => {
+    youtube.getVideo.mockResolvedValue(candidate(linkedId));
     youtube.canPlayVideo.mockRejectedValue(new Error('YouTube timeout'));
     const { service, moduleRef } = await createService();
     try {
-      await expect(service.findVideo(recording)).rejects.toThrow(
-        'YouTube timeout',
-      );
+      await expect(
+        service.findVideo({
+          ...recording,
+          externalUrls: [`https://youtu.be/${linkedId}`],
+        }),
+      ).rejects.toThrow('YouTube timeout');
+      expect(youtube.searchSongs).not.toHaveBeenCalled();
     } finally {
       await moduleRef.close();
     }
