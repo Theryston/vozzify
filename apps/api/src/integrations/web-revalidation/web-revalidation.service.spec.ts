@@ -47,9 +47,22 @@ describe('WebRevalidationService', () => {
     expect(queue.add).toHaveBeenCalledOnce();
   });
 
+  it('splits more than 50 tags into jobs within the endpoint limit', async () => {
+    const tags = Array.from({ length: 51 }, (_, i) => `tag-${i}`);
+
+    await service.revalidate(tags);
+
+    expect(queue.add).toHaveBeenCalledTimes(2);
+    expect(queue.add).toHaveBeenNthCalledWith(1, WEB_REVALIDATION_JOB, {
+      tags: tags.slice(0, 50),
+    });
+    expect(queue.add).toHaveBeenNthCalledWith(2, WEB_REVALIDATION_JOB, {
+      tags: tags.slice(50),
+    });
+  });
+
   it.each([
     ['no tags', []],
-    ['more than 50 tags', Array.from({ length: 51 }, (_, i) => `tag-${i}`)],
     ['an empty tag', ['']],
     ['a tag longer than 256 characters', ['x'.repeat(257)]],
   ])('rejects %s', async (_, tags) => {
