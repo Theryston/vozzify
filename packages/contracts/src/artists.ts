@@ -105,8 +105,8 @@ export const catalogTrackSchema = z.object({
   artists: z.array(catalogTrackArtistSchema).min(1).max(30),
   /** Display genres, most relevant first; empty when unknown. */
   genres: z.array(z.string().min(1).max(100)).max(30),
-  /** Every release the Recording appears on, in title order; empty when none. */
-  releases: z.array(catalogTrackReleaseSchema).max(30).optional(),
+  /** All releases in title order; popular Recordings can have many editions. */
+  releases: z.array(catalogTrackReleaseSchema).optional(),
   /** Every linked work, in title order; empty when none. */
   works: z.array(catalogTrackWorkSchema).max(30).optional(),
   /** Every tag, most voted first; empty when none. */
