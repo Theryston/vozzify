@@ -191,9 +191,12 @@ test/                     e2e specs + helpers (app factory, Testcontainers setup
 
 ### Legacy data import
 
-Development starts with an empty database. At launch, a one-off script
-(`src/scripts/import-legacy.ts`, written at the end of the project) imports
-the legacy users and their data (schema: `prisma/schema.prisma` in
+Development starts with an empty database. The compiled operator command
+`nub run import:legacy-users` (after `nub run build`, from this app) imports
+legacy Users and their sign-in identities with durable resume progress.
+See `docs/operations/import-legacy-users.md` for environment variables,
+preflight, recovery and the boundaries of this first slice. Later slices import
+the remaining User-owned data (schema: `prisma/schema.prisma` in
 <https://github.com/theryston/notefinder>). The legacy **catalog** (tracks,
 artists, albums, notes, thumbnails) is **not** imported: it is reprocessed
 into a schema designed for the new app (see

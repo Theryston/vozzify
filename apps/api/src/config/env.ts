@@ -323,3 +323,23 @@ export const loadEnv = (): Env => {
   cachedEnv = parseEnv(process.env);
   return cachedEnv;
 };
+
+// The operator command needs neither Redis nor application/provider secrets.
+const legacyImportEnvSchema = z.object({
+  NODE_ENV: z
+    .enum(['development', 'test', 'production'])
+    .default('development'),
+  DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+  LEGACY_DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+});
+
+export type LegacyImportEnv = z.infer<typeof legacyImportEnvSchema>;
+
+export const loadLegacyImportEnv = (): LegacyImportEnv => {
+  const result = legacyImportEnvSchema.safeParse(process.env);
+  if (!result.success) {
+    const fields = result.error.issues.map((issue) => issue.path.join('.'));
+    throw new Error(`Invalid import environment: ${fields.join(', ')}`);
+  }
+  return result.data;
+};
