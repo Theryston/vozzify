@@ -3,7 +3,7 @@
 import type { TrackNote } from '@vozzify/contracts';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { shiftedVoiceTime } from '../calibration-math';
-import { type PlaybackSource, toggleMic } from '../mic-controller';
+import { type PlaybackSource, stopMic, toggleMic } from '../mic-controller';
 import { ScoreSession } from '../score-session';
 import { micStore } from '../stores/mic-store';
 import { scoringSettings } from '../stores/scoring-settings';
@@ -45,6 +45,11 @@ function connect(
       micOn && status === 'playing',
       !micOn || status === 'ended' || status === 'error',
     );
+    if (
+      (status === 'ended' || status === 'error') &&
+      micStore.getState().status !== 'off'
+    )
+      stopMic();
   };
   sync();
   const stops = [
@@ -102,6 +107,7 @@ export function useScoring(options: ScoringOptions) {
     stop: () => {
       controls?.pause();
       session.finish();
+      stopMic();
     },
     retry: () => {
       void restart(session, options);

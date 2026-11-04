@@ -353,7 +353,7 @@ describe('Catalog search plus limits plus errors (e2e)', () => {
   });
 
   it('rate limits the public endpoint per IP', async () => {
-    for (let attempt = 0; attempt < 30; attempt += 1) {
+    for (let attempt = 0; attempt < 120; attempt += 1) {
       await searchAs(testApp, '203.0.113.18', { query: 'queen' }).expect(200);
     }
     const limited = await searchAs(testApp, '203.0.113.18', {
