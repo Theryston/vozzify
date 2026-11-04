@@ -279,17 +279,19 @@ Python is pinned in `.python-version` (3.12).
 
 ## Dependencies
 
-- `torch` is pinned to `>=2.7,<2.8`. The PyPI builds of that line bundle
-  CUDA 12.6; newer PyPI builds bundle CUDA 13 and need a newer driver than
-  RunPod hosts may have.
-- `onnxruntime-gpu` is pinned to `>=1.22,<1.27`: 1.26 is the last release
-  built for CUDA 12 (1.27 and later depend on CUDA 13 libraries). It reuses
-  the cuDNN/cuBLAS libraries torch brings.
+- PyTorch and ONNX Runtime use CUDA 13 / cuDNN 9 builds from PyPI. Keep
+  their CUDA major versions aligned; importing torch before ONNX Runtime
+  loads the GPU libraries both adapters share.
+- The base image supplies CUDA 13.4.3; the Python wheels supply their own
+  CUDA 13.0 libraries. A base-image update alone does not update those wheels.
+- `check_gpu_stack.py` runs during the image build, before weight downloads.
+  It rejects CPU/CUDA 12 builds and loads the ONNX CUDA provider's shared
+  library to catch missing dependencies without requiring a GPU.
 
 ## Publishing
 
 `.github/workflows/note-detector-image.yml` builds the image from this
-directory (`Dockerfile`, linux/amd64, CUDA 12.6 base) on every pull request
+directory (`Dockerfile`, linux/amd64, CUDA 13.4.3 base) on every pull request
 that touches it, and publishes it to GHCR on a push to `main`:
 
 - `ghcr.io/theryston/vozzify/note-detector:latest` moves with `main`;
@@ -305,9 +307,12 @@ layer, as the existing steps do, because the hosted runner's disk is the limit.
 
 The production entrypoint is `python -m note_detector`. It loads the GAME,
 Mel-Band RoFormer and RMVPE models once before RunPod starts, then reuses
-those instances for each job. Production targets RunPod A40 / RTX A6000 GPUs
-(48 GB, Ampere); both startup and the smoke command fail promptly with a
-clear error when CUDA is unavailable.
+those instances for each job. The CUDA 13 wheels support
+Ampere (including A40 / RTX A6000) and Blackwell GPUs. Configure the RunPod
+endpoint's CUDA version selection for hosts compatible with the base image's
+CUDA 13.4 requirement; the console's generic "12.8+" GPU notice alone does
+not establish this compatibility. Both startup and the smoke command fail
+promptly when CUDA is unavailable.
 
 Build the image from this directory with the commit sha that should be
 reported by completed jobs, then run one short synthetic job through the
@@ -325,3 +330,9 @@ URL and the two presigned PUT URLs, so it needs no API, credentials or
 external storage. On a machine without a GPU, run the same container command
 without `--gpus all`; it should exit before loading model weights with
 `note-detector requires a CUDA GPU`.
+
+Before switching a RunPod endpoint, run the GPU smoke test on the target host
+and confirm GAME sessions use `CUDAExecutionProvider` rather than falling back
+to CPU. The CI build checks library linkage and no-GPU failure only; it does
+not prove GPU inference or model parity. Roll back by pinning the endpoint to
+its previous `sha-` image tag; job input/output and model weights are unchanged.

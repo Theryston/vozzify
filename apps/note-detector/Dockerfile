@@ -1,14 +1,15 @@
 # The RunPod serverless image. Built from this directory as the context (see
 # .dockerignore), published to GHCR by .github/workflows/note-detector-image.yml.
 #
-# CUDA 12.6, a runtime RunPod hosts support. The torch and onnxruntime-gpu CUDA
-# libraries (cuBLAS, cuDNN, ...) come bundled in the PyPI wheels pinned in
+# CUDA 13.4.3 requires a compatible RunPod host driver. The torch CUDA 13 and
+# onnxruntime-gpu CUDA 13 builds share the wheel-provided libraries below.
+# GPU libraries (cuBLAS, cuDNN, ...) come bundled in the PyPI wheels pinned in
 # pyproject.toml, so the `base` flavor is enough: it supplies the NVIDIA driver
 # interface and the minimal system libraries. The `runtime` flavor adds CUDA
 # libraries that the wheels already carry, and it is bigger on disk, which the
 # image build can't spare on a hosted runner. Python 3.12 is installed by uv
 # from .python-version.
-FROM nvidia/cuda:12.6.0-base-ubuntu22.04
+FROM nvidia/cuda:13.4.3-base-ubuntu22.04
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.32 /uv /usr/local/bin/uv
 
@@ -26,6 +27,11 @@ WORKDIR /app
 # in an image layer. The GitHub-hosted runner runs out of disk without this.
 COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --locked --no-dev --group model && uv cache clean
+
+# Check the installed CUDA builds and provider linkage without a GPU, before
+# downloading weights. A successful CPU-only import cannot prove this linkage.
+COPY check_gpu_stack.py ./check_gpu_stack.py
+RUN python check_gpu_stack.py
 
 # The model weights are downloaded here, pinned by sha256 (see CLAUDE.md).
 
