@@ -3,6 +3,7 @@
 import type { TrackLyricLine } from '@vozzify/contracts';
 
 import { cn } from '@/lib/utils';
+import { useKaraokeSegments } from '../hooks/use-karaoke-segments';
 import {
   type LyricsClock,
   useLyricsSignature,
@@ -31,39 +32,47 @@ export function KaraokeLine({
   lines: readonly TrackLyricLine[];
   clock: LyricsClock;
 }) {
-  useLyricsSignature(lines, clock);
+  const segments = useKaraokeSegments(lines);
+  useLyricsSignature(segments.lines, clock);
   const time = clock.now();
-  const display = karaokeLineAt(lines, time);
-  const line = display < 0 ? undefined : lines[display];
+  const display = karaokeLineAt(segments.lines, time);
+  const line = display < 0 ? undefined : segments.lines[display];
   if (line === undefined) {
     return (
       <p
+        ref={segments.ref}
         data-testid="karaoke-line"
-        className="min-h-8 text-center font-semibold text-lg leading-8 md:text-xl"
+        className="h-8 min-w-0 whitespace-nowrap text-center font-semibold text-lg leading-8 md:text-xl"
       />
     );
   }
 
   return (
     <p
+      ref={segments.ref}
       data-testid="karaoke-line"
-      className="min-h-8 text-center font-semibold text-lg leading-8 md:text-xl"
+      className="h-8 min-w-0 whitespace-nowrap text-center font-semibold text-lg leading-8 md:text-xl"
     >
-      {line.words.map((word, index) => {
-        const state = wordStateAt(word, time);
-        return (
-          <span
-            // A line's words are fixed, so the position is their identity.
-            // biome-ignore lint/suspicious/noArrayIndexKey: the same word can repeat in a line.
-            key={index}
-            data-state={state}
-            className={cn('transition-colors duration-150', WORD_CLASS[state])}
-          >
-            {index > 0 ? ' ' : null}
-            {word.text}
-          </span>
-        );
-      })}
+      <span style={{ fontSize: segments.fontSize(line) }}>
+        {line.words.map((word, index) => {
+          const state = wordStateAt(word, time);
+          return (
+            <span
+              // A line's words are fixed, so the position is their identity.
+              // biome-ignore lint/suspicious/noArrayIndexKey: the same word can repeat in a line.
+              key={index}
+              data-state={state}
+              className={cn(
+                'transition-colors duration-150',
+                WORD_CLASS[state],
+              )}
+            >
+              {index > 0 ? ' ' : null}
+              {word.text}
+            </span>
+          );
+        })}
+      </span>
     </p>
   );
 }

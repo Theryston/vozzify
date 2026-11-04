@@ -24,12 +24,12 @@ export class SearchController {
   constructor(private readonly searchService: SearchService) {}
 
   // Unauthenticated on purpose: visitors search before they sign up. Abuse
-  // is bounded by a stricter per-IP limit than the global one (realtime
-  // typing stays usable while sustained floods answer 429 `RATE_LIMITED`).
+  // is bounded per IP while allowing search-as-you-type across several
+  // queries; sustained floods still answer 429 `RATE_LIMITED`.
   // Search falls back to completed API Tracks when the catalog cannot answer;
   // 503 means both search engines are unavailable.
   @Get()
-  @Throttle({ default: { limit: 30, ttl: seconds(60) } })
+  @Throttle({ default: { limit: 120, ttl: seconds(60) } })
   @ZodSerializerDto(searchResultSchema)
   @ApiOkResponse({
     description: 'Catalog matches, best first.',
