@@ -7,8 +7,14 @@ import {
   type DatabaseAdapter,
 } from '../../database/database.js';
 import { accounts } from '../../database/schema/auth.js';
+import { dailyPracticeStreaks } from '../../database/schema/daily-practice-streaks.js';
+import { legacyPersonalImports } from '../../database/schema/legacy-personal-imports.js';
 import { legacyUserImports } from '../../database/schema/legacy-user-imports.js';
 import { users } from '../../database/schema/users.js';
+import {
+  importedPracticeDayValues,
+  type LegacyPracticeDay,
+} from './legacy-personal.js';
 import {
   importedAccountValues,
   importedUserValues,
@@ -77,10 +83,13 @@ export class LegacyImportRepository {
   }
 
   private async assertEmpty(): Promise<void> {
+    // Fresh migrations seed read-only plan catalog reference rows; they are
+    // never modified by this import and do not represent application data.
     const tables = await this.db.execute<{ table_name: string }>(sql`
       select table_name from information_schema.tables
       where table_schema = 'public' and table_type = 'BASE TABLE'
         and table_name <> '__drizzle_migrations'
+        and table_name not in ('benefits', 'plan_benefits', 'plan_prices', 'plans')
     `);
     for (const { table_name: table } of tables.rows) {
       const found = await this.db.execute(sql`
@@ -114,5 +123,69 @@ export class LegacyImportRepository {
         updatedAt: new Date(),
       })
       .where(eq(legacyUserImports.id, IMPORT_ID));
+  }
+
+  async personalProgress(sourceDigest: string) {
+    const [progress] = await this.db
+      .select()
+      .from(legacyPersonalImports)
+      .where(eq(legacyPersonalImports.id, 'legacy-personal-v1'));
+    if (progress) {
+      if (progress.sourceDigest !== sourceDigest)
+        throw new Error('PERSONAL_SOURCE_CHANGED');
+      return progress;
+    }
+    const [created] = await this.db
+      .insert(legacyPersonalImports)
+      .values({
+        id: 'legacy-personal-v1',
+        sourceDigest,
+      })
+      .returning();
+    if (!created) throw new Error('PERSONAL_PROGRESS_NOT_CREATED');
+    return created;
+  }
+
+  async importPracticeDay(day: LegacyPracticeDay): Promise<void> {
+    await this.db
+      .insert(dailyPracticeStreaks)
+      .values(importedPracticeDayValues(day))
+      .onConflictDoNothing({
+        target: [dailyPracticeStreaks.userId, dailyPracticeStreaks.day],
+      });
+    await this.db
+      .update(legacyPersonalImports)
+      .set({
+        lastPracticeId: day.id,
+        importedPracticeDays: sql`${legacyPersonalImports.importedPracticeDays} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(legacyPersonalImports.id, 'legacy-personal-v1'));
+  }
+
+  async updateLegacyVisibility(
+    userId: string,
+    values: {
+      showSummarySection?: boolean;
+      showPracticeHistorySection?: boolean;
+      showFavoritesSection?: boolean;
+    },
+  ): Promise<void> {
+    const [user] = await this.db
+      .select({ updatedAt: users.updatedAt })
+      .from(users)
+      .where(eq(users.id, userId));
+    if (!user) return;
+    await this.db
+      .update(users)
+      .set({ ...values, updatedAt: user.updatedAt })
+      .where(eq(users.id, userId));
+  }
+
+  async completePersonal(): Promise<void> {
+    await this.db
+      .update(legacyPersonalImports)
+      .set({ status: 'complete', updatedAt: new Date() })
+      .where(eq(legacyPersonalImports.id, 'legacy-personal-v1'));
   }
 }

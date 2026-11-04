@@ -330,6 +330,13 @@
       "when": 1793805847867,
       "tag": "0046_nervous_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793812592075,
+      "tag": "0047_stale_cardiac",
+      "breakpoints": true
     }
   ]
 }

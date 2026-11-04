@@ -2,6 +2,13 @@ import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { Pool, type PoolClient } from 'pg';
 import { ENV, type LegacyImportEnv } from '../../config/env.js';
+import {
+  type LegacyPracticeDay,
+  type LegacyVisibility,
+  legacyPracticeDaySchema,
+  legacyVisibilitySchema,
+} from './legacy-personal.js';
+import { type LegacyTrack, legacyTrackSchema } from './legacy-recording.js';
 import { type LegacyUser, legacyUserSchema } from './legacy-user.js';
 
 const PAGE_SIZE = 200;
@@ -23,6 +30,22 @@ const USER_QUERY = `select u.id, u.role, u.name, u.email, u.username, u.password
   from users u where ($1::text is null or u.id collate "C" > $1 collate "C")
   order by u.id collate "C" limit $2`;
 
+const RECORDING_QUERY = `select t.id, t.yt_id as "ytId", t.title,
+  t.duration_seconds as "durationSeconds", t.duration, t.album_id as "albumId",
+  al.name as "albumName", al.yt_id as "albumYtId", t.creator_id as "creatorId",
+  t.created_at at time zone 'UTC' as "createdAt",
+  (select count(*)::int from user_favorite_tracks f where f.track_id = t.id)
+    as "dependentFavorites",
+  (select count(*)::int from track_views v where v.track_id = t.id)
+    as "dependentViews",
+  coalesce((select json_agg(json_build_object('id', ar.id, 'name', ar.name,
+    'ytId', ar.yt_id) order by ar.id collate "C")
+    from track_artists ta join artists ar on ar.id = ta.artist_id
+    where ta.track_id = t.id), '[]'::json) as artists
+  from tracks t left join albums al on al.id = t.album_id
+  where ($1::text is null or t.id collate "C" > $1 collate "C")
+  order by t.id collate "C" limit $2`;
+
 export type SourceValidation = {
   digest: string;
   users: number;
@@ -36,6 +59,56 @@ export class LegacySourceSnapshot {
   async page(cursor: string | null): Promise<LegacyUser[]> {
     const result = await this.client.query(USER_QUERY, [cursor, PAGE_SIZE]);
     return result.rows.map((row: unknown) => legacyUserSchema.parse(row));
+  }
+
+  async recordingPage(cursor: string | null): Promise<LegacyTrack[]> {
+    const result = await this.client.query(RECORDING_QUERY, [
+      cursor,
+      PAGE_SIZE,
+    ]);
+    return result.rows.map((row: unknown) => legacyTrackSchema.parse(row));
+  }
+
+  async validateRecordingSource(): Promise<{ digest: string; tracks: number }> {
+    const hash = createHash('sha256');
+    let cursor: string | null = null;
+    let tracks = 0;
+    for (;;) {
+      const page = await this.recordingPage(cursor);
+      if (page.length === 0) break;
+      for (const track of page) {
+        hash.update(JSON.stringify(track));
+        tracks++;
+      }
+      cursor = page.at(-1)?.id ?? null;
+    }
+    return { digest: hash.digest('hex'), tracks };
+  }
+
+  async practicePage(cursor: string | null): Promise<LegacyPracticeDay[]> {
+    const result = await this.client.query(
+      `select id, user_id as "userId",
+      day::text as day, listened_seconds as "listenedSeconds",
+      is_completed as completed, completed_at at time zone 'UTC' as "completedAt",
+      last_heartbeat_at at time zone 'UTC' as "lastHeartbeatAt",
+      created_at at time zone 'UTC' as "createdAt",
+      updated_at at time zone 'UTC' as "updatedAt"
+      from daily_practice_streaks
+      where ($1::text is null or id collate "C" > $1 collate "C")
+      order by id collate "C" limit $2`,
+      [cursor, PAGE_SIZE],
+    );
+    return result.rows.map((row: unknown) =>
+      legacyPracticeDaySchema.parse(row),
+    );
+  }
+
+  async visibility(): Promise<LegacyVisibility[]> {
+    const result =
+      await this.client.query(`select user_id as "userId", key, value
+      from user_section_visibilities
+      order by user_id collate "C", key collate "C", value::text collate "C"`);
+    return result.rows.map((row: unknown) => legacyVisibilitySchema.parse(row));
   }
 
   async validate(): Promise<SourceValidation> {

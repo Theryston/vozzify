@@ -2,7 +2,11 @@ import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { loadEnv } from './config/env.js';
-import { runLegacyUserImport } from './modules/legacy-import/legacy-import-command.js';
+import {
+  runLegacyPersonalDataImport,
+  runLegacyRecordingPlan,
+  runLegacyUserImport,
+} from './modules/legacy-import/legacy-import-command.js';
 import { SearchIndexModule } from './modules/search/search-index.module.js';
 import { SearchIndexService } from './modules/search/search-index.service.js';
 import { TrackAssociationSyncModule } from './modules/tracks/track-association-sync.module.js';
@@ -11,7 +15,11 @@ import { TrackCoverRepairModule } from './modules/tracks/track-cover-repair.modu
 import { TrackCoverRepairService } from './modules/tracks/track-cover-repair.service.js';
 import { configureApp, createAppLogger } from './setup-app.js';
 
-if (process.argv.includes('--import-legacy-users')) {
+if (process.argv.includes('--plan-legacy-recordings')) {
+  if (!(await runLegacyRecordingPlan())) process.exitCode = 1;
+} else if (process.argv.includes('--import-legacy-personal-data')) {
+  if (!(await runLegacyPersonalDataImport())) process.exitCode = 1;
+} else if (process.argv.includes('--import-legacy-users')) {
   if (!(await runLegacyUserImport())) process.exitCode = 1;
 } else {
   const env = loadEnv();

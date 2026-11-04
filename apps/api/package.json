@@ -20,6 +20,8 @@
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "import:legacy-users": "node dist/main.js --import-legacy-users",
+    "import:legacy-personal-data": "node dist/main.js --import-legacy-personal-data",
+    "plan:legacy-recordings": "node dist/main.js --plan-legacy-recordings",
     "sync:sonic-index": "node dist/main.js --sync-sonic-index",
     "repair:track-covers": "node dist/main.js --repair-track-covers",
     "db:generate": "drizzle-kit generate",

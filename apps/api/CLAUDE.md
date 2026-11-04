@@ -194,12 +194,12 @@ test/                     e2e specs + helpers (app factory, Testcontainers setup
 Development starts with an empty database. The compiled operator command
 `nub run import:legacy-users` (after `nub run build`, from this app) imports
 legacy Users and their sign-in identities with durable resume progress.
-See `docs/operations/import-legacy-users.md` for environment variables,
-preflight, recovery and the boundaries of this first slice. Later slices import
-the remaining User-owned data (schema: `prisma/schema.prisma` in
-<https://github.com/theryston/notefinder>). The legacy **catalog** (tracks,
-artists, albums, notes, thumbnails) is **not** imported: it is reprocessed
-into a schema designed for the new app (see
+`nub run import:legacy-personal-data` imports legacy Practice days and Profile
+section visibility after Users. `nub run plan:legacy-recordings` maps legacy
+Tracks to Music catalog Recordings without starting Processing. See
+`docs/operations/import-legacy-users.md` for environment variables, stage
+order, preflight and recovery. The legacy catalog (tracks, artists, albums,
+notes and thumbnails) is reprocessed into the new schema (see
 `docs/adr/0001-reprocessed-catalog-with-legacy-id-maps.md`).
 
 **Users** keep their legacy identity, so the schema must always be able to
@@ -216,7 +216,9 @@ hold them:
   `provider` + `providerAccountId`.
 - User data with no catalog reference (daily practice streaks, section
   visibility, daily practice target, Avatar URL) is imported as-is, or with a
-  documented transformation. Don't add `NOT NULL` user columns or
+  documented transformation. Legacy `ME_ONLY` choices remain private; unknown
+  private sections conservatively hide current Profile sections. Don't add
+  `NOT NULL` user columns or
   constraints the legacy data can't satisfy without a clear default.
 
 **Tables with a public URL (tracks, artists, albums)** get new IDs, so old

@@ -1,20 +1,31 @@
-# Import legacy Users and sign-in identities
+# Import legacy Users and personal data
 
-Issue #456 imports Users and their password/Google accounts only. It does
-not import sessions, verification/reset codes, practice history, section
-visibility overrides, favorites or catalog records, and starts no Processing.
+`import:legacy-users` imports Users and password/Google identities.
+`import:legacy-personal-data` runs that stage first, then imports Practice days
+and supported Profile visibility choices. `plan:legacy-recordings` runs the
+User stage first, then resolves legacy Tracks to Music catalog Recordings
+without starting Processing. The personal and recording stages are independent
+of each other. Run each stage separately and review its report before
+proceeding.
 
 ## Prepare
 
 1. Freeze the legacy PostgreSQL source. Prefer a restored backup on a separate
    database with a dedicated read-only role, access to `users` and `accounts`
-   and `SELECT` privileges only. Keep this snapshot unchanged across retries.
+   and `SELECT` privileges only. Later stages also require
+   `daily_practice_streaks`, `user_section_visibilities`, `tracks`, `albums`,
+   `artists`, `track_artists`, `user_favorite_tracks` and `track_views`. Keep
+   this snapshot unchanged across retries.
 2. Create the destination, apply the committed API migrations, and back it up.
-   Every application table must be empty on the first import; do not seed it.
-   The Drizzle migrations ledger is allowed. Run migrations as a separate step
-   using the API's usual environment (`nub run db:migrate` from `apps/api`).
+   User, account and application-data tables must be empty on the first import.
+   The reference plan catalog tables (`benefits`, `plan_benefits`,
+   `plan_prices`, `plans`) and Drizzle migration ledger may contain their
+   migration-seeded rows; the importer preserves those rows. Run migrations as
+   a separate step using the API's usual environment (`nub run db:migrate` from
+   `apps/api`).
 3. Keep application traffic and other writers off the destination during the
-   import. Only one importer may run against a destination at a time.
+   import. Only one importer may run against a destination at a time. Run the
+   User stage before either the personal-data stage or the recording plan.
 4. Build from the repository root:
 
    ```sh
@@ -35,9 +46,13 @@ manager (use actual URLs in place of the placeholders):
 export LEGACY_DATABASE_URL='<read-only frozen legacy PostgreSQL URL>'
 export DATABASE_URL='<new vozzify PostgreSQL URL>'
 nub run import:legacy-users
+nub run import:legacy-personal-data
+nub run plan:legacy-recordings
 ```
 
-Both variables are required and validated as PostgreSQL URLs. The importer
+Both database variables are required and validated as PostgreSQL URLs. The
+recording plan also requires `MUSIC_CATALOG_URL` and `MUSIC_CATALOG_API_KEY`;
+personal data does not boot the Music catalog client. The importer
 reads the process environment, not `apps/api/.env`. Alternatively use Node's
 `--env-file` with a private, uncommitted file:
 
@@ -46,21 +61,21 @@ node --env-file=/secure/path/import.env dist/main.js --import-legacy-users
 ```
 
 `NODE_ENV` is optional (`development` by default); `production` enables JSON
-logging. No other application environment variables are required by this
-command. Use TLS connection parameters appropriate for your servers. The
+logging. No other application environment variables are required by the User
+or personal-data commands. Use TLS connection parameters appropriate for your servers. The
 source connection runs a repeatable-read, read-only transaction, even if the
 provided role has broader permissions. The source must expose the legacy
 snake_case `users` and `accounts` tables through its search path.
 
 ## Results and recovery
 
-The final report includes `status`, source User/account totals, committed
-User/account totals, and `errors`. Progress is also logged after each committed
-User. Exit code **0** and `status: "complete"` mean the User stage succeeded;
-exit code **1** or `status: "incomplete"` means it did not. Neither outcome
-starts the catalog stage. Reports never print passwords, hashes, OAuth tokens
-or connection URLs. Validation errors include legacy User IDs where relevant;
-keep the output private as operational User data.
+The User report includes source User/account totals, committed totals and
+`errors`. The personal report includes committed Practice-day totals. The
+recording report includes source Tracks, planned and skipped Tracks, affected
+favorites/views and initial contributors. An incomplete stage exits with code
+**1**; wait for it to complete before starting the next stage. Reports never
+print passwords, hashes, OAuth tokens or connection URLs. Keep reports private
+as operational User data.
 
 Preflight validates the entire source before inserting any User. It reports
 up to 100 errors, including email/Username case collisions, malformed password
@@ -72,8 +87,10 @@ exists is refused (`SOURCE_CHANGED`), so retain the original frozen snapshot.
 
 `legacy_user_imports` holds the source SHA-256 fingerprint, last committed
 User ID, counts and stage status. User and account inserts commit together
-with that cursor. Restart the same command with the same source and destination
-to resume after interruption. Successfully imported Users are skipped, including
+with that cursor. `legacy_personal_imports` holds a separate fingerprint and
+Practice-day cursor. Existing day rows are not overwritten, and a completed
+personal stage skips visibility writes on replay. Restart the same stage with
+the same source and destination to resume after interruption. Successfully imported Users are skipped, including
 passwords already upgraded by a new-app login or subsequently changed. Replays
 also preserve tokens updated by Google login. A new run marks the stage
 incomplete until it validates and finishes again.
@@ -95,13 +112,23 @@ separate recovery plan.
 
 - Preserve User IDs, roles, timestamps, Avatar URL and daily practice target.
   Prisma timestamps without a time zone are interpreted as UTC.
+- Keep the original Daily target integer in storage, including non-preset
+  legacy values. API/Profile reads continue to expose only supported presets
+  and their existing fallback behavior.
+- Import Practice days by their legacy UTC date, preserving listened seconds,
+  completion and timestamps; no local-day conversion is inferred.
+- Map `FAVORITE_TRACKS` to current Favorites visibility and
+  `ADDED_TRACKS`/`PROCESSING_TRACKS` to current summary visibility. Legacy has
+  no direct Practice-history control. An unknown private section such as
+  `RECENT_VIEWS` conservatively hides current Profile sections. For duplicate
+  visibility rows, any `ME_ONLY` value wins.
 - Lowercase emails and Usernames as authentication does. A null Name falls
   back to the normalized Username, then the original email's local part.
 - Convert `email_verified_at` to a boolean; a linked Google account also marks
   the User verified. Preserve an unverified password-only User as unverified.
-- Keep new-app defaults: `pt-BR` locale, visible profile sections, null visitor
-  and practice-clock fields. Historical section overrides belong to a later
-  data-import slice, together with other User-owned data.
+- Keep new-app defaults: `pt-BR` locale, null visitor and practice-clock
+  fields. Apply direct legacy Profile visibility choices and preserve privacy
+  conservatively when a private section has no current equivalent.
 - Copy bcrypt hashes unchanged to a `credential` account whose `accountId`
   is the User ID. Normal successful login upgrades the hash to scrypt.
 - Map Google `provider`/`provider_account_id` to `providerId`/`accountId`.

@@ -331,6 +331,11 @@ const legacyImportEnvSchema = z.object({
     .default('development'),
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   LEGACY_DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+  MUSIC_CATALOG_URL: optional(z.url({ protocol: /^wss?$/ })),
+  MUSIC_CATALOG_API_KEY: optional(z.string().min(32)),
+  MUSIC_CATALOG_REQUEST_TIMEOUT_MS: optional(
+    z.coerce.number().int().min(100).max(60_000),
+  ),
 });
 
 export type LegacyImportEnv = z.infer<typeof legacyImportEnvSchema>;
@@ -342,4 +347,14 @@ export const loadLegacyImportEnv = (): LegacyImportEnv => {
     throw new Error(`Invalid import environment: ${fields.join(', ')}`);
   }
   return result.data;
+};
+
+export const loadLegacyRecordingPlanEnv = (): LegacyImportEnv => {
+  const env = loadLegacyImportEnv();
+  if (!env.MUSIC_CATALOG_URL || !env.MUSIC_CATALOG_API_KEY) {
+    throw new Error(
+      'Invalid recording-plan environment: MUSIC_CATALOG_URL, MUSIC_CATALOG_API_KEY',
+    );
+  }
+  return env;
 };

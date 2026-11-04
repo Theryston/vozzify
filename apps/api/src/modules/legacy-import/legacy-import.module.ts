@@ -3,6 +3,7 @@ import { ENV, loadLegacyImportEnv } from '../../config/env.js';
 import { DatabaseModule } from '../../database/database.module.js';
 import { LegacyImportRepository } from './legacy-import.repository.js';
 import { LegacyImportService } from './legacy-import.service.js';
+import { LegacyPersonalImportService } from './legacy-personal-import.service.js';
 import { LegacySourceRepository } from './legacy-source.repository.js';
 
 @Global()
@@ -19,7 +20,13 @@ class LegacyImportConfigModule {}
     LegacyImportRepository,
     LegacySourceRepository,
     LegacyImportService,
+    LegacyPersonalImportService,
   ],
-  exports: [LegacyImportService],
+  exports: [
+    LegacyImportService,
+    LegacyPersonalImportService,
+    LegacyImportRepository,
+    LegacySourceRepository,
+  ],
 })
 export class LegacyImportModule {}
