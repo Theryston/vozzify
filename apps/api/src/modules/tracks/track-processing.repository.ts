@@ -18,6 +18,7 @@ import {
   type TrackContributionKind,
   TrackContributorRepository,
 } from './track-contributor.repository.js';
+import { ordinaryProcessing } from './track-processing-origin.repository.js';
 import type {
   Mp3Kind,
   ProcessingDetection,
@@ -350,6 +351,7 @@ export class TrackProcessingRepository {
         and(
           processingInStatus(processingId, TRACK_PROCESSING_TERMINAL_STATUSES),
           isNull(trackProcessings.contributorsNotifiedAt),
+          ordinaryProcessing(trackProcessings.id),
         ),
       );
     return row;

@@ -31,10 +31,16 @@ export class TrackContributorRepository {
   async findOrInsertContributor(
     trackId: string,
     userId: string,
+    contributedAt?: Date,
   ): Promise<string> {
     const [inserted] = await this.txHost.tx
       .insert(trackContributors)
-      .values({ trackId, userId })
+      .values({
+        trackId,
+        userId,
+        createdAt: contributedAt,
+        updatedAt: contributedAt,
+      })
       .onConflictDoNothing({
         target: [trackContributors.trackId, trackContributors.userId],
       })
@@ -63,6 +69,8 @@ export class TrackContributorRepository {
     contributorId: string;
     kind: TrackContributionKind;
     processingId: string;
+    createdAt?: Date;
+    updatedAt?: Date;
   }): Promise<void> {
     await this.txHost.tx.insert(trackContributions).values(row);
   }

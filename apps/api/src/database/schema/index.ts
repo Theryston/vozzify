@@ -7,6 +7,7 @@ export * from './daily-practice-streaks.js';
 export * from './editorial-pins.js';
 export * from './events.js';
 export * from './legacy-personal-imports.js';
+export * from './legacy-recording-imports.js';
 export * from './legacy-recording-plans.js';
 export * from './legacy-user-imports.js';
 export * from './plans.js';

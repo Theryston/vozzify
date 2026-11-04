@@ -18,6 +18,8 @@ import {
 } from '../../database/schema/track-contributors.js';
 import { trackProcessings } from '../../database/schema/track-processings.js';
 
+import { ordinaryProcessing } from './track-processing-origin.repository.js';
+
 /** The namespace of the Track request locks, so they don't collide with other advisory locks. */
 const TRACK_REQUEST_LOCK_SCOPE = 'tracks.requests';
 
@@ -59,6 +61,7 @@ export class TrackRequestLimitRepository {
       .where(
         and(
           eq(trackContributors.userId, userId),
+          ordinaryProcessing(trackProcessings.id),
           notInArray(trackProcessings.status, [
             ...TRACK_PROCESSING_TERMINAL_STATUSES,
           ]),
@@ -84,6 +87,7 @@ export class TrackRequestLimitRepository {
         and(
           eq(trackContributors.userId, userId),
           eq(trackContributions.kind, 'CREATE'),
+          ordinaryProcessing(trackContributions.processingId),
           gte(trackContributions.createdAt, start),
           lt(trackContributions.createdAt, end),
         ),

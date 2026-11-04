@@ -139,3 +139,59 @@ separate recovery plan.
 The e2e harness creates a tiny legacy-shaped schema in the disposable test
 Postgres, imports through the real Nest module/compiled command, and verifies
 password and mocked Google sign-in through real authentication endpoints.
+
+## Reprocess one planned Recording
+
+After the correspondence plan is complete (#458), build the API and apply its
+latest destination migrations. These commands use the normal API environment
+(`DATABASE_URL`, Redis, Music catalog, storage and integration configuration);
+they read the durable plan, so they do not need `LEGACY_DATABASE_URL`. Keep the
+frozen plan unchanged. Use a destination isolated from live User writes during
+the migration. Never use production paid credentials for a rehearsal.
+
+From `apps/api`, with the Recording MBID selected from `legacy_recording_plans`:
+
+```sh
+nub run prepare:legacy-recording <recording-mbid>
+# Inspect Track, initial Processing, Contributors and legacy_track_ids first.
+nub run start:legacy-recording <recording-mbid>
+```
+
+Preparation creates one queued Track, its initial Processing, every accepted
+legacy ID map, and only the earliest legacy creator's Contributor and CREATE
+Contribution (ordered by creation date, then legacy ID). The Contribution and
+Contributor retain their historical date; the new Processing has current dates.
+The existing metadata import is queued independently. Preparation does not start
+a Processing worker or enqueue its first step. Starting explicitly enqueues the
+existing pipeline; run the normal API workers against the same database/Redis
+to consume it. Paid work begins there. Completion of the command acknowledges
+enqueueing, not completion of Processing. Inspect the ordinary Processing read
+endpoint by the returned new Track ID for status, failure code and retryability.
+Mapped legacy IDs already return `RESOURCE_MOVED` while the Track is queued or
+running; skipped/unmapped IDs remain ordinary `NOT_FOUND` responses.
+
+Repeat preparation after an interrupted command or metadata enqueue failure;
+it recovers committed rows and refuses incompatible existing attribution or ID
+maps. Repeat start after a queue failure. A completed/running attempt is not
+restarted. A known external job is polled by the existing pipeline on replay.
+`legacy_recording_imports` records the group acknowledgement and current attempt;
+`legacy_processing_origins` marks each migration attempt durably. Do not delete
+these records to restart work.
+
+For a retryable migration failure, explicitly run:
+
+```sh
+nub run retry:legacy-recording <recording-mbid>
+```
+
+This preserves existing outputs through the ordinary retry plan and starts a new
+migration attempt. If enqueueing fails after the retry commits, use `start` to
+resume that queued attempt. If acknowledgement fails before enqueueing, repeat
+`retry` to recover that attempt. Final failures remain final; optional exhausted
+lyrics can complete without lyrics. Failures retain Track, maps and attribution.
+Migration attempts send no Contributor success/failure emails and consume no
+active/daily-new-Track quota. User locale and role are untouched. A later retry
+through the public API follows normal attribution, quota and email behavior;
+the operator cannot resume that User attempt. No public historical-User override
+or admin elevation is added. This stage handles one group only; batch pacing and
+subsequent personal Track-dependent data restoration are separate stages.
