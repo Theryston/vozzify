@@ -18,15 +18,13 @@ model = [
   "einops>=0.8",
   "pyyaml>=6.0",
   "rotary-embedding-torch>=0.6.1,<0.7",
-  "onnxruntime-gpu>=1.22,<1.27",
+  "onnxruntime-gpu>=1.27,<1.28",
   "scipy>=1.13",
   "soundfile>=0.13",
-  # Pinned to the PyPI build that bundles CUDA 12.6, a runtime RunPod hosts
-  # support. Newer PyPI builds bundle CUDA 13 and need a newer driver than
-  # RunPod hosts may have. onnxruntime-gpu is capped below 1.27, the first
-  # release built for CUDA 13; 1.22 to 1.26 are CUDA 12 builds that reuse the
-  # cuDNN and cuBLAS libraries these wheels bring.
-  "torch>=2.7,<2.8",
+  # Both PyPI release lines target CUDA 13 and cuDNN 9. Keep their major
+  # CUDA versions aligned so ONNX Runtime can reuse torch's GPU libraries.
+  # Restrict release lines to avoid upgrading the model stack implicitly.
+  "torch>=2.11,<2.12",
 ]
 # Only for the separation parity test: the reference separator it compares
 # against. Not installed in the image.
