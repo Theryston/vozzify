@@ -59,3 +59,30 @@ export const trackArtists = pgTable(
     index().on(table.artistId),
   ],
 );
+
+/**
+ * The source credit identity a metadata import resolved to each canonical
+ * Artist. Track display keeps the source MBID, while this relation preserves
+ * the exact merge correspondence for legacy identity reconciliation.
+ */
+export const trackArtistCreditResolutions = pgTable(
+  'track_artist_credit_resolutions',
+  {
+    id: id(),
+    trackId: text()
+      .notNull()
+      .references(() => tracks.id, { onDelete: 'cascade' }),
+    creditMbid: text().notNull(),
+    artistId: text()
+      .notNull()
+      .references(() => artists.id, { onDelete: 'cascade' }),
+    ...timestamps,
+  },
+  (table) => [
+    unique('track_artist_credit_resolutions_track_credit_unique').on(
+      table.trackId,
+      table.creditMbid,
+    ),
+    index().on(table.artistId),
+  ],
+);

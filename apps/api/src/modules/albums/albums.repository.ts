@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import type { Album, AlbumArtist } from '@vozzify/contracts';
-import { and, asc, count, eq, gt, or, type SQL } from 'drizzle-orm';
+import { and, asc, count, eq, gt, inArray, or, type SQL } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
 import {
   albumArtists,
@@ -124,6 +124,61 @@ export class AlbumsRepository {
       .where(eq(legacyAlbumIds.legacyId, legacyId))
       .limit(1);
     return row?.albumId;
+  }
+
+  /** The imported Album's new ID for a MusicBrainz release group identity. */
+  async findAlbumIdByMbid(mbid: string): Promise<string | undefined> {
+    const [row] = await this.txHost.tx
+      .select({ id: albums.id })
+      .from(albums)
+      .where(eq(albums.mbid, mbid))
+      .limit(1);
+    return row?.id;
+  }
+
+  /** Adds a stable legacy identity map; conflicting replays are rejected. */
+  async mapLegacyAlbumId(legacyId: string, albumId: string): Promise<void> {
+    await this.txHost.tx
+      .insert(legacyAlbumIds)
+      .values({ legacyId, albumId })
+      .onConflictDoNothing();
+    const existing = await this.findAlbumIdByLegacyId(legacyId);
+    if (existing !== albumId) throw new Error('LEGACY_ALBUM_MAP_CONFLICT');
+  }
+
+  /** Release groups actually linked to each supplied Track by metadata import. */
+  async findLegacyMapEvidence(trackIds: string[]) {
+    if (trackIds.length === 0) return [];
+    const rows = await this.txHost.tx
+      .select({
+        trackId: albumTracks.trackId,
+        mbid: albums.mbid,
+        title: albums.title,
+        artistMbid: artists.mbid,
+      })
+      .from(albumTracks)
+      .innerJoin(albums, eq(albumTracks.albumId, albums.id))
+      .leftJoin(albumArtists, eq(albumArtists.albumId, albums.id))
+      .leftJoin(artists, eq(albumArtists.artistId, artists.id))
+      .where(inArray(albumTracks.trackId, trackIds));
+    const byOccurrence = new Map<
+      string,
+      { trackId: string; mbid: string; title: string; artistMbids: string[] }
+    >();
+    for (const row of rows) {
+      const key = `${row.trackId}:${row.mbid}`;
+      const evidence = byOccurrence.get(key) ?? {
+        trackId: row.trackId,
+        mbid: row.mbid,
+        title: row.title,
+        artistMbids: [],
+      };
+      if (row.artistMbid && !evidence.artistMbids.includes(row.artistMbid)) {
+        evidence.artistMbids.push(row.artistMbid);
+      }
+      byOccurrence.set(key, evidence);
+    }
+    return [...byOccurrence.values()];
   }
 
   /**

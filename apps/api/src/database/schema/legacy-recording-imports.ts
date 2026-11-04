@@ -17,17 +17,23 @@ export const legacyProcessingOrigins = pgTable(
 );
 
 /** Acknowledgement is separate from creation so interrupted preparation can recover. */
-export const legacyRecordingImports = pgTable('legacy_recording_imports', {
-  id: text().primaryKey(),
-  sourceDigest: text().notNull(),
-  trackId: text()
-    .notNull()
-    .references(() => tracks.id, { onDelete: 'cascade' }),
-  initialProcessingId: text()
-    .notNull()
-    .references(() => trackProcessings.id, { onDelete: 'cascade' }),
-  processingId: text()
-    .notNull()
-    .references(() => trackProcessings.id, { onDelete: 'cascade' }),
-  ...timestamps,
-});
+export const legacyRecordingImports = pgTable(
+  'legacy_recording_imports',
+  {
+    id: text().primaryKey(),
+    sourceDigest: text().notNull(),
+    trackId: text()
+      .notNull()
+      .references(() => tracks.id, { onDelete: 'cascade' }),
+    initialProcessingId: text()
+      .notNull()
+      .references(() => trackProcessings.id, { onDelete: 'cascade' }),
+    processingId: text()
+      .notNull()
+      .references(() => trackProcessings.id, { onDelete: 'cascade' }),
+    /** Durable metadata-job outcome; queue entries expire independently. */
+    metadataStatus: text().notNull().default('pending'),
+    ...timestamps,
+  },
+  (table) => [index().on(table.trackId)],
+);

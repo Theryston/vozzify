@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Transactional } from '@nestjs-cls/transactional';
 import type {
   Artist,
   CatalogTracksPage,
@@ -6,7 +7,11 @@ import type {
 } from '@vozzify/contracts';
 import { AppException } from '../../common/errors/app-exception.js';
 import { TracksService } from '../tracks/tracks.service.js';
-import { type ArtistRecord, ArtistsRepository } from './artists.repository.js';
+import {
+  type ArtistCreditResolution,
+  type ArtistRecord,
+  ArtistsRepository,
+} from './artists.repository.js';
 
 const decodeTrackCursor = (cursor: string): string => {
   try {
@@ -94,5 +99,17 @@ export class ArtistsService {
   /** Credits a Track to its Artists. A link that exists stays as it is. */
   linkTrackArtists(trackId: string, artistIds: string[]): Promise<void> {
     return this.artistsRepository.linkTrackArtists(trackId, artistIds);
+  }
+
+  /** Replaces the exact source-credit identity resolution for one Track. */
+  @Transactional()
+  replaceTrackArtistCreditResolutions(
+    trackId: string,
+    resolutions: ArtistCreditResolution[],
+  ): Promise<void> {
+    return this.artistsRepository.replaceTrackArtistCreditResolutions(
+      trackId,
+      resolutions,
+    );
   }
 }

@@ -7,6 +7,7 @@ import { TracksModule } from '../tracks/tracks.module.js';
 import { TrackMetadataProcessor } from './track-metadata.processor.js';
 import { TrackMetadataService } from './track-metadata.service.js';
 import { TrackMetadataImportService } from './track-metadata-import.service.js';
+import { TrackMetadataProgressModule } from './track-metadata-progress.module.js';
 
 /**
  * The metadata import of requested Tracks (ADR 0005). It consumes the metadata
@@ -15,6 +16,7 @@ import { TrackMetadataImportService } from './track-metadata-import.service.js';
  */
 @Module({
   imports: [
+    TrackMetadataProgressModule,
     AlbumsModule,
     ArtistsModule,
     MusicCatalogModule,

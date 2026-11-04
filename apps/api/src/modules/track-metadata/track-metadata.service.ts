@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { cacheTags } from '@vozzify/contracts';
 import { catalogPageTags } from '../../integrations/web-revalidation/catalog-page-tags.js';
 import { WebRevalidationService } from '../../integrations/web-revalidation/web-revalidation.service.js';
@@ -8,6 +8,7 @@ import {
   type ImportedLinks,
   TrackMetadataImportService,
 } from './track-metadata-import.service.js';
+import { TrackMetadataProgressService } from './track-metadata-progress.service.js';
 
 /** A failure as text, for a log line. */
 const messageOf = (error: unknown): string =>
@@ -25,6 +26,8 @@ export class TrackMetadataService {
     private readonly importer: TrackMetadataImportService,
     private readonly tracks: TracksService,
     private readonly revalidation: WebRevalidationService,
+    @Optional()
+    private readonly metadataProgress?: TrackMetadataProgressService,
   ) {}
 
   /**
@@ -33,6 +36,7 @@ export class TrackMetadataService {
    */
   async run(job: ImportMetadataJob, finalAttempt: boolean): Promise<void> {
     try {
+      await this.metadataProgress?.markTrack(job.trackId, 'pending');
       const recordingMbid = await this.tracks.findRecordingMbid(job.trackId);
       if (recordingMbid === undefined) {
         this.logger.warn(`Track ${job.trackId} is gone: nothing to import`);
@@ -43,10 +47,13 @@ export class TrackMetadataService {
         recordingMbid,
       );
       await this.refreshPagesIfCompleted(job.trackId, links);
+      await this.metadataProgress?.markTrack(job.trackId, 'completed');
     } catch (error) {
       if (!finalAttempt) {
+        await this.metadataProgress?.markTrack(job.trackId, 'pending');
         throw error;
       }
+      await this.metadataProgress?.markTrack(job.trackId, 'failed');
       this.logger.error(
         `Metadata of Track ${job.trackId} was not imported: ${messageOf(error)}`,
       );
