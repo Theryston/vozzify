@@ -4,7 +4,10 @@ import { DatabaseModule } from '../../database/database.module.js';
 import { LegacyImportRepository } from './legacy-import.repository.js';
 import { LegacyImportService } from './legacy-import.service.js';
 import { LegacyPersonalImportService } from './legacy-personal-import.service.js';
-import { LegacySourceRepository } from './legacy-source.repository.js';
+import {
+  LEGACY_IMPORT_ENV,
+  LegacySourceRepository,
+} from './legacy-source.repository.js';
 
 @Global()
 @Module({
@@ -18,6 +21,7 @@ class LegacyImportConfigModule {}
   imports: [LegacyImportConfigModule, DatabaseModule],
   providers: [
     LegacyImportRepository,
+    { provide: LEGACY_IMPORT_ENV, useExisting: ENV },
     LegacySourceRepository,
     LegacyImportService,
     LegacyPersonalImportService,

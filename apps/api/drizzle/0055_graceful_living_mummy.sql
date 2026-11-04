@@ -1,0 +1,1 @@
+ALTER TABLE "legacy_relationship_imports" ADD COLUMN "last_refreshed_favorite_id" text;

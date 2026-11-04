@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { Pool, type PoolClient } from 'pg';
-import { ENV, type LegacyImportEnv } from '../../config/env.js';
+import type { LegacyImportEnv } from '../../config/env.js';
+import {
+  type LegacyCatalogEntity,
+  legacyCatalogEntitySchema,
+} from './legacy-catalog-entities.js';
 import {
   type LegacyPracticeDay,
   type LegacyVisibility,
@@ -9,9 +13,16 @@ import {
   legacyVisibilitySchema,
 } from './legacy-personal.js';
 import { type LegacyTrack, legacyTrackSchema } from './legacy-recording.js';
+import {
+  type LegacyFavorite,
+  type LegacyView,
+  legacyFavoriteSchema,
+  legacyViewSchema,
+} from './legacy-relationships.js';
 import { type LegacyUser, legacyUserSchema } from './legacy-user.js';
 
 const PAGE_SIZE = 200;
+export const LEGACY_IMPORT_ENV = Symbol('LEGACY_IMPORT_ENV');
 
 // Explicit projections keep sessions and short-lived verification codes out.
 const USER_QUERY = `select u.id, u.role, u.name, u.email, u.username, u.password,
@@ -67,6 +78,56 @@ export class LegacySourceSnapshot {
       PAGE_SIZE,
     ]);
     return result.rows.map((row: unknown) => legacyTrackSchema.parse(row));
+  }
+
+  async artistPage(cursor: string | null): Promise<LegacyCatalogEntity[]> {
+    const result = await this.client.query(
+      `select id, name, yt_id as "ytId" from artists
+       where ($1::text is null or id collate "C" > $1 collate "C")
+       order by id collate "C" limit $2`,
+      [cursor, PAGE_SIZE],
+    );
+    return result.rows.map((row: unknown) =>
+      legacyCatalogEntitySchema.parse(row),
+    );
+  }
+
+  async albumPage(cursor: string | null): Promise<LegacyCatalogEntity[]> {
+    const result = await this.client.query(
+      `select id, name, yt_id as "ytId" from albums
+       where ($1::text is null or id collate "C" > $1 collate "C")
+       order by id collate "C" limit $2`,
+      [cursor, PAGE_SIZE],
+    );
+    return result.rows.map((row: unknown) =>
+      legacyCatalogEntitySchema.parse(row),
+    );
+  }
+
+  async favoritePage(cursor: string | null): Promise<LegacyFavorite[]> {
+    const result = await this.client.query(
+      `select id, user_id as "userId", track_id as "trackId",
+       created_at at time zone 'UTC' as "createdAt",
+       updated_at at time zone 'UTC' as "updatedAt"
+       from user_favorite_tracks
+       where ($1::text is null or id collate "C" > $1 collate "C")
+       order by id collate "C" limit $2`,
+      [cursor, PAGE_SIZE],
+    );
+    return result.rows.map((row: unknown) => legacyFavoriteSchema.parse(row));
+  }
+
+  async viewPage(cursor: string | null): Promise<LegacyView[]> {
+    const result = await this.client.query(
+      `select id, track_id as "trackId", user_id as "userId",
+       created_at at time zone 'UTC' as "createdAt",
+       updated_at at time zone 'UTC' as "updatedAt"
+       from track_views
+       where ($1::text is null or id collate "C" > $1 collate "C")
+       order by id collate "C" limit $2`,
+      [cursor, PAGE_SIZE],
+    );
+    return result.rows.map((row: unknown) => legacyViewSchema.parse(row));
   }
 
   async validateRecordingSource(): Promise<{ digest: string; tracks: number }> {
@@ -168,7 +229,9 @@ const sourceCursor = (row: unknown): string => {
 
 @Injectable()
 export class LegacySourceRepository {
-  constructor(@Inject(ENV) private readonly env: LegacyImportEnv) {}
+  constructor(
+    @Inject(LEGACY_IMPORT_ENV) private readonly env: LegacyImportEnv,
+  ) {}
 
   async snapshot<T>(
     read: (source: LegacySourceSnapshot) => Promise<T>,
