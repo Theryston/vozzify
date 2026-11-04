@@ -285,8 +285,9 @@ Python is pinned in `.python-version` (3.12).
 - The base image supplies CUDA 13.4.3; the Python wheels supply their own
   CUDA 13.0 libraries. A base-image update alone does not update those wheels.
 - `check_gpu_stack.py` runs during the image build, before weight downloads.
-  It rejects CPU/CUDA 12 builds and loads the ONNX CUDA provider's shared
-  library to catch missing dependencies without requiring a GPU.
+  It rejects CPU/CUDA 12 builds and loads the wheel-provided CUDA/cuDNN
+  libraries. Linking the ONNX provider itself also needs the host driver,
+  so that check belongs in the GPU smoke test.
 
 ## Publishing
 
@@ -333,6 +334,6 @@ without `--gpus all`; it should exit before loading model weights with
 
 Before switching a RunPod endpoint, run the GPU smoke test on the target host
 and confirm GAME sessions use `CUDAExecutionProvider` rather than falling back
-to CPU. The CI build checks library linkage and no-GPU failure only; it does
+to CPU. The CI build checks wheel libraries and no-GPU failure only; it does
 not prove GPU inference or model parity. Roll back by pinning the endpoint to
 its previous `sha-` image tag; job input/output and model weights are unchanged.

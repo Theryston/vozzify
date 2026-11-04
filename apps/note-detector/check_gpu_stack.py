@@ -1,11 +1,10 @@
-"""Verify the image's CUDA builds and ONNX provider linkage without a GPU."""
+"""Verify the image's CUDA builds and wheel-provided libraries without a GPU."""
 
 import ctypes
-from pathlib import Path
 
 
 def main() -> None:
-    # Importing torch loads CUDA and cuDNN before linking the ONNX provider.
+    # Importing torch loads the CUDA and cuDNN libraries shared with ORT.
     import onnxruntime as ort
     import torch
 
@@ -18,11 +17,19 @@ def main() -> None:
                 f"{name} must be built for CUDA 13: {cuda_version}"
             )
 
-    provider = (
-        Path(ort.__file__).parent / "capi/libonnxruntime_providers_cuda.so"
-    )
-    ctypes.CDLL(str(provider))
-    print("CUDA 13 stack verified: PyTorch and ONNX CUDA provider load")
+    if "CUDAExecutionProvider" not in ort.get_available_providers():
+        raise RuntimeError("onnxruntime-gpu must include CUDAExecutionProvider")
+
+    # The provider itself links libcuda.so.1, injected by the host at runtime.
+    # Check only wheel-provided libraries on the build runner, which has no GPU.
+    for library in (
+        "libcudart.so.13",
+        "libcublas.so.13",
+        "libcufft.so.12",
+        "libcudnn.so.9",
+    ):
+        ctypes.CDLL(library)
+    print("CUDA 13 stack verified: PyTorch and ONNX GPU libraries load")
 
 
 if __name__ == "__main__":

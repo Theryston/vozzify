@@ -28,8 +28,8 @@ WORKDIR /app
 COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --locked --no-dev --group model && uv cache clean
 
-# Check the installed CUDA builds and provider linkage without a GPU, before
-# downloading weights. A successful CPU-only import cannot prove this linkage.
+# Check CUDA builds and wheel libraries before downloading weights. Linking
+# the ONNX provider itself also needs the host driver, absent during builds.
 COPY check_gpu_stack.py ./check_gpu_stack.py
 RUN python check_gpu_stack.py
 
