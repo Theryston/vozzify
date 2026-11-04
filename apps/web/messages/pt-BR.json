@@ -1393,5 +1393,46 @@
     "priceChangePending": "Seu preço deve mudar para {amount} na renovação em {date}. O agendamento está pendente.",
     "priceChangeScheduled": "Seu preço mudará para {amount} na renovação em {date}.",
     "priceChangeFailed": "A mudança de preço para {amount} em {date} precisa de atenção. Seu preço atual permanece até o agendamento."
+  },
+  "notefinderNotice": {
+    "title": "O Notefinder agora é Vozzify",
+    "description": "Um novo nome, um novo visual e a mesma paixão por cantar. As funcionalidades que você já usava no Notefinder continuam gratuitas.",
+    "learnMore": "Saiba mais sobre a mudança",
+    "dismiss": "Entendi",
+    "close": "Fechar aviso"
+  },
+  "notefinder": {
+    "metaTitle": "O Notefinder agora é Vozzify",
+    "metaDescription": "Entenda a mudança do Notefinder para o Vozzify: funcionalidades gratuitas, sua conta e o que muda na sua prática de canto.",
+    "eyebrow": "Um novo capítulo",
+    "title": "O Notefinder agora é Vozzify",
+    "intro": "Estamos reconstruindo o Notefinder como Vozzify, com um visual renovado e uma base para novas formas de praticar canto. Veja o que essa mudança significa para você.",
+    "questions": {
+      "pricing": {
+        "title": "Agora o Notefinder é pago?",
+        "answer": "Não. As funcionalidades que já existiam no Notefinder continuam gratuitas no Vozzify. Novas funcionalidades podem fazer parte de planos pagos, mas você não precisa de uma assinatura para continuar usando os recursos gratuitos que já existiam."
+      },
+      "why": {
+        "title": "Por que mudar para Vozzify?",
+        "answer": "O Vozzify é o próximo capítulo do Notefinder. Estamos reconstruindo o aplicativo para melhorar a experiência e abrir espaço para novas ferramentas de prática de canto, mantendo o propósito que você já conhece: ajudar a visualizar e praticar as notas vocais das músicas."
+      },
+      "account": {
+        "title": "Preciso criar outra conta?",
+        "answer": "Não. Sua conta do Notefinder e seus dados pessoais salvos passam para o Vozzify. Continue usando seus dados de acesso e seu nome de usuário de sempre."
+      },
+      "links": {
+        "title": "Meus links antigos vão continuar funcionando?",
+        "answer": "Sim. Os links públicos do Notefinder levam às páginas equivalentes no Vozzify. Você pode continuar usando os links de músicas, artistas, álbuns e perfis."
+      },
+      "catalog": {
+        "title": "O que acontece com as músicas e suas notas?",
+        "answer": "O catálogo está sendo processado novamente para o Vozzify. As músicas e suas análises de notas podem ser atualizadas durante esse trabalho, então alguns resultados podem ser diferentes dos que você via no Notefinder."
+      },
+      "notice": {
+        "title": "Vou ver esse aviso toda vez?",
+        "answer": "Depois que você fecha o aviso, este navegador lembra da sua escolha. Ele não aparece de novo mesmo que você abra outro link com o parâmetro do aviso. Você pode vê-lo novamente em outro navegador ou dispositivo, ou depois de limpar os dados deste site. Esta página continua disponível para você consultar quando quiser."
+      }
+    },
+    "back": "Começar a praticar"
   }
 }

@@ -10,6 +10,8 @@ module.exports = {
       startServerCommand: `API_URL=http://127.0.0.1:3333 NEXT_PUBLIC_API_URL=http://127.0.0.1:3333 REVALIDATE_SECRET=lighthouse-revalidate-secret-unused next start --port ${port}`,
       startServerReadyPattern: 'Ready',
       url: [
+        `http://localhost:${port}/en/notefinder`,
+        `http://localhost:${port}/pt-BR/notefinder`,
         `http://localhost:${port}/en/plans`,
         `http://localhost:${port}/pt-BR/plans`,
         `http://localhost:${port}/en`,
