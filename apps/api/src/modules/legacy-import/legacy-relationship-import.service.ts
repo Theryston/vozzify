@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 import { LegacyImportRepository } from './legacy-import.repository.js';
@@ -9,6 +8,7 @@ import {
   LegacySourceRepository,
   type LegacySourceSnapshot,
 } from './legacy-source.repository.js';
+import { relationshipSourceFingerprint } from './legacy-source-fingerprints.js';
 
 export type LegacyRelationshipImportReport = {
   status: 'complete' | 'incomplete';
@@ -199,26 +199,6 @@ export class LegacyRelationshipImportService {
   }
 
   private async relationshipDigest(source: LegacySourceSnapshot) {
-    const hash = createHash('sha256');
-    for (const { label, nextPage } of [
-      {
-        label: 'favorites',
-        nextPage: (cursor: string | null) => source.favoritePage(cursor),
-      },
-      {
-        label: 'views',
-        nextPage: (cursor: string | null) => source.viewPage(cursor),
-      },
-    ]) {
-      hash.update(`${label}\0`);
-      let cursor: string | null = null;
-      for (;;) {
-        const page = await nextPage(cursor);
-        if (page.length === 0) break;
-        for (const row of page) hash.update(`${JSON.stringify(row)}\0`);
-        cursor = page.at(-1)?.id ?? null;
-      }
-    }
-    return hash.digest('hex');
+    return (await relationshipSourceFingerprint(source)).digest;
   }
 }

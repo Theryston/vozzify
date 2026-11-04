@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 import { LegacyImportRepository } from './legacy-import.repository.js';
@@ -7,6 +6,7 @@ import {
   LegacySourceRepository,
   type LegacySourceSnapshot,
 } from './legacy-source.repository.js';
+import { personalSourceFingerprint } from './legacy-source-fingerprints.js';
 
 export type LegacyPersonalImportReport = {
   status: 'complete' | 'incomplete';
@@ -89,17 +89,7 @@ export class LegacyPersonalImportService {
     digest: string;
     visibility: LegacyVisibility[];
   }> {
-    const hash = createHash('sha256');
-    let cursor: string | null = null;
-    for (;;) {
-      const page = await source.practicePage(cursor);
-      if (page.length === 0) break;
-      for (const day of page) hash.update(JSON.stringify(day));
-      cursor = page.at(-1)?.id ?? null;
-    }
-    const visibility = await source.visibility();
-    for (const row of visibility) hash.update(JSON.stringify(row));
-    return { digest: hash.digest('hex'), visibility };
+    return personalSourceFingerprint(source);
   }
 
   private visibilityValues(rows: LegacyVisibility[]): Map<

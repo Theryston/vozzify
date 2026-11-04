@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { loadEnv } from './config/env.js';
 import { runLegacyCatalogMap } from './modules/legacy-import/legacy-catalog-map-command.js';
+import { runLegacyCutover } from './modules/legacy-import/legacy-cutover-command.js';
 import {
   runLegacyPersonalDataImport,
   runLegacyRecordingPlan,
@@ -19,7 +20,9 @@ import { TrackCoverRepairModule } from './modules/tracks/track-cover-repair.modu
 import { TrackCoverRepairService } from './modules/tracks/track-cover-repair.service.js';
 import { configureApp, createAppLogger } from './setup-app.js';
 
-if (
+if (process.argv.includes('--legacy-cutover')) {
+  if (!(await runLegacyCutover(process.argv.slice(2)))) process.exitCode = 1;
+} else if (
   process.argv.some((argument) =>
     [
       '--prepare-legacy-recording',

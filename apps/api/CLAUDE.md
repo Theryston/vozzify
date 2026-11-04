@@ -191,6 +191,10 @@ test/                     e2e specs + helpers (app factory, Testcontainers setup
 
 ### Legacy data import
 
+`nub run legacy:cutover prepare|status|continue` composes the stages below.
+For launch readiness versus final completion, source shutdown, backups,
+configuration and recovery, read `docs/operations/legacy-cutover.md`.
+
 Development starts with an empty database. The compiled operator command
 `nub run import:legacy-users` (after `nub run build`, from this app) imports
 legacy Users and their sign-in identities with durable resume progress.
@@ -235,6 +239,13 @@ URLs resolve through a map:
   redirect, so server-side `fetch` never follows it silently and the mobile
   app handles it the same way. Cover both cases in the endpoint's e2e.
 - The import script fills the maps.
+
+The staged cutover accepts explicit Track, Artist and Album identity skips
+with source IDs and reasons in the operator report; those URLs may return
+plain `NOT_FOUND`. Pending metadata or transient provider failures are not
+skips. Launch readiness requires accepted Tracks, maps and User relationships,
+but can precede Processing completion. Failed Processings retain their Track,
+attribution and maps. See ADR 0001 for this follow-up to URL compatibility.
 
 **User data that points to the catalog** (favorites, views, created tracks)
 is translated through the maps at import. A row whose catalog record has no

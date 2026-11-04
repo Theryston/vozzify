@@ -1,5 +1,9 @@
 # Import legacy Users and personal data
 
+For the assembled preparation, readiness report and resumed Processing,
+follow [the staged cutover workflow](./legacy-cutover.md). The individual
+commands below remain available for stage-specific recovery.
+
 `import:legacy-users` imports Users and password/Google identities.
 `import:legacy-personal-data` runs that stage first, then imports Practice days
 and supported Profile visibility choices. `plan:legacy-recordings` runs the

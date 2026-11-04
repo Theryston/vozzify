@@ -20,6 +20,7 @@
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "import:legacy-users": "node dist/main.js --import-legacy-users",
+    "legacy:cutover": "node dist/main.js --legacy-cutover",
     "import:legacy-personal-data": "node dist/main.js --import-legacy-personal-data",
     "prepare:legacy-recording": "node dist/main.js --prepare-legacy-recording",
     "start:legacy-recording": "node dist/main.js --start-legacy-recording",

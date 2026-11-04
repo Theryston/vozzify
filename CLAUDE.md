@@ -68,12 +68,16 @@ app in production. Two things must hold when that happens:
    into. The legacy **catalog** (tracks, artists, albums and their notes and
    thumbnails) is **not** imported: it is reprocessed into a schema designed
    for the new app (see "Legacy data import" in `apps/api/CLAUDE.md`).
-2. **No legacy URL may return 404.** Every public route of the legacy web app
+2. **Legacy routes remain supported.** Every public route of the legacy web app
    must either still exist or redirect to its new equivalent, keeping query
    params (see "Legacy routes" in `apps/web/CLAUDE.md`). Profile URLs keep
    working because usernames are kept. Catalog records get new IDs, so every
    table with a public URL has a **legacy ID map** (legacy ID → new ID),
    created with the table, that turns an old URL into a permanent redirect.
+   Explicitly skipped Track, Artist and Album identities may return a real
+   404; the cutover report must identify each exclusion and its reason.
+   Pending work is not a skip. Launch readiness may precede Processing
+   completion; failed Processings retain their Track and maps.
 
 The reasoning is in
 `docs/adr/0001-reprocessed-catalog-with-legacy-id-maps.md`.
