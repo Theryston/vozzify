@@ -195,3 +195,8 @@ through the public API follows normal attribution, quota and email behavior;
 the operator cannot resume that User attempt. No public historical-User override
 or admin elevation is added. This stage handles one group only; batch pacing and
 subsequent personal Track-dependent data restoration are separate stages.
+
+## Drain the prepared Processing backlog
+
+After all groups and relationships are prepared, run the bounded backlog stage
+described in [Drain the legacy Processing backlog](./legacy-processing-backlog.md).

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Mbid } from '@vozzify/contracts';
 import { TrackMigrationService } from '../tracks/track-migration.service.js';
+import type { TrackStartResult } from '../tracks/track-pipeline.service.js';
 import { LegacyRecordingGroupRepository } from './legacy-recording-group.repository.js';
 
 @Injectable()
@@ -22,12 +23,12 @@ export class LegacyRecordingGroupService {
     return prepared;
   }
 
-  async start(recordingMbid: Mbid): Promise<void> {
+  async start(recordingMbid: Mbid): Promise<TrackStartResult> {
     const progress = await this.progress(recordingMbid);
-    await this.tracks.start(progress.trackId, progress.processingId);
+    return this.tracks.start(progress.trackId, progress.processingId);
   }
 
-  async retry(recordingMbid: Mbid): Promise<void> {
+  async retry(recordingMbid: Mbid): Promise<TrackStartResult> {
     const progress = await this.progress(recordingMbid);
     const processingId = await this.tracks.retry(
       progress.trackId,
@@ -39,7 +40,7 @@ export class LegacyRecordingGroupService {
       progress.processingId,
       processingId,
     );
-    await this.tracks.start(progress.trackId, processingId);
+    return this.tracks.start(progress.trackId, processingId);
   }
 
   private async progress(recordingMbid: Mbid) {

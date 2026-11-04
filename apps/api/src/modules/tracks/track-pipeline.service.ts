@@ -1,5 +1,5 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   cacheTags,
   type TrackProcessingFailureCode,
@@ -8,6 +8,8 @@ import {
 import { type Queue, UnrecoverableError } from 'bullmq';
 import { catalogPageTags } from '../../integrations/web-revalidation/catalog-page-tags.js';
 import { WebRevalidationService } from '../../integrations/web-revalidation/web-revalidation.service.js';
+import { LegacyProcessingAdmissionService } from '../legacy-import/legacy-processing-admission.service.js';
+import { TrackMigrationRepository } from './track-migration.repository.js';
 import {
   dueStatusesOf,
   firstPipelineStep,
@@ -52,6 +54,8 @@ type StepHandler = (
   wait: StepWait | undefined,
 ) => Promise<StepOutcome>;
 
+export type TrackStartResult = 'started' | 'not-queued' | 'capacity-full';
+
 /**
  * Runs a Track's Processing (ADR 0004). Each step job loads its Processing,
  * does its step, persists the result and enqueues the next step; the last step
@@ -63,8 +67,17 @@ type StepHandler = (
 export class TrackPipelineService {
   private readonly logger = new Logger(TrackPipelineService.name);
 
+  @Optional()
   @Inject(TrackProcessingCompletionService)
   private completion: TrackProcessingCompletionService | undefined = undefined;
+
+  @Optional()
+  @Inject(LegacyProcessingAdmissionService)
+  private admission: LegacyProcessingAdmissionService | undefined = undefined;
+
+  @Optional()
+  @Inject(TrackMigrationRepository)
+  private migrationOrigins: TrackMigrationRepository | undefined = undefined;
 
   /**
    * What each step of the pipeline does. Typed on the step list, so a step
@@ -96,13 +109,25 @@ export class TrackPipelineService {
    * names (`resumeFrom`). Job IDs are keyed by the Processing, so queuing it
    * again while the first job is kept does nothing.
    */
-  async startIfQueued(trackId: string): Promise<void> {
+  async startIfQueued(trackId: string): Promise<TrackStartResult> {
     const latest = await this.processings.findLatestProcessing(trackId);
     if (latest?.status !== 'QUEUED') {
-      return;
+      return 'not-queued';
+    }
+    const migrationStarted =
+      this.admission !== undefined &&
+      this.migrationOrigins !== undefined &&
+      (await this.migrationOrigins.isMigration(latest.id));
+    if (migrationStarted) {
+      const reserved = await this.admission?.reserveStarted(latest.id);
+      if (!reserved) return 'capacity-full';
     }
     // A retry's row names the step it starts at; a first run starts at the first step.
     await this.enqueueStep(latest.id, latest.resumeFrom ?? firstPipelineStep());
+    if (migrationStarted) {
+      await this.admission?.markStarted(latest.id);
+    }
+    return 'started';
   }
 
   /**

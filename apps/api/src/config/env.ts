@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { parseLegacyCatalogMapEnv } from './legacy-catalog-map-env.js';
 
 // Blank counts as unset, so `KEY=` in a .env file doesn't fail the boot.
 const optional = <T extends z.ZodType>(schema: T) =>
@@ -164,6 +165,9 @@ const envSchema = z
     PROCESSING_MAX_DURATION_SECONDS: optional(
       z.coerce.number().int().positive(),
     ),
+    LEGACY_PROCESSING_CONCURRENCY: optional(
+      z.coerce.number().int().min(1).max(10),
+    ),
     // HTTP proxy for YouTube Music requests, used only when set. All
     // four are needed together, see the check below.
     PROXY_HOST: optional(z.string().min(1)),
@@ -320,7 +324,11 @@ export const loadEnv = (): Env => {
   ) {
     process.loadEnvFile(dotEnvPath);
   }
-  cachedEnv = parseEnv(process.env);
+  const parsedEnv = parseEnv(process.env);
+  cachedEnv = {
+    ...parsedEnv,
+    LEGACY_PROCESSING_CONCURRENCY: parsedEnv.LEGACY_PROCESSING_CONCURRENCY ?? 2,
+  };
   return cachedEnv;
 };
 
@@ -347,6 +355,11 @@ export const loadLegacyImportEnv = (): LegacyImportEnv => {
     throw new Error(`Invalid import environment: ${fields.join(', ')}`);
   }
   return result.data;
+};
+
+/** Minimal environment needed to reconcile catalog maps without booting the API. */
+export const loadLegacyCatalogMapEnv = () => {
+  return parseLegacyCatalogMapEnv(process.env);
 };
 
 export const loadLegacyRecordingPlanEnv = (): LegacyImportEnv => {

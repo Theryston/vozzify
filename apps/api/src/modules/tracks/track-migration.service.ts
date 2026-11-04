@@ -5,6 +5,7 @@ import {
   TrackMigrationPreparationService,
 } from './track-migration-preparation.service.js';
 import { TrackMigrationRetryService } from './track-migration-retry.service.js';
+import type { TrackStartResult } from './track-pipeline.service.js';
 import { TrackPipelineService } from './track-pipeline.service.js';
 
 /** Operator-only entry point. No HTTP controller exposes historical attribution. */
@@ -23,10 +24,13 @@ export class TrackMigrationService {
     return prepared;
   }
 
-  async start(trackId: string, processingId: string): Promise<void> {
+  async start(
+    trackId: string,
+    processingId: string,
+  ): Promise<TrackStartResult> {
     await this.preparation.assertAttempt(trackId, processingId);
     await this.metadata.enqueueImport(trackId);
-    await this.pipeline.startIfQueued(trackId);
+    return this.pipeline.startIfQueued(trackId);
   }
 
   retry(trackId: string, expectedProcessingId: string, recordingMbid: string) {

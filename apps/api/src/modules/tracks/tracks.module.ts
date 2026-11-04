@@ -11,6 +11,7 @@ import { StorageModule } from '../../integrations/storage/storage.module.js';
 import { WebRevalidationModule } from '../../integrations/web-revalidation/web-revalidation.module.js';
 import { YouTubeMusicModule } from '../../integrations/youtube-music/youtube-music.module.js';
 import { TRACK_METADATA_QUEUE } from '../../queue/track-metadata.job.js';
+import { LegacyProcessingAdmissionModule } from '../legacy-import/legacy-processing-admission.module.js';
 import { UsersModule } from '../users/users.module.js';
 import { TrackAlbumCoverService } from './track-album-cover.service.js';
 import { TRACK_ASSOCIATION_QUEUE } from './track-association.job.js';
@@ -85,6 +86,7 @@ import { TracksRepository } from './tracks.repository.js';
 import { TracksService } from './tracks.service.js';
 
 export const trackModuleImports = [
+  LegacyProcessingAdmissionModule,
   AudioDownloadModule,
   BullModule.registerQueue({ name: TRACK_PROCESSING_QUEUE }),
   BullModule.registerQueue({ name: TRACK_METADATA_QUEUE }),

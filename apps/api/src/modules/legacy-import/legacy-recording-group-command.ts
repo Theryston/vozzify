@@ -44,7 +44,14 @@ export const runLegacyRecordingGroup = async (
       const result = await app
         .get(LegacyRecordingGroupService)
         [action](recordingMbid);
-      logger.log({ action, recordingMbid, result: result ?? 'accepted' });
+      logger.log({
+        action,
+        recordingMbid,
+        result:
+          result === 'capacity-full'
+            ? 'waiting-for-capacity'
+            : (result ?? 'accepted'),
+      });
       return true;
     } finally {
       await app.close();

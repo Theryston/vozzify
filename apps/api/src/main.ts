@@ -2,12 +2,15 @@ import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { loadEnv } from './config/env.js';
+import { runLegacyCatalogMap } from './modules/legacy-import/legacy-catalog-map-command.js';
 import {
   runLegacyPersonalDataImport,
   runLegacyRecordingPlan,
   runLegacyUserImport,
 } from './modules/legacy-import/legacy-import-command.js';
+import { runLegacyProcessingBacklog } from './modules/legacy-import/legacy-processing-backlog.command.js';
 import { runLegacyRecordingGroup } from './modules/legacy-import/legacy-recording-group-command.js';
+import { runLegacyRelationshipImport } from './modules/legacy-import/legacy-relationship-import.command.js';
 import { SearchIndexModule } from './modules/search/search-index.module.js';
 import { SearchIndexService } from './modules/search/search-index.service.js';
 import { TrackAssociationSyncModule } from './modules/tracks/track-association-sync.module.js';
@@ -27,6 +30,12 @@ if (
 ) {
   if (!(await runLegacyRecordingGroup(process.argv.slice(2))))
     process.exitCode = 1;
+} else if (process.argv.includes('--drain-legacy-processing-backlog')) {
+  if (!(await runLegacyProcessingBacklog())) process.exitCode = 1;
+} else if (process.argv.includes('--import-legacy-catalog-maps')) {
+  if (!(await runLegacyCatalogMap(process.argv.slice(2)))) process.exitCode = 1;
+} else if (process.argv.includes('--import-legacy-relationships')) {
+  if (!(await runLegacyRelationshipImport())) process.exitCode = 1;
 } else if (process.argv.includes('--plan-legacy-recordings')) {
   if (!(await runLegacyRecordingPlan())) process.exitCode = 1;
 } else if (process.argv.includes('--import-legacy-personal-data')) {
