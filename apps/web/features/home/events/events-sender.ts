@@ -1,4 +1,9 @@
-import type { HomeItemClickEvent, RecordEventsBody } from '@vozzify/contracts';
+import type {
+  HomeAudience,
+  HomeItemClickEvent,
+  Locale,
+  RecordEventsBody,
+} from '@vozzify/contracts';
 
 /** What a home click carries: the card, its row, and where it was shown. */
 export type ClickTarget = {
@@ -8,6 +13,10 @@ export type ClickTarget = {
   itemId: string;
   position?: number;
   clickId?: string;
+  eventId?: string;
+  visitId?: string;
+  locale?: Locale;
+  audience?: HomeAudience;
 };
 
 /** The click event of a home card. Sent asynchronously, never awaited. */

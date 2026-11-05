@@ -49,7 +49,12 @@ const recordRowImpression = (
     viewport,
   ).filter((item) => item.id !== '');
   if (items.length === 0) return;
-  queue.record({ ...row, rowId, items });
+  queue.record({
+    ...row,
+    rowId,
+    items,
+    ...(row.locale === undefined ? {} : { eventId: crypto.randomUUID() }),
+  });
 };
 
 type VisibilityTracker = {
@@ -126,7 +131,13 @@ const trackCardClicks = (
     if (target === undefined || link === null) return;
     const clickId = crypto.randomUUID();
     link.href = withClickId(link.href, clickId);
-    send([buildClickEvent({ ...target, clickId })]);
+    send([
+      buildClickEvent({
+        ...target,
+        clickId,
+        ...(target.locale === undefined ? {} : { eventId: clickId }),
+      }),
+    ]);
   };
   const onClick = (event: MouseEvent): void => {
     if (event.button === 0) recordClick(event);
@@ -167,11 +178,12 @@ export function startHomeTracking(
   pages: TrackedHomePage[],
   queue: HomeImpressionQueue,
   tracked: Set<string>,
+  visitId?: string,
 ): () => void {
   const visitorId = readVisitorId();
   if (visitorId === undefined) return () => undefined;
   const apiUrl = getClientEnv().NEXT_PUBLIC_API_URL;
-  const meta = rowMetaOf(pages);
+  const meta = rowMetaOf(pages, visitId);
   const send = (events: HomeEvent[]): void => {
     if (events.length > 0) {
       sendEventsBatch(apiUrl, visitorId, events, browserEventsTransport());
