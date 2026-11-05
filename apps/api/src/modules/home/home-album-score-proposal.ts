@@ -1,5 +1,5 @@
 /** Candidate weights for comparison only; production selection does not call this. */
-export const HOME_ALBUM_SCORE_PROPOSAL = {
+const HOME_ALBUM_SCORE_PROPOSAL = {
   varietyWeight: 0.2,
   concentrationWeight: 0.3,
   overlapWeight: 0.25,
