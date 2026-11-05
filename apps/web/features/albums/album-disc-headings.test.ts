@@ -12,6 +12,7 @@ const labels = {
 const track = (id: string, disc: AlbumTrack['disc']): AlbumTrack => ({
   id,
   title: id,
+  coverUrl: null,
   lengthMs: null,
   disambiguation: '',
   video: false,

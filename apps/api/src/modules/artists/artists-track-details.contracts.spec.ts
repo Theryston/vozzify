@@ -14,6 +14,7 @@ describe('artist track details contracts', () => {
   const base = {
     id: 'track-1',
     title: 'Bohemian Rhapsody',
+    coverUrl: null,
     lengthMs: 354_000,
     disambiguation: '',
     video: false,

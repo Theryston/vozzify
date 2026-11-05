@@ -9,6 +9,7 @@ import { AlbumsService } from './albums.service.js';
 const track = {
   id: 'track-1',
   title: 'Bohemian Rhapsody',
+  coverUrl: null,
   lengthMs: 354_000,
   disambiguation: '',
   video: false,

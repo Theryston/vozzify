@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { mbidSchema } from './music-catalog.js';
 import { cursorPageSchema } from './pagination.js';
+import { trackCoverUrlSchema } from './tracks.js';
 
 // The vozzify catalog's Artist: a public entity with its own URL,
 // distinct from a MusicBrainz artist credit. Created when a Recording is
@@ -84,7 +85,7 @@ export type CatalogTrackExternalLink = z.infer<
 
 /**
  * The shape every catalog track listing returns for one processed Track: the
- * card shows the title, the performer names and the first-release cover,
+ * card shows the title, the performer names and the Track's stored cover,
  * while the full shape also carries the catalog details the Track page shows
  * (duration, ISRCs, genres, releases, works, tags, links). Stored in the API
  * database when a Recording is reprocessed, so reads never touch the Music
@@ -94,6 +95,8 @@ export type CatalogTrackExternalLink = z.infer<
 export const catalogTrackSchema = z.object({
   id: z.string().min(1).max(128),
   title: z.string().min(1).max(500),
+  /** The Track's canonical cover in our own storage; null without one. */
+  coverUrl: trackCoverUrlSchema.nullable(),
   /** In milliseconds; null when MusicBrainz has none. */
   lengthMs: z.number().int().nonnegative().nullable(),
   /** Tells apart Recordings with the same title and artist; '' when none. */

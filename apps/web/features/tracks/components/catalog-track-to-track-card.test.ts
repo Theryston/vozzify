@@ -7,6 +7,7 @@ function makeTrack(overrides: Partial<CatalogTrack> = {}): CatalogTrack {
   return {
     id: 'track-1',
     title: 'Bohemian Rhapsody',
+    coverUrl: 'https://storage.test/track-cover.webp',
     lengthMs: 354_000,
     disambiguation: '',
     video: false,
@@ -35,29 +36,29 @@ function makeTrack(overrides: Partial<CatalogTrack> = {}): CatalogTrack {
 }
 
 describe('toCatalogTrackCardProps', () => {
-  it('joins performer names and picks the first-release cover', () => {
+  it('joins performer names and uses the stored Track cover', () => {
     const props = toCatalogTrackCardProps(makeTrack());
 
     expect(props).toEqual({
       trackId: 'track-1',
       title: 'Bohemian Rhapsody',
       subtitle: 'Queen, David Bowie',
-      coverArtUrl: 'https://coverartarchive.org/release/2101/front-500',
+      coverArtUrl: 'https://storage.test/track-cover.webp',
       placeholderSeed: 'track-1',
     });
   });
 
-  it('falls back to a null cover when there are no releases', () => {
+  it('uses the stored cover when there are no releases', () => {
     const props = toCatalogTrackCardProps(makeTrack({ releases: [] }));
 
-    expect(props.coverArtUrl).toBeNull();
+    expect(props.coverArtUrl).toBe('https://storage.test/track-cover.webp');
     expect(props.placeholderSeed).toBe('track-1');
   });
 
-  it('falls back to a null cover when releases are missing', () => {
+  it('uses the stored cover when releases are missing', () => {
     const props = toCatalogTrackCardProps(makeTrack({ releases: undefined }));
 
-    expect(props.coverArtUrl).toBeNull();
+    expect(props.coverArtUrl).toBe('https://storage.test/track-cover.webp');
     expect(props.placeholderSeed).toBe('track-1');
   });
 
@@ -65,5 +66,12 @@ describe('toCatalogTrackCardProps', () => {
     const props = toCatalogTrackCardProps(makeTrack());
 
     expect(props.trackId).toBe('track-1');
+  });
+
+  it('keeps the placeholder when the stored cover is null, even with release art', () => {
+    const props = toCatalogTrackCardProps(makeTrack({ coverUrl: null }));
+
+    expect(props.coverArtUrl).toBeNull();
+    expect(props.placeholderSeed).toBe('track-1');
   });
 });

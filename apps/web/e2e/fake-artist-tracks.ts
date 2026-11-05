@@ -21,6 +21,7 @@ type FakeTrackExternalLink = { url: string; linkType: string };
 export type FakeTrack = {
   id: string;
   title: string;
+  coverUrl: string | null;
   lengthMs: number | null;
   disambiguation: string;
   video: boolean;
@@ -37,6 +38,7 @@ export const defaultArtistTracks: FakeTrack[] = [
   {
     id: 'track-default-1',
     title: 'Bohemian Rhapsody',
+    coverUrl: 'https://coverartarchive.org/release/2101/front-500',
     lengthMs: 354_000,
     disambiguation: '',
     video: false,
@@ -65,6 +67,7 @@ export const defaultArtistTracks: FakeTrack[] = [
   {
     id: 'track-default-2',
     title: 'Another One',
+    coverUrl: null,
     lengthMs: 210_000,
     disambiguation: '',
     video: false,
