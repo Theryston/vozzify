@@ -16,6 +16,7 @@ describe('Artist track release counts', () => {
           {
             id: 'track-1',
             title: 'Perfect',
+            coverUrl: null,
             lengthMs: 263_000,
             disambiguation: '',
             video: false,

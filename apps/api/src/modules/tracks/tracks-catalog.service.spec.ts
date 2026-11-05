@@ -6,6 +6,7 @@ import { TracksService } from './tracks.service.js';
 const catalogTrack = (id: string) => ({
   id,
   title: `Track ${id}`,
+  coverUrl: null,
   lengthMs: 180_000,
   disambiguation: '',
   video: false,

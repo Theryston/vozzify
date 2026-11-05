@@ -21,6 +21,7 @@ const makeTrack = (
 ): FakeTrack => ({
   id: `track-card-${index}`,
   title: `Track ${index}`,
+  coverUrl: null,
   lengthMs: 180_000 + index * 1_000,
   disambiguation: '',
   video: false,

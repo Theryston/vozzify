@@ -46,6 +46,7 @@ const trackOn = (
 ): FakeAlbumTrack => ({
   id,
   title,
+  coverUrl: null,
   lengthMs: 180_000,
   disambiguation: '',
   video: false,

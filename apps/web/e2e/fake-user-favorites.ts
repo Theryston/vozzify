@@ -20,6 +20,9 @@ const favoriteTrack = (index: number): FakeTrack => {
   return {
     id: `fav-track-${padded}`,
     title: `Favorite Song ${padded}`,
+    coverUrl: withCover
+      ? 'https://coverartarchive.org/release/2101/front-500'
+      : null,
     lengthMs: 210_000,
     disambiguation: '',
     video: false,

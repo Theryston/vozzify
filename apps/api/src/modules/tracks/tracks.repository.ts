@@ -252,6 +252,7 @@ export class TracksRepository {
       .select({
         id: tracks.id,
         title: tracks.title,
+        coverUrl: tracks.coverUrl,
         lengthMs: tracks.lengthMs,
         disambiguation: tracks.disambiguation,
         video: tracks.video,

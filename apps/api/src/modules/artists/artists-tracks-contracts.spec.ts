@@ -12,6 +12,7 @@ describe('artist tracks contracts', () => {
   const track = {
     id: 'track-1',
     title: 'Bohemian Rhapsody',
+    coverUrl: null,
     lengthMs: 354_000,
     disambiguation: '',
     video: false,
@@ -28,6 +29,7 @@ describe('artist tracks contracts', () => {
     const minimal = {
       id: 'track-2',
       title: 'Unknown Take',
+      coverUrl: null,
       lengthMs: null,
       disambiguation: 'live',
       video: true,
@@ -50,6 +52,7 @@ describe('artist tracks contracts', () => {
       catalogTrackSchema.parse({
         id: 'track-1',
         title: 'Bohemian Rhapsody',
+        coverUrl: null,
         lengthMs: null,
         disambiguation: '',
         video: false,
