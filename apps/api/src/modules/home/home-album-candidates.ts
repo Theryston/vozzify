@@ -57,12 +57,6 @@ export const loadUsefulAlbums = async (
         availableTracks: byAlbum.get(record.id) ?? [],
       })),
     );
-    if (
-      selectUsefulAlbums(candidates, MAX_FEATURED_ALBUMS).length ===
-      MAX_FEATURED_ALBUMS
-    ) {
-      break;
-    }
   }
   return selectUsefulAlbums(candidates, MAX_FEATURED_ALBUMS).map(
     ({ id, title, coverArtUrl, year }) => ({
