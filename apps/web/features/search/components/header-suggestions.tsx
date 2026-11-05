@@ -91,7 +91,7 @@ function SuggestionText({
 }
 
 /**
- * The trailing chip of a row without a Track: "No notes yet", or the spinner
+ * The trailing chip of a row without a Track: "Generate notes", or the spinner
  * and "Generating…" while its request is on its way (the card's feedback).
  */
 function NoNotesMarker({
@@ -162,7 +162,7 @@ function RequestSuggestionRow({
  * Without a Track the row follows the result card: a signed-in visitor with a
  * username requests the notes, a signed-out one goes to sign in first and comes
  * back to `searchPath` with the request marker, anyone else sees a static row.
- * Every row without a Track shows the "No notes yet" marker.
+ * Every row without a Track shows the "Generate notes" marker.
  */
 function SuggestionRow({
   item,
