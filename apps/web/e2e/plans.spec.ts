@@ -10,6 +10,7 @@ import { defaultPlanCatalog } from './fake-plans-api';
 import { messages } from './messages';
 import { registerPlanCheckoutJourneys } from './plans-checkout-journeys';
 import { registerPlanLayoutJourneys } from './plans-layout-journeys';
+import { registerTrialPromotionJourneys } from './plans-trial-promotion-journeys';
 import { webServerEnv } from './web-server-env';
 
 test.describe.configure({ mode: 'serial' });
@@ -257,3 +258,5 @@ registerInvalidPlanPriceJourneys();
 registerPlanCheckoutJourneys(installCatalog);
 
 registerPlanLayoutJourneys(installCatalog);
+
+registerTrialPromotionJourneys(installCatalog);
