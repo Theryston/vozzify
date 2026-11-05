@@ -7,6 +7,7 @@ import {
   PERSONAL_NIGHTLY_CRON,
   PERSONAL_NIGHTLY_SCHEDULER_ID,
   personalRefreshJobId,
+  personalRequestRefreshJobId,
   REFRESH_PERSONAL_HOME_FEED_JOB,
   REFRESH_PERSONAL_NIGHTLY_JOB,
   type RefreshPersonalHomeFeedJob,
@@ -67,7 +68,11 @@ export class PersonalHomeQueueService implements OnModuleInit {
     await this.queue.add(
       REFRESH_PERSONAL_HOME_FEED_JOB,
       { userId, locale },
-      { removeOnComplete: true, removeOnFail: true },
+      {
+        jobId: personalRequestRefreshJobId(userId, locale),
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
     );
   }
 }

@@ -2,6 +2,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Inject, Logger, Optional } from '@nestjs/common';
 import { LOCALES, type Locale } from '@vozzify/contracts';
 import { type Job, UnrecoverableError } from 'bullmq';
+import { runBoundedBatch } from './home-batch.js';
 import {
   PERSONAL_HOME_FEED_QUEUE,
   REFRESH_PERSONAL_HOME_FEED_JOB,
@@ -17,6 +18,8 @@ import {
   PERSONAL_NIGHTLY_MAX_USERS,
 } from './home-rules.js';
 import { HomeSocialService } from './home-social.service.js';
+
+const PERSONAL_NIGHTLY_CONCURRENCY = 10;
 
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -85,27 +88,28 @@ export class PersonalHomeProcessor extends WorkerHost {
         `Personal nightly batch hit its cap of ${PERSONAL_NIGHTLY_MAX_USERS} Users`,
       );
     }
-    await Promise.all(userIds.map((userId) => this.social?.refreshFor(userId)));
-    const results = await Promise.allSettled(
-      userIds.flatMap((userId) =>
-        LOCALES.map((locale: Locale) =>
-          this.queue
-            .scheduleRefresh(userId, locale)
-            .catch((error: unknown) =>
-              Promise.reject(
-                new Error(
-                  `Personal nightly refresh of ${userId} failed: ${errorMessage(error)}`,
-                ),
-              ),
-            ),
-        ),
-      ),
+    await runBoundedBatch(
+      userIds,
+      PERSONAL_NIGHTLY_CONCURRENCY,
+      async (userId) => {
+        await this.social?.refreshFor(userId);
+      },
     );
-    const failure = results.find(
-      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    const refreshes = userIds.flatMap((userId) =>
+      LOCALES.map((locale: Locale) => ({ userId, locale })),
     );
-    if (failure) {
-      throw new Error(errorMessage(failure.reason));
-    }
+    await runBoundedBatch(
+      refreshes,
+      PERSONAL_NIGHTLY_CONCURRENCY,
+      async ({ userId, locale }) => {
+        try {
+          await this.queue.scheduleRefresh(userId, locale);
+        } catch (error) {
+          throw new Error(
+            `Personal nightly refresh of ${userId} failed: ${errorMessage(error)}`,
+          );
+        }
+      },
+    );
   }
 }

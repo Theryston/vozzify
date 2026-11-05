@@ -39,6 +39,21 @@ export class HomePinOverlayService {
     return this.applyPins(rows, viewer, live);
   }
 
+  /** Refreshes only Pins already occupying frozen visit slots. */
+  async refreshFrozen(rows: HomeRow[], viewer: Viewer): Promise<HomeRow[]> {
+    const frozenIds = new Set(
+      rows.flatMap((row) =>
+        row.id.startsWith('pin-') ? [row.id.slice(4)] : [],
+      ),
+    );
+    if (frozenIds.size === 0) return rows;
+    const live = (await this.pins.findLivePins(viewer)).filter((pin) =>
+      frozenIds.has(pin.id),
+    );
+    const algorithmicRows = rows.filter((row) => !row.id.startsWith('pin-'));
+    return this.applyPins(algorithmicRows, viewer, live);
+  }
+
   /** Applies a validated draft while replacing its saved version, if any. */
   async applyPreview(
     rows: HomeRow[],

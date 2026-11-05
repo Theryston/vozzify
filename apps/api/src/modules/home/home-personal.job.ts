@@ -37,3 +37,8 @@ export const personalRefreshJobId = (
   now: number,
   delayMs: number,
 ): string => `personal-home-${userId}-${locale}-${Math.floor(now / delayMs)}`;
+
+export const personalRequestRefreshJobId = (
+  userId: string,
+  locale: string,
+): string => `personal-request-${userId}-${locale}`;
