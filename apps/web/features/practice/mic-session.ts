@@ -27,6 +27,29 @@ export type MicSession = { stop: () => void };
 /** Gets a reading and how long before "now" on the Track it was sung. */
 export type OnReading = (midi: number | null, lagSeconds: number) => void;
 
+function createCaptureEngine(
+  context: AudioContext,
+  inputLatency: number | undefined,
+  onReading: OnReading,
+) {
+  return createPitchEngine({
+    sampleRate: context.sampleRate,
+    loadModel: loadCrepeModel,
+    onReading: (midi, windowSeconds, capturedAt) =>
+      onReading(
+        midi,
+        latencyCompensation(
+          { inputLatency },
+          windowSeconds,
+          capturedAt === undefined ? 0 : performance.now() / 1000 - capturedAt,
+        ),
+      ),
+    log: debugLog,
+  });
+}
+
+type CapturedAudio = { samples: Float32Array; capturedAt: number };
+
 /** Wires the mic stream through the worklet into the pitch engine. */
 async function connect(
   stream: MediaStream,
@@ -46,26 +69,14 @@ async function connect(
     node.port.close();
     node.disconnect();
   });
-  const engine = createPitchEngine({
-    sampleRate: context.sampleRate,
-    loadModel: loadCrepeModel,
-    onReading: (midi, windowSeconds) =>
-      onReading(
-        midi,
-        latencyCompensation(
-          {
-            baseLatency: context.baseLatency,
-            outputLatency: context.outputLatency,
-            inputLatency: settings?.latency,
-          },
-          windowSeconds,
-        ),
-      ),
-    log: debugLog,
-  });
+  const engine = createCaptureEngine(context, settings?.latency, onReading);
   cleanups.push(engine.stop);
-  node.port.onmessage = (event: MessageEvent<Float32Array>) =>
-    engine.feed(event.data);
+  node.port.onmessage = ({ data }: MessageEvent<CapturedAudio>) => {
+    // Both context times use the render clock, so queued delivery stays visible
+    // without borrowing the unrelated output device's latency.
+    const age = Math.max(0, context.currentTime - data.capturedAt);
+    engine.feed(data.samples, performance.now() / 1000 - age);
+  };
   const source = context.createMediaStreamSource(stream);
   cleanups.push(() => source.disconnect());
   source.connect(node);

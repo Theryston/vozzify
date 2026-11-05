@@ -14,6 +14,8 @@ export class DirectAudioPlayer extends BasePlayer implements PlayerPort {
   private semitones = 0;
   private rate = 1;
   private pendingPosition: number | null = null;
+  private pausedPosition: number | null = null;
+  private presentationFloor = 0;
   private generation = 0;
   private disposed = false;
   private playingRequested = false;
@@ -27,6 +29,8 @@ export class DirectAudioPlayer extends BasePlayer implements PlayerPort {
     this.audio.preservesPitch = false;
     this.audio.onended = () => {
       this.playingRequested = false;
+      this.pausedPosition = this.audio.currentTime;
+      this.presentationFloor = this.pausedPosition;
       this.emit('ended');
     };
     this.audio.onerror = () => this.emit('error');
@@ -79,17 +83,40 @@ export class DirectAudioPlayer extends BasePlayer implements PlayerPort {
   }
 
   pause(): void {
+    this.pausedPosition = this.currentTime();
+    this.presentationFloor = this.pausedPosition;
     this.playingRequested = false;
     this.audio.pause();
     this.emit('paused');
   }
 
   seek(seconds: number): void {
+    this.pausedPosition = seconds;
+    this.presentationFloor = seconds;
     if (!this.ready) this.pendingPosition = seconds;
     else this.audio.currentTime = seconds;
   }
   currentTime(): number {
-    return this.pendingPosition ?? this.audio.currentTime;
+    if (this.pendingPosition !== null || this.audio.paused)
+      return (
+        this.pausedPosition ?? this.pendingPosition ?? this.audio.currentTime
+      );
+    // Media routed through Web Audio reports the source head, before this
+    // player's output buffers. The mic's separate context cannot measure them.
+    return Math.max(
+      this.presentationFloor,
+      this.audio.currentTime - this.outputDelay() * this.rate,
+    );
+  }
+
+  private outputDelay(): number {
+    const context = Tone.getContext().rawContext;
+    if (!('baseLatency' in context)) return 0;
+    return [context.baseLatency, context.outputLatency].reduce(
+      (total, delay) =>
+        total + (Number.isFinite(delay) && delay > 0 ? delay : 0),
+      0,
+    );
   }
   duration(): number {
     return Number.isFinite(this.audio.duration) ? this.audio.duration : 0;
@@ -99,6 +126,7 @@ export class DirectAudioPlayer extends BasePlayer implements PlayerPort {
   }
 
   setRate(rate: number): void {
+    this.presentationFloor = this.currentTime();
     this.rate = rate;
     this.audio.playbackRate = rate;
     this.updatePitch();
@@ -143,7 +171,9 @@ export class DirectAudioPlayer extends BasePlayer implements PlayerPort {
   private async switchSource(url: string): Promise<void> {
     const generation = ++this.generation;
     this.cancelMediaLoad?.();
-    this.pendingPosition = this.currentTime();
+    this.pausedPosition = this.currentTime();
+    this.presentationFloor = this.pausedPosition;
+    this.pendingPosition ??= this.audio.currentTime;
     this.ready = false;
     this.audio.pause();
     const buffer = this.buffers.get(url) ?? (await this.decode(url));

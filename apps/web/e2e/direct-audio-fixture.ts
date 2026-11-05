@@ -7,6 +7,7 @@ export const tone = {
   dispose: vi.fn(),
   effect: { pitch: 0 },
   decode: vi.fn(),
+  context: { baseLatency: 0, outputLatency: 0 },
 };
 export const toneModule = {
   start: tone.start,
@@ -17,6 +18,7 @@ export const toneModule = {
     }
   },
   getContext: () => ({
+    rawContext: tone.context,
     createMediaElementSource: () => ({ disconnect: tone.disconnect }),
     decodeAudioData: tone.decode,
   }),

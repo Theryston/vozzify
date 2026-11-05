@@ -2,7 +2,7 @@ import { type ModelDetector, ModelPipeline } from './model-pipeline';
 import { PitchPipeline } from './pitch-pipeline';
 
 export type PitchEngine = {
-  feed(block: Float32Array): void;
+  feed(block: Float32Array, capturedAt?: number): void;
   stop(): void;
 };
 
@@ -10,8 +10,12 @@ export type PitchEngineOptions = {
   sampleRate: number;
   /** Downloads and starts the ML model; rejects when it can't. */
   loadModel: () => Promise<ModelDetector>;
-  /** A smoothed note (null: nothing voiced) and the seconds its window spans. */
-  onReading: (midi: number | null, windowSeconds: number) => void;
+  /** Capture time is the window's end in performance-clock seconds. */
+  onReading: (
+    midi: number | null,
+    windowSeconds: number,
+    capturedAt?: number,
+  ) => void;
   /** Debug log only: which engine runs is not something the user sees. */
   log: (message: string) => void;
 };
@@ -36,7 +40,8 @@ export function createPitchEngine({
   loadModel().then(
     (detector) => {
       const pipeline = new ModelPipeline(sampleRate, detector, {
-        onReading: (midi) => onReading(midi, pipeline.windowSeconds),
+        onReading: (midi, capturedAt) =>
+          onReading(midi, pipeline.windowSeconds, capturedAt),
         onGiveUp: (reason) => {
           model = null;
           classic = new PitchPipeline(sampleRate);
@@ -57,14 +62,14 @@ export function createPitchEngine({
   );
 
   return {
-    feed: (block) => {
+    feed: (block, capturedAt) => {
       if (stopped) return;
       if (model) {
-        model.feed(block);
+        model.feed(block, capturedAt);
         return;
       }
       for (const reading of classic.feed(block)) {
-        onReading(reading.midi, classic.windowSeconds);
+        onReading(reading.midi, classic.windowSeconds, capturedAt);
       }
     },
     stop: () => {

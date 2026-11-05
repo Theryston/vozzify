@@ -22,7 +22,7 @@ const HOP = 512;
 export const MAX_DROPPED_FRAMES = 8;
 
 export type ModelPipelineEvents = {
-  onReading(midi: number | null): void;
+  onReading(midi: number | null, capturedAt?: number): void;
   /** The model can't be used any more: it failed or can't keep up. */
   onGiveUp(reason: 'failed' | 'too-slow'): void;
 };
@@ -52,7 +52,7 @@ export class ModelPipeline {
     this.downsampler = new Downsampler(sampleRate, CREPE_RATE);
   }
 
-  feed(block: Float32Array): void {
+  feed(block: Float32Array, capturedAt?: number): void {
     if (this.done) return;
     const samples = this.downsampler.push(block);
     if (samples.length === 0) return;
@@ -64,7 +64,7 @@ export class ModelPipeline {
     this.elapsed += samples.length / CREPE_RATE;
     if (this.sinceReading >= HOP) {
       this.sinceReading %= HOP;
-      this.read();
+      this.read(capturedAt);
     }
   }
 
@@ -75,7 +75,7 @@ export class ModelPipeline {
     void Promise.resolve(this.detector.dispose?.()).catch(() => {});
   }
 
-  private read(): void {
+  private read(capturedAt: number | undefined): void {
     if (this.busy) {
       this.dropped += 1;
       if (this.dropped >= MAX_DROPPED_FRAMES) this.giveUp('too-slow');
@@ -85,7 +85,7 @@ export class ModelPipeline {
     const frame = this.window.slice();
     const time = this.elapsed - this.windowSeconds / 2;
     if (isSilent(frame)) {
-      this.report([], frame, time);
+      this.report({ activation: [], frame, time, capturedAt });
       return;
     }
     this.busy = true;
@@ -93,7 +93,7 @@ export class ModelPipeline {
       (activation) => {
         this.busy = false;
         if (this.done) return;
-        this.report(activation, frame, time);
+        this.report({ activation, frame, time, capturedAt });
       },
       () => {
         this.busy = false;
@@ -102,11 +102,17 @@ export class ModelPipeline {
     );
   }
 
-  private report(
-    activation: ArrayLike<number>,
-    frame: Float32Array,
-    time: number,
-  ): void {
+  private report({
+    activation,
+    frame,
+    time,
+    capturedAt,
+  }: {
+    activation: ArrayLike<number>;
+    frame: Float32Array;
+    time: number;
+    capturedAt: number | undefined;
+  }): void {
     const silent = isSilent(frame);
     this.events.onReading(
       this.tracker.push({
@@ -116,6 +122,7 @@ export class ModelPipeline {
         silent,
         frame,
       }),
+      capturedAt,
     );
   }
 

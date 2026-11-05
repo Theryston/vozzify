@@ -1,3 +1,4 @@
+import { shiftedVoiceTime } from './calibration-math';
 import { observeCalibrationReading } from './calibration-reading';
 import { takeHeadphonesTip } from './headphones-tip';
 import { micProblemOf } from './mic-problem';
@@ -8,7 +9,7 @@ import { voiceTrail } from './voice-trail';
 
 /** The part of the page's playback the voice is placed against. */
 export type PlaybackSource = {
-  getState(): { status: string; time: number };
+  getState(): { status: string; time: number; rate?: number };
   subscribe(listener: () => void): () => void;
 };
 
@@ -21,8 +22,9 @@ let generation = 0;
 function placeReading(playback: PlaybackSource) {
   return (midi: number | null, lagSeconds: number): void => {
     observeCalibrationReading(midi, lagSeconds);
-    const { status, time } = playback.getState();
-    if (status === 'playing') voiceTrail.push(time - lagSeconds, midi);
+    const { status, time, rate = 1 } = playback.getState();
+    if (status === 'playing')
+      voiceTrail.push(shiftedVoiceTime(time, lagSeconds, rate), midi);
     else voiceTrail.setLatest(midi);
   };
 }

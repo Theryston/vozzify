@@ -16,6 +16,8 @@ describe('DirectAudioPlayer', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    tone.context.baseLatency = 0;
+    tone.context.outputLatency = 0;
     tone.start.mockResolvedValue(undefined);
     audio = new Media();
     vi.stubGlobal(
@@ -86,6 +88,78 @@ describe('DirectAudioPlayer', () => {
     expect(tone.effect.pitch).toBe(16);
     player.setTranspose(-2);
     expect(tone.effect.pitch).toBe(10);
+  });
+
+  it.each([0.5, 1, 1.5])(
+    'reports audible Track time using its own output at %sx',
+    async (rate) => {
+      await player.load();
+      player.setRate(rate);
+      player.play();
+      await settle();
+      tone.context.baseLatency = 0.01;
+      tone.context.outputLatency = 0.2;
+      audio.currentTime = 10 + 0.21 * rate;
+      expect(player.currentTime()).toBeCloseTo(10, 6);
+      tone.context.outputLatency = 0.05;
+      expect(player.currentTime()).toBeCloseTo(10 + 0.15 * rate, 6);
+      audio.currentTime = 0;
+      expect(player.currentTime()).toBe(0);
+    },
+  );
+
+  it('keeps the source position when switching audio with output compensation', async () => {
+    await player.load();
+    player.play();
+    await settle();
+    tone.context.outputLatency = 0.2;
+    audio.currentTime = 32.2;
+    player.setVocalsOnly(true);
+    await settle();
+    expect(audio.currentTime).toBeCloseTo(32.2);
+    expect(player.currentTime()).toBeCloseTo(32);
+  });
+
+  it('keeps presentation time stable across pause, resume and seeks with Bluetooth delay', async () => {
+    await player.load();
+    tone.context.outputLatency = 0.3;
+    player.play();
+    await settle();
+    audio.currentTime = 10.3;
+    expect(player.currentTime()).toBeCloseTo(10);
+    player.pause();
+    expect(player.currentTime()).toBeCloseTo(10);
+    player.play();
+    await settle();
+    expect(player.currentTime()).toBeCloseTo(10);
+    player.seek(32);
+    expect(player.currentTime()).toBeCloseTo(32);
+    audio.currentTime = 32.15;
+    expect(player.currentTime()).toBeCloseTo(32);
+    audio.currentTime = 32.5;
+    expect(player.currentTime()).toBeCloseTo(32.2);
+    player.seek(5);
+    expect(player.currentTime()).toBeCloseTo(5);
+    player.pause();
+    player.seek(20);
+    expect(player.currentTime()).toBeCloseTo(20);
+    player.play();
+    await settle();
+    expect(player.currentTime()).toBeCloseTo(20);
+  });
+
+  it('keeps the ended position when native media pauses and the source changes', async () => {
+    await player.load();
+    tone.context.outputLatency = 0.3;
+    player.play();
+    await settle();
+    audio.currentTime = audio.duration;
+    audio.paused = true;
+    audio.onended?.();
+    expect(player.currentTime()).toBe(120);
+    player.setVocalsOnly(true);
+    await settle();
+    expect(player.currentTime()).toBe(120);
   });
 
   it('switches vocals in place, preserving time, rate and playback and caching decoded sources', async () => {

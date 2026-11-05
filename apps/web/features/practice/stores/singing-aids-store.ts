@@ -15,6 +15,7 @@ const defaults: Preferences = {
   offset: 0,
 };
 const KEY = 'vozzify.singing-aids.v1';
+const CALIBRATION_VERSION = 2;
 export const singingAidsStore = createStore<Preferences>(() => defaults);
 
 /** localStorage belongs to this browser/device, never the account. */
@@ -37,6 +38,9 @@ export function loadSingingAids(): void {
             // keeps following the transposition instead of locking auto off.
             'guideMelody' in raw && raw.guideMelody === true,
       offset:
+        // Old offsets included a different output compensation; keep the other aids.
+        'calibrationVersion' in raw &&
+        raw.calibrationVersion === CALIBRATION_VERSION &&
         'offset' in raw &&
         typeof raw.offset === 'number' &&
         Number.isFinite(raw.offset) &&
@@ -52,7 +56,13 @@ export function loadSingingAids(): void {
 export function saveSingingAids(value: Partial<Preferences>): void {
   singingAidsStore.setState(value);
   try {
-    localStorage.setItem(KEY, JSON.stringify(singingAidsStore.getState()));
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        ...singingAidsStore.getState(),
+        calibrationVersion: CALIBRATION_VERSION,
+      }),
+    );
   } catch {
     /* Keep the in-memory preference when storage is unavailable. */
   }

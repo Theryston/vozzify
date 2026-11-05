@@ -123,3 +123,15 @@ it('preserves a saved guide choice from before manual choices were tracked', () 
   autoGuideMelody(false);
   expect(singingAidsStore.getState().guideMelody).toBe(true);
 });
+
+it('resets calibration from the old output-compensation model while preserving aids', () => {
+  saved =
+    '{"countIn":false,"guideMelody":true,"guideMelodyManual":true,"offset":0.25}';
+  loadSingingAids();
+  expect(singingAidsStore.getState()).toEqual({
+    countIn: false,
+    guideMelody: true,
+    guideMelodyManual: true,
+    offset: 0,
+  });
+});
