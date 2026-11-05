@@ -18,10 +18,10 @@ const candidate = (
 });
 
 describe('buildSocialRows', () => {
-  it('requires six people with at least three common tracks', () => {
+  it('requires at least three people with three common tracks each', () => {
     expect(
       buildSocialRows(
-        Array.from({ length: 5 }, (_, i) => candidate(`${i}`, 4)),
+        Array.from({ length: 2 }, (_, i) => candidate(`${i}`, 4)),
       ),
     ).toEqual([]);
     expect(
@@ -29,6 +29,11 @@ describe('buildSocialRows', () => {
         Array.from({ length: 6 }, (_, i) => candidate(`${i}`, 2)),
       ),
     ).toEqual([]);
+    expect(
+      buildSocialRows(
+        Array.from({ length: 3 }, (_, i) => candidate(`${i}`, 4)),
+      )[0]?.items,
+    ).toHaveLength(3);
   });
 
   it('orders similar voices by stored range closeness and shows the overlap', () => {

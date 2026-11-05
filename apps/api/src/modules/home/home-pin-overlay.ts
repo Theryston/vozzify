@@ -6,7 +6,28 @@ import type {
   HomeVocalRangeTrack,
 } from '@vozzify/contracts';
 import { explorationSlotCount } from './home-personal-recommendations.js';
-import { HOME_MAX_ROWS, HOME_ROW_RULES } from './home-rules.js';
+import {
+  HOME_MAX_ROWS,
+  HOME_ROW_RULES,
+  PERSONAL_DISCOVERY_ROW_MIN_ITEMS,
+  PERSONAL_RESUME_ROW_MIN_ITEMS,
+} from './home-rules.js';
+
+const personalShortTrackRows = new Set([
+  'because-you-sang',
+  'more-of-your-genres',
+  'explore',
+]);
+
+const minimumTrackCount = (row: HomeRow): number => {
+  if (row.id === 'continue-singing' || row.id === 'sing-again') {
+    return PERSONAL_RESUME_ROW_MIN_ITEMS;
+  }
+  if (personalShortTrackRows.has(row.id)) {
+    return PERSONAL_DISCOVERY_ROW_MIN_ITEMS;
+  }
+  return HOME_ROW_RULES.standard.minItems;
+};
 
 /**
  * A live editorial pin as the overlay places it: its Tracks are already read
@@ -98,9 +119,7 @@ const algorithmicRows = (
       return [row];
     }
     const items = row.items.filter((item) => !pinnedIds.has(item.id));
-    return items.length >= HOME_ROW_RULES[row.layout].minItems
-      ? [{ ...row, items }]
-      : [];
+    return items.length >= minimumTrackCount(row) ? [{ ...row, items }] : [];
   });
 
 /**
@@ -121,6 +140,36 @@ const rowPinsFor = (
   });
 };
 
+const pinSlotsFor = (
+  pins: readonly OverlayPin[],
+  mandatorySlots: ReadonlySet<number>,
+): Map<number, HomeRow> => {
+  const taken = new Set(mandatorySlots);
+  const slots = new Map<number, HomeRow>();
+  for (const pin of pins) {
+    let index = pin.position;
+    while (taken.has(index)) index += 1;
+    taken.add(index);
+    slots.set(index, pinnedRow(pin));
+  }
+  return slots;
+};
+
+const rowAtSlot = (options: {
+  index: number;
+  heroSlot: number;
+  dailyTargetSlot: number;
+  hero: HomeRow | undefined;
+  dailyTarget: HomeRow | undefined;
+  pinned: ReadonlyMap<number, HomeRow>;
+}): HomeRow | undefined => {
+  const { index, heroSlot, dailyTargetSlot, hero, dailyTarget, pinned } =
+    options;
+  if (index === heroSlot) return hero;
+  if (index === dailyTargetSlot) return dailyTarget;
+  return pinned.get(index);
+};
+
 /**
  * Places the pinned rows over the algorithmic ones. The hero slot (row 0) goes
  * to the pinned hero, or stays with the algorithmic hero. A pin takes its
@@ -133,21 +182,18 @@ const rowPinsFor = (
  */
 const placeRows = (
   hero: HomeRow | undefined,
+  dailyTarget: HomeRow | undefined,
   pinned: readonly OverlayPin[],
   algorithmic: readonly HomeRow[],
 ): HomeRow[] => {
-  const taken = new Set<number>(hero ? [0] : []);
-  const slots = new Map<number, HomeRow>();
-  for (const pin of pinned) {
-    let index = pin.position;
-    while (taken.has(index)) {
-      index += 1;
-    }
-    taken.add(index);
-    slots.set(index, pinnedRow(pin));
-  }
+  const heroSlot = hero ? 0 : -1;
+  const dailyTargetSlot = dailyTarget ? (hero ? 1 : 0) : -1;
+  const mandatorySlots = new Set(
+    [heroSlot, dailyTargetSlot].filter((slot) => slot >= 0),
+  );
+  const slots = pinSlotsFor(pinned, mandatorySlots);
   // The hero slot counts even when it is the only row of the feed.
-  const lastSlot = Math.max(hero ? 0 : -1, ...slots.keys());
+  const lastSlot = Math.max(heroSlot, dailyTargetSlot, ...slots.keys());
   const queue = [...algorithmic];
   const rows: HomeRow[] = [];
   for (
@@ -155,7 +201,14 @@ const placeRows = (
     rows.length < HOME_MAX_ROWS && (queue.length > 0 || index <= lastSlot);
     index += 1
   ) {
-    const slot = index === 0 && hero ? hero : slots.get(index);
+    const slot = rowAtSlot({
+      index,
+      heroSlot,
+      dailyTargetSlot,
+      hero,
+      dailyTarget,
+      pinned: slots,
+    });
     const row = slot ?? queue.shift();
     if (row) {
       rows.push(row);
@@ -184,7 +237,7 @@ const capExplorationRow = (rows: HomeRow[]): HomeRow[] => {
     0,
   );
   const maxItems = explorationSlotCount(visibleSlots);
-  if (maxItems < HOME_ROW_RULES.standard.minItems) {
+  if (maxItems < PERSONAL_DISCOVERY_ROW_MIN_ITEMS) {
     return rows.filter((_, index) => index !== explorationIndex);
   }
   if (exploration.items.length <= maxItems) return rows;
@@ -227,7 +280,16 @@ export const applyEditorialPins = (
     ordered.filter((pin) => pin !== heroPin),
     heroTrack,
   );
+  const dailyTarget = rows.find((row) => row.id === 'daily-target');
+  const withoutDailyTarget = dailyTarget
+    ? rows.filter((row) => row !== dailyTarget)
+    : rows;
   return capExplorationRow(
-    placeRows(hero, rowPins, algorithmicRows(rows, pinnedIds)),
+    placeRows(
+      hero,
+      dailyTarget,
+      rowPins,
+      algorithmicRows(withoutDailyTarget, pinnedIds),
+    ),
   );
 };

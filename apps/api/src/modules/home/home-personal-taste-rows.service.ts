@@ -26,7 +26,10 @@ import {
 } from './home-personal-recommendations.js';
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
 import { PersonalHomeTasteRepository } from './home-personal-taste.repository.js';
-import { HOME_ROW_RULES } from './home-rules.js';
+import {
+  HOME_ROW_RULES,
+  PERSONAL_DISCOVERY_ROW_MIN_ITEMS,
+} from './home-rules.js';
 
 const MIN_TASTE_SIGNALS = 3;
 const CO_OCCURRENCE_SOURCE_LIMIT = 12;
@@ -270,14 +273,17 @@ export class PersonalHomeTasteRowsService {
           ? tasteMatch(card.genres, artistKeyOf(card), options.taste)
           : 0,
       }));
-    const [composed] = composeHomeRows([
-      {
-        id: options.id,
-        layout: 'standard' as const,
-        title: options.title,
-        items: candidates.sort((a, b) => b.score - a.score),
-      },
-    ]);
+    const [composed] = composeHomeRows(
+      [
+        {
+          id: options.id,
+          layout: 'standard' as const,
+          title: options.title,
+          items: candidates.sort((a, b) => b.score - a.score),
+        },
+      ],
+      { minimumItems: { standard: PERSONAL_DISCOVERY_ROW_MIN_ITEMS } },
+    );
     return composed
       ? {
           id: composed.id,

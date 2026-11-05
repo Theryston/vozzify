@@ -33,10 +33,14 @@ clients ignore layouts they do not know.
   not fatal.
 - The builder loads candidate rows (`home-row-sources.ts`), the pure composer
   (`home-feed-composer.ts`) turns them into rows, and the builder maps them to
-  the contract. The composer enforces: a Track appears once per feed; at most
-  two Tracks of one artist per row; a row below its minimum size is dropped and
-  leaves its Tracks free; only Tracks whose Processing completed; a hero needs a
-  cover.
+  the contract. The composer enforces: ordinary discovery Tracks appear once
+  per feed; the ranked weekly chart retains its collective order and may
+  overlap the hero; chart Tracks are reserved from other discovery rows; at
+  most two Tracks of one artist appear per row; a row below its layout minimum
+  is dropped and leaves its Tracks free; only Tracks whose Processing
+  completed; a hero needs a cover. The weekly chart and ranked recommendation
+  rows may render with three eligible Tracks, and the chart holds at most ten
+  positions.
 
 **The version is a content hash.** `version` is a SHA-256 of the algorithm
 version and the rows, truncated to 16 hex characters. An unchanged feed keeps
@@ -89,8 +93,10 @@ configured at the CDN, not in the API.
 
 - A visit reads its rows from Redis; a burst of visitors costs one build per
   hour (plus one per content change), never one per request.
-- The hero is the hottest Track with a cover, drawn from the same trending
-  list as its row, so the hero and the trending row never share a Track.
+- The hero is the hottest Track with a cover. It may share a Track with the
+  collective weekly chart, whose membership and order are independent of
+  earlier rows; the chart's Tracks remain available for resume rows in personal
+  feeds.
 - Adding a row source or a layout is a change to the sources and the layout
   rules, not to the endpoint.
 - There is one public feed per locale (`en`, `pt-BR`). Each has its own version,
@@ -105,6 +111,15 @@ configured at the CDN, not in the API.
 - The "trending today" row ranks by the existing trending score, which already
   weighs the calendar windows of the day, the week and the month. It is not a
   pure day count.
+
+**Composition rollout and cached versions.** Algorithm version 2 marks the
+composition change: a short ranked chart can survive, the weekly chart is
+truthful and reserved against discovery duplication, and daily-target ordering
+is handled in the personal overlay. Existing snapshots keep their stored
+algorithm marker and remain readable until their normal cache expiry; a newly
+generated feed uses the current marker. Reverting the composition requires
+restoring version 1 and allowing version-2 cached feeds to expire or rebuilding
+them through the regular refresh jobs.
 
 ## Alternatives considered
 
