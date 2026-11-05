@@ -16,7 +16,10 @@ export type PlayerPort = {
   pause(): void;
   /** Moves to this moment of the Track, in seconds. */
   seek(seconds: number): void;
-  /** The moment being played, in seconds, smooth between the player's reports. */
+  /**
+   * Media presentation time, smooth between reports. Capture compensation must
+   * not assume this is an AudioContext render clock ahead of the listener.
+   */
   currentTime(): number;
   /** The length in seconds, or 0 while the player does not know it. */
   duration(): number;

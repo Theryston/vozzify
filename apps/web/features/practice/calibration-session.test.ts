@@ -8,6 +8,7 @@ const synth = { play: vi.fn(), dispose: vi.fn(), stop: vi.fn() };
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(0);
+  synth.play.mockImplementation(() => performance.now() / 1000);
   vi.mocked(createSingingSynth).mockResolvedValue(synth);
 });
 afterEach(() => {
@@ -71,6 +72,28 @@ describe('singing calibration', () => {
     await Promise.resolve();
     vi.advanceTimersByTime(CALIBRATION_BEAT_MS * 13);
     expect(onDone).toHaveBeenCalledWith(null);
+    cancel();
+  });
+  it('measures the residual against audible beeps, excluding Bluetooth output delay', async () => {
+    let now = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => now * 1000);
+    synth.play.mockImplementation(() => now + 0.2);
+    const onDone = vi.fn();
+    const cancel = startCalibration({
+      onDone,
+      onBeat: vi.fn(),
+      onError: vi.fn(),
+    });
+    await Promise.resolve();
+    for (let step = 1; step <= 13; step++) {
+      now = (step * CALIBRATION_BEAT_MS) / 1000;
+      vi.advanceTimersByTime(CALIBRATION_BEAT_MS);
+      if (step < 3 || step === 13) continue;
+      now += 0.2 + 0.05 + 0.032;
+      observeCalibrationReading(69, 0.032);
+      observeCalibrationReading(null, 0.032);
+    }
+    expect(onDone).toHaveBeenCalledWith(expect.closeTo(0.05, 6));
     cancel();
   });
   it('releases an in-progress session and ignores later readings', async () => {

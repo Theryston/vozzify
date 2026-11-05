@@ -14,6 +14,14 @@ type Options = {
   onError: () => void;
 };
 
+function isAttack(midi: number | null, previous: number | null): boolean {
+  // Require a deliberate shift, rather than vibrato wobble.
+  return midi !== null && (previous === null || Math.abs(midi - previous) >= 2);
+}
+
+const isAudibleBeat = (at: number, soundedAt: number): boolean =>
+  at >= soundedAt && at - soundedAt < 1.05;
+
 /**
  * Three count-in clicks followed by ten alternating beeps at the same tempo.
  * Timing calibration only needs the moment the voice attacks or shifts pitch
@@ -35,14 +43,12 @@ export function startCalibration(options: Options): () => void {
       let previous: number | null = null;
       const unwatch = watchCalibrationReading(({ midi, lagSeconds, at }) => {
         options.onVoice?.(midi !== null);
-        // A capture needs a real rhythmic onset: the voice starting from
-        // silence, or a deliberate beep-matching shift. The beeps alternate
-        // three semitones apart, while vibrato wobble stays under one, so a
-        // two-semitone shift requirement keeps wobble from calibrating.
-        const transitioned =
-          midi !== null &&
-          (previous === null || Math.abs(midi - previous) >= 2);
-        if (step >= 0 && !captured && transitioned && at - soundedAt < 1.05) {
+        if (
+          step >= 0 &&
+          !captured &&
+          isAttack(midi, previous) &&
+          isAudibleBeat(at, soundedAt)
+        ) {
           samples.push(at - soundedAt - lagSeconds);
           captured = true;
           options.onCapture?.(step);
@@ -62,9 +68,8 @@ export function startCalibration(options: Options): () => void {
           options.onDone(calibrationOffset(samples));
           return;
         }
-        soundedAt = performance.now() / 1000;
         captured = false;
-        synth.play(step % 2 === 0 ? 69 : 72, 0.25);
+        soundedAt = synth.play(step % 2 === 0 ? 69 : 72, 0.25);
         options.onBeat(10 - step);
       };
       const timer = setInterval(next, CALIBRATION_BEAT_MS);

@@ -44,11 +44,25 @@ devices that cannot load or keep up with the model.
   rest of the session if the model fails to load, fails while running, or
   cannot keep up (8 hops in a row arrive while the previous frame is still being
   run). Which engine runs shows in debug logs only.
-- The voice line is placed on the Track's time minus the browser-reported
-  output, base and input latency, plus half the active engine's window
-  (`latencyCompensation`). The AudioContext's `outputLatency` stands in for
-  YouTube's own output path, which the page cannot measure, so it is an
-  estimate; a per-device calibration offset comes with the calibration ticket.
+- The voice line uses the player's media presentation time minus capture
+  latency: the mic track's input latency, half the active engine's window and
+  time spent delivering and analyzing the captured frame. The worklet stamps
+  each block with its render time, mapped to the page's performance clock and
+  preserved through asynchronous inference. Wall-clock delays are scaled by
+  playback rate before subtracting them from Track seconds.
+  This replaces the original estimate that also subtracted the mic context's
+  base and output latency. That context does not play the Track, and the media
+  player may already account for output delay; borrowing the mic context's
+  output delay can move the voice too far back, especially with Bluetooth.
+  Direct audio routed through Tone reports its source head instead of the
+  audible position, so that player subtracts its own context's base and output
+  latency before exposing Track time. Source switches preserve the unadjusted
+  media position. PitchShift's internal algorithm delay remains an estimate
+  outside this hardware-output correction and needs separate measurement.
+  Calibration compares singing with the synth's estimated audible onset using
+  its output timestamp (reported output latency is the fallback). Old offsets
+  are reset when loading preferences because their compensation model changed;
+  the other singing aids are preserved.
 - The mic is released as soon as the user turns it off, leaves the page or
   hides the tab, even if it was still starting: a start that finishes late is
   stopped at once.

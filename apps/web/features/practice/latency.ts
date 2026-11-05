@@ -1,9 +1,5 @@
-/** What the browser reports about the audio path, in seconds. */
+/** Capture latency only; the player's clock owns its output path. */
 export type AudioLatencies = {
-  /** `AudioContext.baseLatency`: the context's own processing delay. */
-  baseLatency?: number;
-  /** `AudioContext.outputLatency`: from the context to the speakers. */
-  outputLatency?: number;
   /** The mic track's `latency` setting: from the voice to the samples. */
   inputLatency?: number;
 };
@@ -12,20 +8,19 @@ const finite = (value: number | undefined): number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
 
 /**
- * How far behind the music a voice reading is. The singer hears the music
- * after the output delay and their voice reaches the samples after the input
- * delay, so a reading belongs that long before the Track's current moment.
- * Half the detector window is added because a reading describes its window's
- * middle, not its end.
+ * Age of a voice reading relative to the player's presentation clock.
+ * Output latency from a separate mic context must not be subtracted from a
+ * media player's time: that clock can already account for the output delay.
+ * A reading describes the middle of its window, before delivery and inference.
  */
 export function latencyCompensation(
   latencies: AudioLatencies,
   windowSeconds: number,
+  processingSeconds = 0,
 ): number {
   return (
-    finite(latencies.baseLatency) +
-    finite(latencies.outputLatency) +
     finite(latencies.inputLatency) +
-    windowSeconds / 2
+    windowSeconds / 2 +
+    finite(processingSeconds)
   );
 }

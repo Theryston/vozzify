@@ -7,7 +7,7 @@ const engine = vi.hoisted(() => ({
   stop: vi.fn(),
   options: undefined as
     | undefined
-    | { onReading: (m: number | null, w: number) => void },
+    | { onReading: (m: number | null, w: number, capturedAt?: number) => void },
 }));
 
 vi.mock('./pitch/crepe-model', () => ({ loadCrepeModel: vi.fn() }));
@@ -25,6 +25,7 @@ type Fakes = {
   nodeDisconnect: ReturnType<typeof vi.fn>;
   sourceDisconnect: ReturnType<typeof vi.fn>;
   node: { port: { onmessage: ((event: unknown) => void) | null } } | null;
+  timing: { currentTime: number; outputLatency: number; inputLatency: number };
 };
 
 /** The browser's audio objects, as far as the session uses them. */
@@ -39,10 +40,11 @@ function stubAudio(
     nodeDisconnect: vi.fn(),
     sourceDisconnect: vi.fn(),
     node: null,
+    timing: { currentTime: 0, outputLatency: 0.02, inputLatency: 0.01 },
   };
   const track = {
     stop: fakes.trackStop,
-    getSettings: () => ({ latency: 0.01 }),
+    getSettings: () => ({ latency: fakes.timing.inputLatency }),
   };
   const stream = { getTracks: () => [track], getAudioTracks: () => [track] };
   vi.stubGlobal('navigator', {
@@ -60,7 +62,12 @@ function stubAudio(
     class {
       sampleRate = 48_000;
       baseLatency = 0.01;
-      outputLatency = 0.02;
+      get currentTime() {
+        return fakes.timing.currentTime;
+      }
+      get outputLatency() {
+        return fakes.timing.outputLatency;
+      }
       audioWorklet = {
         addModule: () =>
           failAt === 'worklet'
@@ -116,12 +123,43 @@ describe('startMicSession', () => {
     await startMicSession(onReading);
 
     const block = new Float32Array(128);
-    fakes.node?.port.onmessage?.({ data: block });
-    expect(engine.feed).toHaveBeenCalledWith(block);
+    fakes.node?.port.onmessage?.({ data: { samples: block, capturedAt: 0 } });
+    expect(engine.feed).toHaveBeenCalledWith(block, expect.any(Number));
 
     engine.options?.onReading(69, 0.04);
-    // base 0.01 + output 0.02 + input 0.01 + half the 0.04 s window.
-    expect(onReading).toHaveBeenCalledWith(69, expect.closeTo(0.06, 5));
+    // Only input 0.01 + half the 0.04 s window; output belongs to the player.
+    expect(onReading).toHaveBeenCalledWith(69, expect.closeTo(0.03, 5));
+  });
+
+  it('does not move voice earlier when Bluetooth output latency grows', async () => {
+    const fakes = stubAudio();
+    const onReading = vi.fn();
+    await startMicSession(onReading);
+    for (const output of [0.02, 0.25]) {
+      fakes.timing.outputLatency = output;
+      engine.options?.onReading(69, 0.064);
+    }
+    expect(onReading.mock.calls).toEqual([
+      [69, expect.closeTo(0.042)],
+      [69, expect.closeTo(0.042)],
+    ]);
+  });
+
+  it('includes queued worklet delivery and delayed inference without counting output latency', async () => {
+    const fakes = stubAudio();
+    const onReading = vi.fn();
+    let now = 100;
+    vi.spyOn(performance, 'now').mockImplementation(() => now * 1000);
+    await startMicSession(onReading);
+    fakes.timing.currentTime = 5.03;
+    fakes.node?.port.onmessage?.({
+      data: { samples: new Float32Array(128), capturedAt: 5 },
+    });
+    const capturedAt = engine.feed.mock.calls[0]?.[1];
+    expect(capturedAt).toBeCloseTo(99.97);
+    now += 0.05;
+    engine.options?.onReading(69, 0.064, capturedAt);
+    expect(onReading).toHaveBeenCalledWith(69, expect.closeTo(0.122));
   });
 
   it('releases everything when it is stopped, including the worklet port', async () => {

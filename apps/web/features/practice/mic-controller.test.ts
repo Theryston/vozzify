@@ -154,6 +154,25 @@ describe('the mic controller', () => {
     expect(voiceTrail.latest()).toBe(62);
   });
 
+  it.each([0.5, 1.5])(
+    'places voice using Track seconds at %sx speed',
+    async (rate) => {
+      let report: OnReading = () => {};
+      sessions.start.mockImplementation((onReading: OnReading) => {
+        report = onReading;
+        return Promise.resolve({ stop: sessions.stop });
+      });
+      await toggleMic({
+        getState: () => ({ status: 'playing', time: 10, rate }),
+        subscribe: () => () => {},
+      });
+      report(69, 0.2);
+      expect(voiceTrail.segments(0, 20)[0]?.[0]?.time).toBeCloseTo(
+        10 - 0.2 * rate,
+      );
+    },
+  );
+
   it('clears the voice when the mic goes off', async () => {
     sessions.start.mockResolvedValue({ stop: sessions.stop });
     await toggleMic(playbackAt('playing', 10));

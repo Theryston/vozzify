@@ -3,7 +3,11 @@
 class PitchCaptureProcessor extends AudioWorkletProcessor {
   process(inputs) {
     const channel = inputs[0]?.[0];
-    if (channel) this.port.postMessage(channel.slice());
+    if (channel)
+      this.port.postMessage({
+        samples: channel.slice(),
+        capturedAt: currentTime + channel.length / sampleRate,
+      });
     return true;
   }
 }
