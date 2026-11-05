@@ -27,6 +27,7 @@ export type YouTubeSearchItemLike = {
   id?: string;
   title?: string;
   artists?: readonly { name: string }[];
+  authors?: readonly { name: string }[];
   duration?: { seconds: number };
   item_type?: string;
   thumbnails: readonly ImageLike[];
@@ -72,7 +73,7 @@ export function youtubeVideoOfSearchItem(
   return {
     videoId: item.id,
     title: item.title,
-    artists: (item.artists ?? []).map((artist) => artist.name),
+    artists: (item.artists ?? item.authors ?? []).map((artist) => artist.name),
     durationSeconds: durationOf(item.duration?.seconds),
     kind: kindOf(item.item_type),
     artworkUrl: largestUrl(item.thumbnails),

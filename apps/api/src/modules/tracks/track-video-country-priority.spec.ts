@@ -28,6 +28,7 @@ const video = (videoId: string) => ({
 describe('Track video country priority', () => {
   const youtube = {
     searchSongs: vi.fn(),
+    searchVideos: vi.fn(),
     getVideo: vi.fn(),
     getPlaybackAvailability: vi.fn<(id: string) => Promise<Availability>>(),
   };
@@ -36,6 +37,7 @@ describe('Track video country priority', () => {
 
   beforeEach(async () => {
     vi.resetAllMocks();
+    youtube.searchVideos.mockResolvedValue([]);
     youtube.searchSongs.mockResolvedValue([]);
     youtube.getVideo.mockImplementation(async (id: string) => video(id));
     const moduleRef = await Test.createTestingModule({

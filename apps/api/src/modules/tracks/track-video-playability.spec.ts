@@ -31,6 +31,7 @@ const recording = {
 
 describe('Track video playback eligibility', () => {
   const youtube = {
+    searchVideos: vi.fn<() => Promise<YouTubeVideo[]>>(),
     searchSongs: vi.fn<() => Promise<YouTubeVideo[]>>(),
     getVideo: vi.fn<(id: string) => Promise<YouTubeVideo | undefined>>(),
     getPlaybackAvailability:
@@ -49,6 +50,7 @@ describe('Track video playback eligibility', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    youtube.searchVideos.mockResolvedValue([]);
     youtube.searchSongs.mockResolvedValue([
       candidate(searchId),
       candidate('zzzzzzzzzzz'),
