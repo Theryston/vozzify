@@ -14,6 +14,7 @@ import {
 export type CreateTestAppOptions = {
   /** Extra controllers mounted next to AppModule (e.g. test-only probes). */
   controllers?: Type[];
+  imports?: Type[];
   /** Values merged over the parsed env (e.g. a lower rate limit). */
   env?: Partial<Env>;
   /**
@@ -44,7 +45,7 @@ export const createTestApp = async (
 ): Promise<TestApp> => {
   const { builder: redisFree, queues } = overrideRedisProviders(
     Test.createTestingModule({
-      imports: [AppModule],
+      imports: [AppModule, ...(options.imports ?? [])],
       controllers: options.controllers ?? [],
     }),
   );

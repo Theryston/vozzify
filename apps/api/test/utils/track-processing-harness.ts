@@ -125,58 +125,60 @@ export type TrackProcessingApp = {
 };
 
 /** The app, with the Music catalog and the fakes of YouTube and the archive. */
-export const startTrackProcessingApp =
-  async (): Promise<TrackProcessingApp> => {
-    const recordings = new Map<string, Recording>();
-    const youtube = new FakeYouTubeMusic();
-    const coverArt = new FakeCoverArt();
-    const audio = new FakeAudioDownload();
-    const noteDetection = new FakeNoteDetection();
-    const transcription = new FakeTranscription();
-    const catalog = await startFakeMusicCatalog((payload) => {
-      const recording = recordings.get(String(payload.mbid));
-      if (recording === undefined) {
-        return {
-          error: { code: 'RECORDING_NOT_FOUND', message: 'No such Recording' },
-        };
-      }
-      return { result: recording };
-    });
-    const options: Pick<CreateTestAppOptions, 'env' | 'override'> = {
-      env: {
-        MUSIC_CATALOG_URL: catalog.url,
-        MUSIC_CATALOG_API_KEY: FAKE_CATALOG_API_KEY,
-        MUSIC_CATALOG_REQUEST_TIMEOUT_MS: 1_000,
-      },
-      override: (builder) =>
-        builder
-          .overrideProvider(YouTubeMusicClient)
-          .useValue(youtube)
-          .overrideProvider(CoverArtClient)
-          .useValue(coverArt)
-          .overrideProvider(AudioDownloadClient)
-          .useValue(audio)
-          .overrideProvider(NoteDetectionClient)
-          .useValue(noteDetection)
-          .overrideProvider(ElevenLabsTranscriptionClient)
-          .useValue(transcription),
-    };
-    const testApp = await createTestApp(options);
-    return {
-      testApp,
-      catalog,
-      recordings,
-      youtube,
-      coverArt,
-      audio,
-      noteDetection,
-      transcription,
-      close: async () => {
-        await testApp.close();
-        await catalog.close();
-      },
-    };
+export const startTrackProcessingApp = async (
+  imports: CreateTestAppOptions['imports'] = [],
+): Promise<TrackProcessingApp> => {
+  const recordings = new Map<string, Recording>();
+  const youtube = new FakeYouTubeMusic();
+  const coverArt = new FakeCoverArt();
+  const audio = new FakeAudioDownload();
+  const noteDetection = new FakeNoteDetection();
+  const transcription = new FakeTranscription();
+  const catalog = await startFakeMusicCatalog((payload) => {
+    const recording = recordings.get(String(payload.mbid));
+    if (recording === undefined) {
+      return {
+        error: { code: 'RECORDING_NOT_FOUND', message: 'No such Recording' },
+      };
+    }
+    return { result: recording };
+  });
+  const options: Pick<CreateTestAppOptions, 'env' | 'override' | 'imports'> = {
+    imports,
+    env: {
+      MUSIC_CATALOG_URL: catalog.url,
+      MUSIC_CATALOG_API_KEY: FAKE_CATALOG_API_KEY,
+      MUSIC_CATALOG_REQUEST_TIMEOUT_MS: 1_000,
+    },
+    override: (builder) =>
+      builder
+        .overrideProvider(YouTubeMusicClient)
+        .useValue(youtube)
+        .overrideProvider(CoverArtClient)
+        .useValue(coverArt)
+        .overrideProvider(AudioDownloadClient)
+        .useValue(audio)
+        .overrideProvider(NoteDetectionClient)
+        .useValue(noteDetection)
+        .overrideProvider(ElevenLabsTranscriptionClient)
+        .useValue(transcription),
   };
+  const testApp = await createTestApp(options);
+  return {
+    testApp,
+    catalog,
+    recordings,
+    youtube,
+    coverArt,
+    audio,
+    noteDetection,
+    transcription,
+    close: async () => {
+      await testApp.close();
+      await catalog.close();
+    },
+  };
+};
 
 /** Empties the database and the fakes, and queues: each test starts fresh. */
 export const resetTrackProcessingApp = async (

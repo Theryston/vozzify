@@ -1,0 +1,2 @@
+ALTER TABLE "legacy_relationship_imports" ADD COLUMN "accepted_favorites" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "legacy_relationship_imports" ADD COLUMN "deduplicated_favorites" integer DEFAULT 0 NOT NULL;

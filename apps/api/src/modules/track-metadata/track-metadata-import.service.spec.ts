@@ -52,7 +52,11 @@ const artistId = (mbid: string): string => `artist-${mbid}`;
 const albumId = (mbid: string): string => `album-${mbid}`;
 
 const catalog = { lookup: vi.fn() };
-const artists = { upsertArtist: vi.fn(), linkTrackArtists: vi.fn() };
+const artists = {
+  upsertArtist: vi.fn(),
+  linkTrackArtists: vi.fn(),
+  replaceTrackArtistCreditResolutions: vi.fn(),
+};
 const albums = {
   upsertAlbum: vi.fn(),
   setAlbumCoverUrl: vi.fn(),
@@ -150,6 +154,7 @@ describe('TrackMetadataImportService', () => {
       artistId(artist.mbid),
     );
     artists.linkTrackArtists.mockResolvedValue(undefined);
+    artists.replaceTrackArtistCreditResolutions.mockResolvedValue(undefined);
     albums.upsertAlbum.mockImplementation(async (album: { mbid: string }) => ({
       id: albumId(album.mbid),
       hasCover: false,
@@ -200,6 +205,13 @@ describe('TrackMetadataImportService', () => {
       artistId(QUEEN),
       artistId(BOWIE),
     ]);
+    expect(artists.replaceTrackArtistCreditResolutions).toHaveBeenCalledWith(
+      'track-1',
+      [
+        { creditMbid: QUEEN, artistId: artistId(QUEEN) },
+        { creditMbid: BOWIE, artistId: artistId(BOWIE) },
+      ],
+    );
     expect(links).toEqual({
       artistIds: [artistId(QUEEN), artistId(BOWIE)],
       albumIds: [],

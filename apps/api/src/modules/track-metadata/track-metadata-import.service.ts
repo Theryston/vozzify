@@ -151,11 +151,18 @@ export class TrackMetadataImportService {
     run: ImportRun,
     recording: Recording,
   ): Promise<string[]> {
-    const artistIds = await this.resolveArtists(
+    const resolutions = await this.resolveArtistCredits(
       run,
       recording.artistCredit.artists.map((artist) => artist.mbid),
     );
+    const artistIds = distinct(
+      resolutions.map((resolution) => resolution.artistId),
+    );
     await this.artists.linkTrackArtists(run.trackId, artistIds);
+    await this.artists.replaceTrackArtistCreditResolutions(
+      run.trackId,
+      resolutions,
+    );
     return artistIds;
   }
 
@@ -251,10 +258,22 @@ export class TrackMetadataImportService {
     run: ImportRun,
     mbids: readonly string[],
   ): Promise<string[]> {
-    const ids = await Promise.all(
-      distinct(mbids).map((mbid) => this.resolveArtist(run, mbid)),
+    const resolutions = await this.resolveArtistCredits(run, mbids);
+    return distinct(resolutions.map((resolution) => resolution.artistId));
+  }
+
+  /** Keeps the source credit MBID paired with the Artist it actually resolved. */
+  private async resolveArtistCredits(
+    run: ImportRun,
+    mbids: readonly string[],
+  ): Promise<{ creditMbid: string; artistId: string }[]> {
+    const resolutions = await Promise.all(
+      distinct(mbids).map(async (creditMbid) => {
+        const artistId = await this.resolveArtist(run, creditMbid);
+        return artistId ? { creditMbid, artistId } : undefined;
+      }),
     );
-    return ids.filter(isDefined);
+    return resolutions.filter(isDefined);
   }
 
   /** One Artist's ID, fetched and written once per import run, however many credits name it. */

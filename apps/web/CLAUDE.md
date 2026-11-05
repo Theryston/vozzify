@@ -90,7 +90,7 @@ docker-compose.yml          web-redis for local dev (included by the root compos
 - `features/<f>/queries.ts` and anything touching secrets import
   `'server-only'`; client hooks/stores start with `'use client'` where needed.
 
-## Legacy routes (no 404s)
+## Legacy routes
 
 This app replaces the legacy notefinder web app at `notefinder.com.br` with
 Vozzify at `vozzify.com`. **Every
@@ -105,6 +105,12 @@ map), the page issues a **permanent (308)** redirect to the same route with
 the new ID, keeping the query params (see "Legacy data import" in
 `apps/api/CLAUDE.md`). When a catalog route ships, its e2e covers that case
 too: a legacy ID redirects with 308 to the new one.
+
+Explicitly skipped Track, Artist and Album identities are the accepted
+exception: their URLs return a real 404 and the migration report identifies
+each source ID and reason (ADR 0001). Pending identities remain pending,
+and accepted Tracks keep their URLs through queued, running and failed
+Processing states; launch does not wait for the whole backlog to complete.
 
 Because every new route is under `[locale]`, a bare legacy path like
 `/tracks/abc` is redirected by `proxy.ts` to `/<detected-locale>/tracks/abc`

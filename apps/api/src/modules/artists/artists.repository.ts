@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import type { Artist } from '@vozzify/contracts';
-import { and, asc, count, eq, gt } from 'drizzle-orm';
+import { and, asc, count, eq, gt, inArray } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
 import {
   artists,
   legacyArtistIds,
+  trackArtistCreditResolutions,
   trackArtists,
 } from '../../database/schema/artists.js';
 import { hasCompletedProcessing } from '../../database/schema/track-processings.js';
@@ -13,6 +14,7 @@ import { tracks } from '../../database/schema/tracks.js';
 
 /** An Artist as the metadata import writes it: its MBID, name and genres. */
 export type ArtistRecord = { mbid: string; name: string; genres: string[] };
+export type ArtistCreditResolution = { creditMbid: string; artistId: string };
 
 @Injectable()
 export class ArtistsRepository {
@@ -49,6 +51,62 @@ export class ArtistsRepository {
       .where(eq(legacyArtistIds.legacyId, legacyId))
       .limit(1);
     return row?.artistId;
+  }
+
+  /** The imported Artist's new ID for a MusicBrainz identity. */
+  async findArtistIdByMbid(mbid: string): Promise<string | undefined> {
+    const [row] = await this.txHost.tx
+      .select({ id: artists.id })
+      .from(artists)
+      .where(eq(artists.mbid, mbid))
+      .limit(1);
+    return row?.id;
+  }
+
+  /** Adds a stable legacy identity map; conflicting replays are rejected. */
+  async mapLegacyArtistId(legacyId: string, artistId: string): Promise<void> {
+    await this.txHost.tx
+      .insert(legacyArtistIds)
+      .values({ legacyId, artistId })
+      .onConflictDoNothing();
+    const existing = await this.findArtistIdByLegacyId(legacyId);
+    if (existing !== artistId) throw new Error('LEGACY_ARTIST_MAP_CONFLICT');
+  }
+
+  /** Artist credits actually imported for each supplied Track. */
+  async findLegacyMapEvidence(trackIds: string[]) {
+    if (trackIds.length === 0) return [];
+    const rows = await this.txHost.tx
+      .select({
+        trackId: trackArtistCreditResolutions.trackId,
+        creditMbid: trackArtistCreditResolutions.creditMbid,
+        mbid: artists.mbid,
+        credit: tracks.artistCredit,
+      })
+      .from(trackArtistCreditResolutions)
+      .innerJoin(artists, eq(trackArtistCreditResolutions.artistId, artists.id))
+      .innerJoin(tracks, eq(trackArtistCreditResolutions.trackId, tracks.id))
+      .where(inArray(trackArtistCreditResolutions.trackId, trackIds));
+    return rows.flatMap((row) => {
+      const credit = row.credit.find((entry) => entry.mbid === row.creditMbid);
+      return credit
+        ? [{ trackId: row.trackId, mbid: row.mbid, creditedName: credit.name }]
+        : [];
+    });
+  }
+
+  /** Replaces the imported source-credit to canonical-Artist correspondence. */
+  async replaceTrackArtistCreditResolutions(
+    trackId: string,
+    resolutions: ArtistCreditResolution[],
+  ): Promise<void> {
+    await this.txHost.tx
+      .delete(trackArtistCreditResolutions)
+      .where(eq(trackArtistCreditResolutions.trackId, trackId));
+    if (resolutions.length === 0) return;
+    await this.txHost.tx
+      .insert(trackArtistCreditResolutions)
+      .values(resolutions.map((resolution) => ({ trackId, ...resolution })));
   }
 
   /**

@@ -11,6 +11,7 @@ import { StorageModule } from '../../integrations/storage/storage.module.js';
 import { WebRevalidationModule } from '../../integrations/web-revalidation/web-revalidation.module.js';
 import { YouTubeMusicModule } from '../../integrations/youtube-music/youtube-music.module.js';
 import { TRACK_METADATA_QUEUE } from '../../queue/track-metadata.job.js';
+import { LegacyProcessingAdmissionModule } from '../legacy-import/legacy-processing-admission.module.js';
 import { UsersModule } from '../users/users.module.js';
 import { TrackAlbumCoverService } from './track-album-cover.service.js';
 import { TRACK_ASSOCIATION_QUEUE } from './track-association.job.js';
@@ -34,6 +35,10 @@ import { TrackLyricsRepository } from './track-lyrics.repository.js';
 import { TrackLyricsService } from './track-lyrics.service.js';
 import { TrackLyricsStepService } from './track-lyrics-step.service.js';
 import { TrackMetadataQueueService } from './track-metadata-queue.service.js';
+import { TrackMigrationRepository } from './track-migration.repository.js';
+import { TrackMigrationService } from './track-migration.service.js';
+import { TrackMigrationPreparationService } from './track-migration-preparation.service.js';
+import { TrackMigrationRetryService } from './track-migration-retry.service.js';
 import { TRACK_MP3_QUEUE } from './track-mp3.job.js';
 import { TrackMp3Processor } from './track-mp3.processor.js';
 import { TrackMp3Service } from './track-mp3.service.js';
@@ -80,32 +85,87 @@ import { TracksController } from './tracks.controller.js';
 import { TracksRepository } from './tracks.repository.js';
 import { TracksService } from './tracks.service.js';
 
-/**
- * Tracks: requests, Processings and the Track pages. It queues the metadata
- * import but does not run it: that lives in the track-metadata module, which
- * imports this one, so this module never depends on Artists or Albums.
- */
+export const trackModuleImports = [
+  LegacyProcessingAdmissionModule,
+  AudioDownloadModule,
+  BullModule.registerQueue({ name: TRACK_PROCESSING_QUEUE }),
+  BullModule.registerQueue({ name: TRACK_METADATA_QUEUE }),
+  BullModule.registerQueue({ name: TRACK_MP3_QUEUE }),
+  BullModule.registerQueue({ name: TRACK_TRENDING_QUEUE }),
+  BullModule.registerQueue({ name: TRACK_ASSOCIATION_QUEUE }),
+  BullModule.registerQueue({ name: TRACK_SEARCH_INDEX_QUEUE }),
+  TrackSearchIndexModule,
+  CoverArtModule,
+  EmailModule,
+  FfmpegModule,
+  MusicCatalogModule,
+  NoteDetectionModule,
+  ElevenLabsTranscriptionModule,
+  StorageModule,
+  UsersModule,
+  WebRevalidationModule,
+  YouTubeMusicModule,
+];
+
+export const trackServiceProviders = [
+  TrackRecommendationsRepository,
+  TrackRecommendationsService,
+  TracksService,
+  TrackDirectAudioRepository,
+  TrackDirectAudioService,
+  TracksRepository,
+  TrackProcessingRepository,
+  TrackProcessingCompletionService,
+  TrackContributorRepository,
+  TrackContributionsService,
+  TrackRequestLimitRepository,
+  TrackRequestService,
+  TrackAssociationEventRepository,
+  TrackAssociationService,
+  TrackAssociationSyncRepository,
+  TrackAssociationSyncService,
+  TrackRequestLauncherService,
+  TrackRequestFlowService,
+  TrackMetadataQueueService,
+  TrackRetryRepository,
+  TrackRetryService,
+  TrackRetryLauncherService,
+  TrackContributorEmailsService,
+  TrackProcessingService,
+  TrackPracticeRepository,
+  TrackPracticeService,
+  TrackRequesterService,
+  TrackVideoService,
+  TrackVideoStepService,
+  TrackAudioService,
+  TrackNoteDetectionService,
+  TrackNotesRepository,
+  TrackNotesService,
+  TrackLyricsRepository,
+  TrackLyricsService,
+  TrackMp3Service,
+  TrackLyricsStepService,
+  TrackTimedLyricsService,
+  TrackCoverService,
+  TrackAlbumCoverService,
+  TrackStepsService,
+  TrackPipelineService,
+  TrackJobRunnerService,
+  TrackViewRepository,
+  TrackViewsService,
+  TrackLocaleTrendingService,
+  TrackTrendingQueueService,
+  TrackTrendingService,
+  TrackSitemapRepository,
+  TrackSitemapService,
+  TrackMigrationRepository,
+  TrackMigrationPreparationService,
+  TrackMigrationRetryService,
+  TrackMigrationService,
+];
+
 @Module({
-  imports: [
-    AudioDownloadModule,
-    BullModule.registerQueue({ name: TRACK_PROCESSING_QUEUE }),
-    BullModule.registerQueue({ name: TRACK_METADATA_QUEUE }),
-    BullModule.registerQueue({ name: TRACK_MP3_QUEUE }),
-    BullModule.registerQueue({ name: TRACK_TRENDING_QUEUE }),
-    BullModule.registerQueue({ name: TRACK_ASSOCIATION_QUEUE }),
-    BullModule.registerQueue({ name: TRACK_SEARCH_INDEX_QUEUE }),
-    TrackSearchIndexModule,
-    CoverArtModule,
-    EmailModule,
-    FfmpegModule,
-    MusicCatalogModule,
-    NoteDetectionModule,
-    ElevenLabsTranscriptionModule,
-    StorageModule,
-    UsersModule,
-    WebRevalidationModule,
-    YouTubeMusicModule,
-  ],
+  imports: trackModuleImports,
   controllers: [
     TrackRecommendationsController,
     TracksController,
@@ -115,61 +175,12 @@ import { TracksService } from './tracks.service.js';
     TrackSitemapController,
   ],
   providers: [
-    TrackRecommendationsRepository,
-    TrackRecommendationsService,
-    TracksService,
-    TrackDirectAudioRepository,
-    TrackDirectAudioService,
-    TracksRepository,
-    TrackProcessingRepository,
-    TrackProcessingCompletionService,
-    TrackContributorRepository,
-    TrackContributionsService,
-    TrackRequestLimitRepository,
-    TrackRequestService,
-    TrackAssociationEventRepository,
-    TrackAssociationService,
-    TrackAssociationSyncRepository,
-    TrackAssociationSyncService,
+    ...trackServiceProviders,
     TrackAssociationProcessor,
     TrackSearchIndexProcessor,
-    TrackRequestLauncherService,
-    TrackRequestFlowService,
-    TrackMetadataQueueService,
-    TrackRetryRepository,
-    TrackRetryService,
-    TrackRetryLauncherService,
-    TrackContributorEmailsService,
-    TrackProcessingService,
-    TrackPracticeRepository,
-    TrackPracticeService,
-    TrackRequesterService,
-    TrackVideoService,
-    TrackVideoStepService,
-    TrackAudioService,
-    TrackNoteDetectionService,
-    TrackNotesRepository,
-    TrackNotesService,
-    TrackLyricsRepository,
-    TrackLyricsService,
-    TrackMp3Service,
-    TrackLyricsStepService,
-    TrackTimedLyricsService,
     TrackMp3Processor,
-    TrackCoverService,
-    TrackAlbumCoverService,
-    TrackStepsService,
-    TrackPipelineService,
-    TrackJobRunnerService,
     TrackProcessingProcessor,
-    TrackViewRepository,
-    TrackViewsService,
-    TrackLocaleTrendingService,
-    TrackTrendingQueueService,
-    TrackTrendingService,
     TrackTrendingProcessor,
-    TrackSitemapRepository,
-    TrackSitemapService,
   ],
   exports: [
     TracksService,
@@ -177,6 +188,7 @@ import { TracksService } from './tracks.service.js';
     TrackContributionsService,
     TrackAssociationSyncService,
     TrackLocaleTrendingService,
+    TrackMigrationService,
   ],
 })
 export class TracksModule {}

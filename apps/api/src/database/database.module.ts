@@ -35,7 +35,7 @@ import {
       useFactory: createDatabase,
     },
   ],
-  exports: [DATABASE],
+  exports: [DATABASE, DATABASE_POOL],
 })
 class DatabaseClientModule implements OnApplicationShutdown {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}

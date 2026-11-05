@@ -1,0 +1,1 @@
+CREATE INDEX "legacy_recording_imports_track_id_index" ON "legacy_recording_imports" USING btree ("track_id");

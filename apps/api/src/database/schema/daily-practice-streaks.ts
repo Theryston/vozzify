@@ -22,8 +22,8 @@ import { users } from './users.js';
  * isCompleted, completedAt, lastHeartbeatAt)` maps column for column. Legacy
  * days are UTC days; they are imported as they are, since the legacy app had
  * no time zone to convert them with. `isCompleted` becomes `completed`, the
- * unique (User, day) pair makes the import idempotent, and `createdAt` takes
- * the legacy value.
+ * unique (User, day) pair makes replay safe; imported rows retain the legacy
+ * UTC date and original timestamps.
  */
 export const dailyPracticeStreaks = pgTable(
   'daily_practice_streaks',

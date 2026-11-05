@@ -67,9 +67,9 @@ export class TrackRequestService {
    * was merged into, a bounded number of times; one the catalog does not know
    * is `NOT_FOUND`.
    */
-  private async resolveRecording(
+  async resolveRecording(
     mbid: Mbid,
-    hopsLeft: number,
+    hopsLeft: number = MAX_MERGE_HOPS,
   ): Promise<Recording> {
     const lookup = await this.catalog.getRecording(mbid);
     if (lookup.status === 'found') {

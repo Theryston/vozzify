@@ -1,0 +1,1 @@
+ALTER TABLE "legacy_recording_imports" ADD COLUMN "metadata_status" text DEFAULT 'pending' NOT NULL;

@@ -191,12 +191,19 @@ test/                     e2e specs + helpers (app factory, Testcontainers setup
 
 ### Legacy data import
 
-Development starts with an empty database. At launch, a one-off script
-(`src/scripts/import-legacy.ts`, written at the end of the project) imports
-the legacy users and their data (schema: `prisma/schema.prisma` in
-<https://github.com/theryston/notefinder>). The legacy **catalog** (tracks,
-artists, albums, notes, thumbnails) is **not** imported: it is reprocessed
-into a schema designed for the new app (see
+`nub run legacy:cutover prepare|status|continue` composes the stages below.
+For launch readiness versus final completion, source shutdown, backups,
+configuration and recovery, read `docs/operations/legacy-cutover.md`.
+
+Development starts with an empty database. The compiled operator command
+`nub run import:legacy-users` (after `nub run build`, from this app) imports
+legacy Users and their sign-in identities with durable resume progress.
+`nub run import:legacy-personal-data` imports legacy Practice days and Profile
+section visibility after Users. `nub run plan:legacy-recordings` maps legacy
+Tracks to Music catalog Recordings without starting Processing. See
+`docs/operations/import-legacy-users.md` for environment variables, stage
+order, preflight and recovery. The legacy catalog (tracks, artists, albums,
+notes and thumbnails) is reprocessed into the new schema (see
 `docs/adr/0001-reprocessed-catalog-with-legacy-id-maps.md`).
 
 **Users** keep their legacy identity, so the schema must always be able to
@@ -213,7 +220,9 @@ hold them:
   `provider` + `providerAccountId`.
 - User data with no catalog reference (daily practice streaks, section
   visibility, daily practice target, Avatar URL) is imported as-is, or with a
-  documented transformation. Don't add `NOT NULL` user columns or
+  documented transformation. Legacy `ME_ONLY` choices remain private; unknown
+  private sections conservatively hide current Profile sections. Don't add
+  `NOT NULL` user columns or
   constraints the legacy data can't satisfy without a clear default.
 
 **Tables with a public URL (tracks, artists, albums)** get new IDs, so old
@@ -230,6 +239,13 @@ URLs resolve through a map:
   redirect, so server-side `fetch` never follows it silently and the mobile
   app handles it the same way. Cover both cases in the endpoint's e2e.
 - The import script fills the maps.
+
+The staged cutover accepts explicit Track, Artist and Album identity skips
+with source IDs and reasons in the operator report; those URLs may return
+plain `NOT_FOUND`. Pending metadata or transient provider failures are not
+skips. Launch readiness requires accepted Tracks, maps and User relationships,
+but can precede Processing completion. Failed Processings retain their Track,
+attribution and maps. See ADR 0001 for this follow-up to URL compatibility.
 
 **User data that points to the catalog** (favorites, views, created tracks)
 is translated through the maps at import. A row whose catalog record has no

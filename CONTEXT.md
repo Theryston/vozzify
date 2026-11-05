@@ -218,6 +218,13 @@ the old URL redirects there. Users have no Legacy ID: they keep the ID they
 had in the legacy app.
 _Avoid_: Old ID, external ID
 
+An explicitly skipped Track, Artist or Album identity has no redirect target;
+the migration report records its Legacy ID and reason, and its URL may return
+404. A pending identity is not a skip. Launch readiness means Users, accepted
+Tracks, Track maps and required User data are available; Processing and
+auxiliary metadata/map work can continue after launch. A failed Processing
+retains its Track and URL.
+
 ### Plans and billing
 
 **Plan**:

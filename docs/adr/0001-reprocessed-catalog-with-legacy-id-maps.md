@@ -50,3 +50,23 @@ rebuilt anyway only constrains the new design.
 - A legacy catalog URL whose record was never reprocessed has no map entry
   and returns a real 404.
 - Each new catalog route ships with an e2e case for its legacy redirect.
+
+## Follow-up: staged cutover (#463)
+
+The accepted migration may explicitly skip a Track with no acceptable
+Recording match, or an Artist/Album identity without sufficient canonical
+metadata evidence. The operator report lists each source ID and reason,
+including dependent favorites and views excluded with skipped Tracks.
+These Track, Artist and Album URLs may return a real 404. This narrows the
+original universal URL promise; pending work and transient provider failures
+never become skips. Reprocessing, new catalog IDs, many-to-one maps and
+ADR 0003's release-group Album identity remain unchanged.
+
+Launch readiness requires imported Users and independent data, prepared
+accepted Tracks and their maps, and imported required User relationships.
+It does not require every Processing to finish. Public pages expose normal
+queued, running, completed and failed states while the bounded backlog
+continues. Full migration completion additionally requires terminal
+Processings and resolved metadata/map work, with explicit exclusions in the
+report. Failed Processings remain retained outcomes with their Track,
+attribution and maps; they are not retroactive catalog skips.
