@@ -13,6 +13,7 @@ import {
   type HomeRowSource,
 } from '../src/modules/home/home-row-sources.js';
 import {
+  HOME_ALGORITHM_VERSION,
   PRIVATE_HOME_CACHE_CONTROL,
   PUBLIC_HOME_CACHE_CONTROL,
 } from '../src/modules/home/home-rules.js';
@@ -196,7 +197,7 @@ describe('Home feed (e2e)', () => {
 
       expect(response.body).toMatchObject({
         audience: 'public',
-        algorithmVersion: 1,
+        algorithmVersion: HOME_ALGORITHM_VERSION,
         nextCursor: null,
       });
       expect(response.body.version).toMatch(VERSION_PATTERN);
