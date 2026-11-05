@@ -39,6 +39,7 @@ const video = (overrides: Partial<YouTubeVideo> = {}): YouTubeVideo => ({
 const linkOf = (id: string) => `https://music.youtube.com/watch?v=${id}`;
 
 const youtube = {
+  searchVideos: vi.fn<() => Promise<YouTubeVideo[]>>(),
   searchSongs: vi.fn<(query: string) => Promise<YouTubeVideo[]>>(),
   getVideo: vi.fn<(videoId: string) => Promise<YouTubeVideo | undefined>>(),
   getPlaybackAvailability:
@@ -65,6 +66,7 @@ describe('TrackVideoService', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    youtube.searchVideos.mockResolvedValue([]);
     youtube.searchSongs.mockResolvedValue([]);
     youtube.getVideo.mockResolvedValue(undefined);
     youtube.getPlaybackAvailability.mockResolvedValue('both');

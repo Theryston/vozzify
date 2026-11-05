@@ -44,6 +44,15 @@ export class YouTubeMusicClient {
     );
   }
 
+  /** Official audio uploads can appear only in the video search shelf. */
+  async searchVideos(query: string): Promise<YouTubeVideo[]> {
+    const yt = await this.innertube();
+    const results = await yt.music.search(query, { type: 'video' });
+    return itemsOf(results.videos).flatMap(
+      (item) => youtubeVideoOfSearchItem(item) ?? [],
+    );
+  }
+
   /** Bind every metadata and media request to the same download deadline. */
   async downloadAudio(
     videoId: string,

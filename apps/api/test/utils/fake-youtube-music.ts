@@ -48,6 +48,10 @@ export class FakeYouTubeMusic {
     return this.results;
   }
 
+  async searchVideos(): Promise<YouTubeVideo[]> {
+    return [];
+  }
+
   async getVideo(videoId: string): Promise<YouTubeVideo | undefined> {
     this.lookups.push(videoId);
     const answer = this.videos.get(videoId);

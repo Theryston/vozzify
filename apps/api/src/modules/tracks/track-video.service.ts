@@ -102,7 +102,22 @@ export class TrackVideoService {
   private async searchBestMatch(
     target: RecordingTarget,
   ): Promise<FoundVideo | undefined> {
-    const results = await this.youtube.searchSongs(searchQueryOf(target));
+    const query = searchQueryOf(target);
+    const song = await this.choosePlayableMatch(
+      target,
+      await this.youtube.searchSongs(query),
+    );
+    // Keep artist audio preferred; videos fill gaps in the song catalog.
+    return (
+      song ??
+      this.choosePlayableMatch(target, await this.youtube.searchVideos(query))
+    );
+  }
+
+  private async choosePlayableMatch(
+    target: RecordingTarget,
+    results: YouTubeVideo[],
+  ): Promise<FoundVideo | undefined> {
     let remaining = results;
     let best: FoundVideo | undefined;
     while (true) {

@@ -24,12 +24,17 @@ const candidate = (videoId: string) => ({
 });
 
 describe('Track selection after hosted search', () => {
-  const youtube = { searchSongs: vi.fn(), getPlaybackAvailability: vi.fn() };
+  const youtube = {
+    searchSongs: vi.fn(),
+    searchVideos: vi.fn(),
+    getPlaybackAvailability: vi.fn(),
+  };
   let service: TrackVideoService;
   let close: () => Promise<void>;
 
   beforeEach(async () => {
     vi.resetAllMocks();
+    youtube.searchVideos.mockResolvedValue([]);
     youtube.searchSongs.mockResolvedValue([
       candidate('aaaaaaaaaaa'),
       candidate('bbbbbbbbbbb'),
