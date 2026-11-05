@@ -1,5 +1,8 @@
 import { HomeRepository } from './home.repository.js';
-import { selectUsefulAlbums } from './home-album-selection.js';
+import {
+  type HomeAlbumCandidateRecord,
+  selectUsefulAlbums,
+} from './home-album-selection.js';
 
 type HomeAlbumCard = {
   id: string;
@@ -32,7 +35,7 @@ export const loadUsefulAlbums = async (
       }),
     );
   }
-  const candidates = [];
+  const candidates: HomeAlbumCandidateRecord[] = [];
   for (let batch = 0; batch < MAX_ALBUM_CANDIDATE_BATCHES; batch += 1) {
     const records = await repository.findPopularAlbums(
       ALBUM_CANDIDATE_BATCH_SIZE,
@@ -54,6 +57,12 @@ export const loadUsefulAlbums = async (
         availableTracks: byAlbum.get(record.id) ?? [],
       })),
     );
+    if (
+      selectUsefulAlbums(candidates, MAX_FEATURED_ALBUMS).length ===
+      MAX_FEATURED_ALBUMS
+    ) {
+      break;
+    }
   }
   return selectUsefulAlbums(candidates, MAX_FEATURED_ALBUMS).map(
     ({ id, title, coverArtUrl, year }) => ({

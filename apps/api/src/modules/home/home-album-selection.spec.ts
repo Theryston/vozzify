@@ -1,5 +1,7 @@
+import { proposedAlbumScore } from './home-album-score-proposal.js';
 import type { HomeAlbumCandidateRecord } from './home-album-selection.js';
 import { selectUsefulAlbums } from './home-album-selection.js';
+import { composeEntityRows } from './home-feed-composer.js';
 
 const album = (
   id: string,
@@ -133,5 +135,44 @@ describe('selectUsefulAlbums', () => {
     );
 
     expect(selected.map(({ id }) => id)).toEqual(['zero-score-new-content']);
+  });
+});
+
+describe('Album row minimum', () => {
+  const composeAlbums = (count: number) =>
+    composeEntityRows([
+      {
+        layout: 'albums' as const,
+        items: Array.from({ length: count }, (_, index) => ({
+          id: `album-${index}`,
+        })),
+      },
+    ]);
+
+  it('keeps three useful Albums and omits a row with two', () => {
+    expect(composeAlbums(3)).toHaveLength(1);
+    expect(composeAlbums(3)[0]?.items).toHaveLength(3);
+    expect(composeAlbums(2)).toEqual([]);
+  });
+});
+
+describe('proposedAlbumScore', () => {
+  it('favors distributed Albums over one concentrated hit at equal popularity', () => {
+    expect(proposedAlbumScore([40, 35, 25])).toBeGreaterThan(
+      proposedAlbumScore([100, 0, 0]),
+    );
+  });
+
+  it('gives a useful Album more value than a large sparse compilation', () => {
+    expect(proposedAlbumScore([15, 12, 10, 8, 5])).toBeGreaterThan(
+      proposedAlbumScore(Array.from({ length: 20 }, () => 1)),
+    );
+  });
+
+  it('reduces a partial-overlap candidate while retaining its new Tracks', () => {
+    expect(proposedAlbumScore([100, 60, 40], 2)).toBeLessThan(
+      proposedAlbumScore([70, 60, 50]),
+    );
+    expect(proposedAlbumScore([100, 60, 40], 2)).toBeGreaterThan(0);
   });
 });

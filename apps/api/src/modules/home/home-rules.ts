@@ -92,7 +92,7 @@ export const HOME_ROW_RULES = {
     requiresVocalRange: false,
   },
   albums: {
-    minItems: 6,
+    minItems: 3,
     maxItems: 12,
     requiresCover: false,
     requiresVocalRange: false,

@@ -1,12 +1,17 @@
 import type { HomeRow } from '@vozzify/contracts';
 import request from 'supertest';
 import {
+  albumDiscs,
+  albums,
+  albumTracks,
+} from '../src/database/schema/albums.js';
+import {
   createAlbumDisc,
   placeAlbumTrack,
 } from './utils/album-track-factories.js';
 import { createTestApp, type TestApp } from './utils/create-test-app.js';
 import { resetDatabase } from './utils/database.js';
-import { createAlbum } from './utils/factories.js';
+import { createAlbum, testMbid } from './utils/factories.js';
 import { createCompletedTrack } from './utils/track-processing-factories.js';
 
 type AvailableTrack = Awaited<ReturnType<typeof createCompletedTrack>>;
@@ -41,6 +46,34 @@ const createRelease = async (
     });
   }
   return album;
+};
+
+const createDuplicateReleases = async (
+  testApp: TestApp,
+  trackId: string,
+  count: number,
+) => {
+  const records = await testApp.db
+    .insert(albums)
+    .values(
+      Array.from({ length: count }, (_, index) => ({
+        mbid: testMbid(5000 + index),
+        title: `Duplicate ${index}`,
+      })),
+    )
+    .returning({ id: albums.id });
+  await testApp.db
+    .insert(albumDiscs)
+    .values(records.map(({ id }) => ({ albumId: id, position: 1 })));
+  await testApp.db.insert(albumTracks).values(
+    records.map(({ id }) => ({
+      albumId: id,
+      trackId,
+      discPosition: 1,
+      trackPosition: 1,
+    })),
+  );
+  return records;
 };
 
 const albumRowOf = (rows: HomeRow[]) =>
@@ -120,12 +153,11 @@ describe('Home Album content selection (e2e)', () => {
       title: 'Shared recording',
       trendingScore: 100,
     });
-    const duplicateAlbums = [];
-    for (let index = 0; index < 61; index += 1) {
-      duplicateAlbums.push(
-        await createRelease(testApp, `Duplicate ${index}`, [shared]),
-      );
-    }
+    const duplicateAlbums = await createDuplicateReleases(
+      testApp,
+      shared.id,
+      61,
+    );
     const usefulAlbums = [];
     for (let index = 0; index < 5; index += 1) {
       const track = await createCompletedTrack(testApp.db, {
