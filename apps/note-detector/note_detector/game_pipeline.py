@@ -1,7 +1,7 @@
 """GAME's inference loop over its three ONNX modules, reproduced.
 
-For each clip the slicer cuts out, it runs the encoder, the segmenter's D3PM
-sampling and the estimator, then turns the voiced regions into notes. The
+For each bounded window of a silence-sliced clip, it runs the encoder, the
+segmenter's D3PM sampling and the estimator, then decodes voiced regions. The
 modules themselves sit behind `GameModules`, so this logic is tested with
 fakes; `game.py` is the onnxruntime adapter.
 """
@@ -20,6 +20,7 @@ from note_detector.game_decode import (
     sample_boundaries,
 )
 from note_detector.game_slicer import Clip, slice_vocals
+from note_detector.game_windows import bounded_clip_notes
 from note_detector.notes import Note
 
 
@@ -74,10 +75,18 @@ def _clip_scores(
     return RegionScores(durations, presence, pitches), length
 
 
+def _notes_in_clip(clip: Clip, modules: GameModules) -> list[Note]:
+    scores, length = _clip_scores(clip, modules)
+    return clip_notes(scores, clip.offset, length)
+
+
 def notes_in_waveform(waveform: np.ndarray, modules: GameModules) -> list[Note]:
     """The Vocal notes of mono vocals at the modules' sample rate."""
     notes: list[Note] = []
     for clip in slice_vocals(waveform, modules.sample_rate):
-        scores, length = _clip_scores(clip, modules)
-        notes += clip_notes(scores, clip.offset, length)
+        notes += bounded_clip_notes(
+            clip,
+            modules.sample_rate,
+            lambda part: _notes_in_clip(part, modules),
+        )
     return combine_notes(notes)

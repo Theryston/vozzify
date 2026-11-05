@@ -169,6 +169,14 @@ or Lightning is involved.
 - `game_pipeline.py`: per clip, encoder, then the segmenter's D3PM sampling,
   then the estimator, behind the `GameModules` protocol, so it is tested with
   fakes. Pure, covered at 100%.
+- `game_windows.py`: after silence slicing, limits inference to 20-second
+  windows with 2 seconds of overlap to bound GAME's attention memory. Each
+  overlap is owned in halves. Notes crossing the seam in both predictions
+  join only within half a semitone, retaining the earlier pitch; onsets at
+  the seam stay separate. Short clips keep the original inference path.
+  This changes the context of long clips from upstream GAME. Unit tests
+  prove bounds and stitching, not model parity or a 24–32 GB VRAM budget;
+  validate those with real long vocals on the target GPU before rollout.
 - `game_io.py`: what the adapter feeds the graphs (inputs and dtypes, the
   graph's accepted inputs, the region count, the sample-rate guard, the
   weights directory from an injected environment). Pure.
