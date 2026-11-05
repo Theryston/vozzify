@@ -83,7 +83,7 @@ for (const locale of ['en', 'pt-BR'] as const) {
     ).toBeVisible();
     await page
       .getByRole('button', {
-        name: translate('plans.choosePlan', { plan: 'Pro' }),
+        name: translate('plans.tryFree'),
       })
       .click();
     await expect(page).toHaveURL(new RegExp(`/${locale}/subscription`));

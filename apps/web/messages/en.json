@@ -371,7 +371,7 @@
         "label": "Song suggestions",
         "searchFor": "Search for \"{query}\"",
         "noSongs": "No songs found",
-        "noNotesYet": "No notes yet",
+        "noNotesYet": "Generate notes",
         "generateLabel": "Generate notes for {title}",
         "generating": "Generating…",
         "signInLabel": "Sign in to generate notes for {title}"
@@ -1170,8 +1170,10 @@
     }
   },
   "plans": {
-    "trialOffer": "{days, plural, one {# day} other {# days}} free with a card. Billing starts automatically after the trial unless canceled; Stripe shows the first charge date.",
-    "trialFirstCharge": "Estimated first charge if you start today: {date}. Stripe confirms the exact date.",
+    "trialBadge": "{days, plural, one {# day free} other {# days free}}",
+    "tryFree": "Try it free",
+    "trialOffer": "Card required. Billing starts automatically after the trial; cancel before it ends to avoid being charged.",
+    "trialFirstCharge": "Estimated first charge: {date}. Confirm the date in Stripe.",
     "trialUsed": "Your trial has already been used. Billing starts immediately.",
     "title": "Your voice, your pace.",
     "description": "Compare what is available today and what each plan has planned.",

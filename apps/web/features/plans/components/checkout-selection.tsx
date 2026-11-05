@@ -71,6 +71,11 @@ function UserCheckoutSelection(props: SelectionProps) {
     return <p className="text-muted-foreground text-sm">{t('noOffers')}</p>;
   return (
     <div className="space-y-5">
+      {days > 0 ? (
+        <span className="inline-flex rounded-full bg-muted px-3 py-1 font-semibold text-foreground text-sm">
+          {t('trialBadge', { days })}
+        </span>
+      ) : null}
       <PlanPrice offer={selection.offer} currency={props.currency} />
       <TrialDisclosure
         offered={props.plan.trialDays}
@@ -90,6 +95,7 @@ function UserCheckoutSelection(props: SelectionProps) {
       />
       <CheckoutAction
         plan={props.plan}
+        trialDays={days}
         busy={selection.busy}
         disabled={selection.disabled}
         onClick={selection.choose}
@@ -154,11 +160,13 @@ function usePlanSelection(
 
 function CheckoutAction({
   plan,
+  trialDays,
   busy,
   disabled,
   onClick,
 }: {
   plan: CheckoutPlan;
+  trialDays: number;
   busy: boolean;
   disabled: boolean;
   onClick: () => void;
@@ -173,7 +181,11 @@ function CheckoutAction({
     );
   return (
     <Button size="lg" className="w-full" disabled={disabled} onClick={onClick}>
-      {busy ? billing('redirecting') : t('choosePlan', { plan: plan.name })}
+      {busy
+        ? billing('redirecting')
+        : trialDays > 0
+          ? t('tryFree')
+          : t('choosePlan', { plan: plan.name })}
       {!busy ? <ArrowRightIcon aria-hidden /> : null}
     </Button>
   );

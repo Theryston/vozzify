@@ -127,8 +127,8 @@ const trackDetailsHtml = (track: TrackEmailTrack): string => {
   const rangeHtml =
     range === undefined
       ? ''
-      : ` · <span style="font-family:'Geist Mono',monospace;">${escapeHtml(range)}</span>`;
-  return `<div style="margin-top:24px;">${cover}<p style="margin:16px 0 0;font-size:24px;line-height:1.2;font-weight:800;letter-spacing:-0.02em;">${escapeHtml(track.title)}</p><p style="margin:4px 0 0;font-size:15px;line-height:1.5;">${escapeHtml(creditText(track.artistCredit))}${rangeHtml}</p></div>`;
+      : ` · <span style="font-family:'Geist Mono',monospace;white-space:nowrap;">${escapeHtml(range)}</span>`;
+  return `<div style="margin-top:24px;">${cover}<p style="margin:16px 0 0;font-size:24px;line-height:1.2;font-weight:800;letter-spacing:-0.02em;">${escapeHtml(track.title)}</p><p style="margin:4px 0 0;font-size:15px;line-height:1.5;font-weight:600;letter-spacing:normal;">${escapeHtml(creditText(track.artistCredit))}${rangeHtml}</p></div>`;
 };
 
 const renderTrackEmail = (

@@ -371,7 +371,7 @@
         "label": "Sugestões de músicas",
         "searchFor": "Buscar por \"{query}\"",
         "noSongs": "Nenhuma música encontrada",
-        "noNotesYet": "Sem notas ainda",
+        "noNotesYet": "Gerar notas",
         "generateLabel": "Gerar notas de {title}",
         "generating": "Gerando…",
         "signInLabel": "Entre para gerar notas de {title}"
@@ -1170,8 +1170,10 @@
     }
   },
   "plans": {
-    "trialOffer": "{days, plural, one {# dia} other {# dias}} grátis com cartão. A cobrança começa automaticamente após o teste, salvo cancelamento; a Stripe mostra a data da primeira cobrança.",
-    "trialFirstCharge": "Primeira cobrança estimada se você começar hoje: {date}. A Stripe confirma a data exata.",
+    "trialBadge": "{days, plural, one {# dia grátis} other {# dias grátis}}",
+    "tryFree": "Aproveitar grátis",
+    "trialOffer": "Cartão necessário. A cobrança é automática após o teste; cancele antes para não pagar.",
+    "trialFirstCharge": "Primeira cobrança prevista: {date}. Confirme a data na Stripe.",
     "trialUsed": "Você já usou seu teste. A cobrança começa imediatamente.",
     "title": "Seu canto, no seu ritmo.",
     "description": "Compare o que está disponível hoje e o que cada plano está preparando.",
