@@ -320,8 +320,11 @@ section heading) with its items `gap-2` below it; rows are spaced `gap-8`.
   banners it carries the decorative ring behind its content, and the cover
   tilts `sm:rotate-3` like the album cover. The cover is a
   `rounded-2xl shadow-sm` square at the top right on phones and centered on
-  the right from `md`. The title is display type (`text-4xl font-extrabold
-  tracking-tighter`, `md:text-5xl`), the artist credit `font-semibold`, and
+  the right from `md`. On phones, the text reserves space above it for the
+  cover; from `md` its width leaves a gap before the cover. Long words wrap
+  within the text column. The title is display type (`text-3xl font-extrabold
+  tracking-tighter`, `sm:text-4xl md:text-5xl`), the artist credit
+  `font-semibold`, and
   one pill CTA (`bg-background text-foreground`, `rounded-full`,
   `px-5 py-2.5`) opens the Track. Text on the orange is `text-primary-foreground`
   and follows the featured blocks rule (bold or large); the artist credit
