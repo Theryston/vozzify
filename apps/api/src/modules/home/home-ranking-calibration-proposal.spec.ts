@@ -57,6 +57,31 @@ describe('offline Home ranking calibration proposal', () => {
     expect(personalHistoryConfidence(varied)).toBeCloseTo(0.952, 3);
   });
 
+  it('requires both distinct Tracks and active days for personal confidence', () => {
+    const oneTrackAcrossDays = Array.from({ length: 100 }, (_, index) => ({
+      trackId: 'same-track',
+      practiceDay: new Date(Date.UTC(2026, 0, index + 1))
+        .toISOString()
+        .slice(0, 10),
+    }));
+    const manyTracksInOneDay = Array.from({ length: 100 }, (_, index) => ({
+      trackId: `track-${index}`,
+      practiceDay: '2026-11-01',
+    }));
+    const oneDimension = Math.sqrt((1 / 6) * (100 / 105));
+
+    expect(personalHistoryConfidence(oneTrackAcrossDays)).toBeCloseTo(
+      oneDimension,
+      3,
+    );
+    expect(personalHistoryConfidence(manyTracksInOneDay)).toBeCloseTo(
+      oneDimension,
+      3,
+    );
+    expect(oneDimension).toBeGreaterThan(0.167);
+    expect(oneDimension).toBeLessThan(0.952);
+  });
+
   it('penalizes repeated singer and progressive Artist exposure', () => {
     expect(distinctSingerRepeatFactor(3)).toBeCloseTo(0.7);
     expect(progressiveArtistExposureFactor(3)).toBeCloseTo(0.571, 3);
