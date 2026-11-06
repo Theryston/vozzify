@@ -28,6 +28,29 @@ const standard = (id: string, items: HomeTrack[]): HomeRow => ({
   items,
 });
 
+const dailyTarget: HomeRow = {
+  id: 'daily-target',
+  layout: 'daily-target',
+  title: { key: 'home.rows.dailyTarget', params: {} },
+  secondsLeft: 60,
+  targetSeconds: 300,
+  streakDays: 0,
+  completedToday: false,
+};
+
+const peopleRow: HomeRow = {
+  id: 'people-who-sing-what-you-sing',
+  layout: 'people',
+  title: { key: 'home.rows.people', params: {} },
+  items: Array.from({ length: 3 }, (_, index) => ({
+    id: `person-${index}`,
+    username: `singer-${index}`,
+    name: `Singer ${index}`,
+    image: null,
+    commonTracks: 3,
+  })),
+};
+
 describe('personal editorial pin overlay', () => {
   it('keeps a quality people row within the first page after fixed pins', () => {
     const people: HomeRow = {
@@ -77,8 +100,8 @@ describe('personal editorial pin overlay', () => {
       'daily-target',
       'pin-first',
       'pin-second',
-      'continue-singing',
       'people-who-sing-what-you-sing',
+      'continue-singing',
     ]);
   });
 
@@ -123,29 +146,9 @@ describe('personal editorial pin overlay', () => {
   });
 
   it('keeps an eligible quality category in the first six without moving a later pin', () => {
-    const people: HomeRow = {
-      id: 'people-who-sing-what-you-sing',
-      layout: 'people',
-      title: { key: 'home.rows.people', params: {} },
-      items: Array.from({ length: 3 }, (_, index) => ({
-        id: `person-${index}`,
-        username: `singer-${index}`,
-        name: `Singer ${index}`,
-        image: null,
-        commonTracks: 3,
-      })),
-    };
     const rows: HomeRow[] = [
       { id: 'hero', layout: 'hero', track: track('hero') },
-      {
-        id: 'daily-target',
-        layout: 'daily-target',
-        title: { key: 'home.rows.dailyTarget', params: {} },
-        secondsLeft: 60,
-        targetSeconds: 300,
-        streakDays: 0,
-        completedToday: false,
-      },
+      dailyTarget,
       standard('continue-singing', [track('resume')]),
       ...Array.from({ length: 5 }, (_, index) =>
         standard(
@@ -155,7 +158,7 @@ describe('personal editorial pin overlay', () => {
           ),
         ),
       ),
-      people,
+      peopleRow,
     ];
     const pins = [
       pin('two', 2),
@@ -164,7 +167,69 @@ describe('personal editorial pin overlay', () => {
       pin('five', 5),
     ];
     const result = applyEditorialPins(rows, pins, 'personal');
-    expect(result.slice(0, 6).some((row) => row.id === people.id)).toBe(true);
+    expect(result.slice(0, 6).some((row) => row.id === peopleRow.id)).toBe(
+      true,
+    );
     expect(result.findIndex((row) => row.id === 'pin-five')).toBe(6);
+  });
+
+  it('uses the free slot after Daily target when no hero is present', () => {
+    const rows: HomeRow[] = [
+      dailyTarget,
+      standard('continue-singing', [track('resume')]),
+      peopleRow,
+    ];
+    const pins = [
+      pin('pin-two', 2),
+      pin('pin-three', 3),
+      pin('pin-four', 4),
+      pin('pin-five', 5),
+    ];
+
+    const result = applyEditorialPins(rows, pins, 'personal');
+    expect(result[0]?.id).toBe('daily-target');
+    expect(result[1]?.id).toBe(peopleRow.id);
+    expect(result.slice(2, 6).map((row) => row.id)).toEqual([
+      'pin-pin-two',
+      'pin-pin-three',
+      'pin-pin-four',
+      'pin-pin-five',
+    ]);
+  });
+
+  it('finds a quality category before the twenty-four-row cap', () => {
+    const rows: HomeRow[] = [
+      { id: 'hero', layout: 'hero', track: track('hero') },
+      dailyTarget,
+      peopleRow,
+    ];
+    const pins = Array.from({ length: 22 }, (_, index) =>
+      pin(`pin-${index + 2}`, index + 2),
+    );
+
+    const result = applyEditorialPins(rows, pins, 'personal');
+    expect(result).toHaveLength(24);
+    expect(result.slice(0, 6).some((row) => row.id === peopleRow.id)).toBe(
+      true,
+    );
+    expect(result.find((row) => row.id === 'pin-pin-6')).toBeDefined();
+  });
+
+  it('moves only the pin colliding with a reserved category slot', () => {
+    const rows: HomeRow[] = [
+      { id: 'hero', layout: 'hero', track: track('hero') },
+      dailyTarget,
+      peopleRow,
+    ];
+    const pins = Array.from({ length: 5 }, (_, index) =>
+      pin(`pin-${index + 2}`, index + 2),
+    );
+
+    const result = applyEditorialPins(rows, pins, 'personal');
+    expect(result.findIndex((row) => row.id === 'pin-pin-5')).toBe(7);
+    expect(result.findIndex((row) => row.id === 'pin-pin-6')).toBe(6);
+    expect(result.slice(0, 6).some((row) => row.id === peopleRow.id)).toBe(
+      true,
+    );
   });
 });

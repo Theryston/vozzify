@@ -67,7 +67,8 @@ places the category there. Hero and daily-target rows keep their positions and
 all pins keep their configured positions when a free slot exists. If pins occupy
 every eligible slot, the category takes the last slot and only the pin displaced
 by that collision moves to the next free position. Generic row-pin validation
-still requires six eligible Tracks.
+still requires six eligible Tracks. The 24-row response cap still applies, so a
+displaced pin moved beyond row 23 is omitted from that response.
 
 A Track appears once across the pinned rows: the higher-precedence pin keeps it.
 The feed holds at most 24 rows.
