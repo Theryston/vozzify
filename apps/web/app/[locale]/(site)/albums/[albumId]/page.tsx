@@ -2,12 +2,16 @@ import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 
+import { StructuredData } from '@/components/structured-data';
 import { AlbumHeader } from '@/features/albums/components/album-header';
 import { AlbumTracksSection } from '@/features/albums/components/album-tracks-section';
 import { getAlbumResult, getAlbumTracksPage } from '@/features/albums/queries';
+import { getSiteUrl } from '@/lib/env/client';
 import { localeAlternates } from '@/lib/i18n/metadata';
 import type { Locale } from '@/lib/i18n/routing';
 import { queryStringOf } from '@/lib/query-string';
+import { albumStructuredData } from '@/lib/seo/catalog-structured-data';
+import { socialMetadata } from '@/lib/seo/social-metadata';
 
 type AlbumRouteParams = { locale: Locale; albumId: string };
 
@@ -42,10 +46,26 @@ export async function generateMetadata({
     notFound();
   }
   const t = await getTranslations('albums');
+  const artists = result.album.artists
+    .map((artist) => artist.name)
+    .join(t('header.artistSeparator'));
+  const values = { title: result.album.title, artists };
+  const title = t(artists ? 'metaTitle' : 'metaTitleNoArtists', values);
+  const description = t(
+    artists ? 'metaDescription' : 'metaDescriptionNoArtists',
+    values,
+  );
   return {
-    title: t('metaTitle', { title: result.album.title }),
-    description: t('metaDescription', { title: result.album.title }),
+    title,
+    description,
     alternates: localeAlternates(locale, `/albums/${result.album.id}`),
+    ...socialMetadata({
+      locale,
+      path: `/albums/${result.album.id}`,
+      title,
+      description,
+      image: result.album.coverArtUrl,
+    }),
   };
 }
 
@@ -82,6 +102,13 @@ export default async function AlbumRoutePage({
   );
   return (
     <div className="flex flex-col gap-8">
+      <StructuredData
+        data={albumStructuredData({
+          album: result.album,
+          locale,
+          siteUrl: getSiteUrl(),
+        })}
+      />
       <AlbumHeader album={result.album} />
       <AlbumTracksSection albumId={result.album.id} initialPage={initialPage} />
     </div>

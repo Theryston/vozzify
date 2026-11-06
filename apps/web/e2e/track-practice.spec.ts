@@ -144,7 +144,8 @@ for (const { locale, messages } of cases) {
         t('metaDescription', {
           title: 'Under Pressure',
           artists: 'Queen & David Bowie',
-          notes: 'C#3, E4, G4',
+          low: 'C#3',
+          high: 'G4',
         }),
       );
       expect(await meta('meta[property="og:type"]')).toBe('music.song');

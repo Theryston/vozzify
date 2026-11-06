@@ -11,7 +11,7 @@ const siteUrl = new URL('https://vozzify.example');
 
 // Echoes the key and values, so a test sees which message was picked.
 const translate = (key: string, values: Record<string, string>) =>
-  `${key}|${values.title}|${values.artists}|${values.notes}`;
+  `${key}|${values.title}|${values.artists}|${values.low}|${values.high}`;
 
 const practice = (overrides: Partial<InitialPractice['header']> = {}) =>
   ({
@@ -43,14 +43,14 @@ const build = (value: InitialPractice, locale: 'en' | 'pt-BR' = 'en') =>
   buildPracticeMetadata({ locale, practice: value, siteUrl, translate });
 
 describe('buildPracticeMetadata', () => {
-  it('names the song and its artists in the title, and lists the notes in the description', () => {
+  it('names the song and its artists in the title, and describes the vocal range', () => {
     const metadata = build(practice());
 
     expect(metadata.title).toBe(
-      'metaTitle|Under Pressure|Queen & David Bowie|C#3, E4',
+      'metaTitle|Under Pressure|Queen & David Bowie|C#3|E4',
     );
     expect(metadata.description).toBe(
-      'metaDescription|Under Pressure|Queen & David Bowie|C#3, E4',
+      'metaDescription|Under Pressure|Queen & David Bowie|C#3|E4',
     );
   });
 
@@ -66,6 +66,46 @@ describe('buildPracticeMetadata', () => {
     expect(noArtists.description).toMatch(/^metaDescriptionNoArtists\|/);
     expect(noNotes.description).toMatch(/^metaDescriptionNoNotes\|/);
     expect(neither.description).toMatch(/^metaDescriptionNoArtistsNoNotes\|/);
+  });
+
+  it('uses the full range even when a recording contains more than twelve distinct notes', () => {
+    const metadata = build({
+      ...practice(),
+      notes: {
+        notes: Array.from({ length: 25 }, (_, index) => ({
+          pitch: 48 + index,
+          start: index,
+          end: index + 1,
+        })),
+      },
+    });
+
+    expect(metadata.description).toBe(
+      'metaDescription|Under Pressure|Queen & David Bowie|C3|C5',
+    );
+  });
+
+  it('does not describe a vocal range for an empty note analysis', () => {
+    const metadata = build({ ...practice(), notes: { notes: [] } });
+
+    expect(metadata.description).toBe(
+      'metaDescriptionNoNotes|Under Pressure|Queen & David Bowie||',
+    );
+  });
+
+  it('uses the same localized copy and cover in the Twitter preview', () => {
+    const metadata = build(practice(), 'pt-BR');
+
+    expect(metadata.twitter).toEqual({
+      card: 'summary_large_image',
+      title: metadata.title,
+      description: metadata.description,
+      images: ['https://images.example.com/cover.webp'],
+    });
+    expect(build(practice({ coverUrl: null })).twitter).toMatchObject({
+      card: 'summary',
+      images: undefined,
+    });
   });
 
   it('describes a Track as an Open Graph music.song', () => {

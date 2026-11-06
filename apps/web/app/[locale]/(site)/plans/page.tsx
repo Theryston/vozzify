@@ -5,6 +5,7 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { PlanComparison } from '@/features/plans/components/plan-comparison';
 import { getPlanCatalog } from '@/features/plans/queries';
 import { localeAlternates } from '@/lib/i18n/metadata';
+import { socialMetadata } from '@/lib/seo/social-metadata';
 
 // Catalog-controlled copy and benefit counts have no fixed placeholder geometry.
 // Wait for the actual comparison so its first paint already has its final layout.
@@ -12,10 +13,17 @@ export const instant = false;
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('plans');
+  const locale = await getLocale();
   return {
     title: t('metaTitle'),
     description: t('description'),
-    alternates: localeAlternates(await getLocale(), '/plans'),
+    alternates: localeAlternates(locale, '/plans'),
+    ...socialMetadata({
+      locale,
+      path: '/plans',
+      title: t('metaTitle'),
+      description: t('description'),
+    }),
   };
 }
 

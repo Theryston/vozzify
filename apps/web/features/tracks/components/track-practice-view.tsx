@@ -14,6 +14,7 @@ import {
 } from '../track-practice-query';
 import { PracticeBody } from './practice-body';
 import { TIMELINE_BOX_CLASS } from './timeline-box-class';
+import { TrackNoteSummary } from './track-note-summary';
 import { TrackTitleRow } from './track-title-row';
 import { TrackViewRecorder } from './track-view-recorder';
 
@@ -79,6 +80,7 @@ export function TrackPracticeView({
     <div className="flex flex-col gap-6 pb-6 md:pb-8">
       <TrackViewRecorder trackId={trackId} />
       <TrackTitleRow header={header.data} />
+      <TrackNoteSummary notes={notes.data} />
       <PracticeBody
         header={header.data}
         notes={notes.data}

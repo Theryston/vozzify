@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 
+import { StructuredData } from '@/components/structured-data';
 import { TrackProcessingSection } from '@/features/tracks/components/track-processing-section';
 import { practiceMetadata } from '@/features/tracks/practice-metadata';
 import {
@@ -9,10 +10,12 @@ import {
   getInitialPracticeWithLyrics,
 } from '@/features/tracks/practice-queries';
 import { getTrackProcessingResult } from '@/features/tracks/queries';
+import { getSiteUrl } from '@/lib/env/client';
 import { getServerEnv } from '@/lib/env/server';
 import { localeAlternates } from '@/lib/i18n/metadata';
 import type { Locale } from '@/lib/i18n/routing';
 import { queryStringOf } from '@/lib/query-string';
+import { trackStructuredData } from '@/lib/seo/catalog-structured-data';
 
 type TrackRouteParams = { locale: Locale; trackId: string };
 
@@ -79,10 +82,21 @@ export default async function TrackRoutePage({
       ? await getInitialPracticeWithLyrics(result.state.track.id)
       : undefined;
   return (
-    <TrackProcessingSection
-      initialState={result.state}
-      initialPractice={initialPractice}
-      fakePlayer={getServerEnv().E2E_FAKE_PLAYER}
-    />
+    <>
+      {initialPractice ? (
+        <StructuredData
+          data={trackStructuredData({
+            track: initialPractice.header,
+            locale,
+            siteUrl: getSiteUrl(),
+          })}
+        />
+      ) : null}
+      <TrackProcessingSection
+        initialState={result.state}
+        initialPractice={initialPractice}
+        fakePlayer={getServerEnv().E2E_FAKE_PLAYER}
+      />
+    </>
   );
 }
