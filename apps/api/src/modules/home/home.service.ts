@@ -1,65 +1,38 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type {
-  HomeFeed,
   HomePinPreviewRequest,
   HomePinPreviewResponse,
   HomeRow,
   Locale,
 } from '@vozzify/contracts';
 import { AppException } from '../../common/errors/app-exception.js';
-import { decodeHomeCursor, encodeHomeCursor } from './home-cursor.js';
+import { decodeHomeCursor } from './home-cursor.js';
 import type { StoredPersonalHomeFeed } from './home-feed.js';
 import { HomeFeedService } from './home-feed.service.js';
+import {
+  cacheControlOf,
+  type HomePage,
+  pageOf,
+  type ServedFeed,
+} from './home-page.js';
 import { personalSnapshotStale } from './home-personal.js';
 import { PersonalHomeStore } from './home-personal.store.js';
 import { PersonalHomeQueueService } from './home-personal-queue.service.js';
+import {
+  personalHomeVersion,
+  personalHomeVersionFromStoredRows,
+} from './home-personal-version.js';
 import { HomePinOverlayService } from './home-pin-overlay.service.js';
 import {
   DEFAULT_HOME_LOCALE,
+  HOME_ALGORITHM_VERSION,
   HOME_PAGE_SIZE,
   PERSONAL_SNAPSHOT_STALE_AFTER_SECONDS,
   PRIVATE_HOME_CACHE_CONTROL,
-  PUBLIC_HOME_CACHE_CONTROL,
   UNCACHED_HOME_CACHE_CONTROL,
 } from './home-rules.js';
 import { HomeSocialService } from './home-social.service.js';
-
-export type HomePage = {
-  page: HomeFeed;
-  /** False when the response must not be stored by any cache. */
-  cacheable: boolean;
-  /** The `Cache-Control` header the response is sent with. */
-  cacheControl: string;
-};
-
-type ServedFeed = {
-  audience: HomeFeed['audience'];
-  version: string;
-  algorithmVersion: number;
-  rows: HomeRow[];
-};
-
-/** One page of a feed: its rows from `position`, and where the next one starts. */
-const pageOf = (feed: ServedFeed, position: number): HomeFeed => {
-  const end = position + HOME_PAGE_SIZE;
-  return {
-    audience: feed.audience,
-    version: feed.version,
-    algorithmVersion: feed.algorithmVersion,
-    rows: feed.rows.slice(position, end),
-    nextCursor:
-      end < feed.rows.length
-        ? encodeHomeCursor({ version: feed.version, position: end })
-        : null,
-  };
-};
-
-const cacheControlOf = (cacheable: boolean, signedIn: boolean): string => {
-  if (!cacheable) {
-    return UNCACHED_HOME_CACHE_CONTROL;
-  }
-  return signedIn ? PRIVATE_HOME_CACHE_CONTROL : PUBLIC_HOME_CACHE_CONTROL;
-};
+import { HomeVisitService } from './home-visit.service.js';
 
 /**
  * Serves the home feed a request asks for. The first page comes from the
@@ -92,6 +65,10 @@ export class HomeService {
   @Optional()
   @Inject(HomeSocialService)
   private readonly social?: HomeSocialService;
+
+  @Optional()
+  @Inject(HomeVisitService)
+  private readonly visits?: HomeVisitService;
 
   /**
    * The first page is the locale's current feed; a cursor resumes the version
@@ -148,7 +125,24 @@ export class HomeService {
     const shown = cacheable
       ? await this.withPins(feed.rows, locale, false)
       : feed.rows;
-    return this.answer({ ...feed, rows: shown }, 0, cacheable, false);
+    const visit =
+      shown.length > HOME_PAGE_SIZE
+        ? await this.visits?.create(feed, shown, locale)
+        : undefined;
+    const canCache =
+      this.visits === undefined
+        ? cacheable
+        : cacheable && (shown.length <= HOME_PAGE_SIZE || visit !== undefined);
+    return this.answer(
+      {
+        ...feed,
+        version: visit?.version ?? feed.version,
+        rows: visit?.rows ?? shown,
+      },
+      0,
+      canCache,
+      false,
+    );
   }
 
   private async personalFirstPage(
@@ -157,22 +151,10 @@ export class HomeService {
   ): Promise<HomePage> {
     const snapshot = await this.snapshots?.readCurrent(userId, locale);
     if (!snapshot) {
-      await this.requestRefresh(userId, locale);
-      const { feed, cacheable } = await this.feeds.currentPublic(locale);
-      const currentRows = await this.withSocialRows(feed.rows, userId);
-      const shown = cacheable
-        ? await this.withPins(currentRows, locale, true)
-        : currentRows;
-      // No snapshot yet: the public rows go out at once, as the personal
-      // answer, while the rebuild runs.
-      return this.answer(
-        { ...feed, audience: 'personal' as const, rows: shown },
-        0,
-        cacheable,
-        true,
-      );
+      return this.personalFallbackFirstPage(userId, locale);
     }
     if (
+      snapshot.algorithmVersion !== HOME_ALGORITHM_VERSION ||
       personalSnapshotStale(
         snapshot.generatedAt,
         PERSONAL_SNAPSHOT_STALE_AFTER_SECONDS,
@@ -182,7 +164,45 @@ export class HomeService {
     }
     const currentRows = await this.withSocialRows(snapshot.rows, userId);
     const shown = await this.withPins(currentRows, locale, true, 'personal');
-    return this.answer({ ...snapshot, rows: shown }, 0, true, true);
+    const visit =
+      shown.length > HOME_PAGE_SIZE
+        ? await this.visits?.create(snapshot, shown, locale, userId)
+        : undefined;
+    return this.answer(
+      {
+        ...snapshot,
+        version: visit?.version ?? snapshot.version,
+        rows: visit?.rows ?? shown,
+      },
+      0,
+      true,
+      true,
+    );
+  }
+
+  private async personalFallbackFirstPage(
+    userId: string,
+    locale: Locale,
+  ): Promise<HomePage> {
+    await this.requestRefresh(userId, locale);
+    const { feed, cacheable } = await this.feeds.currentPublic(locale);
+    const currentRows = await this.withSocialRows(feed.rows, userId);
+    const shown = cacheable
+      ? await this.withPins(currentRows, locale, true)
+      : currentRows;
+    const personalFeed = { ...feed, audience: 'personal' as const };
+    const visit = cacheable
+      ? await this.visits?.create(personalFeed, shown, locale, userId)
+      : undefined;
+    const version =
+      visit?.version ??
+      (this.social
+        ? personalHomeVersion(userId, locale, feed.algorithmVersion, shown)
+        : feed.version);
+    const rows =
+      visit?.rows ??
+      (shown.length > HOME_PAGE_SIZE ? shown.slice(0, HOME_PAGE_SIZE) : shown);
+    return this.answer({ ...personalFeed, version, rows }, 0, cacheable, true);
   }
 
   private async versionPage(
@@ -190,6 +210,10 @@ export class HomeService {
     signedIn: boolean,
   ): Promise<HomePage> {
     const { version, position } = decodeHomeCursor(cursor);
+    const visit = await this.visits?.publicVersion(version, signedIn);
+    if (visit) {
+      return this.answer(visit, position, true, signedIn);
+    }
     const feed = await this.feeds.publicVersion(version);
     if (!feed) {
       // Not a 410 with its own code: that code would need a translation in
@@ -218,6 +242,14 @@ export class HomeService {
     const { version, position } = decodeHomeCursor(cursor);
     const snapshot = await this.snapshotVersion(userId, locale, version);
     if (snapshot) {
+      const visit = await this.visits?.personalVersion(
+        version,
+        userId,
+        snapshot.locale,
+      );
+      if (visit) {
+        return this.answer(visit, position, true, true);
+      }
       const currentRows = await this.withSocialRows(snapshot.rows, userId);
       const shown = await this.withPins(
         currentRows,
@@ -227,7 +259,11 @@ export class HomeService {
       );
       return this.answer({ ...snapshot, rows: shown }, position, true, true);
     }
-    const page = await this.versionPage(cursor, false);
+    const visit = await this.visits?.personalVersion(version, userId, locale);
+    if (visit) {
+      return this.answer(visit, position, true, true);
+    }
+    const page = await this.versionPage(cursor, true);
     return {
       ...page,
       page: { ...page.page, audience: 'personal' as const },
@@ -244,7 +280,16 @@ export class HomeService {
     if (current?.version === version) {
       return current;
     }
-    return this.snapshots?.readRetired(version);
+    const retired = await this.snapshots?.readRetired(version);
+    if (!retired) return undefined;
+    return personalHomeVersionFromStoredRows(
+      userId,
+      retired.locale,
+      retired.algorithmVersion,
+      retired.rows,
+    ) === version
+      ? retired
+      : undefined;
   }
 
   /** Queues a snapshot rebuild without failing the request when it cannot. */

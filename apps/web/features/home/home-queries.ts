@@ -15,7 +15,7 @@ import { acceptPublicFeed, publicHomeRequest } from './public-feed';
 export async function getPublicHomePage(locale: Locale): Promise<HomeFeedPage> {
   'use cache';
   cacheTag(cacheTags.home(locale));
-  cacheLife('max');
+  cacheLife({ stale: 60, revalidate: 300, expire: 600 });
   return acceptPublicFeed(await serverApi('/home', publicHomeRequest(locale)));
 }
 

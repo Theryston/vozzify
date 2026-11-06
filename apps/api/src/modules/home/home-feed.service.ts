@@ -168,10 +168,16 @@ export class HomeFeedService {
   }
 
   /** The feed a request serves: the stored one, or one built under the lock. */
-  async currentPublic(locale: Locale): Promise<CurrentPublicFeed> {
+  async currentPublic(
+    locale: Locale,
+    options: { buildIfMissing?: boolean } = {},
+  ): Promise<CurrentPublicFeed> {
     const current = await this.store.readCurrent(locale);
     if (current) {
       return { feed: current, cacheable: true };
+    }
+    if (options.buildIfMissing === false) {
+      return { feed: minimalHomeFeed(), cacheable: false };
     }
     if (!(await this.store.acquireLock(locale))) {
       return { feed: minimalHomeFeed(), cacheable: false };

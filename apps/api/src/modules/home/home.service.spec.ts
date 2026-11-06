@@ -11,6 +11,7 @@ import { HomeFeedService } from './home-feed.service.js';
 import { PersonalHomeStore } from './home-personal.store.js';
 import { PersonalHomeQueueService } from './home-personal-queue.service.js';
 import {
+  HOME_ALGORITHM_VERSION,
   PERSONAL_SNAPSHOT_STALE_AFTER_SECONDS,
   PRIVATE_HOME_CACHE_CONTROL,
 } from './home-rules.js';
@@ -179,9 +180,10 @@ describe('HomeService for a signed-in visitor', () => {
   });
 
   it('serves the fresh snapshot as personal with private headers', async () => {
-    snapshots.readCurrent.mockResolvedValue(
-      personalOf('b2c3d4e5f6a70819', freshAt()),
-    );
+    snapshots.readCurrent.mockResolvedValue({
+      ...personalOf('b2c3d4e5f6a70819', freshAt()),
+      algorithmVersion: HOME_ALGORITHM_VERSION,
+    });
 
     const { page, cacheControl } = await service.getPage(
       undefined,

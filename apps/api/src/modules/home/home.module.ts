@@ -34,6 +34,8 @@ import {
 import { HomeSocialRepository } from './home-social.repository.js';
 import { HomeSocialService } from './home-social.service.js';
 import { HomeSocialStore } from './home-social.store.js';
+import { HomeVisitService } from './home-visit.service.js';
+import { HomeVisitStore } from './home-visit.store.js';
 import { createVoiceRowSources } from './home-voice-row-sources.js';
 
 @Module({
@@ -69,6 +71,8 @@ import { createVoiceRowSources } from './home-voice-row-sources.js';
     },
     HomeFeedBuilder,
     HomeFeedStore,
+    HomeVisitStore,
+    HomeVisitService,
     HomeFeedService,
     HomeService,
     HomePinOverlayService,

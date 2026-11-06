@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 import type { HomeRow, Locale } from '@vozzify/contracts';
@@ -29,27 +28,13 @@ import {
 } from './home-personal-recommendations.js';
 import { resumeRows, trackIdsOfRow } from './home-personal-resume-rows.js';
 import { PersonalHomeTasteRowsService } from './home-personal-taste-rows.service.js';
+import { personalHomeVersion } from './home-personal-version.js';
 import { personalTrackPool } from './home-personal-voice.js';
 import { DEFAULT_HOME_LOCALE, HOME_ALGORITHM_VERSION } from './home-rules.js';
 import { HomeSocialService } from './home-social.service.js';
 
-const versionOf = (userId: string, locale: Locale, rows: HomeRow[]): string =>
-  createHash('sha256')
-    .update(
-      JSON.stringify({
-        audience: 'personal',
-        algorithmVersion: HOME_ALGORITHM_VERSION,
-        userId,
-        locale,
-        rows,
-      }),
-    )
-    .digest('hex')
-    .slice(0, 16);
-
 const withRows = (trackIds: ReadonlySet<string>, rows: HomeRow[]) =>
   new Set([...trackIds, ...rows.flatMap(trackIdsOfRow)]);
-
 /**
  * Builds one User's personal feed. The public feed is the base: its Tracks
  * are re-ranked by the blend of their normalized popularity with the User's
@@ -107,7 +92,12 @@ export class PersonalHomeBuilder {
     return this.linkArtistPages({
       audience: 'personal',
       locale,
-      version: versionOf(userId, locale, rows),
+      version: personalHomeVersion(
+        userId,
+        locale,
+        HOME_ALGORITHM_VERSION,
+        rows,
+      ),
       algorithmVersion: HOME_ALGORITHM_VERSION,
       rows,
       generatedAt: new Date().toISOString(),

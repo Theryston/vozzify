@@ -9,6 +9,8 @@ import { z } from 'zod';
 
 export const PERSONAL_HOME_FEED_QUEUE = 'personal-home-feed';
 export const REFRESH_PERSONAL_HOME_FEED_JOB = 'refresh-personal-home-feed';
+export const REFRESH_PERSONAL_NIGHTLY_USER_JOB =
+  'refresh-personal-nightly-user';
 export const REFRESH_PERSONAL_NIGHTLY_JOB = 'refresh-personal-nightly';
 
 /** The repeatable job's scheduler ID and cron (every night at 02:30 UTC). */
@@ -20,10 +22,13 @@ export const refreshPersonalHomeFeedJobSchema = z.object({
   locale: localeSchema.optional(),
 });
 
+export const refreshPersonalNightlyUserJobSchema = z.object({
+  userId: z.string().min(1).max(128),
+});
+
 export type RefreshPersonalHomeFeedJob = z.infer<
   typeof refreshPersonalHomeFeedJobSchema
 >;
-
 /**
  * Keyed by the User, the locale and the delay-long time slot of the trigger.
  * Triggers in one slot share the job, which runs after the slot ends so it
@@ -37,3 +42,11 @@ export const personalRefreshJobId = (
   now: number,
   delayMs: number,
 ): string => `personal-home-${userId}-${locale}-${Math.floor(now / delayMs)}`;
+
+export const personalRequestRefreshJobId = (
+  userId: string,
+  locale: string,
+): string => `personal-request-${userId}-${locale}`;
+
+export const personalNightlyRefreshJobId = (userId: string): string =>
+  `personal-nightly-user-${userId}`;

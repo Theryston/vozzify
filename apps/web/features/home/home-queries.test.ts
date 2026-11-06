@@ -32,7 +32,11 @@ describe('getPublicHomePage', () => {
     await getPublicHomePage('pt-BR');
 
     expect(cacheTag).toHaveBeenCalledWith('home:pt-BR');
-    expect(cacheLife).toHaveBeenCalledWith('max');
+    expect(cacheLife).toHaveBeenCalledWith({
+      stale: 60,
+      revalidate: 300,
+      expire: 600,
+    });
     expect(serverApi).toHaveBeenCalledWith(
       '/home',
       expect.objectContaining({

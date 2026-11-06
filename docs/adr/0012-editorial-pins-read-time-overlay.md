@@ -19,10 +19,30 @@ snapshot would be worse: the pin would have to reach every snapshot.
 
 ## Decision
 
-**Pins are applied at read time, never stored in a feed.** `GET /v1/home`
-reads the stored feed (algorithmic rows only), reads the pins live for the
-request's locale and audience, and overlays them before it cuts the page. A
-pin starting or ending takes effect on the next read, with no regeneration.
+**Pins are eligible at read time, and visit positions are frozen.** The first
+page reads the stored feed (algorithmic rows only), reads the pins live for the
+request's locale and audience, and composes the visible rows. When another
+page exists, that composition is stored as a visit snapshot in Redis for a
+two-hour cursor retention window. Its deterministic content hash names the
+visit, so identical public visits for one locale share the snapshot; personal
+visit hashes include the User ID and locale. The HTTP response for a personal visit
+remains private and non-storable.
+
+Each cursor page reads its frozen row slots and checks retained Pin IDs against
+the current live set. A Pin that ended, changed audience or locale, or whose
+Tracks became ineligible is removed from its original slot; remaining slots
+do not move. The response omits empty slots but advances the cursor by the
+fixed six-slot page boundary. Existing Pins refresh their current Tracks and
+sponsored label in place. Pins that become eligible after the first page wait
+for a new visit. Feed regeneration and social recommendation refresh likewise
+do not repack a visit. For a personal people Row, current profile visibility is
+rechecked and its current content replaces the matching frozen slot; if it no
+longer qualifies, that slot is omitted. If an expired public visit's source
+feed and Pin composition remain current, the API recreates it only when its
+deterministic version matches the cursor; otherwise it returns the existing
+`FEED_VERSION_EXPIRED` response so the client starts a new visit. Public cache
+headers bound shared response freshness to two minutes, and the longer visit
+retention covers that bound.
 
 **The pin model** (`editorial_pins`, `editorial_pin_tracks`, `editorial_pin_history`):
 
@@ -116,12 +136,17 @@ the message `{title}` in each locale file. This needs no change to the contract.
   (the `visitors` pins). The response headers are unchanged, so the CDN must
   bypass its cache whenever a session cookie is present, as ADR 0011 already
   requires.
-- A CDN that caches the public response for `s-maxage=600` shows a pin's start
-  or end up to ten minutes late, even though the web cache is revalidated at the
-  exact time. The overlay itself is immediate.
-- Cursors name the stored feed version and a row position. A pin that starts or
-  ends between two pages of a visit shifts the rows after it, so a visit can
-  repeat or skip a row across that moment. The window is short and rare.
+- A CDN can show a pin's start or end up to two minutes late under the current
+  public cache bounds, even though the web cache is revalidated at the exact
+  time. The overlay itself is immediate.
+- A visit snapshot adds one small cached composition per distinct public
+  overlay and per personal User/locale visit. Redis keeps these snapshots only
+  as long as cursors can refer to them; public versions remain shareable while
+  personal snapshots are owner-scoped and served with private headers.
+- Pin removals and social visibility changes may leave a short page with fewer
+  than six visible Rows. The cursor still advances by its frozen positions,
+  so no later Row repeats or moves into that page. Newly eligible content
+  appears on the next visit.
 - Adding a source (genre, artist, album) added a variant to
   `editorialPinSourceSchema` and a read of its Tracks at feed time; the overlay
   precedence and dedupe itself did not change.

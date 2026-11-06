@@ -1,10 +1,13 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
 import type { HomeFeedPage, Locale } from '@vozzify/contracts';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { resetHomeRowsAfterExpiredVisit } from '../home-rows-query';
+import { isHomeVisitRestartError } from '../home-visit-restart';
 import { useHomeRows } from '../hooks/use-home-rows';
 import { HomeFeedRows } from './home-feed-rows';
 import { CarouselRowSkeleton } from './home-feed-skeleton';
@@ -40,12 +43,24 @@ export function HomeRows({
 }) {
   const {
     data,
+    error,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
     isFetchNextPageError,
   } = useHomeRows(locale, initialPage);
+  const queryClient = useQueryClient();
   const rows = data.pages.flatMap((page) => page.rows);
+
+  useEffect(() => {
+    if (!isHomeVisitRestartError(error)) return;
+    resetHomeRowsAfterExpiredVisit(
+      queryClient,
+      locale,
+      initialPage,
+      error.firstPage,
+    );
+  }, [error, initialPage, locale, queryClient]);
   const loadMore = useCallback(() => {
     void fetchNextPage();
   }, [fetchNextPage]);

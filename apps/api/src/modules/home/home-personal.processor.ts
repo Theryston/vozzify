@@ -2,11 +2,14 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Inject, Logger, Optional } from '@nestjs/common';
 import { LOCALES, type Locale } from '@vozzify/contracts';
 import { type Job, UnrecoverableError } from 'bullmq';
+import { runBoundedBatch } from './home-batch.js';
 import {
   PERSONAL_HOME_FEED_QUEUE,
   REFRESH_PERSONAL_HOME_FEED_JOB,
   REFRESH_PERSONAL_NIGHTLY_JOB,
+  REFRESH_PERSONAL_NIGHTLY_USER_JOB,
   refreshPersonalHomeFeedJobSchema,
+  refreshPersonalNightlyUserJobSchema,
 } from './home-personal.job.js';
 import { PersonalHomeRepository } from './home-personal.repository.js';
 import { PersonalHomeStore } from './home-personal.store.js';
@@ -17,6 +20,8 @@ import {
   PERSONAL_NIGHTLY_MAX_USERS,
 } from './home-rules.js';
 import { HomeSocialService } from './home-social.service.js';
+
+const PERSONAL_NIGHTLY_CONCURRENCY = 10;
 
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -53,6 +58,10 @@ export class PersonalHomeProcessor extends WorkerHost {
       await this.refreshNightly();
       return;
     }
+    if (job.name === REFRESH_PERSONAL_NIGHTLY_USER_JOB) {
+      await this.refreshNightlyUser(job);
+      return;
+    }
     throw new UnrecoverableError('Unknown personal home feed job');
   }
 
@@ -63,12 +72,28 @@ export class PersonalHomeProcessor extends WorkerHost {
     }
     const { userId, locale } = parsed.data;
     await this.social?.refreshFor(userId);
-    const next = await this.builder.build(userId, locale ?? 'en');
+    await this.buildAndStore(userId, locale ?? 'en');
+  }
+
+  private async buildAndStore(userId: string, locale: Locale): Promise<void> {
+    const next = await this.builder.build(userId, locale);
     const current = await this.store.readCurrent(userId, next.locale);
     if (current && current.version !== next.version) {
       await this.store.retire(current);
     }
     await this.store.writeCurrent(userId, next.locale, next);
+  }
+
+  private async refreshNightlyUser(job: Job<unknown>): Promise<void> {
+    const parsed = refreshPersonalNightlyUserJobSchema.safeParse(job.data);
+    if (!parsed.success) {
+      throw new UnrecoverableError('Invalid nightly User refresh payload');
+    }
+    const { userId } = parsed.data;
+    await this.social?.refreshFor(userId);
+    for (const locale of LOCALES) {
+      await this.buildAndStore(userId, locale);
+    }
   }
 
   private async refreshNightly(): Promise<void> {
@@ -85,27 +110,18 @@ export class PersonalHomeProcessor extends WorkerHost {
         `Personal nightly batch hit its cap of ${PERSONAL_NIGHTLY_MAX_USERS} Users`,
       );
     }
-    await Promise.all(userIds.map((userId) => this.social?.refreshFor(userId)));
-    const results = await Promise.allSettled(
-      userIds.flatMap((userId) =>
-        LOCALES.map((locale: Locale) =>
-          this.queue
-            .scheduleRefresh(userId, locale)
-            .catch((error: unknown) =>
-              Promise.reject(
-                new Error(
-                  `Personal nightly refresh of ${userId} failed: ${errorMessage(error)}`,
-                ),
-              ),
-            ),
-        ),
-      ),
+    await runBoundedBatch(
+      userIds,
+      PERSONAL_NIGHTLY_CONCURRENCY,
+      async (userId) => {
+        try {
+          await this.queue.scheduleNightlyRefresh(userId);
+        } catch (error) {
+          throw new Error(
+            `Personal nightly refresh of ${userId} failed: ${errorMessage(error)}`,
+          );
+        }
+      },
     );
-    const failure = results.find(
-      (result): result is PromiseRejectedResult => result.status === 'rejected',
-    );
-    if (failure) {
-      throw new Error(errorMessage(failure.reason));
-    }
   }
 }

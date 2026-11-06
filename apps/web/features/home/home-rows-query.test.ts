@@ -1,3 +1,4 @@
+import { QueryClient } from '@tanstack/react-query';
 import type { HomeFeedPage } from '@vozzify/contracts';
 import { describe, expect, it, vi } from 'vitest';
 import { fetchHomeRowsPage, homeRowsQueryOptions } from './home-rows-query';
@@ -15,6 +16,31 @@ const page = (nextCursor: string | null): HomeFeedPage => ({
   algorithmVersion: 1,
   rows: [],
   nextCursor,
+});
+
+const personalFallbackPage = (
+  version: string,
+  userId: string,
+): HomeFeedPage => ({
+  ...page(null),
+  audience: 'personal',
+  version,
+  rows: [
+    {
+      id: 'social-friends',
+      layout: 'people',
+      title: { key: 'home.rows.newTracks', params: {} },
+      items: [
+        {
+          id: `profile-${userId}`,
+          username: userId,
+          name: userId,
+          image: null,
+          commonTracks: 1,
+        },
+      ],
+    },
+  ],
 });
 
 describe('fetchHomeRowsPage', () => {
@@ -44,11 +70,15 @@ describe('homeRowsQueryOptions', () => {
       'home',
       'rows',
       'en',
+      'public',
+      'a1b2c3d4e5f60718',
     ]);
     expect(homeRowsQueryOptions('pt-BR', page(null)).queryKey).toEqual([
       'home',
       'rows',
       'pt-BR',
+      'public',
+      'a1b2c3d4e5f60718',
     ]);
   });
 
@@ -59,6 +89,18 @@ describe('homeRowsQueryOptions', () => {
       pages: [first],
       pageParams: [undefined],
     });
+  });
+
+  it('keeps personal fallback pages separate in a QueryClient reused after sign-out', () => {
+    const client = new QueryClient();
+    const pageA = personalFallbackPage('0a0a0a0a0a0a0a0a', 'alice');
+    const pageB = personalFallbackPage('0b0b0b0b0b0b0b0b', 'bob');
+    const keyA = homeRowsQueryOptions('en', pageA).queryKey;
+    const keyB = homeRowsQueryOptions('en', pageB).queryKey;
+    client.setQueryData(keyA, { pages: [pageA], pageParams: [undefined] });
+
+    expect(client.getQueryData(keyB)).toBeUndefined();
+    expect(client.getQueryData(keyA)).toMatchObject({ pages: [pageA] });
   });
 
   it('never goes stale on the client, so a refetch cannot replay old cursors', () => {
