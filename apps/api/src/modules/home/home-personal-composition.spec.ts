@@ -107,4 +107,27 @@ describe('composePersonalHomeRows', () => {
 
     expect(rows[0]).toBe(dailyTarget);
   });
+
+  it('keeps a public vocal-range Row when the User has no replacement', () => {
+    const voice: HomeRow = {
+      id: 'by-voice-lower-voices',
+      layout: 'vocal-range',
+      title: { key: 'home.rows.lowerVoices', params: {} },
+      items: Array.from({ length: 6 }, (_, index) => ({
+        ...track(`voice-${index}`),
+        vocalRange: { lowest: 48, highest: 60 },
+      })),
+    };
+
+    const rows = composePersonalHomeRows({
+      hero: undefined,
+      dailyTarget,
+      resumes: [],
+      socialRows: [],
+      publicRows: [voice],
+      recommendations: [],
+    });
+
+    expect(rows).toEqual([dailyTarget, voice]);
+  });
 });

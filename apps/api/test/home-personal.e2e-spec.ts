@@ -285,6 +285,8 @@ describe('Personal home feed (e2e)', () => {
           isrcs: [`CAT${String(index + 1).padStart(9, '0')}`],
           genres: [`genre-${index % 10}`, `genre-${(index + 1) % 10}`],
           coverUrl: `https://cdn.example/category-${index + 1}.webp`,
+          vocalRangeLowest: 48,
+          vocalRangeHighest: 53,
           trendingScore: 100 - (index % 10),
         })),
       )
@@ -345,11 +347,43 @@ describe('Personal home feed (e2e)', () => {
     const sparsePages = await readEveryPage((cursor) =>
       sparseClient.get(cursor ? `/v1/home?cursor=${cursor}` : '/v1/home'),
     );
+    expect(
+      sparsePages.flatMap((page) => page.rows).map((row) => row.id),
+    ).toEqual(publicPages.flatMap((page) => page.rows).map((row) => row.id));
     expect(publicPages.flatMap((page) => page.rows)).toEqual(
       sparsePages.flatMap((page) => page.rows),
     );
     expect(layoutsAcross(publicPages)).toEqual(
-      expect.arrayContaining(['genres', 'artists', 'albums', 'ranked']),
+      expect.arrayContaining([
+        'genres',
+        'artists',
+        'albums',
+        'ranked',
+        'vocal-range',
+      ]),
+    );
+
+    await refreshUser(sparseUser.id);
+    const rebuiltSparsePages = await readEveryPage((cursor) =>
+      sparseClient.get(cursor ? `/v1/home?cursor=${cursor}` : '/v1/home'),
+    );
+    const rebuiltSparseRowIds = rebuiltSparsePages.flatMap((page) =>
+      (page.rows as HomeRow[]).map((row) => row.id),
+    );
+    expect(new Set(rebuiltSparseRowIds).size).toBe(rebuiltSparseRowIds.length);
+    const voiceRowsOf = (pages: HomeFeedPage[]) =>
+      pages.flatMap((page) =>
+        (page.rows as HomeRow[]).filter((row) => row.layout === 'vocal-range'),
+      );
+    expect(voiceRowsOf(rebuiltSparsePages)).toEqual(voiceRowsOf(publicPages));
+    expect(layoutsAcross(rebuiltSparsePages)).toEqual(
+      expect.arrayContaining([
+        'genres',
+        'artists',
+        'albums',
+        'ranked',
+        'vocal-range',
+      ]),
     );
 
     const practiced = completedTracks[0];

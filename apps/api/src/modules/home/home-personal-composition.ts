@@ -17,6 +17,23 @@ const publicCategory = (row: HomeRow): boolean =>
   row.layout === 'genres' ||
   row.layout === 'ranked';
 
+const fallbackVoiceRows = (
+  publicRows: HomeRow[],
+  resumes: HomeRow[],
+  recommendations: HomeRow[],
+): HomeRow[] => {
+  if (recommendations.some((row) => row.layout === 'vocal-range')) return [];
+  const usedTrackIds = new Set([
+    ...resumes.flatMap(trackIdsOfRow),
+    ...recommendations.flatMap(trackIdsOfRow),
+  ]);
+  return publicRows.flatMap((row) => {
+    if (row.layout !== 'vocal-range') return [];
+    const items = row.items.filter((item) => !usedTrackIds.has(item.id));
+    return items.length >= 6 ? [{ ...row, items }] : [];
+  });
+};
+
 const qualityCategory = (row: HomeRow): boolean =>
   (row.layout === 'albums' ||
     row.layout === 'artists' ||
@@ -47,7 +64,10 @@ export const composePersonalHomeRows = ({
   publicRows,
   recommendations,
 }: PersonalComposition): HomeRow[] => {
-  const categories = publicRows.filter(publicCategory);
+  const categories = [
+    ...publicRows.filter(publicCategory),
+    ...fallbackVoiceRows(publicRows, resumes, recommendations),
+  ];
   const remainder = [
     ...socialRows,
     ...categories,

@@ -181,7 +181,7 @@ export class HomeService {
       await this.requestRefresh(userId, locale);
     }
     const currentRows = await this.withSocialRows(snapshot.rows, userId);
-    const shown = await this.withPins(currentRows, locale, true);
+    const shown = await this.withPins(currentRows, locale, true, 'personal');
     return this.answer({ ...snapshot, rows: shown }, 0, true, true);
   }
 
@@ -219,7 +219,12 @@ export class HomeService {
     const snapshot = await this.snapshotVersion(userId, locale, version);
     if (snapshot) {
       const currentRows = await this.withSocialRows(snapshot.rows, userId);
-      const shown = await this.withPins(currentRows, snapshot.locale, true);
+      const shown = await this.withPins(
+        currentRows,
+        snapshot.locale,
+        true,
+        'personal',
+      );
       return this.answer({ ...snapshot, rows: shown }, position, true, true);
     }
     const page = await this.versionPage(cursor, false);
@@ -257,11 +262,12 @@ export class HomeService {
     rows: HomeRow[],
     locale: Locale,
     signedIn: boolean,
+    audience: 'public' | 'personal' = 'public',
   ): Promise<HomeRow[]> {
     if (!this.pinOverlay) {
       return rows;
     }
-    return this.pinOverlay.apply(rows, { locale, signedIn });
+    return this.pinOverlay.apply(rows, { locale, signedIn, audience });
   }
 
   /** Rebuilds social rows from current profile visibility before serving cache. */

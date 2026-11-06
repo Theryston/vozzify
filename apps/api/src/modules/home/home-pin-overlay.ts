@@ -8,6 +8,7 @@ import type {
 import { explorationSlotCount } from './home-personal-recommendations.js';
 import {
   HOME_MAX_ROWS,
+  HOME_PAGE_SIZE,
   HOME_ROW_RULES,
   PERSONAL_DISCOVERY_ROW_MIN_ITEMS,
   PERSONAL_RESUME_ROW_MIN_ITEMS,
@@ -19,11 +20,19 @@ const personalShortTrackRows = new Set([
   'explore',
 ]);
 
-const minimumTrackCount = (row: HomeRow): number => {
+const minimumTrackCount = (
+  row: HomeRow,
+  audience: 'public' | 'personal',
+): number => {
   if (row.id === 'continue-singing' || row.id === 'sing-again') {
     return PERSONAL_RESUME_ROW_MIN_ITEMS;
   }
-  if (personalShortTrackRows.has(row.id)) {
+  if (
+    audience === 'personal' &&
+    (personalShortTrackRows.has(row.id) ||
+      row.id === 'trending-today' ||
+      row.id === 'new-tracks')
+  ) {
     return PERSONAL_DISCOVERY_ROW_MIN_ITEMS;
   }
   return HOME_ROW_RULES.standard.minItems;
@@ -99,6 +108,7 @@ const algorithmicHero = (
 const algorithmicRows = (
   rows: readonly HomeRow[],
   pinnedIds: ReadonlySet<string>,
+  audience: 'public' | 'personal',
 ): HomeRow[] =>
   rows.flatMap((row): HomeRow[] => {
     if (row.layout === 'hero') {
@@ -119,7 +129,9 @@ const algorithmicRows = (
       return [row];
     }
     const items = row.items.filter((item) => !pinnedIds.has(item.id));
-    return items.length >= minimumTrackCount(row) ? [{ ...row, items }] : [];
+    return items.length >= minimumTrackCount(row, audience)
+      ? [{ ...row, items }]
+      : [];
   });
 
 /**
@@ -248,6 +260,35 @@ const capExplorationRow = (rows: HomeRow[]): HomeRow[] => {
   );
 };
 
+const isQualityCategory = (row: HomeRow): boolean =>
+  (row.layout === 'albums' ||
+    row.layout === 'artists' ||
+    row.layout === 'people') &&
+  row.items.length >= PERSONAL_DISCOVERY_ROW_MIN_ITEMS;
+
+const promoteVisibleQualityCategory = (
+  rows: HomeRow[],
+  pinnedRowIds: ReadonlySet<string>,
+): HomeRow[] => {
+  const categoryIndex = rows.findIndex(
+    (row, index) => index >= HOME_PAGE_SIZE && isQualityCategory(row),
+  );
+  if (categoryIndex < 0) return rows;
+  const slotIndex = rows.findIndex(
+    (row, index) =>
+      index > 0 &&
+      index < HOME_PAGE_SIZE &&
+      row.id !== 'daily-target' &&
+      !pinnedRowIds.has(row.id),
+  );
+  if (slotIndex < 0) return rows;
+  const promoted = [...rows];
+  const [category] = promoted.splice(categoryIndex, 1);
+  if (!category) return rows;
+  promoted.splice(slotIndex, 0, category);
+  return promoted;
+};
+
 /**
  * Applies the live editorial pins over the algorithmic feed rows, at read time.
  * Precedence: the pinned hero, the pinned rows, then the algorithmic rows, which
@@ -258,6 +299,7 @@ const capExplorationRow = (rows: HomeRow[]): HomeRow[] => {
 export const applyEditorialPins = (
   rows: readonly HomeRow[],
   pins: readonly OverlayPin[],
+  audience: 'public' | 'personal' = 'public',
 ): HomeRow[] => {
   // A pin with no Track left is skipped. So is a hero pin with no Track that
   // has a cover: a hero cannot show it, and it is not shown as a row either.
@@ -284,12 +326,13 @@ export const applyEditorialPins = (
   const withoutDailyTarget = dailyTarget
     ? rows.filter((row) => row !== dailyTarget)
     : rows;
+  const placed = placeRows(
+    hero,
+    dailyTarget,
+    rowPins,
+    algorithmicRows(withoutDailyTarget, pinnedIds, audience),
+  );
   return capExplorationRow(
-    placeRows(
-      hero,
-      dailyTarget,
-      rowPins,
-      algorithmicRows(withoutDailyTarget, pinnedIds),
-    ),
+    promoteVisibleQualityCategory(placed, new Set(rowPins.map(rowIdOf))),
   );
 };
