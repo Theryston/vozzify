@@ -12,6 +12,7 @@ import {
   not,
   notInArray,
   or,
+  type SQL,
   sql,
 } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
@@ -29,6 +30,14 @@ const artistKeyOf = (
   credit: StoredArtistCreditEntry[],
   trackId: string,
 ): string => credit[0]?.mbid ?? credit[0]?.name ?? trackId;
+
+type CandidateQuery = {
+  filter?: SQL<unknown>;
+  order: 'popular' | 'newest';
+  limit: number;
+  offset?: number;
+  excludedTrackIds?: string[];
+};
 
 @Injectable()
 export class PersonalHomeTasteRepository {
@@ -68,12 +77,13 @@ export class PersonalHomeTasteRepository {
     excludedTrackIds: string[] = [],
   ): Promise<PersonalTrackCandidate[]> {
     if (genres.length === 0) return [];
-    return this.trackCandidates(
-      arrayOverlaps(tracks.genres, genres),
+    return this.trackCandidates({
+      filter: arrayOverlaps(tracks.genres, genres),
+      order: 'popular',
       limit,
       offset,
       excludedTrackIds,
-    );
+    });
   }
 
   /** Bounded global fallback candidates for personalized discovery. */
@@ -82,30 +92,12 @@ export class PersonalHomeTasteRepository {
     offset = 0,
     excludedTrackIds: string[] = [],
   ): Promise<PersonalTrackCandidate[]> {
-    return this.txHost.tx
-      .select({
-        id: tracks.id,
-        title: tracks.title,
-        coverUrl: tracks.coverUrl,
-        artistCredit: tracks.artistCredit,
-        durationMs: tracks.lengthMs,
-        vocalRangeLowest: tracks.vocalRangeLowest,
-        vocalRangeHighest: tracks.vocalRangeHighest,
-        genres: tracks.genres,
-        trendingScore: tracks.trendingScore,
-      })
-      .from(tracks)
-      .where(
-        and(
-          hasCompletedProcessing(tracks.id),
-          ...(excludedTrackIds.length > 0
-            ? [notInArray(tracks.id, excludedTrackIds)]
-            : []),
-        ),
-      )
-      .orderBy(desc(tracks.trendingScore), desc(tracks.id))
-      .limit(limit)
-      .offset(offset);
+    return this.trackCandidates({
+      order: 'popular',
+      limit,
+      offset,
+      excludedTrackIds,
+    });
   }
 
   findNewestTracks(
@@ -113,30 +105,12 @@ export class PersonalHomeTasteRepository {
     offset = 0,
     excludedTrackIds: string[] = [],
   ): Promise<PersonalTrackCandidate[]> {
-    return this.txHost.tx
-      .select({
-        id: tracks.id,
-        title: tracks.title,
-        coverUrl: tracks.coverUrl,
-        artistCredit: tracks.artistCredit,
-        durationMs: tracks.lengthMs,
-        vocalRangeLowest: tracks.vocalRangeLowest,
-        vocalRangeHighest: tracks.vocalRangeHighest,
-        genres: tracks.genres,
-        trendingScore: tracks.trendingScore,
-      })
-      .from(tracks)
-      .where(
-        and(
-          hasCompletedProcessing(tracks.id),
-          ...(excludedTrackIds.length > 0
-            ? [notInArray(tracks.id, excludedTrackIds)]
-            : []),
-        ),
-      )
-      .orderBy(desc(tracks.createdAt), desc(tracks.id))
-      .limit(limit)
-      .offset(offset);
+    return this.trackCandidates({
+      order: 'newest',
+      limit,
+      offset,
+      excludedTrackIds,
+    });
   }
 
   findMostSungTracks(
@@ -168,18 +142,7 @@ export class PersonalHomeTasteRepository {
       .as('personal_home_singer_attempts');
     const contribution = sql`sum(1 + ${HOME_STAGE2_PARAMETERS.repeatWeight}::numeric * least(${perUser.attempts} - 1, ${HOME_STAGE2_PARAMETERS.repeatCap}))`;
     const volume = sql`sum(${perUser.attempts})`;
-    return this.txHost.tx
-      .select({
-        id: tracks.id,
-        title: tracks.title,
-        coverUrl: tracks.coverUrl,
-        artistCredit: tracks.artistCredit,
-        durationMs: tracks.lengthMs,
-        vocalRangeLowest: tracks.vocalRangeLowest,
-        vocalRangeHighest: tracks.vocalRangeHighest,
-        genres: tracks.genres,
-        trendingScore: tracks.trendingScore,
-      })
+    return this.trackCandidateSelection()
       .from(perUser)
       .innerJoin(tracks, eq(tracks.id, perUser.trackId))
       .groupBy(
@@ -218,33 +181,17 @@ export class PersonalHomeTasteRepository {
       gte(maximumOverrun, 1),
       lte(maximumOverrun, 3),
     );
-    return this.txHost.tx
-      .select({
-        id: tracks.id,
-        title: tracks.title,
-        coverUrl: tracks.coverUrl,
-        artistCredit: tracks.artistCredit,
-        durationMs: tracks.lengthMs,
-        vocalRangeLowest: tracks.vocalRangeLowest,
-        vocalRangeHighest: tracks.vocalRangeHighest,
-        genres: tracks.genres,
-        trendingScore: tracks.trendingScore,
-      })
-      .from(tracks)
-      .where(
-        and(
-          hasCompletedProcessing(tracks.id),
-          isNotNull(tracks.vocalRangeLowest),
-          isNotNull(tracks.vocalRangeHighest),
-          or(fitCandidate, challengeCandidate),
-          ...(excludedTrackIds.length > 0
-            ? [notInArray(tracks.id, excludedTrackIds)]
-            : []),
-        ),
-      )
-      .orderBy(desc(tracks.trendingScore), desc(tracks.id))
-      .limit(limit)
-      .offset(offset);
+    return this.trackCandidates({
+      filter: and(
+        isNotNull(tracks.vocalRangeLowest),
+        isNotNull(tracks.vocalRangeHighest),
+        or(fitCandidate, challengeCandidate),
+      ),
+      order: 'popular',
+      limit,
+      offset,
+      excludedTrackIds,
+    });
   }
 
   async findTracksOutsideGenres(
@@ -252,42 +199,50 @@ export class PersonalHomeTasteRepository {
     limit: number,
   ): Promise<PersonalTrackCandidate[]> {
     if (genres.length === 0) return [];
-    return this.trackCandidates(
-      not(arrayOverlaps(tracks.genres, genres)),
+    return this.trackCandidates({
+      filter: not(arrayOverlaps(tracks.genres, genres)),
+      order: 'popular',
       limit,
-    );
+    });
   }
 
-  private trackCandidates(
-    genreFilter: ReturnType<typeof arrayOverlaps>,
-    limit: number,
+  private trackCandidates({
+    filter,
+    order,
+    limit,
     offset = 0,
-    excludedTrackIds: string[] = [],
-  ): Promise<PersonalTrackCandidate[]> {
-    return this.txHost.tx
-      .select({
-        id: tracks.id,
-        title: tracks.title,
-        coverUrl: tracks.coverUrl,
-        artistCredit: tracks.artistCredit,
-        durationMs: tracks.lengthMs,
-        vocalRangeLowest: tracks.vocalRangeLowest,
-        vocalRangeHighest: tracks.vocalRangeHighest,
-        genres: tracks.genres,
-        trendingScore: tracks.trendingScore,
-      })
+    excludedTrackIds = [],
+  }: CandidateQuery): Promise<PersonalTrackCandidate[]> {
+    return this.trackCandidateSelection()
       .from(tracks)
       .where(
         and(
           hasCompletedProcessing(tracks.id),
-          genreFilter,
+          ...(filter ? [filter] : []),
           ...(excludedTrackIds.length > 0
             ? [notInArray(tracks.id, excludedTrackIds)]
             : []),
         ),
       )
-      .orderBy(desc(tracks.trendingScore), desc(tracks.id))
+      .orderBy(
+        desc(order === 'popular' ? tracks.trendingScore : tracks.createdAt),
+        desc(tracks.id),
+      )
       .limit(limit)
       .offset(offset);
+  }
+
+  private trackCandidateSelection() {
+    return this.txHost.tx.select({
+      id: tracks.id,
+      title: tracks.title,
+      coverUrl: tracks.coverUrl,
+      artistCredit: tracks.artistCredit,
+      durationMs: tracks.lengthMs,
+      vocalRangeLowest: tracks.vocalRangeLowest,
+      vocalRangeHighest: tracks.vocalRangeHighest,
+      genres: tracks.genres,
+      trendingScore: tracks.trendingScore,
+    });
   }
 }
