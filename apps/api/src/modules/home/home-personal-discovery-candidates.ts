@@ -8,7 +8,7 @@ import { PersonalHomeTasteRepository } from './home-personal-taste.repository.js
 export const PERSONAL_CANDIDATE_BATCH_SIZE = 60;
 export const PERSONAL_CANDIDATE_BATCHES = 4;
 
-export const loadPersonalCandidateBatches = async <T>(
+const loadPersonalCandidateBatches = async <T>(
   load: (offset: number) => Promise<T[]>,
 ) => {
   const candidates: T[] = [];

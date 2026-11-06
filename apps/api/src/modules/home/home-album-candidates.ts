@@ -99,7 +99,7 @@ export const loadUsefulAlbumSnapshot = async (
 };
 
 /** Loads the same bounded candidate pool and locale-aware Track scores as the public Album shelf. */
-export const loadAlbumCandidates = async (
+const loadAlbumCandidates = async (
   repository: CompleteAlbumCandidateRepository,
   ranking: Pick<TrackLocaleTrendingService, 'rank'>,
   locale: Locale = DEFAULT_HOME_LOCALE,
