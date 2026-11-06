@@ -177,8 +177,8 @@ describe('Home feed singing signal (e2e)', () => {
         trendingScore: 2_000 - (i + 1),
       })),
     );
-    // Thirteen sung Tracks: the first twelve fill the Most sung row, and the
-    // thirteenth carries too little to matter anywhere but the chart.
+    // Thirteen sung Tracks: the first twelve fill Most sung, leaving one
+    // lower-signal Song outside that row.
     const sung = await seedTracks(
       testApp.db,
       Array.from({ length: 13 }, (_, i) => ({
@@ -253,17 +253,15 @@ describe('Home feed singing signal (e2e)', () => {
       layout: 'ranked',
       title: { key: 'home.rows.top10Week', params: {} },
     });
-    // Each signal row follows its own signal: the Most sung row takes the
-    // twelve most sung Tracks (the thirteenth charts instead), the Most
-    // favorited row takes the six loved Tracks.
+    // Each signal row follows its own signal: Most sung takes the twelve
+    // leading Songs, while Most favorited takes the six loved Tracks.
     expect(itemIdsOf(rowById(response.body, 'most-sung'))).toEqual(
       sung.slice(0, 12),
     );
     expect(itemIdsOf(rowById(response.body, 'most-favorited'))).toEqual(
       favorited,
     );
-    // The chart blends every signal: the ten chart Tracks fill it, in
-    // trending order, behind the Songs the earlier rows already took.
+    // The chart keeps its own ranking order and contains the ten chart Tracks.
     expect(itemIdsOf(rowById(response.body, 'top-10-week'))).toEqual(chart);
     // The first request also warms the feed on a cold runner, so this seed
     // gets longer than the default timeout.

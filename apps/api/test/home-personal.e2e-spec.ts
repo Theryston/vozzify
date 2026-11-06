@@ -110,7 +110,9 @@ describe('Personal home feed (e2e)', () => {
   let testApp: TestApp;
 
   beforeAll(async () => {
-    testApp = await createTestApp({ override: withMemoryCache });
+    testApp = await createTestApp({
+      override: (builder) => withMemoryCache(builder, memoryCache),
+    });
   });
 
   afterAll(async () => {
