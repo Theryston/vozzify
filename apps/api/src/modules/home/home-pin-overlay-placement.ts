@@ -79,7 +79,10 @@ const reserveQualityCategory = (options: {
   const displaced = pinnedSlots.get(categorySlot);
   if (displaced) {
     pinnedSlots.delete(categorySlot);
-    const nextSlot = Math.max(...pinnedSlots.keys(), categorySlot) + 1;
+    let nextSlot = categorySlot + 1;
+    while (mandatorySlots.has(nextSlot) || pinnedSlots.has(nextSlot)) {
+      nextSlot += 1;
+    }
     pinnedSlots.set(nextSlot, displaced);
   }
   return { categorySlot, pinnedSlots };

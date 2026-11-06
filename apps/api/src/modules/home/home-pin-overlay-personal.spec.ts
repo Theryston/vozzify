@@ -232,4 +232,34 @@ describe('personal editorial pin overlay', () => {
       true,
     );
   });
+
+  it('moves a colliding pin to the next free sparse position', () => {
+    const fillers = Array.from({ length: 17 }, (_, index) =>
+      standard(
+        `filler-${index}`,
+        Array.from({ length: 6 }, (__, item) =>
+          track(`filler-${index}-${item}`),
+        ),
+      ),
+    );
+    const rows: HomeRow[] = [
+      { id: 'hero', layout: 'hero', track: track('hero') },
+      dailyTarget,
+      ...fillers,
+      peopleRow,
+    ];
+    const pins = [
+      pin('pin-two', 2),
+      pin('pin-three', 3),
+      pin('pin-four', 4),
+      pin('pin-five', 5),
+      pin('pin-sparse-23', 23),
+    ];
+
+    const result = applyEditorialPins(rows, pins, 'personal');
+    expect(result).toHaveLength(24);
+    expect(result[5]?.id).toBe(peopleRow.id);
+    expect(result[6]?.id).toBe('pin-pin-five');
+    expect(result[23]?.id).toBe('pin-pin-sparse-23');
+  });
 });
