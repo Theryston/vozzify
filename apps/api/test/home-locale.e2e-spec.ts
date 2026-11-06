@@ -5,6 +5,11 @@ import { WEB_REVALIDATION_QUEUE } from '../src/integrations/web-revalidation/web
 import { HomeFeedService } from '../src/modules/home/home-feed.service.js';
 import { createTestApp, type TestApp } from './utils/create-test-app.js';
 import { resetDatabase } from './utils/database.js';
+import {
+  seedLocalePractice,
+  seedLocaleUsers,
+  utcPracticeDay,
+} from './utils/home-locale-confidence-fixtures.js';
 import { createCompletedTrack } from './utils/track-processing-factories.js';
 
 const getHome = (testApp: TestApp, locale?: string) =>
@@ -34,6 +39,24 @@ const recordViews = async (
       createdAt: views.createdAt ?? new Date(),
     })),
   );
+};
+
+const seedLocalePracticeCohort = async (
+  testApp: TestApp,
+  tracks: { trackId: string; locale: Locale }[],
+): Promise<void> => {
+  const userIds = (await seedLocaleUsers(testApp.db)).slice(0, 20);
+  const seeds = tracks.flatMap(({ trackId, locale }) =>
+    userIds.flatMap((userId) =>
+      Array.from({ length: 5 }, (_, day) => ({
+        userId,
+        trackId,
+        locale,
+        createdAt: utcPracticeDay(day),
+      })),
+    ),
+  );
+  await seedLocalePractice(testApp.db, seeds);
 };
 
 describe('Home feed by locale (e2e)', () => {
@@ -70,6 +93,10 @@ describe('Home feed by locale (e2e)', () => {
       locale: 'pt-BR',
       count: VIEWS,
     });
+    await seedLocalePracticeCohort(testApp, [
+      { trackId: english.id, locale: 'en' },
+      { trackId: portuguese.id, locale: 'pt-BR' },
+    ]);
 
     const en = await getHome(testApp, 'en').expect(200);
     const ptBr = await getHome(testApp, 'pt-BR').expect(200);
@@ -88,13 +115,16 @@ describe('Home feed by locale (e2e)', () => {
       locale: 'en',
       count: VIEWS,
     });
+    await seedLocalePracticeCohort(testApp, [
+      { trackId: english.id, locale: 'en' },
+    ]);
 
     const response = await getHome(testApp).expect(200);
 
     expect(heroTitleOf(response.body)).toBe('English favorite');
   });
 
-  it('falls back to the global figures when a locale has no view this month', async () => {
+  it('falls back to global ranking when locale practice evidence is insufficient', async () => {
     const global = await createCompletedTrack(testApp.db, {
       title: 'Global hot',
       coverUrl: 'https://cdn.example/global.webp',
