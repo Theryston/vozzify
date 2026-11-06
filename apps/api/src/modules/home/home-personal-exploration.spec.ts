@@ -170,4 +170,35 @@ describe('personal exploration allocation', () => {
     expect((taste.get(centerId(nearbyFeed) ?? '') ?? 0) > 0).toBe(true);
     expect((taste.get(centerId(surprisingFeed) ?? '') ?? 0) > 0).toBe(false);
   });
+
+  it('redistributes a far slot without replacing a protected nearby placement', () => {
+    const rows = [
+      row('first', ['a', 'b', 'c']),
+      row('second', ['d', 'e', 'f']),
+      row('third', ['g', 'h', 'i', 'j']),
+    ];
+    const taste = new Map<string, number>(
+      ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'].map((id) => [id, 1]),
+    );
+
+    const allocated = spreadPersonalExploration({
+      rows,
+      tasteByTrack: taste,
+      sourcePoolsByRow: new Map([['first', [track('far-alternative')]]]),
+      masteredTrackIds: new Set(),
+      reservedTrackIds: new Set(),
+    });
+    const first = allocated[0];
+
+    expect(first?.layout === 'standard' ? first.items[2]?.id : undefined).toBe(
+      'c',
+    );
+    expect(
+      allocated.some(
+        (entry) =>
+          entry.layout === 'standard' &&
+          entry.items.some(({ id }) => id === 'far-alternative'),
+      ),
+    ).toBe(true);
+  });
 });

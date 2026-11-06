@@ -8,7 +8,9 @@ import { PersonalHomeTasteRepository } from './home-personal-taste.repository.js
 export const PERSONAL_CANDIDATE_BATCH_SIZE = 60;
 export const PERSONAL_CANDIDATE_BATCHES = 4;
 
-const loadBatches = async <T>(load: (offset: number) => Promise<T[]>) => {
+export const loadPersonalCandidateBatches = async <T>(
+  load: (offset: number) => Promise<T[]>,
+) => {
   const candidates: T[] = [];
   for (let batch = 0; batch < PERSONAL_CANDIDATE_BATCHES; batch += 1) {
     const page = await load(batch * PERSONAL_CANDIDATE_BATCH_SIZE);
@@ -17,6 +19,20 @@ const loadBatches = async <T>(load: (offset: number) => Promise<T[]>) => {
   }
   return candidates;
 };
+
+export const loadGenreTasteCandidates = (
+  repository: PersonalHomeTasteRepository,
+  genres: string[],
+  excludedTrackIds: string[],
+): Promise<PersonalTrackCandidate[]> =>
+  loadPersonalCandidateBatches((offset) =>
+    repository.findTracksForGenres(
+      genres,
+      PERSONAL_CANDIDATE_BATCH_SIZE,
+      offset,
+      excludedTrackIds,
+    ),
+  );
 
 export const loadPersonalDiscoveryCandidates = async (options: {
   personal: PersonalHomeRepository;
@@ -34,7 +50,7 @@ export const loadPersonalDiscoveryCandidates = async (options: {
   const { personal, tasteRepository, taste, excludedTrackIds, userRange } =
     options;
   const voice = userRange
-    ? loadBatches((offset) =>
+    ? loadPersonalCandidateBatches((offset) =>
         tasteRepository.findVoiceCandidates(
           userRange,
           PERSONAL_CANDIDATE_BATCH_SIZE,
@@ -45,14 +61,14 @@ export const loadPersonalDiscoveryCandidates = async (options: {
     : Promise.resolve([]);
   const [popular, matched, newest, mostSung, voiceCandidates] =
     await Promise.all([
-      loadBatches((offset) =>
+      loadPersonalCandidateBatches((offset) =>
         personal.findPopularTasteCandidates(
           PERSONAL_CANDIDATE_BATCH_SIZE,
           offset,
           excludedTrackIds,
         ),
       ),
-      loadBatches((offset) =>
+      loadPersonalCandidateBatches((offset) =>
         tasteRepository.findTracksForGenres(
           topGenres(taste),
           PERSONAL_CANDIDATE_BATCH_SIZE,
@@ -60,14 +76,14 @@ export const loadPersonalDiscoveryCandidates = async (options: {
           excludedTrackIds,
         ),
       ),
-      loadBatches((offset) =>
+      loadPersonalCandidateBatches((offset) =>
         tasteRepository.findNewestTracks(
           PERSONAL_CANDIDATE_BATCH_SIZE,
           offset,
           excludedTrackIds,
         ),
       ),
-      loadBatches((offset) =>
+      loadPersonalCandidateBatches((offset) =>
         tasteRepository.findMostSungTracks(
           PERSONAL_CANDIDATE_BATCH_SIZE,
           new Date(Date.now() - 28 * 24 * 60 * 60 * 1000),

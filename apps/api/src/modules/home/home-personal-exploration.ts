@@ -214,6 +214,7 @@ const allocateExplorationSlot = (
   for (const { placement } of candidates) {
     const protectedIndices =
       state.protectedByRow.get(placement.rowIndex) ?? new Set<number>();
+    if (protectedIndices.has(placement.itemIndex)) continue;
     const allocation = setExplorationSlot(
       {
         ...options,

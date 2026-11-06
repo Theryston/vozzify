@@ -119,7 +119,7 @@ The maintainer approved progressive exposure factor `1/(1+0.25×priorExposures)`
 | 1 | 0.800 |
 | 3 | 0.571 |
 
-Ten exploration placements yield five nearby and five surprising placements before feed composition filters. A five-slot comparison has one exploration slot; alternate its source deterministically across repeated fixture runs to avoid systematic source bias. No placement count requires adding weak or ineligible candidates.
+Ten exploration placements yield five nearby and five surprising placements before feed composition filters. A five-slot comparison has one exploration slot; choose its direction from a stable per-User, per-UTC-day seed so odd quotas balance across Users and days while a visit stays deterministic. No placement count requires adding weak or ineligible candidates.
 
 ## Outcome evidence and rollout
 

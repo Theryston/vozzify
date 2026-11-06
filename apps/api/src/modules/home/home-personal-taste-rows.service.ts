@@ -17,6 +17,7 @@ import {
 } from './home-personal.repository.js';
 import type { UserTasteActivity } from './home-personal.repository.types.js';
 import {
+  loadGenreTasteCandidates,
   loadPersonalDiscoveryCandidates,
   PERSONAL_CANDIDATE_BATCH_SIZE,
   PERSONAL_CANDIDATE_BATCHES,
@@ -211,9 +212,13 @@ export class PersonalHomeTasteRowsService {
     usedTrackIds: ReadonlySet<string>;
   }): Promise<HomeRow | undefined> {
     const genres = topGenres(options.taste);
-    const cards = await this.tasteRepository.findTracksForGenres(
+    const excludedTrackIds = [
+      ...new Set([...options.mastered, ...options.usedTrackIds]),
+    ];
+    const cards = await loadGenreTasteCandidates(
+      this.tasteRepository,
       genres,
-      PERSONAL_CANDIDATE_LIMIT,
+      excludedTrackIds,
     );
     return this.composeTasteTrackRow({
       id: 'more-of-your-genres',

@@ -42,6 +42,9 @@ by selected Albums. For residual popularity values `R`, compute
 1.4 bounds the score. The personal Album component is the mean of per-Track
 confidence-aware taste and voice scores. Blend it with the same `lambda` as
 Track discovery. Do not add a second overlap penalty.
+The background public feed stores a versioned, bounded Album candidate pool
+with locale-aware Track popularity. Personal refreshes rank that shared pool
+and read only its Track metadata; they do not aggregate the whole catalog.
 
 **Use locale ranking only with independent local practice evidence.** In the
 current ranking window, count distinct Users with valid practice (`U`) and
@@ -73,6 +76,8 @@ per-User request scans the full practice history.
 recommendation placements for exploration, split evenly between nearby and
 surprising candidates. Place exploration in a catalog-wide For-you Row so a
 short feed can receive a slot without requiring a separate three-item Row.
+For odd quotas, choose the first source from a stable User/UTC-day seed so the
+feed stays deterministic while the extra slot balances across Users and days.
 Use bounded popularity and taste candidate batches; apply mastered, chart,
 resume, deduplication and completed-processing eligibility before filling.
 Every credited Artist counts toward the per-Row cap of two. Apply the

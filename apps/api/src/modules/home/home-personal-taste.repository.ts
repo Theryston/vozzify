@@ -11,6 +11,7 @@ import {
   lte,
   not,
   notInArray,
+  or,
   sql,
 } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
@@ -203,6 +204,20 @@ export class PersonalHomeTasteRepository {
     offset = 0,
     excludedTrackIds: string[] = [],
   ): Promise<PersonalTrackCandidate[]> {
+    const trackWidth = sql`${tracks.vocalRangeHighest} - ${tracks.vocalRangeLowest}`;
+    const maximumOverrun = sql`greatest(
+      greatest(${userRange.lowest} - ${tracks.vocalRangeLowest}, 0),
+      greatest(${tracks.vocalRangeHighest} - ${userRange.highest}, 0)
+    )`;
+    const fitCandidate = and(
+      lte(trackWidth, userRange.highest - userRange.lowest),
+      gte(tracks.vocalRangeLowest, userRange.lowest - 3),
+      lte(tracks.vocalRangeHighest, userRange.highest + 3),
+    );
+    const challengeCandidate = and(
+      gte(maximumOverrun, 1),
+      lte(maximumOverrun, 3),
+    );
     return this.txHost.tx
       .select({
         id: tracks.id,
@@ -221,8 +236,7 @@ export class PersonalHomeTasteRepository {
           hasCompletedProcessing(tracks.id),
           isNotNull(tracks.vocalRangeLowest),
           isNotNull(tracks.vocalRangeHighest),
-          lte(tracks.vocalRangeLowest, userRange.highest + 3),
-          gte(tracks.vocalRangeHighest, userRange.lowest - 3),
+          or(fitCandidate, challengeCandidate),
           ...(excludedTrackIds.length > 0
             ? [notInArray(tracks.id, excludedTrackIds)]
             : []),

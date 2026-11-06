@@ -125,6 +125,60 @@ describe('PersonalHomeTasteRowsService', () => {
     expect(candidates.tracks.some(({ id }) => id === 'voice-only')).toBe(true);
   });
 
+  it('refills the genre-specific row after mastered and already-used Tracks', async () => {
+    const excludedIds = Array.from(
+      { length: 240 },
+      (_, index) => `old-${index}`,
+    );
+    const alternatives = Array.from({ length: 60 }, (_, index) => ({
+      ...cards[index % cards.length],
+      id: `alternative-${index}`,
+    }));
+    const personal = {
+      findUserSungTrackSources: vi.fn().mockResolvedValue([]),
+    } as unknown as PersonalHomeRepository;
+    const tasteRepository = {
+      findTracksForGenres: vi.fn(
+        async (
+          _genres: string[],
+          limit: number,
+          offset: number,
+          excluded: string[],
+        ) =>
+          alternatives
+            .filter((candidate) => !excluded.includes(candidate.id))
+            .slice(offset, offset + limit),
+      ),
+    } as unknown as PersonalHomeTasteRepository;
+    const service = await createService(personal, tasteRepository, {
+      mostSungArtistActivities: vi.fn().mockResolvedValue([]),
+    });
+
+    const rows = await service.build({
+      userId: 'user',
+      signals: [],
+      tasteSignals,
+      taste: decayedTaste(tasteSignals),
+      mastered: new Set(excludedIds.slice(0, 180)),
+      usedTrackIds: new Set(excludedIds.slice(180)),
+      publicRows: [],
+    });
+
+    expect(tasteRepository.findTracksForGenres).toHaveBeenNthCalledWith(
+      1,
+      ['rock'],
+      60,
+      0,
+      excludedIds,
+    );
+    expect(rows.find((row) => row.id === 'more-of-your-genres')).toMatchObject({
+      layout: 'standard',
+      items: expect.arrayContaining([
+        expect.objectContaining({ id: 'alternative-0' }),
+      ]),
+    });
+  });
+
   it('builds an exploration row from a three-to-five-track slot budget', async () => {
     const personal = {
       findTracksOutsideGenres: vi
