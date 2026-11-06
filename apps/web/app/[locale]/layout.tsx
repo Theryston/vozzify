@@ -1,3 +1,4 @@
+import { GoogleTagManager } from '@next/third-parties/google';
 import type { Metadata } from 'next';
 import { Figtree, Geist_Mono } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
@@ -65,6 +66,7 @@ export default async function LocaleLayout({
       )}
     >
       <body>
+        <GoogleTagManager gtmId="GTM-PD2H3WNN" />
         {/* Only the namespaces client components need, to keep the RSC
             payload small. */}
         <NextIntlClientProvider messages={{ errors, notefinderNotice }}>
