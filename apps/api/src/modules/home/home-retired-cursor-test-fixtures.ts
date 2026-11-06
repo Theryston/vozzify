@@ -1,16 +1,64 @@
 import { Test } from '@nestjs/testing';
+import type { HomeRow } from '@vozzify/contracts';
 import { AttemptsService } from '../attempts/attempts.service.js';
 import { StreaksService } from '../streaks/streaks.service.js';
 import { UsersService } from '../users/users.service.js';
 import { HomeService } from './home.service.js';
 import { HomeFeedService } from './home-feed.service.js';
-import { PersonalHomeRepository } from './home-personal.repository.js';
+import {
+  PersonalHomeRepository,
+  type UserFavoriteSignal,
+  type UserTrackSignal,
+} from './home-personal.repository.js';
 import { PersonalHomeStore } from './home-personal.store.js';
 import { PersonalHomeBuilder } from './home-personal-builder.service.js';
 import { PersonalHomeTasteRepository } from './home-personal-taste.repository.js';
 import { PersonalHomeTasteRowsService } from './home-personal-taste-rows.service.js';
 
 type TestDependency = Record<string, unknown>;
+
+export const createLinkedHomeFeeds = (rows: HomeRow[]): TestDependency => ({
+  currentPublic: vi.fn().mockResolvedValue({
+    feed: {
+      audience: 'public',
+      locale: 'en',
+      version: 'public-version',
+      algorithmVersion: 1,
+      rows,
+    },
+    cacheable: true,
+  }),
+  withArtistLinks: vi.fn(async (input: HomeRow[]) =>
+    input.map((row) =>
+      row.layout === 'standard'
+        ? {
+            ...row,
+            items: row.items.map((item) => ({
+              ...item,
+              artistCredit: item.artistCredit.map((credit) => ({
+                ...credit,
+                artistId: 'artist-1',
+              })),
+            })),
+          }
+        : row,
+    ),
+  ),
+  publicVersion: vi.fn().mockResolvedValue(undefined),
+});
+
+export const createPersonalHomeRepositoryFixture = (): TestDependency => ({
+  findUserTrackSignals: vi
+    .fn<() => Promise<UserTrackSignal[]>>()
+    .mockResolvedValue([]),
+  findUserFavoriteSignals: vi
+    .fn<() => Promise<UserFavoriteSignal[]>>()
+    .mockResolvedValue([]),
+  findDiscoveryTracks: vi.fn().mockResolvedValue(new Map()),
+  findUserSungTrackSources: vi.fn().mockResolvedValue([]),
+  findCommunityCooccurrence: vi.fn().mockResolvedValue([]),
+  findTracksOutsideGenres: vi.fn().mockResolvedValue([]),
+});
 
 export const createTasteRows = async (
   personal: TestDependency,

@@ -2,11 +2,9 @@ import type { HomeRow, HomeTrack } from '@vozzify/contracts';
 import { encodeHomeCursor } from './home-cursor.js';
 import type { StoredPersonalHomeFeed } from './home-feed.js';
 import {
-  type UserFavoriteSignal,
-  type UserTrackSignal,
-} from './home-personal.repository.js';
-import {
+  createLinkedHomeFeeds,
   createPersonalHomeBuilder,
+  createPersonalHomeRepositoryFixture,
   createRetiredHomeService,
 } from './home-retired-cursor-test-fixtures.js';
 
@@ -26,44 +24,8 @@ describe('HomeService retired personal cursors', () => {
       title: { key: 'home.rows.newTracks', params: {} },
       items: [track],
     };
-    const feeds = {
-      currentPublic: vi.fn().mockResolvedValue({
-        feed: {
-          audience: 'public',
-          locale: 'en',
-          version: 'public-version',
-          algorithmVersion: 1,
-          rows: [],
-        },
-        cacheable: true,
-      }),
-      withArtistLinks: vi.fn(async (rows: HomeRow[]) =>
-        rows.map((row) =>
-          row.layout === 'standard'
-            ? {
-                ...row,
-                items: row.items.map((item) => ({
-                  ...item,
-                  artistCredit: item.artistCredit.map((credit) => ({
-                    ...credit,
-                    artistId: 'artist-1',
-                  })),
-                })),
-              }
-            : row,
-        ),
-      ),
-      publicVersion: vi.fn().mockResolvedValue(undefined),
-    };
-    const personal = {
-      findUserTrackSignals: vi
-        .fn<() => Promise<UserTrackSignal[]>>()
-        .mockResolvedValue([]),
-      findUserFavoriteSignals: vi
-        .fn<() => Promise<UserFavoriteSignal[]>>()
-        .mockResolvedValue([]),
-      findDiscoveryTracks: vi.fn().mockResolvedValue(new Map()),
-    };
+    const feeds = createLinkedHomeFeeds([]);
+    const personal = createPersonalHomeRepositoryFixture();
     const tasteRows = {
       findUserTasteActivities: vi.fn().mockResolvedValue([]),
       build: vi.fn().mockResolvedValue([rawRow]),

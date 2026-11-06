@@ -1,17 +1,15 @@
 import type { HomeRow, HomeTrack } from '@vozzify/contracts';
 import { encodeHomeCursor } from './home-cursor.js';
-import {
-  type PersonalTrackCandidate,
-  type UserFavoriteSignal,
-  type UserTrackSignal,
-} from './home-personal.repository.js';
+import type { PersonalTrackCandidate } from './home-personal.repository.js';
 import {
   decayedTaste,
   type TasteSignal,
 } from './home-personal-recommendations.js';
 import { personalHomeVersionFromStoredRows } from './home-personal-version.js';
 import {
+  createLinkedHomeFeeds,
   createPersonalHomeBuilder,
+  createPersonalHomeRepositoryFixture,
   createRetiredHomeService,
   createTasteRows,
 } from './home-retired-cursor-test-fixtures.js';
@@ -32,47 +30,8 @@ describe('HomeService retired personal taste cursors', () => {
       title: { key: 'home.rows.newTracks', params: {} },
       items: [track],
     };
-    const feeds = {
-      currentPublic: vi.fn().mockResolvedValue({
-        feed: {
-          audience: 'public',
-          locale: 'en',
-          version: 'public-version',
-          algorithmVersion: 1,
-          rows: [publicRow],
-        },
-        cacheable: true,
-      }),
-      withArtistLinks: vi.fn(async (rows: HomeRow[]) =>
-        rows.map((row) =>
-          row.layout === 'standard'
-            ? {
-                ...row,
-                items: row.items.map((item) => ({
-                  ...item,
-                  artistCredit: item.artistCredit.map((credit) => ({
-                    ...credit,
-                    artistId: 'artist-1',
-                  })),
-                })),
-              }
-            : row,
-        ),
-      ),
-      publicVersion: vi.fn().mockResolvedValue(undefined),
-    };
-    const personal = {
-      findUserTrackSignals: vi
-        .fn<() => Promise<UserTrackSignal[]>>()
-        .mockResolvedValue([]),
-      findUserFavoriteSignals: vi
-        .fn<() => Promise<UserFavoriteSignal[]>>()
-        .mockResolvedValue([]),
-      findDiscoveryTracks: vi.fn().mockResolvedValue(new Map()),
-      findUserSungTrackSources: vi.fn().mockResolvedValue([]),
-      findCommunityCooccurrence: vi.fn().mockResolvedValue([]),
-      findTracksOutsideGenres: vi.fn().mockResolvedValue([]),
-    };
+    const feeds = createLinkedHomeFeeds([publicRow]);
+    const personal = createPersonalHomeRepositoryFixture();
     const tasteCards: PersonalTrackCandidate[] = Array.from(
       { length: 12 },
       (_, index) => ({
