@@ -134,10 +134,23 @@ const preserveFrozenPinLayout = (
   if (frozen.layout === refreshed.layout) return refreshed;
   if (frozen.layout === 'hero' && refreshed.layout === 'standard') {
     const track = refreshed.items[0];
-    return track ? { ...frozen, track } : null;
+    return track
+      ? {
+          id: frozen.id,
+          layout: 'hero',
+          sponsored: refreshed.sponsored,
+          track,
+        }
+      : null;
   }
   if (frozen.layout === 'standard' && refreshed.layout === 'hero') {
-    return { ...frozen, items: [refreshed.track] };
+    return {
+      id: frozen.id,
+      layout: 'standard',
+      title: frozen.title,
+      sponsored: refreshed.sponsored,
+      items: [refreshed.track],
+    };
   }
   return null;
 };

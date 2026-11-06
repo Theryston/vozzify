@@ -37,27 +37,45 @@ export const personalHomeVersionFromStoredRows = (
     algorithmVersion,
     rows.map((row) => {
       if (row.layout === 'hero') {
-        return { ...row, track: withoutArtistLinks(row.track) };
+        return {
+          ...row,
+          track: withoutArtistLinks(row.track, hasUnlinkedTasteCredits(row.id)),
+        };
       }
       if (row.layout === 'vocal-range') {
         return {
           ...row,
           items: row.items.map((track) => ({
-            ...withoutArtistLinks(track),
+            ...withoutArtistLinks(track, hasUnlinkedTasteCredits(row.id)),
             vocalRange: track.vocalRange,
           })),
         };
       }
       if (row.layout === 'standard' || row.layout === 'ranked') {
-        return { ...row, items: row.items.map(withoutArtistLinks) };
+        return {
+          ...row,
+          items: row.items.map((track) =>
+            withoutArtistLinks(track, hasUnlinkedTasteCredits(row.id)),
+          ),
+        };
       }
       return row;
     }),
   );
 
-const withoutArtistLinks = (track: HomeTrack): HomeTrack => ({
+const hasUnlinkedTasteCredits = (rowId: string): boolean =>
+  rowId === 'because-you-sang' ||
+  rowId === 'more-of-your-genres' ||
+  rowId === 'explore';
+
+const withoutArtistLinks = (
+  track: HomeTrack,
+  preserveNullArtistIds: boolean,
+): HomeTrack => ({
   ...track,
-  artistCredit: track.artistCredit.map(
-    ({ artistId: _artistId, ...credit }) => credit,
-  ),
+  artistCredit: track.artistCredit.map((credit) => {
+    if (preserveNullArtistIds) return { ...credit, artistId: null };
+    const { artistId: _artistId, ...original } = credit;
+    return original;
+  }),
 });
