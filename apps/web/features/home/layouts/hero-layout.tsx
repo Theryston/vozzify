@@ -76,11 +76,11 @@ export function HeroLayout({
           priority={priority}
         />
       </div>
-      <div className="relative flex max-w-md flex-col items-start gap-3">
+      <div className="wrap-anywhere relative flex w-full min-w-0 max-w-md flex-col items-start gap-3 pt-36 md:max-w-[calc(100%-16rem)] md:pt-0 lg:max-w-md">
         {row.sponsored ? <SponsoredNotice placement="caption" /> : null}
         <h2
           id={headingId}
-          className="font-extrabold text-4xl tracking-tighter md:text-5xl"
+          className="font-extrabold text-3xl tracking-tighter sm:text-4xl md:text-5xl"
         >
           {track.title}
         </h2>

@@ -49,6 +49,14 @@ export type HomeAlbumRecord = {
   title: string;
   coverArtUrl: string | null;
   year: number | null;
+  primaryType?: string | null;
+  secondaryTypes?: string[];
+};
+
+export type HomeAlbumTrackSignal = {
+  albumId: string;
+  trackId: string;
+  popularity: number;
 };
 
 const candidateColumns = {
@@ -273,16 +281,18 @@ export class HomeRepository {
   }
 
   /**
-   * The Albums with a completed Track, most popular first: the sum of their
-   * completed Tracks' trending scores, then the ID.
+   * A bounded page of Albums with completed Tracks, ordered by existing
+   * popularity before content-aware selection.
    */
-  findPopularAlbums(limit: number): Promise<HomeAlbumRecord[]> {
+  findPopularAlbums(limit: number, offset = 0): Promise<HomeAlbumRecord[]> {
     return this.txHost.tx
       .select({
         id: albums.id,
         title: albums.title,
         coverArtUrl: albums.coverArtUrl,
         year: albums.year,
+        primaryType: albums.primaryType,
+        secondaryTypes: albums.secondaryTypes,
       })
       .from(albums)
       .innerJoin(albumTracks, eq(albumTracks.albumId, albums.id))
@@ -290,6 +300,28 @@ export class HomeRepository {
       .where(hasCompletedProcessing(tracks.id))
       .groupBy(albums.id)
       .orderBy(desc(sql`sum(${tracks.trendingScore})`), asc(albums.id))
-      .limit(limit);
+      .limit(limit)
+      .offset(offset);
+  }
+
+  /** Available Track scores for one bounded candidate batch. */
+  findAlbumTrackSignals(albumIds: string[]): Promise<HomeAlbumTrackSignal[]> {
+    if (albumIds.length === 0) {
+      return Promise.resolve([]);
+    }
+    return this.txHost.tx
+      .select({
+        albumId: albumTracks.albumId,
+        trackId: tracks.id,
+        popularity: tracks.trendingScore,
+      })
+      .from(albumTracks)
+      .innerJoin(tracks, eq(tracks.id, albumTracks.trackId))
+      .where(
+        and(
+          inArray(albumTracks.albumId, albumIds),
+          hasCompletedProcessing(tracks.id),
+        ),
+      );
   }
 }
