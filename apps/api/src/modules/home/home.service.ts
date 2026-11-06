@@ -188,7 +188,7 @@ export class HomeService {
     const { feed, cacheable } = await this.feeds.currentPublic(locale);
     const currentRows = await this.withSocialRows(feed.rows, userId);
     const shown = cacheable
-      ? await this.withPins(currentRows, locale, true, 'personal')
+      ? await this.withPins(currentRows, locale, true)
       : currentRows;
     const personalFeed = { ...feed, audience: 'personal' as const };
     const visit = cacheable
