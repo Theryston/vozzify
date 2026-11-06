@@ -16,7 +16,9 @@ import {
   medium,
   release,
   releaseCountry,
+  releaseGroup,
   releaseGroupTag,
+  releaseStatus,
   releaseUnknownCountry,
   track,
 } from '../../database/schema/musicbrainz/release.js';
@@ -26,6 +28,7 @@ import {
   work,
 } from '../../database/schema/musicbrainz/work.js';
 import { trackAssociation } from '../../database/schema/track-association.js';
+import { coverRankSql } from './recording-cover.repository.js';
 import type {
   ArtistNameRow,
   CreditGenreRow,
@@ -144,7 +147,7 @@ export class RecordingDocumentRepository {
       .where(inArray(track.recording, recordingIds));
   }
 
-  /** The same dated-first, title/MBID-tied release shown by getRecording. */
+  /** The same artist/compilation preferences and dates shown by getRecording. */
   async findPrimaryReleases(
     recordingIds: number[],
   ): Promise<PrimaryReleaseRow[]> {
@@ -156,15 +159,19 @@ export class RecordingDocumentRepository {
         select ${track.recording} as recording_id, ${release.gid} as release_mbid,
           row_number() over (
             partition by ${track.recording}
-            order by release_date.date asc nulls last,
+            order by ${coverRankSql(recording.artistCredit)},
+              release_date.date asc nulls last,
               ${release.name} collate "C", ${release.gid},
               ${medium.position}, ${track.position}
           ) as position
         from ${track}
+        join ${recording} on ${recording.id} = ${track.recording}
         join ${medium} on ${medium.id} = ${track.medium}
         join ${release} on ${release.id} = ${medium.release}
+        join ${releaseGroup} on ${releaseGroup.id} = ${release.releaseGroup}
+        left join ${releaseStatus} on ${releaseStatus.id} = ${release.status}
         cross join lateral (
-          select min(event_date.date collate "C") as date
+          select min(rpad(event_date.date, 10, '9') collate "C") as date
           from (
             select case when ${releaseCountry.dateYear} is null then null
               else lpad(${releaseCountry.dateYear}::text, 4, '0') ||

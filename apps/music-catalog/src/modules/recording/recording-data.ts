@@ -22,6 +22,7 @@ export type RecordingRow = {
 /** A release the Recording is on, at one of its tracks. */
 export type ReleaseRow = {
   id: number;
+  coverRank: number;
   mbid: string;
   title: string;
   releaseGroupMbid: string;
