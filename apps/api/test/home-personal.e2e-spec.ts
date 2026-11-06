@@ -1,4 +1,3 @@
-import type { TestingModuleBuilder } from '@nestjs/testing';
 import {
   type HomeFeedPage,
   type HomeRow,
@@ -6,7 +5,6 @@ import {
   homeFeedPageSchema,
 } from '@vozzify/contracts';
 import request from 'supertest';
-import type { z } from 'zod';
 import { albumDiscs, albumTracks } from '../src/database/schema/albums.js';
 import { trackArtists } from '../src/database/schema/artists.js';
 import { trackProcessings } from '../src/database/schema/track-processings.js';
@@ -25,7 +23,6 @@ import {
   PRIVATE_HOME_CACHE_CONTROL,
   PUBLIC_HOME_CACHE_CONTROL,
 } from '../src/modules/home/home-rules.js';
-import { CacheService } from '../src/redis/cache.service.js';
 import type { FakeQueue } from './redis-test-overrides.js';
 import { createAuthClient, signIn } from './utils/auth.js';
 import { createTestApp, type TestApp } from './utils/create-test-app.js';
@@ -37,38 +34,12 @@ import {
   createUser,
   DEFAULT_PASSWORD,
 } from './utils/factories.js';
+import { MemoryCache, withMemoryCache } from './utils/memory-cache.js';
 import { createCompletedTrack } from './utils/track-processing-factories.js';
 
 const VERSION_PATTERN = /^[0-9a-f]{16}$/;
 
-/**
- * A memory stand-in for the shared cache. Unlike the stub in the test
- * overrides, this one keeps values, so a snapshot the processor commits is
- * served by the next request.
- */
-class MemoryCache {
-  private readonly entries = new Map<string, unknown>();
-
-  async get<T>(key: string, schema: z.ZodType<T>): Promise<T | undefined> {
-    const parsed = schema.safeParse(this.entries.get(key));
-    return parsed.success ? parsed.data : undefined;
-  }
-
-  async set(key: string, value: unknown): Promise<void> {
-    this.entries.set(key, value);
-  }
-
-  async acquire(): Promise<boolean> {
-    return true;
-  }
-
-  async del(key: string): Promise<void> {
-    this.entries.delete(key);
-  }
-}
-
-const withMemoryCache = (builder: TestingModuleBuilder) =>
-  builder.overrideProvider(CacheService).useValue(new MemoryCache());
+const memoryCache = new MemoryCache();
 
 const personalQueueOf = (testApp: TestApp): FakeQueue => {
   const queue = testApp.queues[PERSONAL_HOME_FEED_QUEUE];
@@ -147,6 +118,7 @@ describe('Personal home feed (e2e)', () => {
   });
 
   beforeEach(async () => {
+    memoryCache.clear();
     await resetDatabase(testApp.db);
   });
 
@@ -434,9 +406,16 @@ describe('Personal home feed (e2e)', () => {
     expect(itemIdsOf(response.body, 'sing-again')[0]).toBe(started);
     // ... and stays out of the discovery rows.
     const discovery = (response.body.rows as HomeRow[]).filter(
-      (row) => row.id !== 'continue-singing' && row.id !== 'sing-again',
+      ({ id }) =>
+        !['continue-singing', 'sing-again', 'top-10-week'].includes(id),
     );
     expect(JSON.stringify(discovery)).not.toContain(started);
+    expect(
+      (response.body.rows as HomeRow[]).find((row) => row.id === 'top-10-week'),
+    ).toMatchObject({
+      layout: 'ranked',
+      items: expect.arrayContaining([expect.objectContaining({ id: started })]),
+    });
     expect(response.body.rows[1]).toMatchObject({
       layout: 'daily-target',
       title: { key: 'home.rows.dailyTarget', params: {} },
