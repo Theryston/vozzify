@@ -172,9 +172,9 @@
     "practice": {
       "metaTitle": "Notas vocais de {title} por {artists}",
       "metaTitleNoArtists": "Notas vocais de {title}",
-      "metaDescription": "Todas as notas vocais de {title} por {artists}, em uma linha do tempo para cantar junto. Notas desta música: {notes}.",
+      "metaDescription": "Veja as notas vocais de {title}, de {artists}, com extensão de {low} a {high}. Acompanhe a melodia e pratique sua afinação.",
       "metaDescriptionNoNotes": "As notas vocais de {title} por {artists}, em uma linha do tempo para cantar junto.",
-      "metaDescriptionNoArtists": "Todas as notas vocais de {title}, em uma linha do tempo para cantar junto. Notas desta música: {notes}.",
+      "metaDescriptionNoArtists": "Veja as notas vocais de {title}, com extensão de {low} a {high}. Acompanhe a melodia e pratique sua afinação.",
       "metaDescriptionNoArtistsNoNotes": "As notas vocais de {title}, em uma linha do tempo para cantar junto.",
       "contributors": "Colaboradores",
       "contributorLink": "Perfil de {name}",
@@ -280,6 +280,11 @@
         "loopEnd": "Fim do trecho",
         "nextNotes": "Próximas notas",
         "fullscreen": "Alternar tela cheia"
+      },
+      "noteSummary": {
+        "title": "Extensão vocal desta gravação",
+        "range": "As notas vocais originais vão de {low} a {high}.",
+        "practice": "Acompanhe as notas na linha do tempo e use o microfone para comparar sua afinação com a melodia."
       }
     }
   },
@@ -734,8 +739,8 @@
     "ATTEMPT_REJECTED": "Essa tentativa não contou: cante a música até o fim sem pular trechos."
   },
   "artists": {
-    "metaTitle": "{name}",
-    "metaDescription": "{name} com {count, plural, one {# faixa} other {# faixas}} no Vozzify.",
+    "metaTitle": "{name}: músicas e notas vocais",
+    "metaDescription": "Explore as músicas de {name}, veja suas notas vocais e pratique cantando com uma linha do tempo sincronizada.",
     "header": {
       "trackCount": "{count, plural, one {# faixa} other {# faixas}}",
       "genresLabel": "Gêneros",
@@ -762,8 +767,8 @@
     }
   },
   "albums": {
-    "metaTitle": "{title}",
-    "metaDescription": "As músicas de {title} com as suas notas vocais no Vozzify.",
+    "metaTitle": "{title}, de {artists}: notas vocais",
+    "metaDescription": "Veja as músicas de {title}, de {artists}, e acompanhe as notas vocais para cantar junto.",
     "header": {
       "loading": "Carregando álbum…",
       "artistsLabel": "Artistas",
@@ -821,7 +826,9 @@
     "notFound": {
       "title": "Álbum não encontrado",
       "description": "Não encontramos este álbum. Ele pode ter sido removido ou o link está errado."
-    }
+    },
+    "metaTitleNoArtists": "{title}: músicas e notas vocais",
+    "metaDescriptionNoArtists": "Veja as músicas de {title} e acompanhe as notas vocais para cantar junto."
   },
   "notFound": {
     "title": "Página não encontrada",
@@ -1436,5 +1443,26 @@
       }
     },
     "back": "Começar a praticar"
+  },
+  "homeSeo": {
+    "title": "Veja as notas vocais das músicas e pratique sua afinação",
+    "description": "Acompanhe as notas enquanto a música toca e compare sua voz com a melodia usando o microfone.",
+    "howItWorksTitle": "Como praticar com o Vozzify",
+    "steps": {
+      "find": {
+        "title": "Encontre uma música",
+        "description": "Busque pelo título ou artista e escolha uma música com notas disponíveis."
+      },
+      "follow": {
+        "title": "Acompanhe as notas",
+        "description": "Veja a melodia vocal em uma linha do tempo sincronizada com a música."
+      },
+      "practice": {
+        "title": "Cante e confira sua afinação",
+        "description": "Ative o microfone para comparar sua voz com as notas durante a prática."
+      }
+    },
+    "browseSongs": "Buscar músicas para cantar",
+    "plans": "Conhecer os planos"
   }
 }

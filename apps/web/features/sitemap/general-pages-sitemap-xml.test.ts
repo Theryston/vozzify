@@ -11,7 +11,7 @@ const locOf = (block: string): string =>
   block.match(/<loc>([^<]*)<\/loc>/)?.[1] ?? '';
 
 describe('generalPagesSitemapXml', () => {
-  it('lists home, terms and the auth entry points once per locale', () => {
+  it('lists public pages and the auth entry points once per locale', () => {
     const locs = urlBlocks(generalPagesSitemapXml(origin)).map(locOf);
 
     expect(locs).toEqual([
@@ -19,6 +19,10 @@ describe('generalPagesSitemapXml', () => {
       `${origin}/pt-BR`,
       `${origin}/en/terms`,
       `${origin}/pt-BR/terms`,
+      `${origin}/en/plans`,
+      `${origin}/pt-BR/plans`,
+      `${origin}/en/notefinder`,
+      `${origin}/pt-BR/notefinder`,
       `${origin}/en/sign-in`,
       `${origin}/pt-BR/sign-in`,
       `${origin}/en/sign-up`,

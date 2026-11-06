@@ -7,11 +7,8 @@ import { getSiteUrl } from '@/lib/env/client';
 import { localeAlternates } from '@/lib/i18n/metadata';
 import type { Locale } from '@/lib/i18n/routing';
 import { creditText } from '@/lib/track-credit';
-import { distinctNoteNames } from './note-summary';
+import { noteRangeOf } from './note-summary';
 import type { InitialPractice } from './practice-queries';
-
-/** How many notes the description lists: enough to tell songs apart. */
-const DESCRIBED_NOTES = 12;
 
 type MetaMessage =
   | 'metaTitle'
@@ -21,7 +18,12 @@ type MetaMessage =
   | 'metaDescriptionNoArtists'
   | 'metaDescriptionNoArtistsNoNotes';
 
-type MetaValues = { title: string; artists: string; notes: string };
+type MetaValues = {
+  title: string;
+  artists: string;
+  low: string;
+  high: string;
+};
 
 /** The page's translator, narrowed to the metadata messages. */
 export type TranslateMeta = (key: MetaMessage, values: MetaValues) => string;
@@ -37,7 +39,7 @@ function descriptionKey(hasArtists: boolean, hasNotes: boolean): MetaMessage {
 
 /**
  * The metadata of a completed Track, in the structure the legacy page had: a
- * title naming the song and its artists, a description listing the notes,
+ * title naming the song and its artists, a description of its vocal range,
  * Open Graph `music.song` with the cover, the duration and the artists, and
  * the canonical URL (with the hreflang alternates).
  */
@@ -53,16 +55,19 @@ export function buildPracticeMetadata({
   translate: TranslateMeta;
 }): Metadata {
   const artists = creditText(header.artistCredit);
-  const noteList = distinctNoteNames(notes?.notes ?? [], DESCRIBED_NOTES).join(
-    ', ',
-  );
-  const values = { title: header.title, artists, notes: noteList };
+  const range = noteRangeOf(notes?.notes ?? []);
+  const values = {
+    title: header.title,
+    artists,
+    low: range?.low ?? '',
+    high: range?.high ?? '',
+  };
   const title = translate(
     artists === '' ? 'metaTitleNoArtists' : 'metaTitle',
     values,
   );
   const description = translate(
-    descriptionKey(artists !== '', noteList !== ''),
+    descriptionKey(artists !== '', range !== null),
     values,
   );
   const path = `/tracks/${header.id}` as const;
@@ -71,6 +76,12 @@ export function buildPracticeMetadata({
     title,
     description,
     alternates: localeAlternates(locale, path),
+    twitter: {
+      card: header.coverUrl ? 'summary_large_image' : 'summary',
+      title,
+      description,
+      images: header.coverUrl ? [header.coverUrl] : undefined,
+    },
     openGraph: {
       type: 'music.song',
       title,

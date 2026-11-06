@@ -105,7 +105,7 @@ test.describe('sitemap index', () => {
 });
 
 test.describe('general pages shard', () => {
-  test('lists home, terms and the auth pages in both locales with hreflang', async ({
+  test('lists public pages and the auth pages in both locales with hreflang', async ({
     page,
     request,
   }) => {
@@ -125,6 +125,10 @@ test.describe('general pages shard', () => {
       `${extraOrigin}/pt-BR`,
       `${extraOrigin}/en/terms`,
       `${extraOrigin}/pt-BR/terms`,
+      `${extraOrigin}/en/plans`,
+      `${extraOrigin}/pt-BR/plans`,
+      `${extraOrigin}/en/notefinder`,
+      `${extraOrigin}/pt-BR/notefinder`,
       `${extraOrigin}/en/sign-in`,
       `${extraOrigin}/pt-BR/sign-in`,
       `${extraOrigin}/en/sign-up`,

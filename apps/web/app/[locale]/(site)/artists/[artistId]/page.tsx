@@ -2,15 +2,19 @@ import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 
+import { StructuredData } from '@/components/structured-data';
 import { ArtistHeader } from '@/features/artists/components/artist-header';
 import { ArtistTracksSection } from '@/features/artists/components/artist-tracks-section';
 import {
   getArtistResult,
   getArtistTracksPage,
 } from '@/features/artists/queries';
+import { getSiteUrl } from '@/lib/env/client';
 import { localeAlternates } from '@/lib/i18n/metadata';
 import type { Locale } from '@/lib/i18n/routing';
 import { queryStringOf } from '@/lib/query-string';
+import { artistStructuredData } from '@/lib/seo/catalog-structured-data';
+import { socialMetadata } from '@/lib/seo/social-metadata';
 
 type ArtistRouteParams = { locale: Locale; artistId: string };
 
@@ -45,13 +49,18 @@ export async function generateMetadata({
     notFound();
   }
   const t = await getTranslations('artists');
+  const title = t('metaTitle', { name: result.artist.name });
+  const description = t('metaDescription', { name: result.artist.name });
   return {
-    title: t('metaTitle', { name: result.artist.name }),
-    description: t('metaDescription', {
-      name: result.artist.name,
-      count: result.artist.trackCount,
-    }),
+    title,
+    description,
     alternates: localeAlternates(locale, `/artists/${result.artist.id}`),
+    ...socialMetadata({
+      locale,
+      path: `/artists/${result.artist.id}`,
+      title,
+      description,
+    }),
   };
 }
 
@@ -88,6 +97,13 @@ export default async function ArtistRoutePage({
   );
   return (
     <div className="flex flex-col gap-8">
+      <StructuredData
+        data={artistStructuredData({
+          artist: result.artist,
+          locale,
+          siteUrl: getSiteUrl(),
+        })}
+      />
       <ArtistHeader artist={result.artist} />
       <ArtistTracksSection
         artistId={result.artist.id}
