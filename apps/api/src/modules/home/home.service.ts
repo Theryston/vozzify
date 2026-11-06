@@ -163,7 +163,7 @@ export class HomeService {
       await this.requestRefresh(userId, locale);
     }
     const currentRows = await this.withSocialRows(snapshot.rows, userId);
-    const shown = await this.withPins(currentRows, locale, true);
+    const shown = await this.withPins(currentRows, locale, true, 'personal');
     const visit =
       shown.length > HOME_PAGE_SIZE
         ? await this.visits?.create(snapshot, shown, locale, userId)
@@ -188,7 +188,7 @@ export class HomeService {
     const { feed, cacheable } = await this.feeds.currentPublic(locale);
     const currentRows = await this.withSocialRows(feed.rows, userId);
     const shown = cacheable
-      ? await this.withPins(currentRows, locale, true)
+      ? await this.withPins(currentRows, locale, true, 'personal')
       : currentRows;
     const personalFeed = { ...feed, audience: 'personal' as const };
     const visit = cacheable
@@ -251,7 +251,12 @@ export class HomeService {
         return this.answer(visit, position, true, true);
       }
       const currentRows = await this.withSocialRows(snapshot.rows, userId);
-      const shown = await this.withPins(currentRows, snapshot.locale, true);
+      const shown = await this.withPins(
+        currentRows,
+        snapshot.locale,
+        true,
+        'personal',
+      );
       return this.answer({ ...snapshot, rows: shown }, position, true, true);
     }
     const visit = await this.visits?.personalVersion(version, userId, locale);
@@ -302,11 +307,12 @@ export class HomeService {
     rows: HomeRow[],
     locale: Locale,
     signedIn: boolean,
+    audience: 'public' | 'personal' = 'public',
   ): Promise<HomeRow[]> {
     if (!this.pinOverlay) {
       return rows;
     }
-    return this.pinOverlay.apply(rows, { locale, signedIn });
+    return this.pinOverlay.apply(rows, { locale, signedIn, audience });
   }
 
   /** Rebuilds social rows from current profile visibility before serving cache. */

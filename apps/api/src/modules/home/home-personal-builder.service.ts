@@ -13,11 +13,14 @@ import {
 } from './home-personal.repository.js';
 import type { UserTasteActivity } from './home-personal.repository.types.js';
 import { tasteSignalsOf } from './home-personal-activity.js';
-import { dailyTargetRow } from './home-personal-daily-target.js';
+import { buildPersonalVoiceAndDiscoveryRows } from './home-personal-candidate-rows.js';
 import {
-  blendedDiscoveryPool,
-  buildPersonalDiscoveryRows,
-} from './home-personal-discovery.js';
+  buildPersonalExplorationRow,
+  composePersonalHomeRows,
+  requirePersonalTasteRows,
+  reservedChartTrackIds,
+} from './home-personal-composition.js';
+import { dailyTargetRow } from './home-personal-daily-target.js';
 import {
   decayedSignalCount,
   decayedTaste,
@@ -26,14 +29,12 @@ import {
 import { resumeRows, trackIdsOfRow } from './home-personal-resume-rows.js';
 import { PersonalHomeTasteRowsService } from './home-personal-taste-rows.service.js';
 import { personalHomeVersion } from './home-personal-version.js';
-import {
-  buildPersonalVoiceRows,
-  personalTrackPool,
-  personalVoiceRowTrackIds,
-} from './home-personal-voice.js';
+import { personalTrackPool } from './home-personal-voice.js';
 import { DEFAULT_HOME_LOCALE, HOME_ALGORITHM_VERSION } from './home-rules.js';
 import { HomeSocialService } from './home-social.service.js';
 
+const withRows = (trackIds: ReadonlySet<string>, rows: HomeRow[]) =>
+  new Set([...trackIds, ...rows.flatMap(trackIdsOfRow)]);
 /**
  * Builds one User's personal feed. The public feed is the base: its Tracks
  * are re-ranked by the blend of their normalized popularity with the User's
@@ -73,8 +74,9 @@ export class PersonalHomeBuilder {
         this.users.getPracticeSettings(userId),
         this.attempts?.vocalRange(userId) ?? Promise.resolve(null),
       ]);
-    const activities =
-      await this.requireTasteRows().findUserTasteActivities(userId);
+    const activities = await requirePersonalTasteRows(
+      this.tasteRows,
+    ).findUserTasteActivities(userId);
     const socialRows = await (this.social?.rowsFor(userId) ??
       Promise.resolve([]));
     const rows = await this.buildRows({
@@ -133,25 +135,27 @@ export class PersonalHomeBuilder {
         .filter((signal) => isMasteredTrack(signal.bestAccuracy))
         .map((signal) => signal.trackId),
     );
-    const leadingRows: HomeRow[] = [
-      ...resumeRows(signals, mastered),
-      await dailyTargetRow(this.streaks, userId, timeZone),
-      ...socialRows,
-    ];
-    return [
-      ...leadingRows,
-      ...(await this.recommendationRows({
-        userId,
-        publicRows,
-        signals,
-        tasteSignals,
-        taste,
-        lambda,
-        mastered,
-        leadingRows,
-        userRange,
-      })),
-    ];
+    const resumes = resumeRows(signals, mastered);
+    const dailyTarget = await dailyTargetRow(this.streaks, userId, timeZone);
+    const recommendations = await this.recommendationRows({
+      userId,
+      publicRows,
+      signals,
+      tasteSignals,
+      taste,
+      lambda,
+      mastered,
+      leadingRows: [...resumes, ...socialRows],
+      userRange,
+    });
+    return composePersonalHomeRows({
+      hero: recommendations.find((row) => row.layout === 'hero'),
+      dailyTarget,
+      resumes,
+      socialRows,
+      publicRows,
+      recommendations,
+    });
   }
 
   private async recommendationRows(options: {
@@ -176,8 +180,12 @@ export class PersonalHomeBuilder {
       leadingRows,
       userRange,
     } = options;
-    const usedTrackIds = new Set(leadingRows.flatMap(trackIdsOfRow));
-    const tasteRows = await this.requireTasteRows().build({
+    const reservedTrackIds = reservedChartTrackIds(publicRows);
+    const usedTrackIds = new Set([
+      ...leadingRows.flatMap(trackIdsOfRow),
+      ...reservedTrackIds,
+    ]);
+    const tasteRows = await this.buildTasteRows({
       userId,
       signals,
       tasteSignals,
@@ -186,32 +194,27 @@ export class PersonalHomeBuilder {
       usedTrackIds,
       publicRows,
     });
-    const discovery = await this.findDiscoveryTracks(publicRows);
-    const blended = blendedDiscoveryPool({
+    const { voiceRows, discoveryRows } = await this.voiceAndDiscoveryRows({
       publicRows,
-      discovery,
       taste,
       lambda,
-      masteredTrackIds: mastered,
-      userRange,
-    });
-    const { voiceRows, discoveryRows } = this.buildVoiceAndDiscoveryRows({
-      publicRows,
-      discovery,
-      blended,
       mastered,
       userRange,
       usedTrackIds,
+      reservedTrackIds,
     });
-    for (const row of discoveryRows) {
-      for (const id of trackIdsOfRow(row)) usedTrackIds.add(id);
-    }
-    const exploration = await this.explorationRow({
+    const finalUsedTrackIds = withRows(usedTrackIds, discoveryRows);
+    const exploration = await buildPersonalExplorationRow(this.tasteRows, {
       taste,
       tasteSignals,
       mastered,
-      usedTrackIds,
-      rows: [...leadingRows, ...tasteRows, ...voiceRows, ...discoveryRows],
+      usedTrackIds: finalUsedTrackIds,
+      visibleTrackSlots: [
+        ...leadingRows,
+        ...tasteRows,
+        ...voiceRows,
+        ...discoveryRows,
+      ].flatMap(trackIdsOfRow).length,
     });
     return [
       ...tasteRows,
@@ -221,6 +224,18 @@ export class PersonalHomeBuilder {
     ];
   }
 
+  private async buildTasteRows(options: {
+    userId: string;
+    signals: UserTrackSignal[];
+    tasteSignals: TasteSignal[];
+    taste: ReturnType<typeof decayedTaste>;
+    mastered: ReadonlySet<string>;
+    usedTrackIds: Set<string>;
+    publicRows: HomeRow[];
+  }): Promise<HomeRow[]> {
+    return requirePersonalTasteRows(this.tasteRows).build(options);
+  }
+
   private async findDiscoveryTracks(publicRows: HomeRow[]) {
     const pool = personalTrackPool(publicRows);
     return this.personal.findDiscoveryTracks([
@@ -228,59 +243,26 @@ export class PersonalHomeBuilder {
     ]);
   }
 
-  private explorationRow(options: {
-    taste: ReturnType<typeof decayedTaste>;
-    tasteSignals: TasteSignal[];
-    mastered: ReadonlySet<string>;
-    usedTrackIds: ReadonlySet<string>;
-    rows: HomeRow[];
-  }) {
-    return this.requireTasteRows().explorationRow({
-      taste: options.taste,
-      tasteSignals: options.tasteSignals,
-      mastered: options.mastered,
-      usedTrackIds: options.usedTrackIds,
-      visibleTrackSlots: options.rows.flatMap(trackIdsOfRow).length,
-    });
-  }
-
-  private buildVoiceAndDiscoveryRows(options: {
+  private async voiceAndDiscoveryRows(options: {
     publicRows: HomeRow[];
-    discovery: Awaited<
-      ReturnType<PersonalHomeRepository['findDiscoveryTracks']>
-    >;
-    blended: ReturnType<typeof blendedDiscoveryPool>;
+    taste: ReturnType<typeof decayedTaste>;
+    lambda: number;
     mastered: ReadonlySet<string>;
     userRange: Awaited<ReturnType<AttemptsService['vocalRange']>>;
     usedTrackIds: Set<string>;
-  }): { voiceRows: HomeRow[]; discoveryRows: HomeRow[] } {
-    const {
-      publicRows,
+    reservedTrackIds: ReadonlySet<string>;
+  }) {
+    const discovery = await this.findDiscoveryTracks(options.publicRows);
+    return buildPersonalVoiceAndDiscoveryRows({
+      publicRows: options.publicRows,
       discovery,
-      blended,
-      mastered,
-      userRange,
-      usedTrackIds,
-    } = options;
-    const voiceRows = userRange
-      ? buildPersonalVoiceRows({
-          rows: publicRows,
-          userRange,
-          discovery,
-          masteredTrackIds: mastered,
-          alreadyUsedTrackIds: usedTrackIds,
-        })
-      : [];
-    for (const id of personalVoiceRowTrackIds(voiceRows)) {
-      usedTrackIds.add(id);
-    }
-    const discoveryRows = buildPersonalDiscoveryRows({
-      publicRows,
-      sorted: blended,
-      masteredTrackIds: mastered,
-      alreadyUsedTrackIds: usedTrackIds,
+      taste: options.taste,
+      lambda: options.lambda,
+      mastered: options.mastered,
+      userRange: options.userRange,
+      usedTrackIds: options.usedTrackIds,
+      reservedTrackIds: options.reservedTrackIds,
     });
-    return { voiceRows, discoveryRows };
   }
 
   @Transactional()
@@ -293,12 +275,5 @@ export class PersonalHomeBuilder {
   ): Promise<StoredPersonalHomeFeed> {
     if (!this.feeds.withArtistLinks) return feed;
     return { ...feed, rows: await this.feeds.withArtistLinks(feed.rows) };
-  }
-
-  private requireTasteRows(): PersonalHomeTasteRowsService {
-    if (!this.tasteRows) {
-      throw new Error('Home taste rows are not configured');
-    }
-    return this.tasteRows;
   }
 }

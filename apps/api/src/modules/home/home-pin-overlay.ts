@@ -6,7 +6,36 @@ import type {
   HomeVocalRangeTrack,
 } from '@vozzify/contracts';
 import { explorationSlotCount } from './home-personal-recommendations.js';
-import { HOME_MAX_ROWS, HOME_ROW_RULES } from './home-rules.js';
+import { placeRowsWithQualityCategory } from './home-pin-overlay-placement.js';
+import {
+  HOME_MAX_ROWS,
+  HOME_RECOMMENDATION_ROW_MIN_ITEMS,
+  HOME_ROW_RULES,
+  isHomeRecommendationRow,
+  PERSONAL_DISCOVERY_ROW_MIN_ITEMS,
+  PERSONAL_RESUME_ROW_MIN_ITEMS,
+} from './home-rules.js';
+
+const personalShortTrackRows = new Set([
+  'because-you-sang',
+  'more-of-your-genres',
+  'explore',
+]);
+const minimumTrackCount = (
+  row: HomeRow,
+  audience: 'public' | 'personal',
+): number => {
+  if (row.id === 'continue-singing' || row.id === 'sing-again') {
+    return PERSONAL_RESUME_ROW_MIN_ITEMS;
+  }
+  if (isHomeRecommendationRow(row.id)) {
+    return HOME_RECOMMENDATION_ROW_MIN_ITEMS;
+  }
+  if (audience === 'personal' && personalShortTrackRows.has(row.id)) {
+    return PERSONAL_DISCOVERY_ROW_MIN_ITEMS;
+  }
+  return HOME_ROW_RULES.standard.minItems;
+};
 
 /**
  * A live editorial pin as the overlay places it: its Tracks are already read
@@ -78,6 +107,7 @@ const algorithmicHero = (
 const algorithmicRows = (
   rows: readonly HomeRow[],
   pinnedIds: ReadonlySet<string>,
+  audience: 'public' | 'personal',
 ): HomeRow[] =>
   rows.flatMap((row): HomeRow[] => {
     if (row.layout === 'hero') {
@@ -98,7 +128,7 @@ const algorithmicRows = (
       return [row];
     }
     const items = row.items.filter((item) => !pinnedIds.has(item.id));
-    return items.length >= HOME_ROW_RULES[row.layout].minItems
+    return items.length >= minimumTrackCount(row, audience)
       ? [{ ...row, items }]
       : [];
   });
@@ -121,47 +151,19 @@ const rowPinsFor = (
   });
 };
 
-/**
- * Places the pinned rows over the algorithmic ones. The hero slot (row 0) goes
- * to the pinned hero, or stays with the algorithmic hero. A pin takes its
- * position; when that slot is taken by a higher-precedence pin, it takes the
- * next free one. Algorithmic rows fill the other slots in order.
- *
- * The one place a position cannot be kept: when the algorithmic rows run out
- * before a pin's position, the pin follows the last row. A feed has no empty
- * slots, so a gap is never rendered; this is the explicit rule for it.
- */
-const placeRows = (
-  hero: HomeRow | undefined,
-  pinned: readonly OverlayPin[],
-  algorithmic: readonly HomeRow[],
-): HomeRow[] => {
-  const taken = new Set<number>(hero ? [0] : []);
+const pinSlotsFor = (
+  pins: readonly OverlayPin[],
+  mandatorySlots: ReadonlySet<number>,
+): Map<number, HomeRow> => {
+  const taken = new Set(mandatorySlots);
   const slots = new Map<number, HomeRow>();
-  for (const pin of pinned) {
+  for (const pin of pins) {
     let index = pin.position;
-    while (taken.has(index)) {
-      index += 1;
-    }
+    while (taken.has(index)) index += 1;
     taken.add(index);
     slots.set(index, pinnedRow(pin));
   }
-  // The hero slot counts even when it is the only row of the feed.
-  const lastSlot = Math.max(hero ? 0 : -1, ...slots.keys());
-  const queue = [...algorithmic];
-  const rows: HomeRow[] = [];
-  for (
-    let index = 0;
-    rows.length < HOME_MAX_ROWS && (queue.length > 0 || index <= lastSlot);
-    index += 1
-  ) {
-    const slot = index === 0 && hero ? hero : slots.get(index);
-    const row = slot ?? queue.shift();
-    if (row) {
-      rows.push(row);
-    }
-  }
-  return rows;
+  return slots;
 };
 
 /** Pins can remove whole standard rows, so recalculate exploration afterward. */
@@ -184,7 +186,7 @@ const capExplorationRow = (rows: HomeRow[]): HomeRow[] => {
     0,
   );
   const maxItems = explorationSlotCount(visibleSlots);
-  if (maxItems < HOME_ROW_RULES.standard.minItems) {
+  if (maxItems < PERSONAL_DISCOVERY_ROW_MIN_ITEMS) {
     return rows.filter((_, index) => index !== explorationIndex);
   }
   if (exploration.items.length <= maxItems) return rows;
@@ -205,6 +207,7 @@ const capExplorationRow = (rows: HomeRow[]): HomeRow[] => {
 export const applyEditorialPins = (
   rows: readonly HomeRow[],
   pins: readonly OverlayPin[],
+  audience: 'public' | 'personal' = 'public',
 ): HomeRow[] => {
   // A pin with no Track left is skipped. So is a hero pin with no Track that
   // has a cover: a hero cannot show it, and it is not shown as a row either.
@@ -227,7 +230,23 @@ export const applyEditorialPins = (
     ordered.filter((pin) => pin !== heroPin),
     heroTrack,
   );
-  return capExplorationRow(
-    placeRows(hero, rowPins, algorithmicRows(rows, pinnedIds)),
+  const dailyTarget = rows.find((row) => row.id === 'daily-target');
+  const withoutDailyTarget = dailyTarget
+    ? rows.filter((row) => row !== dailyTarget)
+    : rows;
+  const algorithmic = algorithmicRows(withoutDailyTarget, pinnedIds, audience);
+  const mandatorySlots = new Set(
+    [hero ? 0 : -1, dailyTarget ? (hero ? 1 : 0) : -1].filter(
+      (slot) => slot >= 0,
+    ),
   );
+  const assignedPins = pinSlotsFor(rowPins, mandatorySlots);
+  const placed = placeRowsWithQualityCategory({
+    hero,
+    dailyTarget,
+    algorithmic,
+    mandatorySlots,
+    assignedPins,
+  });
+  return capExplorationRow(placed.slice(0, HOME_MAX_ROWS));
 };

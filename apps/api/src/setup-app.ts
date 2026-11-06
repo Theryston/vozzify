@@ -23,6 +23,7 @@ import {
   CLIENT_IP_HEADER,
 } from './modules/auth/auth.constants.js';
 import type { Auth } from './modules/auth/auth.js';
+import { cleanupHomeEventsOpenApiDoc } from './modules/events/home-events-openapi.js';
 
 /**
  * Passes the client IP Express resolved (honouring `TRUST_PROXY`) to Better
@@ -87,9 +88,11 @@ export const configureApp = (app: INestApplication): void => {
  * changes to the public contract.
  */
 export const createOpenApiDocument = (app: INestApplication): OpenAPIObject =>
-  cleanupOpenApiDoc(
-    SwaggerModule.createDocument(
-      app,
-      new DocumentBuilder().setTitle('vozzify API').setVersion('1').build(),
+  cleanupHomeEventsOpenApiDoc(
+    cleanupOpenApiDoc(
+      SwaggerModule.createDocument(
+        app,
+        new DocumentBuilder().setTitle('vozzify API').setVersion('1').build(),
+      ),
     ),
   );

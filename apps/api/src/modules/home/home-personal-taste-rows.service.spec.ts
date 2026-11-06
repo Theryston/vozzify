@@ -64,6 +64,31 @@ const createService = async (
 };
 
 describe('PersonalHomeTasteRowsService', () => {
+  it('builds an exploration row from a three-to-five-track slot budget', async () => {
+    const personal = {
+      findTracksOutsideGenres: vi
+        .fn()
+        .mockResolvedValue(
+          cards.slice(0, 3).map((card) => ({ ...card, genres: ['jazz'] })),
+        ),
+    } as unknown as PersonalHomeRepository;
+    const service = await createService(
+      personal,
+      {} as PersonalHomeTasteRepository,
+      { mostSungArtistActivities: vi.fn() },
+    );
+    const row = await service.explorationRow({
+      taste: decayedTaste(tasteSignals),
+      tasteSignals,
+      mastered: new Set(),
+      usedTrackIds: new Set(),
+      visibleTrackSlots: 15,
+    });
+    expect(personal.findTracksOutsideGenres).toHaveBeenCalledOnce();
+    expect(row?.id).toBe('explore');
+    expect(row?.layout === 'standard' ? row.items : []).toHaveLength(3);
+  });
+
   it('reserves co-occurrence Tracks before composing the genre row', async () => {
     const personal = {
       findUserSungTrackSources: vi

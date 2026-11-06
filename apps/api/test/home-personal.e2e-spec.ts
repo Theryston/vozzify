@@ -1,7 +1,14 @@
-import type { TestingModuleBuilder } from '@nestjs/testing';
-import type { HomeRow } from '@vozzify/contracts';
+import {
+  type HomeFeedPage,
+  type HomeRow,
+  type HomeTrack,
+  homeFeedPageSchema,
+} from '@vozzify/contracts';
 import request from 'supertest';
-import type { z } from 'zod';
+import { albumDiscs, albumTracks } from '../src/database/schema/albums.js';
+import { trackArtists } from '../src/database/schema/artists.js';
+import { trackProcessings } from '../src/database/schema/track-processings.js';
+import { tracks as trackTable } from '../src/database/schema/tracks.js';
 import {
   PERSONAL_HOME_FEED_QUEUE,
   REFRESH_PERSONAL_HOME_FEED_JOB,
@@ -17,48 +24,23 @@ import {
   PRIVATE_HOME_CACHE_CONTROL,
   PUBLIC_HOME_CACHE_CONTROL,
 } from '../src/modules/home/home-rules.js';
-import { CacheService } from '../src/redis/cache.service.js';
 import type { FakeQueue } from './redis-test-overrides.js';
 import { createAuthClient, signIn } from './utils/auth.js';
 import { createTestApp, type TestApp } from './utils/create-test-app.js';
 import { resetDatabase } from './utils/database.js';
 import {
+  createAlbum,
+  createArtist,
   createCredentialAccount,
   createUser,
   DEFAULT_PASSWORD,
 } from './utils/factories.js';
+import { MemoryCache, withMemoryCache } from './utils/memory-cache.js';
 import { createCompletedTrack } from './utils/track-processing-factories.js';
 
 const VERSION_PATTERN = /^[0-9a-f]{16}$/;
 
-/**
- * A memory stand-in for the shared cache. Unlike the stub in the test
- * overrides, this one keeps values, so a snapshot the processor commits is
- * served by the next request.
- */
-class MemoryCache {
-  private readonly entries = new Map<string, unknown>();
-
-  async get<T>(key: string, schema: z.ZodType<T>): Promise<T | undefined> {
-    const parsed = schema.safeParse(this.entries.get(key));
-    return parsed.success ? parsed.data : undefined;
-  }
-
-  async set(key: string, value: unknown): Promise<void> {
-    this.entries.set(key, value);
-  }
-
-  async acquire(): Promise<boolean> {
-    return true;
-  }
-
-  async del(key: string): Promise<void> {
-    this.entries.delete(key);
-  }
-}
-
-const withMemoryCache = (builder: TestingModuleBuilder) =>
-  builder.overrideProvider(CacheService).useValue(new MemoryCache());
+const memoryCache = new MemoryCache();
 
 const personalQueueOf = (testApp: TestApp): FakeQueue => {
   const queue = testApp.queues[PERSONAL_HOME_FEED_QUEUE];
@@ -85,8 +67,32 @@ const itemIdsOf = (body: { rows: unknown }, rowId: string): string[] => {
   const row = (body.rows as HomeRow[]).find(
     (candidate) => candidate.id === rowId,
   );
-  return row?.layout === 'standard' ? row.items.map((item) => item.id) : [];
+  return row?.layout === 'standard'
+    ? row.items.map((item: HomeTrack) => item.id)
+    : [];
 };
+
+const readEveryPage = async (
+  fetchPage: (cursor?: string) => Promise<{ body: unknown }>,
+): Promise<HomeFeedPage[]> => {
+  const pages: HomeFeedPage[] = [];
+  let cursor: string | undefined;
+  do {
+    const response = await fetchPage(cursor);
+    const page = homeFeedPageSchema.parse(response.body);
+    pages.push(page);
+    cursor = page.nextCursor ?? undefined;
+  } while (cursor !== undefined);
+  return pages;
+};
+
+const layoutsAcross = (pages: HomeFeedPage[]) => [
+  ...new Set(
+    pages.flatMap((page) =>
+      (page.rows as HomeRow[]).map((row: HomeRow) => row.layout),
+    ),
+  ),
+];
 
 const run = {
   difficulty: 'NORMAL',
@@ -105,7 +111,9 @@ describe('Personal home feed (e2e)', () => {
   let testApp: TestApp;
 
   beforeAll(async () => {
-    testApp = await createTestApp({ override: withMemoryCache });
+    testApp = await createTestApp({
+      override: (builder) => withMemoryCache(builder, memoryCache),
+    });
   });
 
   afterAll(async () => {
@@ -113,6 +121,7 @@ describe('Personal home feed (e2e)', () => {
   });
 
   beforeEach(async () => {
+    memoryCache.clear();
     await resetDatabase(testApp.db);
   });
 
@@ -222,7 +231,149 @@ describe('Personal home feed (e2e)', () => {
 
     await refreshUser(user.id);
     const rebuilt = await client.get('/v1/home').expect(200);
-    expect(rowIdsOf(rebuilt.body).slice(0, 1)).toEqual(['daily-target']);
+    expect(rowIdsOf(rebuilt.body).slice(0, 2)).toEqual([
+      'hero',
+      'daily-target',
+    ]);
+  });
+
+  it('preserves public categories across every page for sparse and established Users', async () => {
+    const artists = await Promise.all(
+      Array.from({ length: 10 }, (_, index) =>
+        createArtist(testApp.db, { name: `Category Artist ${index + 1}` }),
+      ),
+    );
+    const albums = await Promise.all(
+      Array.from({ length: 10 }, (_, index) =>
+        createAlbum(testApp.db, { title: `Category Album ${index + 1}` }),
+      ),
+    );
+    const completedTracks = await testApp.db
+      .insert(trackTable)
+      .values(
+        Array.from({ length: 100 }, (_, index) => ({
+          recordingMbid: `10000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+          title: `Category Track ${index + 1}`,
+          lengthMs: 180_000 + index * 1_000,
+          disambiguation: '',
+          video: false,
+          isrcs: [`CAT${String(index + 1).padStart(9, '0')}`],
+          genres: [`genre-${index % 10}`, `genre-${(index + 1) % 10}`],
+          coverUrl: `https://cdn.example/category-${index + 1}.webp`,
+          vocalRangeLowest: 48,
+          vocalRangeHighest: 53,
+          trendingScore: 100 - (index % 10),
+        })),
+      )
+      .returning();
+    await testApp.db.insert(trackProcessings).values(
+      completedTracks.map((track) => ({
+        trackId: track.id,
+        status: 'COMPLETED' as const,
+      })),
+    );
+    await testApp.db.insert(trackArtists).values(
+      completedTracks.map((track, index) => {
+        const artist = artists[Math.floor(index / 10)];
+        if (!artist) throw new Error('Missing artist fixture');
+        return { trackId: track.id, artistId: artist.id };
+      }),
+    );
+    await testApp.db
+      .insert(albumDiscs)
+      .values(albums.map((album) => ({ albumId: album.id, position: 1 })));
+    await testApp.db.insert(albumTracks).values(
+      completedTracks.map((track, index) => {
+        const album = albums[Math.floor(index / 10)];
+        if (!album) throw new Error('Missing album fixture');
+        return {
+          albumId: album.id,
+          trackId: track.id,
+          discPosition: 1,
+          trackPosition: (index % 10) + 1,
+        };
+      }),
+    );
+    const { client: collectiveSinger } = await signInAs(
+      'category_singer',
+      'category-singer@example.com',
+    );
+    const recentRun = {
+      ...run,
+      startedAt: new Date(Date.now() - 240_000).toISOString(),
+      endedAt: new Date().toISOString(),
+    };
+    for (const track of completedTracks.slice(0, 3)) {
+      await collectiveSinger
+        .post(`/v1/tracks/${track.id}/attempts`)
+        .send(recentRun)
+        .expect(201);
+    }
+
+    const { user: sparseUser, client: sparseClient } = await signInAs(
+      'category_sparse',
+      'category-sparse@example.com',
+    );
+    const publicPages = await readEveryPage((cursor) =>
+      request(testApp.app.getHttpServer()).get(
+        cursor ? `/v1/home?cursor=${cursor}` : '/v1/home',
+      ),
+    );
+    const sparsePages = await readEveryPage((cursor) =>
+      sparseClient.get(cursor ? `/v1/home?cursor=${cursor}` : '/v1/home'),
+    );
+    expect(
+      sparsePages.flatMap((page) => page.rows).map((row) => row.id),
+    ).toEqual(publicPages.flatMap((page) => page.rows).map((row) => row.id));
+    expect(publicPages.flatMap((page) => page.rows)).toEqual(
+      sparsePages.flatMap((page) => page.rows),
+    );
+    expect(layoutsAcross(publicPages)).toEqual(
+      expect.arrayContaining([
+        'genres',
+        'artists',
+        'albums',
+        'ranked',
+        'vocal-range',
+      ]),
+    );
+
+    await refreshUser(sparseUser.id);
+    const rebuiltSparsePages = await readEveryPage((cursor) =>
+      sparseClient.get(cursor ? `/v1/home?cursor=${cursor}` : '/v1/home'),
+    );
+    const rebuiltSparseRowIds = rebuiltSparsePages.flatMap((page) =>
+      (page.rows as HomeRow[]).map((row) => row.id),
+    );
+    expect(new Set(rebuiltSparseRowIds).size).toBe(rebuiltSparseRowIds.length);
+    const voiceRowsOf = (pages: HomeFeedPage[]) =>
+      pages.flatMap((page) =>
+        (page.rows as HomeRow[]).filter((row) => row.layout === 'vocal-range'),
+      );
+    expect(voiceRowsOf(rebuiltSparsePages)).toEqual(voiceRowsOf(publicPages));
+    expect(layoutsAcross(rebuiltSparsePages)).toEqual(
+      expect.arrayContaining([
+        'genres',
+        'artists',
+        'albums',
+        'ranked',
+        'vocal-range',
+      ]),
+    );
+
+    const practiced = completedTracks[0];
+    if (!practiced) throw new Error('No fixture Track');
+    await sparseClient
+      .post(`/v1/tracks/${practiced.id}/attempts`)
+      .send(run)
+      .expect(201);
+    await refreshUser(sparseUser.id);
+    const establishedPages = await readEveryPage((cursor) =>
+      sparseClient.get(cursor ? `/v1/home?cursor=${cursor}` : '/v1/home'),
+    );
+    expect(layoutsAcross(establishedPages)).toEqual(
+      expect.arrayContaining(['genres', 'artists', 'albums', 'ranked']),
+    );
   });
 
   it('serves the rebuilt snapshot with resume rows and the strip', async () => {
@@ -246,10 +397,11 @@ describe('Personal home feed (e2e)', () => {
 
     const response = await client.get('/v1/home').expect(200);
     expect(response.body.audience).toBe('personal');
-    expect(rowIdsOf(response.body).slice(0, 3)).toEqual([
+    expect(rowIdsOf(response.body).slice(0, 4)).toEqual([
+      'hero',
+      'daily-target',
       'continue-singing',
       'sing-again',
-      'daily-target',
     ]);
     // The mastered Track leaves continue-singing but leads sing-again.
     expect(itemIdsOf(response.body, 'continue-singing')).toHaveLength(6);
@@ -257,10 +409,17 @@ describe('Personal home feed (e2e)', () => {
     expect(itemIdsOf(response.body, 'sing-again')[0]).toBe(started);
     // ... and stays out of the discovery rows.
     const discovery = (response.body.rows as HomeRow[]).filter(
-      (row) => row.id !== 'continue-singing' && row.id !== 'sing-again',
+      ({ id }) =>
+        !['continue-singing', 'sing-again', 'top-10-week'].includes(id),
     );
     expect(JSON.stringify(discovery)).not.toContain(started);
-    expect(response.body.rows[2]).toMatchObject({
+    expect(
+      (response.body.rows as HomeRow[]).find((row) => row.id === 'top-10-week'),
+    ).toMatchObject({
+      layout: 'ranked',
+      items: expect.arrayContaining([expect.objectContaining({ id: started })]),
+    });
+    expect(response.body.rows[1]).toMatchObject({
       layout: 'daily-target',
       title: { key: 'home.rows.dailyTarget', params: {} },
       secondsLeft: 300,

@@ -96,14 +96,17 @@ describe('Personal home taste rows (e2e)', () => {
     userId: string,
     trackIds: string[],
     accuracies: number[] = [],
+    startedAt: Date = run.startedAt,
   ) =>
     testApp.db.insert(practiceAttempts).values(
       trackIds.map((trackId, index) => ({
         userId,
         trackId,
         ...run,
+        startedAt,
+        endedAt: new Date(startedAt.getTime() + 4 * 60 * 1_000),
         accuracy: accuracies[index] ?? run.accuracy,
-        createdAt: new Date(run.startedAt.getTime() + index * 1_000),
+        createdAt: new Date(startedAt.getTime() + index * 1_000),
       })),
     );
 
@@ -145,6 +148,7 @@ describe('Personal home taste rows (e2e)', () => {
   };
 
   const seedTasteData = async (viewerId: string) => {
+    const signalStartedAt = new Date(Date.now() - 14 * 24 * 60 * 60 * 1_000);
     const artistRows = await testApp.db
       .insert(artists)
       .values(
@@ -167,6 +171,7 @@ describe('Personal home taste rows (e2e)', () => {
       viewerId,
       seededTracks.slice(0, 24).map(({ id }) => id),
       Array.from({ length: 24 }, (_, index) => (index < 12 ? 0.95 : 0.7)),
+      signalStartedAt,
     );
 
     const targets = seededTracks.slice(36, 42).map(({ id }) => id);
@@ -175,11 +180,20 @@ describe('Personal home taste rows (e2e)', () => {
         username: `taste_cohort_${index}`,
         email: `taste-cohort-${index}@example.com`,
       });
-      await insertAttempts(cohort.id, [source.id, ...targets]);
+      await insertAttempts(
+        cohort.id,
+        [source.id, ...targets],
+        [],
+        signalStartedAt,
+      );
       if (index === 1) {
-        await testApp.db
-          .insert(trackFavorites)
-          .values(targets.map((trackId) => ({ userId: cohort.id, trackId })));
+        await testApp.db.insert(trackFavorites).values(
+          targets.map((trackId) => ({
+            userId: cohort.id,
+            trackId,
+            createdAt: new Date(signalStartedAt),
+          })),
+        );
       }
     }
 

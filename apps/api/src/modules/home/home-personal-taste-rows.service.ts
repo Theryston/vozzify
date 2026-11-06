@@ -26,7 +26,11 @@ import {
 } from './home-personal-recommendations.js';
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
 import { PersonalHomeTasteRepository } from './home-personal-taste.repository.js';
-import { HOME_ROW_RULES } from './home-rules.js';
+import {
+  HOME_RECOMMENDATION_ROW_MIN_ITEMS,
+  HOME_ROW_RULES,
+  PERSONAL_DISCOVERY_ROW_MIN_ITEMS,
+} from './home-rules.js';
 
 const MIN_TASTE_SIGNALS = 3;
 const CO_OCCURRENCE_SOURCE_LIMIT = 12;
@@ -221,7 +225,7 @@ export class PersonalHomeTasteRowsService {
       HOME_ROW_RULES.standard.maxItems,
       explorationSlotCount(options.visibleTrackSlots),
     );
-    if (slots < HOME_ROW_RULES.standard.minItems) return undefined;
+    if (slots < HOME_RECOMMENDATION_ROW_MIN_ITEMS) return undefined;
     const candidates = await this.personal.findTracksOutsideGenres(
       topGenres(options.taste),
       PERSONAL_CANDIDATE_LIMIT,
@@ -270,14 +274,17 @@ export class PersonalHomeTasteRowsService {
           ? tasteMatch(card.genres, artistKeyOf(card), options.taste)
           : 0,
       }));
-    const [composed] = composeHomeRows([
-      {
-        id: options.id,
-        layout: 'standard' as const,
-        title: options.title,
-        items: candidates.sort((a, b) => b.score - a.score),
-      },
-    ]);
+    const [composed] = composeHomeRows(
+      [
+        {
+          id: options.id,
+          layout: 'standard' as const,
+          title: options.title,
+          items: candidates.sort((a, b) => b.score - a.score),
+        },
+      ],
+      { minimumItems: { standard: PERSONAL_DISCOVERY_ROW_MIN_ITEMS } },
+    );
     return composed
       ? {
           id: composed.id,

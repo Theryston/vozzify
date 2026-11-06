@@ -56,6 +56,8 @@ const pages: TrackedHomePage[] = [
   {
     version: 'a1b2c3d4e5f60718',
     algorithmVersion: 1,
+    locale: 'en',
+    audience: 'public',
     rows: [
       { id: 'row-0', items: [{ id: 'track-1' }, { id: 'track-2' }] },
       { id: 'row-1', items: [{ id: 'track-3' }] },
@@ -189,6 +191,10 @@ describe('useHomeEvents', () => {
       events: [
         {
           type: 'home.row_impression',
+          eventId: expect.any(String),
+          visitId: expect.any(String),
+          locale: 'en',
+          audience: 'public',
           rowId: 'row-0',
           feedVersion: 'a1b2c3d4e5f60718',
           algorithmVersion: 1,
@@ -287,6 +293,10 @@ describe('useHomeEvents', () => {
       events: [
         {
           type: 'home.item_click',
+          eventId: expect.any(String),
+          visitId: expect.any(String),
+          locale: 'en',
+          audience: 'public',
           clickId: expect.any(String),
           rowId: 'row-0',
           feedVersion: 'a1b2c3d4e5f60718',
@@ -296,6 +306,10 @@ describe('useHomeEvents', () => {
         },
       ],
     });
+    const body = JSON.parse(await payload.text()) as {
+      events: { clickId?: string; eventId?: string }[];
+    };
+    expect(body.events[0]?.eventId).toBe(body.events[0]?.clickId);
     expect(link.href).toContain('clickId=');
   });
 

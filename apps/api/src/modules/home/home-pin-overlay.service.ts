@@ -20,7 +20,11 @@ import { toHomeCandidate } from './home-row-sources.js';
  */
 export const PINNED_ROW_TITLE_KEY = 'home.rows.pinned';
 
-type Viewer = { locale: Locale; signedIn: boolean };
+type Viewer = {
+  locale: Locale;
+  signedIn: boolean;
+  audience?: 'public' | 'personal';
+};
 
 /**
  * Reads the pins live for a viewer and applies them over the feed rows. The
@@ -78,8 +82,11 @@ export class HomePinOverlayService {
     viewer: Viewer,
     live: EditorialPin[],
   ): Promise<HomeRow[]> {
-    if (live.length === 0) {
+    if (live.length === 0 && (viewer.audience ?? 'public') === 'public') {
       return rows;
+    }
+    if (live.length === 0) {
+      return applyEditorialPins(rows, [], viewer.audience ?? 'public');
     }
     // A genre, artist or album pin names no Tracks of its own: its Tracks are
     // read here, so a newly processed Track shows without an edit of the pin.
@@ -120,7 +127,7 @@ export class HomePinOverlayService {
       );
       return overlayPin ? [overlayPin] : [];
     });
-    return applyEditorialPins(rows, pins);
+    return applyEditorialPins(rows, pins, viewer.audience ?? 'public');
   }
 }
 
