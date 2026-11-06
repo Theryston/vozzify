@@ -1,19 +1,11 @@
-import { getTranslations } from 'next-intl/server';
+import { NotFoundPage } from '@/components/not-found-page';
 import { TrackClickIdUrlCleaner } from '@/features/tracks/components/track-click-id-url-cleaner';
 
-/** Unknown Track ID: a real 404 with a translated explanation. */
-export default async function TrackNotFound() {
-  const t = await getTranslations('tracks.processing');
-
+export default function TrackNotFound() {
   return (
-    <div className="flex flex-col items-center gap-2 py-10 text-center">
+    <>
       <TrackClickIdUrlCleaner />
-      <h1 className="font-bold text-2xl tracking-tight">
-        {t('notFound.title')}
-      </h1>
-      <p className="max-w-prose text-muted-foreground text-sm">
-        {t('notFound.description')}
-      </p>
-    </div>
+      <NotFoundPage />
+    </>
   );
 }

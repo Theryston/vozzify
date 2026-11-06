@@ -73,10 +73,10 @@ describe('proxy artist guard', () => {
       new NextRequest('http://localhost:3000/en/artists/does-not-exist'),
     );
 
-    // A rewrite to the framework 404 route: serving it answers 404 (the
-    // Playwright suite pins the final status end to end).
+    // Keep the locale layout and the shared site 404 UI in the rewrite.
+    expect(response.status).toBe(404);
     expect(response.headers.get('x-middleware-rewrite')).toBe(
-      'http://localhost:3000/_not-found',
+      'http://localhost:3000/en/not-found',
     );
   });
 

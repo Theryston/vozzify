@@ -58,8 +58,9 @@ describe('proxy user profile guard', () => {
     expect(fetchMock.mock.lastCall?.[0]).toBe(
       'https://api.test/v1/users/nobody',
     );
+    expect(response.status).toBe(404);
     expect(response.headers.get('x-middleware-rewrite')).toBe(
-      'http://localhost:3000/_not-found',
+      'http://localhost:3000/pt-BR/not-found',
     );
   });
 

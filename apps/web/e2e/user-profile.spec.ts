@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { messages } from './messages';
+
 // The Profile page against the fake API (`fake-user-profile.ts`): the banner
 // of a known Profile, the real 404 for an unknown one, the permanent redirect
 // of a mixed-case username, and the small-screen and theme smoke checks.
@@ -24,7 +26,9 @@ test.describe('public profile page', () => {
     const response = await page.goto('/en/users/nobody');
 
     expect(response?.status()).toBe(404);
-    await expect(page.getByRole('heading', { name: '404' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: `404 ${messages.en.notFound.title}` }),
+    ).toBeVisible();
   });
 
   test('stays up with a notice when the API fails', async ({ page }) => {

@@ -331,7 +331,9 @@ for (const { locale, messages, moreName, zeroTracks } of cases) {
       );
 
       expect(response?.status()).toBe(404);
-      await expect(page.getByRole('heading', { name: '404' })).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: `404 ${messages.notFound.title}` }),
+      ).toBeVisible();
     });
 
     test('stays usable on small screens', async ({ page }) => {
