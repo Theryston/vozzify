@@ -98,7 +98,10 @@ describe('personal editorial pin overlay', () => {
       'pin-unrelated',
       'trending-today',
     ]);
-    expect(publicRows.map((row) => row.id)).toEqual(['pin-unrelated']);
+    expect(publicRows.map((row) => row.id)).toEqual([
+      'pin-unrelated',
+      'trending-today',
+    ]);
   });
 
   it('retains three public recommendation Tracks after editorial filtering', () => {

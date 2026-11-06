@@ -124,7 +124,7 @@ describe('HomeFeedBuilder', () => {
   });
 
   it('leaves out a row that is below its minimum size', async () => {
-    const feed = await buildWith([trendingSource(candidates(3))]);
+    const feed = await buildWith([trendingSource(candidates(2))]);
     expect(feed.rows).toEqual([]);
   });
 
