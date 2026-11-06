@@ -42,6 +42,16 @@ clients ignore layouts they do not know.
   recommendation rows may render with three eligible Tracks; generic standard
   layouts keep their six-Track minimum. The chart holds at most ten positions.
 
+Featured Albums are selected by the completed Tracks they add to the Albums
+already chosen. Shared Track popularity contributes only once; an Album with no
+additional available Track is omitted, and partial overlap is ranked by the
+popularity of its additional Tracks. Equal scores prefer a known
+non-compilation, available cover, oldest known year, then stable ID. Candidate
+retrieval uses at most four pages of 60 candidates, and the Album Row needs
+three items (up to twelve). Calibrated variety, concentration and overlap
+coefficients remain inactive until validated; see the
+[unvalidated bounded comparison](../home-album-calibration-proposal.md).
+
 **The version is a content hash.** `version` is a SHA-256 of the algorithm
 version and the rows, truncated to 16 hex characters. An unchanged feed keeps
 its version, so its cursors stay valid and the web is not revalidated for
@@ -112,14 +122,16 @@ configured at the CDN, not in the API.
   weighs the calendar windows of the day, the week and the month. It is not a
   pure day count.
 
-**Composition rollout and cached versions.** Algorithm version 2 marks the
-composition change: a short ranked chart can survive, the weekly chart is
-truthful and reserved against discovery duplication, and daily-target ordering
-is handled in the personal overlay. Existing snapshots keep their stored
-algorithm marker and remain readable until their normal cache expiry; a newly
-generated feed uses the current marker. Reverting the composition requires
-restoring version 1 and allowing version-2 cached feeds to expire or rebuilding
-them through the regular refresh jobs.
+**Composition rollout and cached versions.** Algorithm version 4 marks the
+combined composition and Album-selection change: a short ranked chart can
+survive, the weekly chart is truthful and reserved against discovery
+duplication, daily-target ordering is handled in the personal overlay, and
+Featured Albums are selected by useful Track content. Existing snapshots keep
+their stored algorithm marker and remain readable until their normal cache
+expiry; a first-page read queues a refresh when the marker differs. Reverting
+the composition while keeping Album selection requires restoring version 3
+and allowing version-4 cached feeds to expire or rebuilding them through the
+regular refresh jobs.
 
 ## Alternatives considered
 
