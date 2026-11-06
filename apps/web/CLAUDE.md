@@ -377,6 +377,10 @@ leaf possible and pass server-fetched data down as props.
   receive them as build args. That includes `NEXT_PUBLIC_SITE_URL`
   (`getSiteUrl()`, default `http://localhost:3000`), which static pages bake
   into canonical/hreflang URLs; a production build without it logs a warning.
+- `NEXT_PUBLIC_GTM_ENABLED` (`true` | `false`, default `false`) enables Google
+  Tag Manager only with `NODE_ENV=production`. The web image workflow sets it
+  to `true` only when publishing from `main`; local, e2e, Lighthouse and PR
+  image builds keep it disabled. Changing it requires rebuilding the web.
 
 ## Testing
 
