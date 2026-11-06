@@ -5,6 +5,7 @@ import type {
   HomeRow,
   HomeRowTitle,
   HomeTrack,
+  TrackVocalRange,
 } from '@vozzify/contracts';
 import { AttemptsService } from '../attempts/attempts.service.js';
 import type { MostSungArtistActivity } from '../attempts/profile-chips-ranking.js';
@@ -15,6 +16,11 @@ import {
   type UserTrackSignal,
 } from './home-personal.repository.js';
 import type { UserTasteActivity } from './home-personal.repository.types.js';
+import {
+  loadPersonalDiscoveryCandidates,
+  PERSONAL_CANDIDATE_BATCH_SIZE,
+  PERSONAL_CANDIDATE_BATCHES,
+} from './home-personal-discovery-candidates.js';
 import {
   decayedSignalCount,
   explorationSlotCount,
@@ -37,7 +43,8 @@ import {
 
 const MIN_TASTE_SIGNALS = 3;
 const CO_OCCURRENCE_SOURCE_LIMIT = 12;
-const PERSONAL_CANDIDATE_LIMIT = 180;
+const PERSONAL_CANDIDATE_LIMIT =
+  PERSONAL_CANDIDATE_BATCH_SIZE * PERSONAL_CANDIDATE_BATCHES;
 
 const title = (key: string): HomeRowTitle => ({ key, params: {} });
 
@@ -53,33 +60,38 @@ export class PersonalHomeTasteRowsService {
     return this.tasteRepository.findUserTasteActivities(userId);
   }
 
-  async findDiscoveryCandidates(taste: PersonalTaste): Promise<{
+  async findDiscoveryCandidates(
+    taste: PersonalTaste,
+    options: {
+      excludedTrackIds: ReadonlySet<string>;
+      userRange?: TrackVocalRange | null;
+    } = {
+      excludedTrackIds: new Set(),
+    },
+  ): Promise<{
     tracks: HomeTrack[];
     byRow: Record<string, HomeTrack[]>;
   }> {
-    const [popular, matched, newest, mostSung] = await Promise.all([
-      this.personal.findPopularTasteCandidates(PERSONAL_CANDIDATE_LIMIT),
-      this.tasteRepository.findTracksForGenres(
-        topGenres(taste),
-        PERSONAL_CANDIDATE_LIMIT,
-      ),
-      this.tasteRepository.findNewestTracks(PERSONAL_CANDIDATE_LIMIT),
-      this.tasteRepository.findMostSungTracks(
-        PERSONAL_CANDIDATE_LIMIT,
-        new Date(Date.now() - 28 * 24 * 60 * 60 * 1000),
-      ),
-    ]);
+    const { popular, matched, newest, mostSung, voice } =
+      await loadPersonalDiscoveryCandidates({
+        personal: this.personal,
+        tasteRepository: this.tasteRepository,
+        taste,
+        excludedTrackIds: [...options.excludedTrackIds],
+        userRange: options.userRange,
+      });
     const byRow = {
       'trending-today': popular.map(homeTrackOf),
       'most-sung': mostSung.map(homeTrackOf),
       'new-tracks': newest.map(homeTrackOf),
       'more-of-your-genres': matched.map(homeTrackOf),
+      'within-your-voice': voice.map(homeTrackOf),
+      'challenge-your-range': voice.map(homeTrackOf),
     };
     const unique = new Map(
-      [...popular, ...matched, ...newest, ...mostSung].map((track) => [
-        track.id,
-        track,
-      ]),
+      [...popular, ...matched, ...newest, ...mostSung, ...voice].map(
+        (track) => [track.id, track],
+      ),
     );
     return {
       tracks: [...unique.values()].map(homeTrackOf),

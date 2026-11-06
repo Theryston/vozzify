@@ -72,7 +72,9 @@ export class HomePopularityRepository {
       trackId: track.id,
       score:
         POPULARITY_WEIGHTS.trending *
-          (localeViewScores.get(track.id) ?? track.trendingScore) +
+          (locale === undefined
+            ? track.trendingScore
+            : (localeViewScores.get(track.id) ?? 0)) +
         POPULARITY_WEIGHTS.attempt * (singerCount.get(track.id) ?? 0) +
         POPULARITY_WEIGHTS.favorite * (favoriteCount.get(track.id) ?? 0),
     }));

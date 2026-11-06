@@ -98,4 +98,76 @@ describe('personal exploration allocation', () => {
     expect(personalExplorationQuota(2)).toBe(0);
     expect(allocated).toEqual(rows);
   });
+
+  it('keeps earlier quota placements when a later slot swaps within its Row', () => {
+    const rows = Array.from({ length: 6 }, (_, rowIndex) =>
+      row(
+        `row-${rowIndex}`,
+        Array.from(
+          { length: 12 },
+          (_, itemIndex) => `r${rowIndex}-t${itemIndex}`,
+        ),
+      ),
+    );
+    const flat = rows.flatMap((entry) =>
+      entry.layout === 'standard' ? entry.items : [],
+    );
+    const taste = new Map(flat.map((item) => [item.id, 1]));
+    const quota = personalExplorationQuota(flat.length);
+    const slots = Array.from({ length: quota }, (_, slot) => ({
+      index: Math.floor(((slot + 0.5) * flat.length) / quota),
+      nearby: slot % 2 === 0,
+    }));
+    for (const slot of slots) {
+      if (!slot.nearby) taste.set(flat[slot.index]?.id ?? '', 0);
+    }
+    for (let item = 1; item < 12; item += 1) taste.set(`r1-t${item}`, 0);
+    taste.set('replacement-near', 1);
+
+    const allocated = spreadPersonalExploration({
+      rows,
+      tasteByTrack: taste,
+      sourcePoolsByRow: new Map([['row-1', [track('replacement-near')]]]),
+      masteredTrackIds: new Set(),
+      reservedTrackIds: new Set(),
+    });
+    const emitted = allocated.flatMap((entry) =>
+      entry.layout === 'standard' ? entry.items : [],
+    );
+
+    expect(
+      slots.every(
+        ({ index, nearby }) =>
+          (taste.get(emitted[index]?.id ?? '') ?? 0) > 0 === nearby,
+      ),
+    ).toBe(true);
+    expect(new Set(emitted.map(({ id }) => id)).size).toBe(72);
+    expect(emitted.some(({ id }) => id === 'replacement-near')).toBe(true);
+  });
+
+  it('balances odd quota direction by a stable per-feed seed', () => {
+    const rows = [row('one', ['a', 'b', 'c', 'd', 'e', 'f'])];
+    const taste = new Map<string, number>(
+      ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => [id, 1] as const),
+    );
+    taste.set('d', 0);
+    const allocate = (seed: string) =>
+      spreadPersonalExploration({
+        rows,
+        tasteByTrack: taste,
+        sourcePoolsByRow: new Map([['one', [track('outside-near')]]]),
+        masteredTrackIds: new Set(),
+        reservedTrackIds: new Set(),
+        seed,
+      });
+
+    const nearbyFeed = allocate('b');
+    const surprisingFeed = allocate('a');
+    const centerId = (feed: HomeRow[]) => {
+      const center = feed[0];
+      return center?.layout === 'standard' ? center.items[3]?.id : undefined;
+    };
+    expect((taste.get(centerId(nearbyFeed) ?? '') ?? 0) > 0).toBe(true);
+    expect((taste.get(centerId(surprisingFeed) ?? '') ?? 0) > 0).toBe(false);
+  });
 });

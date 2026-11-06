@@ -64,6 +64,67 @@ const createService = async (
 };
 
 describe('PersonalHomeTasteRowsService', () => {
+  it('refills after mastery exclusions and independently loads voice candidates', async () => {
+    const catalog = Array.from({ length: 240 }, (_, index) => ({
+      ...cards[0],
+      id: `catalog-${index}`,
+    }));
+    const excluded = new Set(catalog.slice(0, 180).map((card) => card.id));
+    const voiceOnly = {
+      ...cards[0],
+      id: 'voice-only',
+      vocalRangeLowest: 60,
+      vocalRangeHighest: 72,
+    };
+    const personal = {
+      findPopularTasteCandidates: vi.fn(
+        async (limit: number, offset: number, excludedIds: string[]) =>
+          catalog
+            .filter((card) => !excludedIds.includes(card.id))
+            .slice(offset, offset + limit),
+      ),
+    } as unknown as PersonalHomeRepository;
+    const tasteRepository = {
+      findTracksForGenres: vi.fn().mockResolvedValue([]),
+      findNewestTracks: vi.fn().mockResolvedValue([]),
+      findMostSungTracks: vi.fn().mockResolvedValue([]),
+      findVoiceCandidates: vi.fn(async (_range: unknown, limit: number) =>
+        [voiceOnly].slice(0, limit),
+      ),
+    } as unknown as PersonalHomeTasteRepository;
+    const service = await createService(personal, tasteRepository, {
+      mostSungArtistActivities: vi.fn(),
+    });
+
+    const candidates = await service.findDiscoveryCandidates(
+      decayedTaste(tasteSignals),
+      { excludedTrackIds: excluded, userRange: { lowest: 60, highest: 72 } },
+    );
+
+    expect(personal.findPopularTasteCandidates).toHaveBeenCalledTimes(2);
+    expect(personal.findPopularTasteCandidates).toHaveBeenNthCalledWith(
+      1,
+      60,
+      0,
+      [...excluded],
+    );
+    expect(candidates.byRow['trending-today']?.map(({ id }) => id)).toEqual(
+      catalog.slice(180).map(({ id }) => id),
+    );
+    expect(candidates.byRow['within-your-voice']?.[0]?.id).toBe('voice-only');
+    expect(candidates.byRow['challenge-your-range']?.[0]?.id).toBe(
+      'voice-only',
+    );
+    expect(tasteRepository.findVoiceCandidates).toHaveBeenNthCalledWith(
+      1,
+      { lowest: 60, highest: 72 },
+      60,
+      0,
+      [...excluded],
+    );
+    expect(candidates.tracks.some(({ id }) => id === 'voice-only')).toBe(true);
+  });
+
   it('builds an exploration row from a three-to-five-track slot budget', async () => {
     const personal = {
       findTracksOutsideGenres: vi

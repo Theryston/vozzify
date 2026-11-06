@@ -7,15 +7,13 @@ import { dailyPracticeStreaks } from '../../database/schema/daily-practice-strea
 import { practiceAttempts } from '../../database/schema/practice-attempts.js';
 import { trackCooccurrences } from '../../database/schema/track-cooccurrences.js';
 import { trackFavorites } from '../../database/schema/track-favorites.js';
-import {
-  hasCompletedProcessing,
-  trackProcessings,
-} from '../../database/schema/track-processings.js';
+import { hasCompletedProcessing } from '../../database/schema/track-processings.js';
 import {
   type StoredArtistCreditEntry,
   tracks,
 } from '../../database/schema/tracks.js';
 import { homeArtistKeys } from './home-artist-keys.js';
+import { refreshCommunityCooccurrence } from './home-community-cooccurrence.repository.js';
 import type {
   PersonalAlbumTrack,
   PersonalTrackCandidate,
@@ -158,64 +156,7 @@ export class PersonalHomeRepository {
 
   /** Rebuilds the bounded, global co-occurrence ranking consumed by personal feeds. */
   async refreshCommunityCooccurrence(): Promise<void> {
-    const result = await this.txHost.tx.execute<{
-      sourceTrackId: string;
-      targetTrackId: string;
-      singerCount: number;
-      score: number;
-    }>(sql`
-        with signals as (
-          select distinct attempts.user_id, attempts.track_id
-          from ${practiceAttempts} attempts
-          inner join ${trackProcessings} processing
-            on processing.track_id = attempts.track_id
-            and processing.status = 'COMPLETED'
-          where attempts.forward_skip = false and attempts.bleed_suspected = false
-          union
-          select favorites.user_id, favorites.track_id
-          from ${trackFavorites} favorites
-          inner join ${trackProcessings} processing
-            on processing.track_id = favorites.track_id
-            and processing.status = 'COMPLETED'
-        ), pairs as (
-          select source.track_id as "sourceTrackId",
-            target.track_id as "targetTrackId",
-            count(distinct source.user_id)::int as "singerCount"
-          from signals source
-          inner join signals target on target.user_id = source.user_id
-          where target.track_id <> source.track_id
-          group by source.track_id, target.track_id
-          having count(distinct source.user_id) >= 2
-        ), track_counts as (
-          select track_id, count(distinct user_id)::float as user_count
-          from signals group by track_id
-        ), scored as (
-          select pairs.*,
-            sqrt(source_count.user_count * target_count.user_count) as denominator
-          from pairs
-          inner join track_counts source_count
-            on source_count.track_id = pairs."sourceTrackId"
-          inner join track_counts target_count
-            on target_count.track_id = pairs."targetTrackId"
-        ), scored_pairs as (
-          select "sourceTrackId", "targetTrackId", "singerCount",
-            "singerCount"::float / denominator as score
-          from scored
-        ), ranked as (
-          select "sourceTrackId", "targetTrackId", "singerCount", score,
-            row_number() over (
-              partition by "sourceTrackId"
-              order by score desc, "singerCount" desc, "targetTrackId" asc
-            ) as rank
-          from scored_pairs
-        )
-        select "sourceTrackId", "targetTrackId", "singerCount", score
-        from ranked where rank <= 48
-    `);
-    await this.txHost.tx.delete(trackCooccurrences);
-    if (result.rows.length > 0) {
-      await this.txHost.tx.insert(trackCooccurrences).values(result.rows);
-    }
+    await refreshCommunityCooccurrence(this.txHost.tx);
   }
 
   async findCommunityCooccurrence(sourceTrackIds: string[]): Promise<
@@ -307,8 +248,16 @@ export class PersonalHomeRepository {
     return this.tasteRepository.findTracksOutsideGenres(genres, limit);
   }
 
-  findPopularTasteCandidates(limit: number): Promise<PersonalTrackCandidate[]> {
-    return this.tasteRepository.findPopularTracks(limit);
+  findPopularTasteCandidates(
+    limit: number,
+    offset = 0,
+    excludedTrackIds: string[] = [],
+  ): Promise<PersonalTrackCandidate[]> {
+    return this.tasteRepository.findPopularTracks(
+      limit,
+      offset,
+      excludedTrackIds,
+    );
   }
 
   async findDiscoveryTracks(ids: string[]): Promise<

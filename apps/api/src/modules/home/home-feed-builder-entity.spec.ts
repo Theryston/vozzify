@@ -68,6 +68,36 @@ const albumsSource = (count: number): HomeEntityRowSource => ({
     })),
 });
 
+const albumSnapshotSource = (): HomeEntityRowSource => ({
+  id: 'featured-albums',
+  layout: 'albums',
+  title: { key: 'home.rows.featuredAlbums', params: {} },
+  load: async () =>
+    Array.from({ length: 6 }, (_, i) => ({
+      id: `album-${i}`,
+      title: `Album ${i}`,
+      coverArtUrl: null,
+      year: 2000 + i,
+    })),
+  loadSnapshot: async () => ({
+    items: Array.from({ length: 6 }, (_, i) => ({
+      id: `album-${i}`,
+      title: `Album ${i}`,
+      coverArtUrl: null,
+      year: 2000 + i,
+    })),
+    candidates: [
+      {
+        id: 'album-candidate',
+        title: 'Candidate',
+        coverArtUrl: null,
+        year: 2000,
+        availableTracks: [{ id: 'candidate-track', popularity: 0.4 }],
+      },
+    ],
+  }),
+});
+
 const genreNames = (count: number) =>
   Array.from({ length: count }, (_, i) => `Genre ${i}`);
 
@@ -88,6 +118,20 @@ const buildWith = (
     .then((moduleRef) => moduleRef.get(HomeFeedBuilder).build());
 
 describe('HomeFeedBuilder entity rows', () => {
+  it('stores the bounded Album candidate pool with the public feed snapshot', async () => {
+    const feed = await buildWith([heroSource()], [albumSnapshotSource()]);
+
+    expect(feed.albumCandidates).toEqual([
+      {
+        id: 'album-candidate',
+        title: 'Candidate',
+        coverArtUrl: null,
+        year: 2000,
+        availableTracks: [{ id: 'candidate-track', popularity: 0.4 }],
+      },
+    ]);
+  });
+
   it('appends the genre tiles, artists and albums rows after the Tracks', async () => {
     const feed = await buildWith(
       [heroSource(), trendingSource()],

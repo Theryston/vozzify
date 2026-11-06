@@ -15,6 +15,7 @@ type ExplorationOptions = {
   masteredTrackIds: ReadonlySet<string>;
   reservedTrackIds: ReadonlySet<string>;
   artistKeysByTrack?: ReadonlyMap<string, string[]>;
+  seed?: string;
 };
 
 type TrackItems = {
@@ -64,16 +65,22 @@ const isNearby = (
   tasteByTrack: ReadonlyMap<string, number>,
 ): boolean => (tasteByTrack.get(track.id) ?? 0) > 0;
 
-const desiredTrack = (
-  rowItems: TrackItems,
-  targetIndex: number,
-  nearby: boolean,
-  tasteByTrack: ReadonlyMap<string, number>,
-): HomeTrack | undefined => {
+const desiredTrack = (options: {
+  rowItems: TrackItems;
+  targetIndex: number;
+  nearby: boolean;
+  tasteByTrack: ReadonlyMap<string, number>;
+  protectedIndices: ReadonlySet<number>;
+}): HomeTrack | undefined => {
+  const { rowItems, targetIndex, nearby, tasteByTrack, protectedIndices } =
+    options;
   const current = rowItems.tracks[targetIndex];
   if (!current || isNearby(current, tasteByTrack) === nearby) return current;
   return rowItems.tracks.find(
-    (track) => isNearby(track, tasteByTrack) === nearby,
+    (track, index) =>
+      index !== targetIndex &&
+      !protectedIndices.has(index) &&
+      isNearby(track, tasteByTrack) === nearby,
   );
 };
 
@@ -137,19 +144,24 @@ const setExplorationSlot = (
     itemIndex: number;
     nearby: boolean;
   },
-): HomeRow[] => {
+  protectedIndices: Set<number>,
+): { rows: HomeRow[]; reservedIndices: number[] } | undefined => {
   const row = options.rows[options.rowIndex];
   const items = row ? trackItems(row) : null;
   const current = items?.tracks[options.itemIndex];
-  if (!row || !items || !current) return options.rows;
-  const inRow = desiredTrack(
-    items,
-    options.itemIndex,
-    options.nearby,
-    options.tasteByTrack,
-  );
+  if (!row || !items || !current) return undefined;
+  const inRow = desiredTrack({
+    rowItems: items,
+    targetIndex: options.itemIndex,
+    nearby: options.nearby,
+    tasteByTrack: options.tasteByTrack,
+    protectedIndices,
+  });
   const next = [...items.tracks];
-  if (inRow && inRow.id !== current.id) {
+  if (inRow?.id === current.id) {
+    return { rows: options.rows, reservedIndices: [options.itemIndex] };
+  }
+  if (inRow) {
     const index = next.findIndex((track) => track.id === inRow.id);
     next[index] = current;
     next[options.itemIndex] = inRow;
@@ -161,16 +173,66 @@ const setExplorationSlot = (
       currentTrack: current,
       rowItems: items,
     });
-    if (!replacement) return options.rows;
+    if (!replacement) return undefined;
     next[options.itemIndex] = replacement;
+  } else {
+    return { rows: options.rows, reservedIndices: [options.itemIndex] };
   }
   const result = [...options.rows];
   result[options.rowIndex] = items.replace(next);
-  return result;
+  const reservedIndices = [options.itemIndex];
+  if (inRow) reservedIndices.push(next.indexOf(current));
+  return { rows: result, reservedIndices };
 };
 
 export const personalExplorationQuota = (trackCount: number): number =>
   Math.round(Math.max(0, trackCount) * EXPLORATION_SLOT_SHARE);
+
+const explorationSlots = (count: number, quota: number, nearbyFirst: boolean) =>
+  Array.from({ length: quota }, (_, slot) => ({
+    targetIndex: Math.floor(((slot + 0.5) * count) / quota),
+    nearby: nearbyFirst ? slot % 2 === 0 : slot % 2 !== 0,
+  }));
+
+type ExplorationAllocationState = {
+  rows: HomeRow[];
+  protectedByRow: Map<number, Set<number>>;
+};
+
+const allocateExplorationSlot = (
+  options: ExplorationOptions,
+  state: ExplorationAllocationState,
+  slot: { targetIndex: number; nearby: boolean },
+  placements: ReturnType<typeof trackPlacements>,
+): ExplorationAllocationState => {
+  const candidates = placements
+    .map((placement, index) => ({
+      placement,
+      distance: Math.abs(index - slot.targetIndex),
+    }))
+    .sort((left, right) => left.distance - right.distance);
+  for (const { placement } of candidates) {
+    const protectedIndices =
+      state.protectedByRow.get(placement.rowIndex) ?? new Set<number>();
+    const allocation = setExplorationSlot(
+      {
+        ...options,
+        rows: state.rows,
+        ...placement,
+        nearby: slot.nearby,
+      },
+      protectedIndices,
+    );
+    if (!allocation) continue;
+    for (const index of allocation.reservedIndices) {
+      protectedIndices.add(index);
+    }
+    const protectedByRow = new Map(state.protectedByRow);
+    protectedByRow.set(placement.rowIndex, protectedIndices);
+    return { rows: allocation.rows, protectedByRow };
+  }
+  return state;
+};
 
 /** Spreads nearby and surprising candidates across emitted discovery Rows. */
 export const spreadPersonalExploration = (
@@ -181,29 +243,24 @@ export const spreadPersonalExploration = (
   const placements = trackPlacements(rows);
   const quota = personalExplorationQuota(placements.length);
   if (quota === 0) return rows;
-  let result = rows;
-  const nearbyFirst = (placements.length + quota) % 2 === 0;
-  for (let slot = 0; slot < quota; slot += 1) {
-    const targetIndex = Math.floor(((slot + 0.5) * placements.length) / quota);
-    const nearby = nearbyFirst ? slot % 2 === 0 : slot % 2 !== 0;
-    const candidates = placements
-      .map((placement, index) => ({
-        placement,
-        distance: Math.abs(index - targetIndex),
-      }))
-      .sort((a, b) => a.distance - b.distance);
-    for (const { placement } of candidates) {
-      const next = setExplorationSlot({
-        ...options,
-        rows: result,
-        ...placement,
-        nearby,
-      });
-      if (next !== result) {
-        result = next;
-        break;
-      }
-    }
+  let state: ExplorationAllocationState = {
+    rows,
+    protectedByRow: new Map(),
+  };
+  const nearbyFirst =
+    options.seed === undefined
+      ? (placements.length + quota) % 2 === 0
+      : stableSeedParity(options.seed) === 0;
+  for (const slot of explorationSlots(placements.length, quota, nearbyFirst)) {
+    state = allocateExplorationSlot(options, state, slot, placements);
   }
-  return result;
+  return state.rows;
+};
+
+const stableSeedParity = (seed: string): number => {
+  let hash = 0;
+  for (const character of seed) {
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  }
+  return hash % 2;
 };

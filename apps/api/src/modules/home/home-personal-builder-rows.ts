@@ -43,8 +43,7 @@ export const buildPersonalRows = async (
     lambda,
     userRange: options.userRange,
     voiceConfidence,
-    homeRepository: deps.homeRepository,
-    localeTrending: deps.localeTrending,
+    albumCandidates: options.albumCandidates,
     personal: deps.personal,
   });
   const { mastered, resumes, dailyTarget } = await leadingRows(deps, options);
@@ -87,5 +86,6 @@ export const buildPersonalRows = async (
     explorationPoolsByRow: new Map(
       Object.entries(recommendation.sourcePoolsByRow),
     ),
+    explorationSeed: `${options.userId}:${new Date().toISOString().slice(0, 10)}`,
   });
 };

@@ -89,7 +89,10 @@ const voiceAndDiscoveryRows = async (
 ) => {
   const candidates = await requirePersonalTasteRows(
     deps.tasteRows,
-  ).findDiscoveryCandidates(options.taste);
+  ).findDiscoveryCandidates(options.taste, {
+    excludedTrackIds: new Set([...options.mastered, ...options.usedTrackIds]),
+    userRange: options.userRange,
+  });
   const discovery = await deps.personal.findDiscoveryTracks([
     ...new Set([
       ...options.publicRows.flatMap(trackIdsOfRow),

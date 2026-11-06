@@ -248,4 +248,39 @@ describe('the singing row sources', () => {
     // but the chart only ranks Tracks the community sang or favorited.
     expect(items?.map((item) => item.id)).toEqual(['sung']);
   });
+
+  it('counts singers across the whole chart pool beyond the top-singer shortlist', async () => {
+    const singerShortlist = Array.from(
+      { length: 60 },
+      (_, index) => `singer-${index + 1}`,
+    );
+    const outsideShortlist = 'singer-61';
+    repository.findTrendingTracks.mockResolvedValue([
+      { ...record(outsideShortlist), trendingScore: 0 },
+    ]);
+    repository.findMostSungTrackIds.mockResolvedValue(
+      singerShortlist.map((trackId) => ({ trackId, count: 1 })),
+    );
+    repository.findMostFavoritedTrackIds.mockResolvedValue([
+      { trackId: outsideShortlist, count: 1 },
+    ]);
+    repository.findCompletedTracksByIds.mockImplementation(
+      async (ids: string[]) =>
+        ids.map((id) => ({ ...record(id), trendingScore: 0 })),
+    );
+    repository.countRecentAttempts.mockImplementation(async (ids: string[]) =>
+      ids.map((trackId) => ({
+        trackId,
+        count: trackId === outsideShortlist ? 100 : 1,
+      })),
+    );
+    repository.countRecentFavorites.mockResolvedValue([]);
+
+    const items = await sourceLoad('top-10-week');
+
+    expect(repository.countRecentAttempts.mock.calls[0]?.[0]).toContain(
+      outsideShortlist,
+    );
+    expect(items?.[0]?.id).toBe(outsideShortlist);
+  });
 });

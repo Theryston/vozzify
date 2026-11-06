@@ -16,6 +16,23 @@ export const storedHomeFeedSchema = z.object({
   version: z.string().min(1).max(64),
   algorithmVersion: z.number().int().positive(),
   rows: z.array(homeRowSchema),
+  // The bounded pool from the background build lets personal refreshes rank
+  // Albums without rescanning the complete catalog for each User.
+  albumCandidates: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        coverArtUrl: z.string().nullable(),
+        year: z.number().int().nullable(),
+        primaryType: z.string().nullable().optional(),
+        secondaryTypes: z.array(z.string()).optional(),
+        availableTracks: z.array(
+          z.object({ id: z.string(), popularity: z.number() }),
+        ),
+      }),
+    )
+    .optional(),
 });
 
 export type StoredHomeFeed = z.infer<typeof storedHomeFeedSchema>;

@@ -79,6 +79,7 @@ export class PersonalHomeBuilder {
         userId,
         locale,
         publicRows: feed.rows,
+        albumCandidates: feed.albumCandidates,
         signals,
         favorites,
         activities,

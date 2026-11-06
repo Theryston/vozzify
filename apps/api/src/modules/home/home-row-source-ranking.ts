@@ -125,7 +125,7 @@ const scoreWeeklyRecords = (options: {
 /** The weekly Top 10: the blended popularity of the week, best first. */
 export const weeklyTop10 = async (
   repository: HomeRecords,
-  ranking: TrendingRanking,
+  localeRanking: TrendingRanking,
   locale: Locale,
 ): Promise<HomeTrackRecord[]> => {
   const since = windowSince(TOP_10_WINDOW_DAYS);
@@ -136,26 +136,50 @@ export const weeklyTop10 = async (
       localeEvidence.distinctUsers,
       localeEvidence.activeDays,
     );
-  const trendingRecords = await localeTrending(
+  const localeEntries = useLocale
+    ? await localeRanking.rank(locale)
+    : undefined;
+  const rankedLocaleEntries =
+    localeEntries && localeEntries.length > 0 ? localeEntries : undefined;
+  const candidateRanking = await weeklyCandidateRanking(
     repository,
-    ranking,
     locale,
-    TOP_10_WINDOW_DAYS,
+    since,
+    rankedLocaleEntries,
   );
-  const localeEntries = useLocale ? await ranking.rank(locale) : undefined;
-  const trendingScoreById = new Map(
-    localeEntries?.map((entry) => [entry.trackId, entry.score]) ??
-      trendingRecords.map((record) => [record.id, record.trendingScore ?? 0]),
+  return rankedHomeRecords(
+    candidateRanking.records,
+    scoreWeeklyRecords({
+      records: candidateRanking.records,
+      sung: candidateRanking.singers,
+      favorites: candidateRanking.favorites,
+      trendingScoreById: candidateRanking.trendingScoreById,
+    }),
   );
+};
+
+const weeklyCandidateRanking = async (
+  repository: HomeRecords,
+  locale: Locale,
+  since: Date,
+  localeEntries: { trackId: string; score: number }[] | undefined,
+) => {
+  const localIds = localeEntries
+    ?.slice(0, CANDIDATE_LIMIT)
+    .map((entry) => entry.trackId);
+  const trendingRecords = localIds
+    ? rankedHomeRecords(
+        await repository.findCompletedTracksByIds(localIds),
+        localIds,
+      )
+    : await repository.findTrendingTracks(CANDIDATE_LIMIT);
   const [sung, favorited] = await Promise.all([
     repository.findMostSungTrackIds(
       CANDIDATE_LIMIT,
       since,
-      useLocale ? locale : undefined,
+      localeEntries ? locale : undefined,
     ),
-    useLocale
-      ? Promise.resolve([])
-      : repository.findMostFavoritedTrackIds(CANDIDATE_LIMIT, since),
+    repository.findMostFavoritedTrackIds(CANDIDATE_LIMIT, since),
   ]);
   const pool = [
     ...new Set([
@@ -165,16 +189,16 @@ export const weeklyTop10 = async (
     ]),
   ];
   const records = await repository.findCompletedTracksByIds(pool);
-  const favorites = useLocale
-    ? []
-    : await repository.countRecentFavorites(pool, since);
-  const scoredIds = scoreWeeklyRecords({
-    records,
-    sung,
-    favorites,
-    trendingScoreById,
-  });
-  // No slice here: the composer keeps the first unused Tracks up to the
-  // layout's own maximum, so earlier rows never starve the chart.
-  return rankedHomeRecords(records, scoredIds);
+  const trendingScoreById = localeEntries
+    ? new Map(localeEntries.map((entry) => [entry.trackId, entry.score]))
+    : new Map(records.map((record) => [record.id, record.trendingScore ?? 0]));
+  const [singers, favorites] = await Promise.all([
+    repository.countRecentAttempts(
+      pool,
+      since,
+      localeEntries ? locale : undefined,
+    ),
+    repository.countRecentFavorites(pool, since),
+  ]);
+  return { records, singers, favorites, trendingScoreById };
 };

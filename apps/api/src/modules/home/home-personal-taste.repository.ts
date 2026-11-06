@@ -1,6 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
-import { and, arrayOverlaps, desc, eq, gte, not, sql } from 'drizzle-orm';
+import type { TrackVocalRange } from '@vozzify/contracts';
+import {
+  and,
+  arrayOverlaps,
+  desc,
+  eq,
+  gte,
+  isNotNull,
+  lte,
+  not,
+  notInArray,
+  sql,
+} from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
 import { practiceAttempts } from '../../database/schema/practice-attempts.js';
 import { hasCompletedProcessing } from '../../database/schema/track-processings.js';
@@ -51,13 +63,24 @@ export class PersonalHomeTasteRepository {
   async findTracksForGenres(
     genres: string[],
     limit: number,
+    offset = 0,
+    excludedTrackIds: string[] = [],
   ): Promise<PersonalTrackCandidate[]> {
     if (genres.length === 0) return [];
-    return this.trackCandidates(arrayOverlaps(tracks.genres, genres), limit);
+    return this.trackCandidates(
+      arrayOverlaps(tracks.genres, genres),
+      limit,
+      offset,
+      excludedTrackIds,
+    );
   }
 
   /** Bounded global fallback candidates for personalized discovery. */
-  findPopularTracks(limit: number): Promise<PersonalTrackCandidate[]> {
+  findPopularTracks(
+    limit: number,
+    offset = 0,
+    excludedTrackIds: string[] = [],
+  ): Promise<PersonalTrackCandidate[]> {
     return this.txHost.tx
       .select({
         id: tracks.id,
@@ -71,12 +94,24 @@ export class PersonalHomeTasteRepository {
         trendingScore: tracks.trendingScore,
       })
       .from(tracks)
-      .where(hasCompletedProcessing(tracks.id))
+      .where(
+        and(
+          hasCompletedProcessing(tracks.id),
+          ...(excludedTrackIds.length > 0
+            ? [notInArray(tracks.id, excludedTrackIds)]
+            : []),
+        ),
+      )
       .orderBy(desc(tracks.trendingScore), desc(tracks.id))
-      .limit(limit);
+      .limit(limit)
+      .offset(offset);
   }
 
-  findNewestTracks(limit: number): Promise<PersonalTrackCandidate[]> {
+  findNewestTracks(
+    limit: number,
+    offset = 0,
+    excludedTrackIds: string[] = [],
+  ): Promise<PersonalTrackCandidate[]> {
     return this.txHost.tx
       .select({
         id: tracks.id,
@@ -90,14 +125,24 @@ export class PersonalHomeTasteRepository {
         trendingScore: tracks.trendingScore,
       })
       .from(tracks)
-      .where(hasCompletedProcessing(tracks.id))
+      .where(
+        and(
+          hasCompletedProcessing(tracks.id),
+          ...(excludedTrackIds.length > 0
+            ? [notInArray(tracks.id, excludedTrackIds)]
+            : []),
+        ),
+      )
       .orderBy(desc(tracks.createdAt), desc(tracks.id))
-      .limit(limit);
+      .limit(limit)
+      .offset(offset);
   }
 
   findMostSungTracks(
     limit: number,
     since: Date,
+    offset = 0,
+    excludedTrackIds: string[] = [],
   ): Promise<PersonalTrackCandidate[]> {
     const perUser = this.txHost.tx
       .select({
@@ -113,6 +158,9 @@ export class PersonalHomeTasteRepository {
           eq(practiceAttempts.forwardSkip, false),
           eq(practiceAttempts.bleedSuspected, false),
           gte(practiceAttempts.createdAt, since),
+          ...(excludedTrackIds.length > 0
+            ? [notInArray(practiceAttempts.trackId, excludedTrackIds)]
+            : []),
         ),
       )
       .groupBy(practiceAttempts.trackId, practiceAttempts.userId)
@@ -145,7 +193,44 @@ export class PersonalHomeTasteRepository {
         tracks.trendingScore,
       )
       .orderBy(desc(contribution), desc(volume), desc(tracks.id))
-      .limit(limit);
+      .limit(limit)
+      .offset(offset);
+  }
+
+  findVoiceCandidates(
+    userRange: TrackVocalRange,
+    limit: number,
+    offset = 0,
+    excludedTrackIds: string[] = [],
+  ): Promise<PersonalTrackCandidate[]> {
+    return this.txHost.tx
+      .select({
+        id: tracks.id,
+        title: tracks.title,
+        coverUrl: tracks.coverUrl,
+        artistCredit: tracks.artistCredit,
+        durationMs: tracks.lengthMs,
+        vocalRangeLowest: tracks.vocalRangeLowest,
+        vocalRangeHighest: tracks.vocalRangeHighest,
+        genres: tracks.genres,
+        trendingScore: tracks.trendingScore,
+      })
+      .from(tracks)
+      .where(
+        and(
+          hasCompletedProcessing(tracks.id),
+          isNotNull(tracks.vocalRangeLowest),
+          isNotNull(tracks.vocalRangeHighest),
+          lte(tracks.vocalRangeLowest, userRange.highest + 3),
+          gte(tracks.vocalRangeHighest, userRange.lowest - 3),
+          ...(excludedTrackIds.length > 0
+            ? [notInArray(tracks.id, excludedTrackIds)]
+            : []),
+        ),
+      )
+      .orderBy(desc(tracks.trendingScore), desc(tracks.id))
+      .limit(limit)
+      .offset(offset);
   }
 
   async findTracksOutsideGenres(
@@ -162,6 +247,8 @@ export class PersonalHomeTasteRepository {
   private trackCandidates(
     genreFilter: ReturnType<typeof arrayOverlaps>,
     limit: number,
+    offset = 0,
+    excludedTrackIds: string[] = [],
   ): Promise<PersonalTrackCandidate[]> {
     return this.txHost.tx
       .select({
@@ -176,8 +263,17 @@ export class PersonalHomeTasteRepository {
         trendingScore: tracks.trendingScore,
       })
       .from(tracks)
-      .where(and(hasCompletedProcessing(tracks.id), genreFilter))
+      .where(
+        and(
+          hasCompletedProcessing(tracks.id),
+          genreFilter,
+          ...(excludedTrackIds.length > 0
+            ? [notInArray(tracks.id, excludedTrackIds)]
+            : []),
+        ),
+      )
       .orderBy(desc(tracks.trendingScore), desc(tracks.id))
-      .limit(limit);
+      .limit(limit)
+      .offset(offset);
   }
 }

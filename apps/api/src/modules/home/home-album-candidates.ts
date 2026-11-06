@@ -26,6 +26,16 @@ type CompleteAlbumCandidateRepository = Pick<
   'findPopularAlbums' | 'findAlbumTrackSignals' | 'localePracticeEvidence'
 >;
 
+export type HomeAlbumCandidateSnapshot = {
+  id: string;
+  title: string;
+  coverArtUrl: string | null;
+  year: number | null;
+  primaryType?: string | null;
+  secondaryTypes?: string[];
+  availableTracks: { id: string; popularity: number }[];
+};
+
 const ALBUM_CANDIDATE_BATCH_SIZE = 240;
 const MAX_ALBUM_CANDIDATE_BATCHES = 1;
 const MAX_FEATURED_ALBUMS = 12;
@@ -53,16 +63,22 @@ export const loadUsefulAlbums = async (
   repository: AlbumCandidateRepository,
   ranking: Pick<TrackLocaleTrendingService, 'rank'>,
   locale: Locale = DEFAULT_HOME_LOCALE,
-): Promise<HomeAlbumCard[]> => {
+): Promise<HomeAlbumCard[]> =>
+  (await loadUsefulAlbumSnapshot(repository, ranking, locale)).items;
+
+export const loadUsefulAlbumSnapshot = async (
+  repository: AlbumCandidateRepository,
+  ranking: Pick<TrackLocaleTrendingService, 'rank'>,
+  locale: Locale = DEFAULT_HOME_LOCALE,
+): Promise<{
+  items: HomeAlbumCard[];
+  candidates: HomeAlbumCandidateSnapshot[];
+}> => {
   if (!repository.findAlbumTrackSignals) {
-    return (await repository.findPopularAlbums(60)).map(
-      ({ id, title, coverArtUrl, year }) => ({
-        id,
-        title,
-        coverArtUrl,
-        year,
-      }),
+    const items = (await repository.findPopularAlbums(60)).map(
+      ({ id, title, coverArtUrl, year }) => ({ id, title, coverArtUrl, year }),
     );
+    return { items, candidates: [] };
   }
   const candidates = await loadAlbumCandidates(
     {
@@ -74,14 +90,12 @@ export const loadUsefulAlbums = async (
     ranking,
     locale,
   );
-  return selectUsefulAlbums(candidates, MAX_FEATURED_ALBUMS).map(
-    ({ id, title, coverArtUrl, year }) => ({
-      id,
-      title,
-      coverArtUrl,
-      year,
-    }),
-  );
+  return {
+    items: selectUsefulAlbums(candidates, MAX_FEATURED_ALBUMS).map(
+      ({ id, title, coverArtUrl, year }) => ({ id, title, coverArtUrl, year }),
+    ),
+    candidates,
+  };
 };
 
 /** Loads the same bounded candidate pool and locale-aware Track scores as the public Album shelf. */

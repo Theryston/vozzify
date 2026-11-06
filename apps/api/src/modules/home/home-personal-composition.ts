@@ -16,6 +16,7 @@ type PersonalComposition = {
   artistKeysByTrack?: ReadonlyMap<string, string[]>;
   tasteByTrack?: ReadonlyMap<string, number>;
   explorationPoolsByRow?: ReadonlyMap<string, readonly HomeTrack[]>;
+  explorationSeed?: string;
 };
 
 const progressiveRows = (
@@ -121,6 +122,7 @@ export const composePersonalHomeRows = ({
   artistKeysByTrack = new Map<string, string[]>(),
   tasteByTrack = new Map<string, number>(),
   explorationPoolsByRow = new Map<string, readonly HomeTrack[]>(),
+  explorationSeed,
 }: PersonalComposition): HomeRow[] => {
   const categories = [
     ...publicRows.filter(publicCategory),
@@ -152,6 +154,7 @@ export const composePersonalHomeRows = ({
     masteredTrackIds,
     reservedTrackIds: reservedChartTrackIds(publicRows),
     artistKeysByTrack,
+    seed: explorationSeed,
   });
 };
 

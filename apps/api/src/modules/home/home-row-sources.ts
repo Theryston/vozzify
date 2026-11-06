@@ -1,6 +1,9 @@
 import type { HomeRowTitle, HomeTrack, Locale } from '@vozzify/contracts';
 import type { HomeRepository, HomeTrackRecord } from './home.repository.js';
-import { loadUsefulAlbums } from './home-album-candidates.js';
+import {
+  type HomeAlbumCandidateSnapshot,
+  loadUsefulAlbumSnapshot,
+} from './home-album-candidates.js';
 import { homeArtistKeys } from './home-artist-keys.js';
 import type {
   ComposableEntity,
@@ -191,6 +194,10 @@ export type HomeEntityRowSource =
       layout: 'albums';
       title: HomeRowTitle;
       load: (locale?: Locale) => Promise<HomeAlbumCandidate[]>;
+      loadSnapshot?: (locale?: Locale) => Promise<{
+        items: HomeAlbumCandidate[];
+        candidates: HomeAlbumCandidateSnapshot[];
+      }>;
     };
 
 /** Injection token of the entity row sources the builder composes. */
@@ -239,6 +246,8 @@ export const createHomeEntityRowSources = (
     layout: 'albums',
     title: title('home.rows.featuredAlbums'),
     load: async (locale = DEFAULT_HOME_LOCALE) =>
-      loadUsefulAlbums(repository, ranking, locale),
+      (await loadUsefulAlbumSnapshot(repository, ranking, locale)).items,
+    loadSnapshot: (locale = DEFAULT_HOME_LOCALE) =>
+      loadUsefulAlbumSnapshot(repository, ranking, locale),
   },
 ];
