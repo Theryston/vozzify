@@ -1,19 +1,14 @@
-import { Test } from '@nestjs/testing';
 import type { HomeRow, HomeTrack } from '@vozzify/contracts';
-import { StreaksService } from '../streaks/streaks.service.js';
-import { UsersService } from '../users/users.service.js';
-import { HomeService } from './home.service.js';
 import { encodeHomeCursor } from './home-cursor.js';
 import type { StoredPersonalHomeFeed } from './home-feed.js';
-import { HomeFeedService } from './home-feed.service.js';
 import {
-  PersonalHomeRepository,
   type UserFavoriteSignal,
   type UserTrackSignal,
 } from './home-personal.repository.js';
-import { PersonalHomeStore } from './home-personal.store.js';
-import { PersonalHomeBuilder } from './home-personal-builder.service.js';
-import { PersonalHomeTasteRowsService } from './home-personal-taste-rows.service.js';
+import {
+  createPersonalHomeBuilder,
+  createRetiredHomeService,
+} from './home-retired-cursor-test-fixtures.js';
 
 describe('HomeService retired personal cursors', () => {
   it('serves an actual linked retired snapshot only to its hashed owner', async () => {
@@ -74,35 +69,8 @@ describe('HomeService retired personal cursors', () => {
       build: vi.fn().mockResolvedValue([rawRow]),
       explorationRow: vi.fn().mockResolvedValue(undefined),
     };
-    const users = {
-      getPracticeSettings: vi.fn().mockResolvedValue({
-        dailyPracticeTargetSeconds: 300,
-        timeZone: 'UTC',
-        lastPracticeHeartbeatAt: null,
-      }),
-    };
-    const streaks = {
-      getStatus: vi.fn().mockResolvedValue({
-        day: '2026-10-20',
-        listenedSeconds: 0,
-        targetSeconds: 300,
-        completedToday: false,
-        currentStreakDays: 0,
-      }),
-    };
-    const builderModule = await Test.createTestingModule({
-      providers: [
-        PersonalHomeBuilder,
-        { provide: HomeFeedService, useValue: feeds },
-        { provide: PersonalHomeRepository, useValue: personal },
-        { provide: PersonalHomeTasteRowsService, useValue: tasteRows },
-        { provide: StreaksService, useValue: streaks },
-        { provide: UsersService, useValue: users },
-      ],
-    }).compile();
-    const built = await builderModule
-      .get(PersonalHomeBuilder)
-      .build('user-a', 'en');
+    const builder = await createPersonalHomeBuilder(feeds, personal, tasteRows);
+    const built = await builder.build('user-a', 'en');
     const linkedRow = built.rows.find((row) => row.id === 'new-tracks');
     expect(linkedRow?.layout).toBe('standard');
     if (linkedRow?.layout !== 'standard') {
@@ -115,14 +83,7 @@ describe('HomeService retired personal cursors', () => {
       readCurrent: vi.fn().mockResolvedValue(undefined),
       readRetired: vi.fn().mockResolvedValue(retired),
     };
-    const serviceModule = await Test.createTestingModule({
-      providers: [
-        HomeService,
-        { provide: HomeFeedService, useValue: feeds },
-        { provide: PersonalHomeStore, useValue: snapshots },
-      ],
-    }).compile();
-    const service = serviceModule.get(HomeService);
+    const service = await createRetiredHomeService(feeds, snapshots);
     const cursor = encodeHomeCursor({ version: built.version, position: 0 });
 
     const page = await service.getPage(cursor, 'en', 'user-a');
