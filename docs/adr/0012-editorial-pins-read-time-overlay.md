@@ -56,10 +56,12 @@ pin starting or ending takes effect on the next read, with no regeneration.
    higher-precedence pin already holds it, it takes the next free position. A
    hero pin that loses the hero slot is shown as a row at its position, with its
    titles.
-3. The algorithmic rows, in order, filling the remaining slots. They never repeat
-   a Track of a live pin, and a row that falls below its minimum size is dropped
-   (the same rule as the composer). The algorithmic hero is dropped when its
-   Track is pinned, because the hero row keeps one Track.
+3. The algorithmic rows, in order, filling the remaining slots. Track Rows omit
+   Tracks shown by live pins and are dropped when they fall below their minimum
+   size (the same rule as the composer). The ranked weekly chart is the
+   exception: it keeps its published membership and order, including overlap
+   with a pin. The algorithmic hero is dropped when its Track is pinned, because
+   the hero row keeps one Track.
 
 When an eligible album, artist or people row would otherwise fall beyond the
 first six visible rows, the overlay reserves an unpinned slot in that page and
