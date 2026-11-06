@@ -126,6 +126,10 @@ export class HomeService {
       shown.length > HOME_PAGE_SIZE
         ? await this.visits?.create(feed, shown, locale)
         : undefined;
+    const canCache =
+      this.visits === undefined
+        ? cacheable
+        : cacheable && (shown.length <= HOME_PAGE_SIZE || visit !== undefined);
     return this.answer(
       {
         ...feed,
@@ -133,7 +137,7 @@ export class HomeService {
         rows: visit?.rows ?? shown,
       },
       0,
-      cacheable && (shown.length <= HOME_PAGE_SIZE || visit !== undefined),
+      canCache,
       false,
     );
   }
