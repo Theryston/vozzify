@@ -66,6 +66,16 @@ describe('HomeFeedBuilder', () => {
     });
   });
 
+  it('serves three eligible public recommendation Tracks', async () => {
+    const feed = await buildWith([trendingSource(candidates(3))]);
+    expect(feed.rows).toHaveLength(1);
+    expect(feed.rows[0]).toMatchObject({
+      id: 'trending-today',
+      layout: 'standard',
+      items: [{ id: 't0' }, { id: 't1' }, { id: 't2' }],
+    });
+  });
+
   it('answers a 16-character version', async () => {
     const feed = await buildWith([trendingSource(candidates(6))]);
     expect(feed.version).toMatch(/^[0-9a-f]{16}$/);

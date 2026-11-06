@@ -77,8 +77,8 @@ describe('personal editorial pin overlay', () => {
       'daily-target',
       'pin-first',
       'pin-second',
-      'people-who-sing-what-you-sing',
       'continue-singing',
+      'people-who-sing-what-you-sing',
     ]);
   });
 
@@ -99,5 +99,69 @@ describe('personal editorial pin overlay', () => {
       'trending-today',
     ]);
     expect(publicRows.map((row) => row.id)).toEqual(['pin-unrelated']);
+  });
+
+  it('retains three public recommendation Tracks after editorial filtering', () => {
+    const rows = [
+      standard('most-sung', [track('one'), track('two'), track('three')]),
+      standard('most-favorited', [track('four'), track('five'), track('six')]),
+    ];
+    const result = applyEditorialPins(rows, [pin('unrelated', 0)]);
+    expect(result.map((row) => row.id)).toEqual([
+      'pin-unrelated',
+      'most-sung',
+      'most-favorited',
+    ]);
+    const belowMinimum = applyEditorialPins(
+      [standard('most-sung', [track('one'), track('two')])],
+      [],
+    );
+    expect(belowMinimum).toEqual([]);
+  });
+
+  it('keeps an eligible quality category in the first six without moving a later pin', () => {
+    const people: HomeRow = {
+      id: 'people-who-sing-what-you-sing',
+      layout: 'people',
+      title: { key: 'home.rows.people', params: {} },
+      items: Array.from({ length: 3 }, (_, index) => ({
+        id: `person-${index}`,
+        username: `singer-${index}`,
+        name: `Singer ${index}`,
+        image: null,
+        commonTracks: 3,
+      })),
+    };
+    const rows: HomeRow[] = [
+      { id: 'hero', layout: 'hero', track: track('hero') },
+      {
+        id: 'daily-target',
+        layout: 'daily-target',
+        title: { key: 'home.rows.dailyTarget', params: {} },
+        secondsLeft: 60,
+        targetSeconds: 300,
+        streakDays: 0,
+        completedToday: false,
+      },
+      standard('continue-singing', [track('resume')]),
+      ...Array.from({ length: 5 }, (_, index) =>
+        standard(
+          `filler-${index}`,
+          Array.from({ length: 6 }, (__, item) =>
+            track(`filler-${index}-${item}`),
+          ),
+        ),
+      ),
+      people,
+    ];
+    const pins = [
+      pin('two', 2),
+      pin('three', 3),
+      pin('four', 4),
+      pin('five', 5),
+    ];
+    const result = applyEditorialPins(rows, pins, 'personal');
+    expect(result.slice(0, 6).some((row) => row.id === people.id)).toBe(true);
+    expect(result.findIndex((row) => row.id === 'pin-five')).toBe(6);
   });
 });

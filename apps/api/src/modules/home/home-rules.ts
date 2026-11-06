@@ -29,6 +29,18 @@ export const MAX_TRACKS_PER_ARTIST_PER_ROW = 2;
 /** Personal recommendation Rows stay useful with three eligible Tracks. */
 export const PERSONAL_DISCOVERY_ROW_MIN_ITEMS = 3;
 
+/** Algorithmic recommendation rows can remain useful with three Tracks. */
+export const HOME_RECOMMENDATION_ROW_MIN_ITEMS = 3;
+const recommendationRowIds = new Set([
+  'trending-today',
+  'most-sung',
+  'most-favorited',
+  'new-tracks',
+]);
+
+export const isHomeRecommendationRow = (id: string): boolean =>
+  recommendationRowIds.has(id);
+
 /** A started or mastered Track is enough to make its resume Row useful. */
 export const PERSONAL_RESUME_ROW_MIN_ITEMS = 1;
 

@@ -40,11 +40,14 @@ and completion state continue to come from the streak status.
 applicable public genre, artist, album and ranked rows alongside their personal
 recommendations. The weekly chart keeps its collective membership and order,
 may overlap the hero and resume rows, and reserves its Tracks against other
-discovery rows. Album, artist, people and musical recommendation rows may
-render from three eligible items; each layout still applies its own minimum
-and audience eligibility. When an eligible album, artist or people row exists,
-composition puts one in the first six rows after honoring hero and daily-target
-precedence. Other discovery rows coordinate used Tracks to avoid duplicates.
+discovery rows. Album, artist, people and musical recommendation rows may render
+from three eligible items; each layout still applies its own minimum and
+audience eligibility. This also applies to the visitor feed. When an eligible
+album, artist or people row exists, composition puts one in the first six rows
+after honoring hero and daily-target precedence. Live editorial pins keep their
+positions where possible; if they occupy every eligible slot, the category takes
+the last first-page slot and displaces only its colliding pin. Other discovery
+rows coordinate used Tracks to avoid duplicates.
 
 **Snapshots in Redis, never computed in a request.** Each User's snapshot is
 stored per locale (`home:personal:{userId}:{locale}:current`, TTL

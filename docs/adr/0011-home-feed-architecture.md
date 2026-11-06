@@ -38,9 +38,9 @@ clients ignore layouts they do not know.
   overlap the hero; chart Tracks are reserved from other discovery rows; at
   most two Tracks of one artist appear per row; a row below its layout minimum
   is dropped and leaves its Tracks free; only Tracks whose Processing
-  completed; a hero needs a cover. The weekly chart and ranked recommendation
-  rows may render with three eligible Tracks, and the chart holds at most ten
-  positions.
+  completed; a hero needs a cover. The weekly chart and standard musical
+  recommendation rows may render with three eligible Tracks; generic standard
+  layouts keep their six-Track minimum. The chart holds at most ten positions.
 
 **The version is a content hash.** `version` is a SHA-256 of the algorithm
 version and the rows, truncated to 16 hex characters. An unchanged feed keeps

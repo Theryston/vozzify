@@ -61,6 +61,14 @@ pin starting or ending takes effect on the next read, with no regeneration.
    (the same rule as the composer). The algorithmic hero is dropped when its
    Track is pinned, because the hero row keeps one Track.
 
+When an eligible album, artist or people row would otherwise fall beyond the
+first six visible rows, the overlay reserves an unpinned slot in that page and
+places the category there. Hero and daily-target rows keep their positions and
+all pins keep their configured positions when a free slot exists. If pins occupy
+every eligible slot, the category takes the last slot and only the pin displaced
+by that collision moves to the next free position. Generic row-pin validation
+still requires six eligible Tracks.
+
 A Track appears once across the pinned rows: the higher-precedence pin keeps it.
 The feed holds at most 24 rows.
 

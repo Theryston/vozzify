@@ -27,6 +27,7 @@ import {
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
 import { PersonalHomeTasteRepository } from './home-personal-taste.repository.js';
 import {
+  HOME_RECOMMENDATION_ROW_MIN_ITEMS,
   HOME_ROW_RULES,
   PERSONAL_DISCOVERY_ROW_MIN_ITEMS,
 } from './home-rules.js';
@@ -224,7 +225,7 @@ export class PersonalHomeTasteRowsService {
       HOME_ROW_RULES.standard.maxItems,
       explorationSlotCount(options.visibleTrackSlots),
     );
-    if (slots < HOME_ROW_RULES.standard.minItems) return undefined;
+    if (slots < HOME_RECOMMENDATION_ROW_MIN_ITEMS) return undefined;
     const candidates = await this.personal.findTracksOutsideGenres(
       topGenres(options.taste),
       PERSONAL_CANDIDATE_LIMIT,

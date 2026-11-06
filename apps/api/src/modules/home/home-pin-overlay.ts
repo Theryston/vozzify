@@ -9,7 +9,9 @@ import { explorationSlotCount } from './home-personal-recommendations.js';
 import {
   HOME_MAX_ROWS,
   HOME_PAGE_SIZE,
+  HOME_RECOMMENDATION_ROW_MIN_ITEMS,
   HOME_ROW_RULES,
+  isHomeRecommendationRow,
   PERSONAL_DISCOVERY_ROW_MIN_ITEMS,
   PERSONAL_RESUME_ROW_MIN_ITEMS,
 } from './home-rules.js';
@@ -19,7 +21,6 @@ const personalShortTrackRows = new Set([
   'more-of-your-genres',
   'explore',
 ]);
-
 const minimumTrackCount = (
   row: HomeRow,
   audience: 'public' | 'personal',
@@ -27,12 +28,10 @@ const minimumTrackCount = (
   if (row.id === 'continue-singing' || row.id === 'sing-again') {
     return PERSONAL_RESUME_ROW_MIN_ITEMS;
   }
-  if (
-    audience === 'personal' &&
-    (personalShortTrackRows.has(row.id) ||
-      row.id === 'trending-today' ||
-      row.id === 'new-tracks')
-  ) {
+  if (isHomeRecommendationRow(row.id)) {
+    return HOME_RECOMMENDATION_ROW_MIN_ITEMS;
+  }
+  if (audience === 'personal' && personalShortTrackRows.has(row.id)) {
     return PERSONAL_DISCOVERY_ROW_MIN_ITEMS;
   }
   return HOME_ROW_RULES.standard.minItems;
@@ -192,21 +191,28 @@ const rowAtSlot = (options: {
  * before a pin's position, the pin follows the last row. A feed has no empty
  * slots, so a gap is never rendered; this is the explicit rule for it.
  */
-const placeRows = (
-  hero: HomeRow | undefined,
-  dailyTarget: HomeRow | undefined,
-  pinned: readonly OverlayPin[],
-  algorithmic: readonly HomeRow[],
-): HomeRow[] => {
+const placeRows = (options: {
+  hero: HomeRow | undefined;
+  dailyTarget: HomeRow | undefined;
+  pinned: readonly OverlayPin[];
+  algorithmic: readonly HomeRow[];
+  categorySlot: number | undefined;
+}): HomeRow[] => {
+  const { hero, dailyTarget, pinned, algorithmic, categorySlot } = options;
   const heroSlot = hero ? 0 : -1;
   const dailyTargetSlot = dailyTarget ? (hero ? 1 : 0) : -1;
   const mandatorySlots = new Set(
     [heroSlot, dailyTargetSlot].filter((slot) => slot >= 0),
   );
+  if (categorySlot !== undefined) mandatorySlots.add(categorySlot);
   const slots = pinSlotsFor(pinned, mandatorySlots);
   // The hero slot counts even when it is the only row of the feed.
   const lastSlot = Math.max(heroSlot, dailyTargetSlot, ...slots.keys());
-  const queue = [...algorithmic];
+  const category =
+    categorySlot === undefined
+      ? undefined
+      : algorithmic.find(isQualityCategory);
+  const queue = algorithmic.filter((row) => row !== category);
   const rows: HomeRow[] = [];
   for (
     let index = 0;
@@ -221,7 +227,7 @@ const placeRows = (
       dailyTarget,
       pinned: slots,
     });
-    const row = slot ?? queue.shift();
+    const row = index === categorySlot ? category : (slot ?? queue.shift());
     if (row) {
       rows.push(row);
     }
@@ -266,27 +272,20 @@ const isQualityCategory = (row: HomeRow): boolean =>
     row.layout === 'people') &&
   row.items.length >= PERSONAL_DISCOVERY_ROW_MIN_ITEMS;
 
-const promoteVisibleQualityCategory = (
-  rows: HomeRow[],
-  pinnedRowIds: ReadonlySet<string>,
-): HomeRow[] => {
-  const categoryIndex = rows.findIndex(
-    (row, index) => index >= HOME_PAGE_SIZE && isQualityCategory(row),
-  );
-  if (categoryIndex < 0) return rows;
-  const slotIndex = rows.findIndex(
-    (row, index) =>
-      index > 0 &&
-      index < HOME_PAGE_SIZE &&
-      row.id !== 'daily-target' &&
-      !pinnedRowIds.has(row.id),
-  );
-  if (slotIndex < 0) return rows;
-  const promoted = [...rows];
-  const [category] = promoted.splice(categoryIndex, 1);
-  if (!category) return rows;
-  promoted.splice(slotIndex, 0, category);
-  return promoted;
+const qualityCategorySlot = (
+  pins: readonly OverlayPin[],
+  hero: HomeRow | undefined,
+  dailyTarget: HomeRow | undefined,
+): number => {
+  const mandatory = new Set([hero ? 0 : -1, dailyTarget ? (hero ? 1 : 0) : -1]);
+  const pinSlots = pinSlotsFor(pins, mandatory);
+  const slot = Array.from({ length: HOME_PAGE_SIZE - 2 }, (_, i) => i + 2)
+    .reverse()
+    .find((index) => !pinSlots.has(index));
+  if (slot !== undefined) return slot;
+  // If every eligible first-page slot has a pin, reserve the last slot. The
+  // existing pin collision rule moves only the pin displaced by this slot.
+  return HOME_PAGE_SIZE - 1;
 };
 
 /**
@@ -326,13 +325,25 @@ export const applyEditorialPins = (
   const withoutDailyTarget = dailyTarget
     ? rows.filter((row) => row !== dailyTarget)
     : rows;
-  const placed = placeRows(
+  const algorithmic = algorithmicRows(withoutDailyTarget, pinnedIds, audience);
+  let placed = placeRows({
     hero,
     dailyTarget,
-    rowPins,
-    algorithmicRows(withoutDailyTarget, pinnedIds, audience),
+    pinned: rowPins,
+    algorithmic,
+    categorySlot: undefined,
+  });
+  const categoryIndex = placed.findIndex(
+    (row, index) => index >= HOME_PAGE_SIZE && isQualityCategory(row),
   );
-  return capExplorationRow(
-    promoteVisibleQualityCategory(placed, new Set(rowPins.map(rowIdOf))),
-  );
+  if (categoryIndex >= 0) {
+    placed = placeRows({
+      hero,
+      dailyTarget,
+      pinned: rowPins,
+      algorithmic,
+      categorySlot: qualityCategorySlot(rowPins, hero, dailyTarget),
+    });
+  }
+  return capExplorationRow(placed);
 };

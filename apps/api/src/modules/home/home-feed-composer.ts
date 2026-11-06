@@ -1,8 +1,10 @@
 import {
+  HOME_RECOMMENDATION_ROW_MIN_ITEMS,
   HOME_ROW_RULES,
   type HomeEntityLayout,
   type HomeLayout,
   type HomeRowRule,
+  isHomeRecommendationRow,
   MAX_TRACKS_PER_ARTIST_PER_ROW,
 } from './home-rules.js';
 
@@ -119,9 +121,12 @@ export const composeHomeRows = <
       overlapsReserved:
         candidate.layout === 'ranked' || candidate.layout === 'hero',
     });
-    if (
-      items.length < (options.minimumItems?.[candidate.layout] ?? rule.minItems)
-    ) {
+    const minimum =
+      options.minimumItems?.[candidate.layout] ??
+      (candidate.layout === 'standard' && isHomeRecommendationRow(candidate.id)
+        ? HOME_RECOMMENDATION_ROW_MIN_ITEMS
+        : rule.minItems);
+    if (items.length < minimum) {
       continue;
     }
     for (const item of items) {
