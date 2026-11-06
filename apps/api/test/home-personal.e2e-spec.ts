@@ -6,6 +6,7 @@ import {
   PERSONAL_HOME_FEED_QUEUE,
   REFRESH_PERSONAL_HOME_FEED_JOB,
   REFRESH_PERSONAL_NIGHTLY_JOB,
+  REFRESH_PERSONAL_NIGHTLY_USER_JOB,
 } from '../src/modules/home/home-personal.job.js';
 import { PersonalHomeProcessor } from '../src/modules/home/home-personal.processor.js';
 import { PersonalHomeRepository } from '../src/modules/home/home-personal.repository.js';
@@ -359,7 +360,7 @@ describe('Personal home feed (e2e)', () => {
 
     await refreshNightly();
 
-    const jobs = addedSince(queue, REFRESH_PERSONAL_HOME_FEED_JOB, seen);
+    const jobs = addedSince(queue, REFRESH_PERSONAL_NIGHTLY_USER_JOB, seen);
     const users = new Set(
       jobs.map((job) => (job.data as { userId: string }).userId),
     );
