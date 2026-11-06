@@ -34,6 +34,7 @@ describe('Home outcome measurement report (e2e)', () => {
     const user = await createPasswordUser(spec.testApp.db, {
       username: 'outcomes',
     });
+    if (user.username === null) throw new Error('Expected a username');
     const track = await createTrack(spec.testApp.db);
     await signInWithUsername(spec.client, {
       username: user.username,
@@ -85,15 +86,22 @@ describe('Home outcome measurement report (e2e)', () => {
             clickId: 'click-3',
             visitId: 'visit-3',
           },
+          impression('impression-4', 'visit-4'),
+          {
+            ...click,
+            eventId: 'click-4',
+            clickId: 'click-4',
+            visitId: 'visit-4',
+          },
         ],
       })
       .expect(202);
 
-    expect(response.body).toMatchObject({ accepted: 7 });
+    expect(response.body).toMatchObject({ accepted: 9 });
     expect(await spec.testApp.db.select().from(events)).toHaveLength(0);
     await runEventsJob();
     const storedEvents = await spec.testApp.db.select().from(events);
-    expect(storedEvents).toHaveLength(7);
+    expect(storedEvents).toHaveLength(9);
     expect(storedEvents[0]?.payload).toMatchObject({
       eventId: 'impression-1',
       visitId: 'visit-1',
@@ -110,16 +118,30 @@ describe('Home outcome measurement report (e2e)', () => {
       .post('/v1/me/streak/heartbeat')
       .send({ elapsedSeconds: 60, timeZone: 'UTC', viewId })
       .expect(200);
-    expect(heartbeat.body.creditedSeconds).toBeGreaterThan(0);
-    await spec.testApp.db.insert(practiceHeartbeats).values({
-      userId: user.id,
-      viewId,
-      elapsedSeconds: 40,
-      creditedSeconds: 40,
-      createdAt: new Date(now.getTime() + 1_000),
-      updatedAt: new Date(now.getTime() + 1_000),
-    });
+    expect(heartbeat.body.creditedSeconds).toBe(20);
+    await spec.testApp.db.insert(practiceHeartbeats).values([
+      {
+        userId: user.id,
+        viewId,
+        elapsedSeconds: 20,
+        creditedSeconds: 20,
+        createdAt: new Date(now.getTime() + 1_000),
+        updatedAt: new Date(now.getTime() + 1_000),
+      },
+      {
+        userId: user.id,
+        viewId,
+        elapsedSeconds: 20,
+        creditedSeconds: 20,
+        createdAt: new Date(now.getTime() + 2_000),
+        updatedAt: new Date(now.getTime() + 2_000),
+      },
+    ]);
 
+    const attemptView = await spec.client
+      .post(`/v1/tracks/${track.id}/views`)
+      .send({ clickId: 'click-3', visitorId, locale: 'pt-BR' })
+      .expect(201);
     await spec.client
       .post(`/v1/tracks/${track.id}/attempts`)
       .send({
@@ -133,17 +155,17 @@ describe('Home outcome measurement report (e2e)', () => {
         bleedSuspected: false,
         startedAt: now.toISOString(),
         endedAt: new Date(now.getTime() + 60_000).toISOString(),
-        viewId,
+        viewId: attemptView.body.viewId,
       })
       .expect(201);
 
-    const thirdVisitClick = await spec.client
+    const zeroCreditView = await spec.client
       .post(`/v1/tracks/${track.id}/views`)
-      .send({ clickId: 'click-3', visitorId, locale: 'pt-BR' })
+      .send({ clickId: 'click-4', visitorId, locale: 'pt-BR' })
       .expect(201);
     await spec.testApp.db.insert(practiceHeartbeats).values({
       userId: user.id,
-      viewId: thirdVisitClick.body.viewId as string,
+      viewId: zeroCreditView.body.viewId as string,
       elapsedSeconds: 5,
       creditedSeconds: 0,
     });
@@ -164,11 +186,11 @@ describe('Home outcome measurement report (e2e)', () => {
         algorithm_version: 2,
         audience: 'personal',
         locale: 'pt-BR',
-        visits: 3,
-        clicked_visits: 2,
-        sustained_visits: 1,
-        returned_within_7d: 1,
-        visit_to_sustained_rate: '0.3333',
+        visits: 4,
+        clicked_visits: 3,
+        sustained_visits: 2,
+        returned_within_7d: 2,
+        visit_to_sustained_rate: '0.5000',
         sustained_to_return_rate: '1.0000',
       }),
     ]);
