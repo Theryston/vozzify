@@ -194,7 +194,7 @@ describe('PersonalHomeBuilder', () => {
     expect(second.version).not.toBe(first.version);
   });
 
-  it('leads with continue-singing and sing-again for started Tracks', async () => {
+  it('separates one started Track from one mastered Track', async () => {
     const ids = ['s1', 's2', 's3', 's4', 's5', 's6', 's7'];
     resetWith({
       publicIds: ids,
@@ -209,10 +209,10 @@ describe('PersonalHomeBuilder', () => {
     const feed = await build();
     const rowIds = feed.rows.map((row) => row.id);
 
-    expect(rowIds.slice(0, 3)).toEqual([
+    expect(rowIds.slice(0, 4)).toEqual([
+      'daily-target',
       'continue-singing',
       'sing-again',
-      'daily-target',
     ]);
     // The mastered Track leaves continue-singing but leads sing-again.
     expect(itemIdsOf(rowById(feed.rows, 'continue-singing'))).toEqual([
@@ -240,24 +240,27 @@ describe('PersonalHomeBuilder', () => {
     expect(JSON.stringify(discovery)).not.toContain('"s1"');
   });
 
-  it('drops the resume rows when too few Tracks were started', async () => {
+  it('keeps a Continue singing row with only two started Tracks', async () => {
     resetWith({ signals: [signal('t1'), signal('t2')] });
 
     const feed = await build();
 
-    expect(rowById(feed.rows, 'continue-singing')).toBeUndefined();
+    expect(itemIdsOf(rowById(feed.rows, 'continue-singing'))).toEqual([
+      't1',
+      't2',
+    ]);
     expect(rowById(feed.rows, 'sing-again')).toBeUndefined();
     expect(rowById(feed.rows, 'daily-target')).toBeDefined();
   });
 
   it('re-ranks discovery by the User taste once they have enough signals', async () => {
-    // t1 is hot but tasteless; t7 is cold but the User's taste. With 60
-    // signals the blend is fully personal, so t7 leads.
-    const ids = ['t1', 't2', 't3', 't4', 't5', 't6', 't7'];
+    // t1 is hot but tasteless; t8 is cold and matches the User's taste.
+    // t7 remains in resume, while t8 proves discovery still follows affinity.
+    const ids = ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8'];
     resetWith({
       publicIds: ids,
       signals: [signal('t7', { attempts: 60, genres: ['jazz'] })],
-      scores: { t1: 100, t7: 1 },
+      scores: { t1: 100, t8: 1 },
     });
     tasteRows.findUserTasteActivities.mockResolvedValue(
       Array.from({ length: 60 }, () => ({
@@ -272,7 +275,7 @@ describe('PersonalHomeBuilder', () => {
           id,
           {
             trendingScore: id === 't1' ? 100 : 1,
-            genres: [id === 't7' ? 'jazz' : 'rock'],
+            genres: [id === 't8' ? 'jazz' : 'rock'],
             artistKey: `Artist ${id}`,
           },
         ]),
@@ -282,7 +285,7 @@ describe('PersonalHomeBuilder', () => {
     const feed = await build();
 
     expect(rowById(feed.rows, 'hero')).toMatchObject({
-      track: { id: 't7' },
+      track: { id: 't8' },
     });
   });
 

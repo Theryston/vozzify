@@ -47,10 +47,10 @@ describe('PersonalHomeBuilder row composition', () => {
         cacheable: true,
       }),
     };
-    const signals = tracks.slice(0, 6).map((item) => ({
+    const signals = tracks.slice(0, 6).map((item, index) => ({
       trackId: item.id,
       attempts: 1,
-      bestAccuracy: 0.7,
+      bestAccuracy: index === 1 ? 0.95 : 0.7,
       lastAttemptAt: new Date('2026-10-20T10:00:00.000Z'),
       genres: ['rock'],
       artistKey: item.artistCredit[0]?.name ?? item.id,
@@ -151,6 +151,23 @@ describe('PersonalHomeBuilder row composition', () => {
     expect(rowIds.filter((id) => id === 'daily-target')).toHaveLength(1);
     expect(rowIds.filter((id) => id === 'continue-singing')).toHaveLength(1);
     expect(rowIds.filter((id) => id === 'sing-again')).toHaveLength(1);
+    expect(rowIds.slice(0, 4)).toEqual([
+      'daily-target',
+      'continue-singing',
+      'sing-again',
+      'people-who-sing-what-you-sing',
+    ]);
+    const continueRow = feed.rows.find((row) => row.id === 'continue-singing');
+    const singAgainRow = feed.rows.find((row) => row.id === 'sing-again');
+    if (
+      continueRow?.layout !== 'standard' ||
+      singAgainRow?.layout !== 'standard'
+    ) {
+      throw new Error('Resume rows were not composed as standard rows');
+    }
+    expect(continueRow.items.map((item) => item.id)).toHaveLength(5);
+    expect(singAgainRow.items.map((item) => item.id)).toEqual(['song_1']);
+    expect(continueRow.items.map((item) => item.id)).not.toContain('song_1');
     expect(
       rowIds.filter((id) => id === 'people-who-sing-what-you-sing'),
     ).toHaveLength(1);

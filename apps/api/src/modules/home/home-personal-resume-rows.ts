@@ -1,6 +1,7 @@
 import type { HomeCarouselRow, HomeRow, HomeTrack } from '@vozzify/contracts';
 import { composeHomeRows } from './home-feed-composer.js';
 import type { UserTrackSignal } from './home-personal.repository.js';
+import { PERSONAL_RESUME_ROW_MIN_ITEMS } from './home-rules.js';
 
 const title = (key: string) => ({ key, params: {} });
 
@@ -56,14 +57,15 @@ export const resumeRows = (
     {
       id: 'sing-again',
       title: title('home.rows.singAgain'),
-      items: [...candidates].sort(
-        (a, b) => (bestOf.get(b.id) ?? 0) - (bestOf.get(a.id) ?? 0),
-      ),
+      items: candidates
+        .filter((candidate) => mastered.has(candidate.id))
+        .sort((a, b) => (bestOf.get(b.id) ?? 0) - (bestOf.get(a.id) ?? 0)),
     },
   ]) {
-    const [composed] = composeHomeRows([
-      { ...descriptor, layout: 'standard' as const },
-    ]);
+    const [composed] = composeHomeRows(
+      [{ ...descriptor, layout: 'standard' as const }],
+      { minimumItems: { standard: PERSONAL_RESUME_ROW_MIN_ITEMS } },
+    );
     if (!composed) continue;
     rows.push({
       id: composed.id,

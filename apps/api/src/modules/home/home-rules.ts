@@ -6,7 +6,7 @@
 
 import type { Locale } from '@vozzify/contracts';
 
-export const HOME_ALGORITHM_VERSION = 3;
+export const HOME_ALGORITHM_VERSION = 4;
 
 /**
  * The feed a request gets when it names no locale. An unsupported locale is
@@ -25,6 +25,24 @@ export const HOME_MAX_ROWS = 24;
 
 /** Most Tracks of one artist in one row, so a hot artist can't fill it. */
 export const MAX_TRACKS_PER_ARTIST_PER_ROW = 2;
+
+/** Personal recommendation Rows stay useful with three eligible Tracks. */
+export const PERSONAL_DISCOVERY_ROW_MIN_ITEMS = 3;
+
+/** Algorithmic recommendation rows can remain useful with three Tracks. */
+export const HOME_RECOMMENDATION_ROW_MIN_ITEMS = 3;
+const recommendationRowIds = new Set([
+  'trending-today',
+  'most-sung',
+  'most-favorited',
+  'new-tracks',
+]);
+
+export const isHomeRecommendationRow = (id: string): boolean =>
+  recommendationRowIds.has(id);
+
+/** A started or mastered Track is enough to make its resume Row useful. */
+export const PERSONAL_RESUME_ROW_MIN_ITEMS = 1;
 
 /** The layouts of rows that list entities (genres, artists, albums), not Tracks. */
 export type HomeEntityLayout = 'genres' | 'artists' | 'albums';
@@ -74,7 +92,7 @@ export const HOME_ROW_RULES = {
   // every other row. Covers are shown but not required, so a hot Track without
   // one still makes the chart.
   ranked: {
-    minItems: 6,
+    minItems: 3,
     maxItems: 10,
     requiresCover: false,
     requiresVocalRange: false,

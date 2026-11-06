@@ -123,6 +123,32 @@ const seedFavorites = async (
   }
 };
 
+const seedChartFavorites = async (db: Database, userId: string) => {
+  const chartFavorites = await seedTracks(
+    db,
+    Array.from({ length: 10 }, (_, i) => ({
+      title: `Chart favorite ${i + 1}`,
+      coverUrl: `https://cdn.example/chart-favorite-${i + 1}.webp`,
+      trendingScore: 300 - i,
+    })),
+  );
+  await seedFavorites(
+    db,
+    chartFavorites.map((trackId) => ({ userId, trackId })),
+  );
+};
+
+const seedTrendingDecoys = async (db: Database) => {
+  await seedTracks(
+    db,
+    Array.from({ length: 13 }, (_, i) => ({
+      title: `Trending decoy ${i + 1}`,
+      coverUrl: `https://cdn.example/trending-decoy-${i + 1}.webp`,
+      trendingScore: 400 - i,
+    })),
+  );
+};
+
 describe('Home feed singing signal (e2e)', () => {
   let testApp: TestApp;
 
@@ -148,11 +174,11 @@ describe('Home feed singing signal (e2e)', () => {
       Array.from({ length: 13 }, (_, i) => ({
         title: `Decoy ${i + 1}`,
         coverUrl: `https://cdn.example/decoy-${i + 1}.webp`,
-        trendingScore: 300 - (i + 1),
+        trendingScore: 2_000 - (i + 1),
       })),
     );
-    // Thirteen sung Tracks: the first twelve fill the Most sung row, and the
-    // thirteenth carries too little to matter anywhere but the chart.
+    // Thirteen sung Tracks: the first twelve fill Most sung, leaving one
+    // lower-signal Song outside that row.
     const sung = await seedTracks(
       testApp.db,
       Array.from({ length: 13 }, (_, i) => ({
@@ -176,14 +202,14 @@ describe('Home feed singing signal (e2e)', () => {
         fanIds.slice(0, 6 - i).map((userId) => ({ userId, trackId })),
       ),
     );
-    // Ten chart Tracks with one sung run each: below every Song in the Most
-    // sung row, above the thirteenth Song in the chart.
+    // The chart Tracks outrank Songs in the chart but stay below decoys in
+    // trending. Their single runs still trail every Song in Most sung.
     const chart = await seedTracks(
       testApp.db,
       Array.from({ length: 10 }, (_, i) => ({
         title: `Chart ${i + 1}`,
         coverUrl: `https://cdn.example/chart-${i + 1}.webp`,
-        trendingScore: 70 - (i + 1),
+        trendingScore: 1_000 - (i + 1),
       })),
     );
     await seedAttempts(
@@ -227,17 +253,15 @@ describe('Home feed singing signal (e2e)', () => {
       layout: 'ranked',
       title: { key: 'home.rows.top10Week', params: {} },
     });
-    // Each signal row follows its own signal: the Most sung row takes the
-    // twelve most sung Tracks (the thirteenth charts instead), the Most
-    // favorited row takes the six loved Tracks.
+    // Each signal row follows its own signal: Most sung takes the twelve
+    // leading Songs, while Most favorited takes the six loved Tracks.
     expect(itemIdsOf(rowById(response.body, 'most-sung'))).toEqual(
       sung.slice(0, 12),
     );
     expect(itemIdsOf(rowById(response.body, 'most-favorited'))).toEqual(
       favorited,
     );
-    // The chart blends every signal: the ten chart Tracks fill it, in
-    // trending order, behind the Songs the earlier rows already took.
+    // The chart keeps its own ranking order and contains the ten chart Tracks.
     expect(itemIdsOf(rowById(response.body, 'top-10-week'))).toEqual(chart);
     // The first request also warms the feed on a cold runner, so this seed
     // gets longer than the default timeout.
@@ -264,6 +288,8 @@ describe('Home feed singing signal (e2e)', () => {
       testApp.db,
       sung.map((trackId) => ({ userId: singer, trackId })),
     );
+    await seedTrendingDecoys(testApp.db);
+    await seedChartFavorites(testApp.db, singer);
 
     const response = await getHome(testApp).expect(200);
 
@@ -312,6 +338,8 @@ describe('Home feed singing signal (e2e)', () => {
         createdAt: new Date('2020-01-01T00:00:00Z'),
       },
     ]);
+    await seedTrendingDecoys(testApp.db);
+    await seedChartFavorites(testApp.db, singer);
 
     const response = await getHome(testApp).expect(200);
 
@@ -352,7 +380,7 @@ describe('Home feed singing signal (e2e)', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('hides the singing rows when fewer than 6 Tracks carry the signal', async () => {
+  it('hides the singing rows when fewer than 3 Tracks carry the signal', async () => {
     const [singer] = await seedUsers(testApp.db, 1);
     if (!singer) throw new Error('seed singer missing');
     const tracks = await seedTracks(

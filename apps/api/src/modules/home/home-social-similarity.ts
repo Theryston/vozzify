@@ -1,7 +1,7 @@
 import type { HomePeopleRow, HomePerson } from '@vozzify/contracts';
 
 const SOCIAL_MIN_COMMON_TRACKS = 3;
-const SOCIAL_ROW_MIN_PEOPLE = 6;
+const SOCIAL_ROW_MIN_PEOPLE = 3;
 const SOCIAL_ROW_MAX_PEOPLE = 24;
 
 export type SocialCandidate = HomePerson & {

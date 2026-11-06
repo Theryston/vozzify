@@ -28,13 +28,26 @@ public rows untouched. All three are named constants with unit tests.
 reached the hit band (`accuracyBand`, the same 85% as every accuracy band)
 has its own "sing again" row, so the discovery rows filter it out.
 
-**Resume rows lead.** "Continue singing" (Tracks started but not yet
-accurate, newest run first) and "sing again" (the User's best Tracks, best
-accuracy first) run through the same composer, so a row below the minimum
-size is dropped like every other feed row. A daily target strip follows them:
-the seconds left to complete the Practice day with the Streak, read from the
-streak status. The snapshot's first page order is: resume rows, strip,
-discovery.
+**Daily target and resume rows lead.** The existing eligible daily-target
+strip is placed immediately after the final visible hero (including a pinned
+hero), or first when no hero is visible. No resume, social, or editorial row
+intervenes. Continue singing contains started, non-mastered Tracks; Sing again
+contains mastered Tracks, using the existing mastery definition. These sets
+are disjoint, and either resume row may render with one Track. The target copy
+and completion state continue to come from the streak status.
+
+**Personal composition preserves useful global rows.** Personal feeds retain
+applicable public genre, artist, album and ranked rows alongside their personal
+recommendations. The weekly chart keeps its collective membership and order,
+may overlap the hero and resume rows, and reserves its Tracks against other
+discovery rows. Album, artist, people and musical recommendation rows may render
+from three eligible items; each layout still applies its own minimum and
+audience eligibility. This also applies to the visitor feed. When an eligible
+album, artist or people row exists, composition puts one in the first six rows
+after honoring hero and daily-target precedence. Live editorial pins keep their
+positions where possible; if they occupy every eligible slot, the category takes
+the last first-page slot and displaces only its colliding pin. Other discovery
+rows coordinate used Tracks to avoid duplicates.
 
 **Snapshots in Redis, never computed in a request.** Each User's snapshot is
 stored per locale (`home:personal:{userId}:{locale}:current`, TTL
@@ -82,14 +95,17 @@ forwards the session the same way.
 - Triggers schedule every locale because the write requests carry none; the
   nightly batch covers every locale too, so a locale switch never waits for a
   rebuild.
-- Rows the personal feed drops (a short resume row, a mastered discovery row)
-  are gone rather than backfilled: the feed prefers the composer's full rows
-  over filling every slot.
-- The discovery pool only scores the hero and standard rows. Rows of a layout
-  this slice doesn't know (the by-voice, genre and ranked rows the sibling
-  wave-4 slices add to the public feed) stay out of the snapshot until their
-  slice teaches the pool their shape; the web already skips what it doesn't
-  render.
+- A one-Track resume row is useful and is retained; exhausted rows are omitted
+  according to their own minimum while other eligible categories remain.
+- Public ranked and entity categories stay in the personal composition even
+  when no personal candidate can replace them. Personal discovery does not
+  remove chart membership or order.
+
+Algorithm version 2 identifies newly generated feeds with this composition.
+Previously cached snapshots retain their stored marker and are served as-is
+until normal expiry; ordinary refreshes write the current marker. Rollback
+sets the algorithm marker back to 1 and lets version-2 snapshots expire or
+rebuilds them with the standard jobs.
 
 ## Alternatives considered
 

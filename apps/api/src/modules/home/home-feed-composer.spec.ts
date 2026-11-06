@@ -71,6 +71,27 @@ describe('composeHomeRows', () => {
     ).toEqual([]);
   });
 
+  it('keeps public recommendation rows at three items and drops two', () => {
+    const recommendations = [
+      'trending-today',
+      'most-sung',
+      'most-favorited',
+      'new-tracks',
+    ];
+    for (const id of recommendations) {
+      expect(
+        composeHomeRows([
+          { id, layout: 'standard' as const, items: tracks(3, `${id}-`) },
+        ]).map((row) => row.items),
+      ).toHaveLength(1);
+      expect(
+        composeHomeRows([
+          { id, layout: 'standard' as const, items: tracks(2, `${id}-`) },
+        ]),
+      ).toEqual([]);
+    }
+  });
+
   it('does not count a dropped row as having used its Tracks', () => {
     const shared = tracks(6);
     const rows = composeHomeRows([

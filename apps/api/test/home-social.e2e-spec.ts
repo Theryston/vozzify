@@ -1,6 +1,9 @@
 import { eq } from 'drizzle-orm';
+import request from 'supertest';
 import { trackFavorites } from '../src/database/schema/track-favorites.js';
 import { users } from '../src/database/schema/users.js';
+import { PersonalHomeStore } from '../src/modules/home/home-personal.store.js';
+import { PersonalHomeBuilder } from '../src/modules/home/home-personal-builder.service.js';
 import { HomeSocialService } from '../src/modules/home/home-social.service.js';
 import { createAuthClient, signIn } from './utils/auth.js';
 import { createTestApp, type TestApp } from './utils/create-test-app.js';
@@ -127,5 +130,96 @@ describe('Personal home social rows (e2e)', () => {
         (person) => person.username === 'social_viewer',
       ),
     ).toBe(false);
+  });
+
+  it('keeps the only quality people category on the first Home page', async () => {
+    const tracks = await Promise.all(
+      Array.from({ length: 48 }, (_, index) =>
+        createCompletedTrack(testApp.db, {
+          title: `People placement track ${index}`,
+          trendingScore: 100 - index,
+          vocalRangeLowest: 48,
+          vocalRangeHighest: 53,
+        }),
+      ),
+    );
+    const viewer = await createUser(testApp.db, {
+      username: 'placement_viewer',
+      email: 'placement-viewer@example.com',
+    });
+    await createCredentialAccount(testApp.db, viewer);
+    const commonTrackIds = tracks.slice(0, 3).map((track) => track.id);
+    const addFavorites = (userId: string) =>
+      testApp.db
+        .insert(trackFavorites)
+        .values(commonTrackIds.map((trackId) => ({ userId, trackId })));
+    await addFavorites(viewer.id);
+    const client = createAuthClient(testApp);
+    await signIn(client, {
+      email: viewer.email,
+      password: DEFAULT_PASSWORD,
+    }).expect(200);
+
+    const people = await Promise.all(
+      Array.from({ length: 6 }, (_, index) =>
+        createUser(testApp.db, {
+          username: `placement_person_${index}`,
+          email: `placement-person-${index}@example.com`,
+        }),
+      ),
+    );
+    await Promise.all(people.map((person) => addFavorites(person.id)));
+    await testApp.app.get(HomeSocialService).refreshFor(viewer.id);
+    let publicResponse = await request(testApp.app.getHttpServer())
+      .get('/v1/home')
+      .expect(200);
+    const publicRows = [...(publicResponse.body.rows as { id: string }[])];
+    while (publicResponse.body.nextCursor) {
+      publicResponse = await request(testApp.app.getHttpServer())
+        .get(`/v1/home?cursor=${publicResponse.body.nextCursor as string}`)
+        .expect(200);
+      publicRows.push(...(publicResponse.body.rows as { id: string }[]));
+    }
+    expect(publicRows.map((row) => row.id)).toContain('by-voice-lower-voices');
+    const snapshot = await testApp.app
+      .get(PersonalHomeBuilder)
+      .build(viewer.id, 'en');
+    await testApp.app
+      .get(PersonalHomeStore)
+      .writeCurrent(viewer.id, 'en', snapshot);
+
+    let response = await client.get('/v1/home').expect(200);
+    const rows = [
+      ...(response.body.rows as {
+        id: string;
+        layout: string;
+        items?: { id: string }[];
+      }[]),
+    ];
+    const firstPageRows = rows.slice();
+    while (response.body.nextCursor) {
+      response = await client
+        .get(`/v1/home?cursor=${response.body.nextCursor as string}`)
+        .expect(200);
+      rows.push(...(response.body.rows as (typeof rows)[number][]));
+    }
+    const peopleIndex = firstPageRows.findIndex(
+      (row) => row.layout === 'people',
+    );
+
+    expect(firstPageRows.map((row) => row.id)).toContain(
+      'people-who-sing-what-you-sing',
+    );
+    expect(rows.map((row) => row.id)).toContain('by-voice-lower-voices');
+    expect(peopleIndex).toBeGreaterThanOrEqual(0);
+    const voiceTrackIds = new Set(
+      rows
+        .find((row) => row.layout === 'vocal-range')
+        ?.items?.map((item) => item.id) ?? [],
+    );
+    const discoveryTrackIds = rows
+      .filter((row) => row.layout === 'standard')
+      .flatMap((row) => row.items?.map((item) => item.id) ?? []);
+    expect(discoveryTrackIds.some((id) => voiceTrackIds.has(id))).toBe(false);
   });
 });

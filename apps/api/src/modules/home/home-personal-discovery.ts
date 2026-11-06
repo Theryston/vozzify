@@ -14,6 +14,7 @@ import {
   type DiscoveryTrack,
 } from './home-personal-blend.js';
 import { personalTrackPool } from './home-personal-voice.js';
+import { PERSONAL_DISCOVERY_ROW_MIN_ITEMS } from './home-rules.js';
 
 /** Ranks the public Track pool by its blended score and drops mastered songs. */
 export const blendedDiscoveryPool = (options: {
@@ -46,12 +47,48 @@ const discoveryHeroRow = (
     : undefined;
 };
 
-const discoveryStandardRows = (
-  publicRows: HomeRow[],
-  sorted: DiscoveryCandidate[],
-  masteredTrackIds: ReadonlySet<string>,
-  alreadyUsedTrackIds: ReadonlySet<string>,
-): HomeCarouselRow[] => {
+const discoveryItems = (
+  row: Extract<HomeRow, { layout: 'standard' }>,
+  options: {
+    blended: Map<string, DiscoveryCandidate>;
+    heroId: string | undefined;
+    masteredTrackIds: ReadonlySet<string>;
+    alreadyUsedTrackIds: ReadonlySet<string>;
+    reservedTrackIds: ReadonlySet<string>;
+  },
+) =>
+  row.items
+    .map((track) => options.blended.get(track.id))
+    .filter(
+      (candidate): candidate is DiscoveryCandidate =>
+        candidate !== undefined &&
+        candidate.track.id !== options.heroId &&
+        !options.alreadyUsedTrackIds.has(candidate.track.id) &&
+        !options.reservedTrackIds.has(candidate.track.id) &&
+        !options.masteredTrackIds.has(candidate.track.id),
+    )
+    .sort(byBlendedDesc)
+    .map((candidate) => ({
+      id: candidate.track.id,
+      artistKey: candidate.artistKey,
+      hasCover: candidate.hasCover,
+      isCompleted: true,
+    }));
+
+const discoveryStandardRows = (options: {
+  publicRows: HomeRow[];
+  sorted: DiscoveryCandidate[];
+  masteredTrackIds: ReadonlySet<string>;
+  alreadyUsedTrackIds: ReadonlySet<string>;
+  reservedTrackIds: ReadonlySet<string>;
+}): HomeCarouselRow[] => {
+  const {
+    publicRows,
+    sorted,
+    masteredTrackIds,
+    alreadyUsedTrackIds,
+    reservedTrackIds,
+  } = options;
   const heroId = sorted.find((candidate) => candidate.hasCover)?.track.id;
   const blended = new Map(
     sorted.map((candidate) => [candidate.track.id, candidate]),
@@ -61,29 +98,25 @@ const discoveryStandardRows = (
     if (row.layout !== 'standard') {
       continue;
     }
-    const [composed] = composeHomeRows([
+    const [composed] = composeHomeRows(
+      [
+        {
+          id: row.id,
+          layout: 'standard' as const,
+          title: row.title,
+          items: discoveryItems(row, {
+            blended,
+            heroId,
+            masteredTrackIds,
+            alreadyUsedTrackIds,
+            reservedTrackIds,
+          }),
+        },
+      ],
       {
-        id: row.id,
-        layout: 'standard' as const,
-        title: row.title,
-        items: row.items
-          .map((track) => blended.get(track.id))
-          .filter(
-            (candidate): candidate is DiscoveryCandidate =>
-              candidate !== undefined &&
-              candidate.track.id !== heroId &&
-              !alreadyUsedTrackIds.has(candidate.track.id) &&
-              !masteredTrackIds.has(candidate.track.id),
-          )
-          .sort(byBlendedDesc)
-          .map((candidate) => ({
-            id: candidate.track.id,
-            artistKey: candidate.artistKey,
-            hasCover: candidate.hasCover,
-            isCompleted: true,
-          })),
+        minimumItems: { standard: PERSONAL_DISCOVERY_ROW_MIN_ITEMS },
       },
-    ]);
+    );
     if (!composed?.title) {
       continue;
     }
@@ -110,19 +143,29 @@ export const buildPersonalDiscoveryRows = (options: {
   sorted: DiscoveryCandidate[];
   masteredTrackIds: ReadonlySet<string>;
   alreadyUsedTrackIds: ReadonlySet<string>;
+  reservedTrackIds?: ReadonlySet<string>;
 }): HomeRow[] => {
-  const { publicRows, sorted, masteredTrackIds, alreadyUsedTrackIds } = options;
+  const {
+    publicRows,
+    sorted,
+    masteredTrackIds,
+    alreadyUsedTrackIds,
+    reservedTrackIds = new Set<string>(),
+  } = options;
   const eligible = sorted.filter(
-    (candidate) => !alreadyUsedTrackIds.has(candidate.track.id),
+    (candidate) =>
+      !alreadyUsedTrackIds.has(candidate.track.id) ||
+      reservedTrackIds.has(candidate.track.id),
   );
   const hero = discoveryHeroRow(eligible);
   return [
     ...(hero ? [hero] : []),
-    ...discoveryStandardRows(
+    ...discoveryStandardRows({
       publicRows,
-      eligible,
+      sorted: eligible,
       masteredTrackIds,
       alreadyUsedTrackIds,
-    ),
+      reservedTrackIds,
+    }),
   ];
 };
