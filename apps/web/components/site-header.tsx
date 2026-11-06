@@ -33,7 +33,7 @@ export function SiteHeader({
       </a>
       <SiteHeaderFrame>
         <Container>
-          <div className="glass relative flex items-center gap-2 rounded-full p-1.5 pl-3 md:gap-3 md:pl-4">
+          <div className="glass pointer-events-auto relative flex items-center gap-2 rounded-full p-1.5 pl-3 md:gap-3 md:pl-4">
             <Link
               href="/"
               aria-label={t('home')}

@@ -80,7 +80,6 @@ export function TrackPracticeView({
     <div className="flex flex-col gap-6 pb-6 md:pb-8">
       <TrackViewRecorder trackId={trackId} />
       <TrackTitleRow header={header.data} />
-      <TrackNoteSummary notes={notes.data} />
       <PracticeBody
         header={header.data}
         notes={notes.data}
@@ -89,6 +88,7 @@ export function TrackPracticeView({
         failed={notes.isError}
         fakePlayer={fakePlayer}
       />
+      <TrackNoteSummary notes={notes.data} />
     </div>
   );
 }
