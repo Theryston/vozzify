@@ -280,11 +280,6 @@
         "loopEnd": "Loop end",
         "nextNotes": "Next notes",
         "fullscreen": "Toggle fullscreen"
-      },
-      "noteSummary": {
-        "title": "Vocal range in this recording",
-        "range": "The original vocal notes range from {low} to {high}.",
-        "practice": "Follow the notes on the timeline and use your microphone to compare your pitch with the melody."
       }
     }
   },
@@ -1443,26 +1438,5 @@
       }
     },
     "back": "Start practicing"
-  },
-  "homeSeo": {
-    "title": "See the vocal notes in songs and practice your pitch",
-    "description": "Follow the notes as the song plays and compare your voice with the melody using your microphone.",
-    "howItWorksTitle": "How to practice with Vozzify",
-    "steps": {
-      "find": {
-        "title": "Find a song",
-        "description": "Search by title or artist and choose a song with available notes."
-      },
-      "follow": {
-        "title": "Follow the notes",
-        "description": "See the vocal melody on a timeline synced with the song."
-      },
-      "practice": {
-        "title": "Sing and check your pitch",
-        "description": "Turn on your microphone to compare your voice with the notes while you practice."
-      }
-    },
-    "browseSongs": "Find songs to sing",
-    "plans": "Explore plans"
   }
 }

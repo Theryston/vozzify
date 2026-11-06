@@ -14,7 +14,6 @@ import {
 } from '../track-practice-query';
 import { PracticeBody } from './practice-body';
 import { TIMELINE_BOX_CLASS } from './timeline-box-class';
-import { TrackNoteSummary } from './track-note-summary';
 import { TrackTitleRow } from './track-title-row';
 import { TrackViewRecorder } from './track-view-recorder';
 
@@ -88,7 +87,6 @@ export function TrackPracticeView({
         failed={notes.isError}
         fakePlayer={fakePlayer}
       />
-      <TrackNoteSummary notes={notes.data} />
     </div>
   );
 }
