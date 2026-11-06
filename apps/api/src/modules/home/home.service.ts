@@ -18,7 +18,10 @@ import {
 import { personalSnapshotStale } from './home-personal.js';
 import { PersonalHomeStore } from './home-personal.store.js';
 import { PersonalHomeQueueService } from './home-personal-queue.service.js';
-import { personalHomeVersion } from './home-personal-version.js';
+import {
+  personalHomeVersion,
+  personalHomeVersionFromStoredRows,
+} from './home-personal-version.js';
 import { HomePinOverlayService } from './home-pin-overlay.service.js';
 import {
   DEFAULT_HOME_LOCALE,
@@ -148,29 +151,7 @@ export class HomeService {
   ): Promise<HomePage> {
     const snapshot = await this.snapshots?.readCurrent(userId, locale);
     if (!snapshot) {
-      await this.requestRefresh(userId, locale);
-      const { feed, cacheable } = await this.feeds.currentPublic(locale);
-      const currentRows = await this.withSocialRows(feed.rows, userId);
-      const shown = cacheable
-        ? await this.withPins(currentRows, locale, true)
-        : currentRows;
-      // No snapshot yet: the public rows go out at once, as the personal
-      // answer, while the rebuild runs.
-      const personalFeed = { ...feed, audience: 'personal' as const };
-      const visit =
-        shown.length > HOME_PAGE_SIZE
-          ? await this.visits?.create(personalFeed, shown, locale, userId)
-          : undefined;
-      return this.answer(
-        {
-          ...personalFeed,
-          version: visit?.version ?? feed.version,
-          rows: visit?.rows ?? shown,
-        },
-        0,
-        cacheable,
-        true,
-      );
+      return this.personalFallbackFirstPage(userId, locale);
     }
     if (
       snapshot.algorithmVersion !== HOME_ALGORITHM_VERSION ||
@@ -197,6 +178,31 @@ export class HomeService {
       true,
       true,
     );
+  }
+
+  private async personalFallbackFirstPage(
+    userId: string,
+    locale: Locale,
+  ): Promise<HomePage> {
+    await this.requestRefresh(userId, locale);
+    const { feed, cacheable } = await this.feeds.currentPublic(locale);
+    const currentRows = await this.withSocialRows(feed.rows, userId);
+    const shown = cacheable
+      ? await this.withPins(currentRows, locale, true)
+      : currentRows;
+    const personalFeed = { ...feed, audience: 'personal' as const };
+    const visit = cacheable
+      ? await this.visits?.create(personalFeed, shown, locale, userId)
+      : undefined;
+    const version =
+      visit?.version ??
+      (this.social
+        ? personalHomeVersion(userId, locale, feed.algorithmVersion, shown)
+        : feed.version);
+    const rows =
+      visit?.rows ??
+      (shown.length > HOME_PAGE_SIZE ? shown.slice(0, HOME_PAGE_SIZE) : shown);
+    return this.answer({ ...personalFeed, version, rows }, 0, cacheable, true);
   }
 
   private async versionPage(
@@ -271,7 +277,7 @@ export class HomeService {
     }
     const retired = await this.snapshots?.readRetired(version);
     if (!retired) return undefined;
-    return personalHomeVersion(
+    return personalHomeVersionFromStoredRows(
       userId,
       retired.locale,
       retired.algorithmVersion,

@@ -69,7 +69,9 @@ export class HomeVisitService {
   ): Promise<StoredHomeVisit | undefined> {
     if (!this.feeds) return undefined;
     for (const locale of LOCALES) {
-      const { feed, cacheable } = await this.feeds.currentPublic(locale);
+      const { feed, cacheable } = await this.feeds.currentPublic(locale, {
+        buildIfMissing: false,
+      });
       if (!cacheable) continue;
       const rows = this.pins
         ? await this.pins.apply(feed.rows, { locale, signedIn: false })
@@ -96,7 +98,9 @@ export class HomeVisitService {
         .map((row) => [row.id, row]),
     );
     return rows.map((row) =>
-      row?.id.startsWith('pin-') ? (pinned.get(row.id) ?? null) : row,
+      row?.id.startsWith('pin-')
+        ? preserveFrozenPinLayout(row, pinned.get(row.id))
+        : row,
     );
   }
 
@@ -121,3 +125,19 @@ export class HomeVisitService {
     });
   }
 }
+
+const preserveFrozenPinLayout = (
+  frozen: HomeRow | null,
+  refreshed: HomeRow | undefined,
+): HomeRow | null => {
+  if (frozen === null || refreshed === undefined) return null;
+  if (frozen.layout === refreshed.layout) return refreshed;
+  if (frozen.layout === 'hero' && refreshed.layout === 'standard') {
+    const track = refreshed.items[0];
+    return track ? { ...frozen, track } : null;
+  }
+  if (frozen.layout === 'standard' && refreshed.layout === 'hero') {
+    return { ...frozen, items: [refreshed.track] };
+  }
+  return null;
+};
