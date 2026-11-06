@@ -29,10 +29,6 @@ export const refreshPersonalNightlyUserJobSchema = z.object({
 export type RefreshPersonalHomeFeedJob = z.infer<
   typeof refreshPersonalHomeFeedJobSchema
 >;
-export type RefreshPersonalNightlyUserJob = z.infer<
-  typeof refreshPersonalNightlyUserJobSchema
->;
-
 /**
  * Keyed by the User, the locale and the delay-long time slot of the trigger.
  * Triggers in one slot share the job, which runs after the slot ends so it
