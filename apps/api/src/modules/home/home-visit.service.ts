@@ -1,5 +1,11 @@
 import { Injectable, Optional } from '@nestjs/common';
-import type { HomeFeed, HomeRow, Locale } from '@vozzify/contracts';
+import {
+  type HomeFeed,
+  type HomeRow,
+  LOCALES,
+  type Locale,
+} from '@vozzify/contracts';
+import { HomeFeedService } from './home-feed.service.js';
 import { HomePinOverlayService } from './home-pin-overlay.service.js';
 import { HomeSocialService } from './home-social.service.js';
 import { HomeVisitStore, type StoredHomeVisit } from './home-visit.store.js';
@@ -11,6 +17,7 @@ export class HomeVisitService {
     private readonly store: HomeVisitStore,
     @Optional() private readonly pins?: HomePinOverlayService,
     @Optional() private readonly social?: HomeSocialService,
+    @Optional() private readonly feeds?: HomeFeedService,
   ) {}
 
   create(
@@ -26,7 +33,9 @@ export class HomeVisitService {
     version: string,
     signedIn: boolean,
   ): Promise<StoredHomeVisit | undefined> {
-    const visit = await this.store.read(version);
+    const visit =
+      (await this.store.read(version)) ??
+      (await this.recreatePublicVersion(version));
     if (visit?.ownerId !== null || visit.audience !== 'public')
       return undefined;
     return {
@@ -53,6 +62,22 @@ export class HomeVisitService {
       ...visit,
       rows: await this.refreshSocial(rows, userId),
     };
+  }
+
+  private async recreatePublicVersion(
+    version: string,
+  ): Promise<StoredHomeVisit | undefined> {
+    if (!this.feeds) return undefined;
+    for (const locale of LOCALES) {
+      const { feed, cacheable } = await this.feeds.currentPublic(locale);
+      if (!cacheable) continue;
+      const rows = this.pins
+        ? await this.pins.apply(feed.rows, { locale, signedIn: false })
+        : feed.rows;
+      const visit = await this.store.create({ ...feed, rows, locale });
+      if (visit?.version === version) return visit;
+    }
+    return undefined;
   }
 
   private async refreshPins(

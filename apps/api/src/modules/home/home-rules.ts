@@ -102,8 +102,8 @@ export const HOME_ROW_RULES = {
 /** The current feed lives this long, so a stalled regeneration still serves it. */
 export const HOME_FEED_CURRENT_TTL_SECONDS = 2 * 60 * 60;
 
-/** A replaced feed stays reachable for cursors this long. */
-export const HOME_FEED_RETAINED_TTL_SECONDS = 30 * 60;
+/** Retention exceeds the maximum one-hour public shared-cache freshness. */
+export const HOME_FEED_RETAINED_TTL_SECONDS = 2 * 60 * 60;
 
 /** The lock one request holds while it builds a missing feed. */
 export const HOME_FEED_LOCK_TTL_SECONDS = 30;
@@ -114,9 +114,9 @@ export const HOME_FEED_LOCK_TTL_SECONDS = 30;
  */
 export const PRIVATE_HOME_CACHE_CONTROL = 'private, no-store';
 
-/** Shared caches keep a public feed for a few minutes and serve it stale after. */
+/** Shared caches keep a public feed for at most one hour, including stale time. */
 export const PUBLIC_HOME_CACHE_CONTROL =
-  'public, max-age=60, s-maxage=600, stale-while-revalidate=3600';
+  'public, max-age=60, s-maxage=600, stale-while-revalidate=3000';
 
 /** A fallback feed is never stored by a cache, so it can't outlive the outage. */
 export const UNCACHED_HOME_CACHE_CONTROL = 'no-store';

@@ -26,7 +26,7 @@ describe('useHomeRows', () => {
     expect(useHomeRows('pt-BR', page)).toBe(result);
     expect(useInfiniteQuery).toHaveBeenCalledWith(
       expect.objectContaining({
-        queryKey: ['home', 'rows', 'pt-BR'],
+        queryKey: ['home', 'rows', 'pt-BR', 'public', 'a1b2c3d4e5f60718'],
         initialData: { pages: [page], pageParams: [undefined] },
       }),
     );

@@ -1,6 +1,10 @@
 import { homeFeedPageSchema, type Locale } from '@vozzify/contracts';
 
 import { browserApi } from '@/lib/api/browser';
+import {
+  HomeVisitRestartError,
+  isExpiredHomeVisitError,
+} from './home-visit-restart';
 
 /** One request for a page of rows: the locale and the cursor to resume from. */
 export type HomePageRequest = {
@@ -14,14 +18,24 @@ export type HomePageRequest = {
  * (`import()` in the query), so the schema's Zod stays out of the page's
  * first-load JavaScript.
  */
-export function fetchHomePageInBrowser({
+export async function fetchHomePageInBrowser({
   locale,
   cursor,
   signal,
 }: HomePageRequest) {
-  return browserApi('/home', {
-    schema: homeFeedPageSchema,
-    query: { locale, cursor },
-    signal,
-  });
+  try {
+    return await browserApi('/home', {
+      schema: homeFeedPageSchema,
+      query: { locale, cursor },
+      signal,
+    });
+  } catch (error) {
+    if (!cursor || !isExpiredHomeVisitError(error)) throw error;
+    const firstPage = await browserApi('/home', {
+      schema: homeFeedPageSchema,
+      query: { locale, cursor: undefined },
+      signal,
+    });
+    throw new HomeVisitRestartError(firstPage);
+  }
 }

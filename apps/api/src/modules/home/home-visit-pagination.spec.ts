@@ -140,9 +140,10 @@ describe('HomeService frozen visit paging', () => {
 });
 
 describe('HomeVisitService privacy and live social rows', () => {
-  const store = { read: vi.fn() };
-  const pins = { refreshFrozen: vi.fn() };
+  const store = { create: vi.fn(), read: vi.fn() };
+  const pins = { apply: vi.fn(), refreshFrozen: vi.fn() };
   const social = { rowsFor: vi.fn() };
+  const feeds = { currentPublic: vi.fn() };
   let service: HomeVisitService;
 
   beforeEach(async () => {
@@ -153,6 +154,7 @@ describe('HomeVisitService privacy and live social rows', () => {
         { provide: HomeVisitStore, useValue: store },
         { provide: HomePinOverlayService, useValue: pins },
         { provide: HomeSocialService, useValue: social },
+        { provide: HomeFeedService, useValue: feeds },
       ],
     }).compile();
     service = module.get(HomeVisitService);
@@ -176,18 +178,67 @@ describe('HomeVisitService privacy and live social rows', () => {
     ).resolves.toBeUndefined();
   });
 
+  it('recreates an expired public visit only when the deterministic composition matches', async () => {
+    const recreated = {
+      audience: 'public' as const,
+      locale: 'en' as const,
+      ownerId: null,
+      version: visitVersion,
+      algorithmVersion: feed.algorithmVersion,
+      rows: feed.rows,
+    } satisfies StoredHomeVisit;
+    store.read.mockResolvedValue(undefined);
+    feeds.currentPublic.mockResolvedValue({ feed, cacheable: true });
+    pins.apply.mockResolvedValue(feed.rows);
+    store.create.mockResolvedValue(recreated);
+    pins.refreshFrozen.mockImplementation(async (rows: HomeRow[]) => rows);
+
+    const result = await service.publicVersion(visitVersion, false);
+
+    expect(store.create).toHaveBeenCalledWith({
+      ...feed,
+      rows: feed.rows,
+      locale: 'en',
+    });
+    expect(result?.version).toBe(visitVersion);
+  });
+
   it('keeps only originally frozen people in their original order', async () => {
-    const people = {
+    const people: Extract<HomeRow, { layout: 'people' }> = {
       id: 'social-friends',
       layout: 'people' as const,
       title: { key: 'home.rows.newTracks', params: {} },
       items: [
-        { id: 'profile-b', name: 'B' },
-        { id: 'profile-a', name: 'A' },
-        { id: 'profile-c', name: 'C' },
-        { id: 'profile-removed', name: 'Removed' },
+        {
+          id: 'profile-b',
+          username: 'b',
+          name: 'B',
+          image: null,
+          commonTracks: 1,
+        },
+        {
+          id: 'profile-a',
+          username: 'a',
+          name: 'A',
+          image: null,
+          commonTracks: 1,
+        },
+        {
+          id: 'profile-c',
+          username: 'c',
+          name: 'C',
+          image: null,
+          commonTracks: 1,
+        },
+        {
+          id: 'profile-removed',
+          username: 'removed',
+          name: 'Removed',
+          image: null,
+          commonTracks: 1,
+        },
       ],
-    } as HomeRow;
+    };
     store.read.mockResolvedValue({
       audience: 'personal',
       locale: 'en',
@@ -202,7 +253,13 @@ describe('HomeVisitService privacy and live social rows', () => {
         ...people,
         items: [
           people.items[2],
-          { id: 'newly-visible', name: 'New' },
+          {
+            id: 'newly-visible',
+            username: 'new',
+            name: 'New',
+            image: null,
+            commonTracks: 1,
+          },
           people.items[0],
           people.items[1],
         ],
@@ -211,7 +268,10 @@ describe('HomeVisitService privacy and live social rows', () => {
 
     const visit = await service.personalVersion(visitVersion, 'user-a', 'en');
 
-    expect(visit?.rows[0]?.items.map((item) => item.id)).toEqual([
+    const visible = visit?.rows[0];
+    expect(visible?.layout).toBe('people');
+    if (visible?.layout !== 'people') throw new Error('People row was omitted');
+    expect(visible.items.map((item) => item.id)).toEqual([
       'profile-b',
       'profile-a',
       'profile-c',

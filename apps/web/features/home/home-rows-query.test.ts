@@ -44,11 +44,15 @@ describe('homeRowsQueryOptions', () => {
       'home',
       'rows',
       'en',
+      'public',
+      'a1b2c3d4e5f60718',
     ]);
     expect(homeRowsQueryOptions('pt-BR', page(null)).queryKey).toEqual([
       'home',
       'rows',
       'pt-BR',
+      'public',
+      'a1b2c3d4e5f60718',
     ]);
   });
 

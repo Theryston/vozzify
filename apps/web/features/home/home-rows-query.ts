@@ -1,4 +1,4 @@
-import { infiniteQueryOptions } from '@tanstack/react-query';
+import { infiniteQueryOptions, type QueryClient } from '@tanstack/react-query';
 import type { HomeFeedPage, Locale } from '@vozzify/contracts';
 
 import type { HomePageRequest } from './home-feed-client';
@@ -25,7 +25,7 @@ export function homeRowsQueryOptions(
   initialPage: HomeFeedPage,
 ) {
   return infiniteQueryOptions({
-    queryKey: homeQueryKeys.rows(locale),
+    queryKey: homeQueryKeys.rows(locale, initialPage),
     queryFn: ({ pageParam, signal }) =>
       fetchHomeRowsPage({ locale, cursor: pageParam, signal }),
     initialPageParam: undefined as string | undefined,
@@ -33,5 +33,18 @@ export function homeRowsQueryOptions(
       lastPage.nextCursor ?? undefined,
     initialData: { pages: [initialPage], pageParams: [undefined] },
     staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+/** Drops expired pages atomically so the replacement first page is not appended. */
+export function resetHomeRowsAfterExpiredVisit(
+  queryClient: QueryClient,
+  locale: Locale,
+  initialPage: HomeFeedPage,
+  firstPage: HomeFeedPage,
+): void {
+  queryClient.setQueryData(homeQueryKeys.rows(locale, initialPage), {
+    pages: [firstPage],
+    pageParams: [undefined],
   });
 }

@@ -22,10 +22,10 @@ snapshot would be worse: the pin would have to reach every snapshot.
 **Pins are eligible at read time, and visit positions are frozen.** The first
 page reads the stored feed (algorithmic rows only), reads the pins live for the
 request's locale and audience, and composes the visible rows. When another
-page exists, that composition is stored as a visit snapshot in Redis for the
-cursor retention window. Its deterministic content hash names the visit, so
-identical public visits for one locale share the snapshot; personal visit
-hashes include the User ID and locale. The HTTP response for a personal visit
+page exists, that composition is stored as a visit snapshot in Redis for a
+two-hour cursor retention window. Its deterministic content hash names the
+visit, so identical public visits for one locale share the snapshot; personal
+visit hashes include the User ID and locale. The HTTP response for a personal visit
 remains private and non-storable.
 
 Each cursor page reads its frozen row slots and checks retained Pin IDs against
@@ -37,8 +37,12 @@ sponsored label in place. Pins that become eligible after the first page wait
 for a new visit. Feed regeneration and social recommendation refresh likewise
 do not repack a visit. For a personal people Row, current profile visibility is
 rechecked and its current content replaces the matching frozen slot; if it no
-longer qualifies, that slot is omitted. An expired visit cursor returns the
-existing `FEED_VERSION_EXPIRED` response so the client starts a new visit.
+longer qualifies, that slot is omitted. If an expired public visit's source
+feed and Pin composition remain current, the API recreates it only when its
+deterministic version matches the cursor; otherwise it returns the existing
+`FEED_VERSION_EXPIRED` response so the client starts a new visit. Public cache
+headers bound shared response freshness to one hour, and the longer visit
+retention covers that bound.
 
 **The pin model** (`editorial_pins`, `editorial_pin_tracks`, `editorial_pin_history`):
 
