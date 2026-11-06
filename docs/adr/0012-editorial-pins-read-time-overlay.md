@@ -41,7 +41,7 @@ longer qualifies, that slot is omitted. If an expired public visit's source
 feed and Pin composition remain current, the API recreates it only when its
 deterministic version matches the cursor; otherwise it returns the existing
 `FEED_VERSION_EXPIRED` response so the client starts a new visit. Public cache
-headers bound shared response freshness to one hour, and the longer visit
+headers bound shared response freshness to two minutes, and the longer visit
 retention covers that bound.
 
 **The pin model** (`editorial_pins`, `editorial_pin_tracks`, `editorial_pin_history`):
@@ -125,9 +125,9 @@ the message `{title}` in each locale file. This needs no change to the contract.
   (the `visitors` pins). The response headers are unchanged, so the CDN must
   bypass its cache whenever a session cookie is present, as ADR 0011 already
   requires.
-- A CDN that caches the public response for `s-maxage=600` shows a pin's start
-  or end up to ten minutes late, even though the web cache is revalidated at the
-  exact time. The overlay itself is immediate.
+- A CDN can show a pin's start or end up to two minutes late under the current
+  public cache bounds, even though the web cache is revalidated at the exact
+  time. The overlay itself is immediate.
 - A visit snapshot adds one small cached composition per distinct public
   overlay and per personal User/locale visit. Redis keeps these snapshots only
   as long as cursors can refer to them; public versions remain shareable while
