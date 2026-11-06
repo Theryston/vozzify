@@ -3,6 +3,7 @@ import {
   calibrationConfidence,
   distinctSingerRepeatFactor,
   HOME_RANKING_CALIBRATION_PROPOSAL,
+  personalHistoryConfidence,
   progressiveArtistExposureFactor,
   saturatingAlbumScore,
   socialAffinityContribution,
@@ -37,6 +38,23 @@ describe('offline Home ranking calibration proposal', () => {
     expect(calibrationConfidence(4, 20)).toBeCloseTo(0.167, 3);
     expect(calibrationConfidence(3, 5)).toBeCloseTo(0.375, 3);
     expect(calibrationConfidence(1, 5)).toBeCloseTo(0.167, 3);
+  });
+
+  it('discounts repeated one-Track days against varied personal practice', () => {
+    const repeated = Array.from({ length: 100 }, () => ({
+      trackId: 'same-track',
+      practiceDay: '2026-11-01',
+    }));
+    const varied = Array.from({ length: 100 }, (_, index) => ({
+      trackId: `track-${index}`,
+      practiceDay: new Date(Date.UTC(2026, 0, index + 1))
+        .toISOString()
+        .slice(0, 10),
+    }));
+
+    expect(calibrationConfidence(100, 5)).toBeCloseTo(0.952, 3);
+    expect(personalHistoryConfidence(repeated)).toBeCloseTo(0.167, 3);
+    expect(personalHistoryConfidence(varied)).toBeCloseTo(0.952, 3);
   });
 
   it('penalizes repeated singer and progressive Artist exposure', () => {

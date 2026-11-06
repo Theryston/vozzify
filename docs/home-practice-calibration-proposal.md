@@ -8,7 +8,9 @@ below are proposals only and are not active in production.
 Use the SQL in `home-practice-outcomes.sql` against one closed UTC date range.
 It reports aggregate cohorts by `algorithmVersion`, `audience` and `locale`;
 it does not emit visitor identifiers. `visitId` identifies one mounted Home
-visit, and `eventId` deduplicates replayed impression events. Clicks use their
+visit, and `eventId` deduplicates replayed events. Visits are discovered from
+either a row impression or a click, so fast click-to-practice navigation is
+counted even when the delayed impression timer is cancelled. Clicks use their
 stable `clickId` as the event retry key and retain the existing join to
 `track_views.clickId`. Practice is joined only through the existing
 `track_views.id` referenced by credited `practice_heartbeats.viewId` and
@@ -26,7 +28,10 @@ they are used to tune live ranking.
 
 Older events without `eventId`, `visitId`, locale or audience are omitted from
 the retry-safe primary cohort and may only be reported separately as legacy
-raw counts. Clicks are deduplicated by `clickId` where present. A browser that
+raw counts. Visits without either a Home impression or click event are not
+observable and are excluded from the denominator; this is an observed
+interaction cohort, not all Home mounts. Clicks are deduplicated by `clickId`
+where present. A browser that
 clears local storage starts a new visitor identity; failed beacons can be
 lost; and attribution joins cannot establish that Home caused the practice.
 Heartbeat rows are already server-credited, capped per heartbeat and clocked
@@ -49,7 +54,8 @@ proposal fixtures are comparison inputs, not activation approval.
 | Album variety units cap | 2 | Cap `log2(1 + distinctTracks)` at two units so compilation size stops adding variety after three Tracks. |
 | Distinct-singer repeat penalty | 0.10 | Multiply each repeated singer contribution by `max(0, 1 − 0.10 × repeats)`. |
 | Locale sample prior | 20 views | Confidence is `n / (n + 20)`; four local views yield 0.167 confidence. |
-| Personal-history prior | 5 valid Attempts | Confidence is `n / (n + 5)`; three valid Attempts yield 0.375. |
+| Personal distinct-Track prior | 5 Tracks | Combine distinct-Track confidence with active-day confidence; repeated practice on one Track/day stays low despite attempt volume. |
+| Personal active-day prior | 5 days | Each breadth confidence is `n / (n + 5)`; combine the two with a geometric mean. |
 | Voice-evidence prior | 5 usable samples | Confidence is `n / (n + 5)`; one weak sample yields 0.167. |
 | Exploration share | 0.20 | Preserve the approved approximate one-in-five policy; not a tuning variable here. |
 | Progressive Artist exposure penalty | 0.25 | After one exposure, multiply later exposure by `1 / (1 + 0.25 × priorExposures)`; compare capped and uncapped fixtures. |
@@ -59,9 +65,15 @@ proposal fixtures are comparison inputs, not activation approval.
 | Weak ignored-impression penalty | 0.02 | Subtract 0.02 per qualified weak ignored impression, capped at 0.10; clicks never count as practice. |
 
 Every value above is unvalidated. The small locale/history/voice examples are
-formula checks, not observations from Users. The Album scores and sparse-feed
-cases should be recalculated beside the sibling fixture proposal before any
-value is accepted.
+formula checks, not observations from Users. For personal confidence, the
+offline proposal uses the geometric mean of distinct Track and active-day
+confidence (`sqrt(trackCount/(trackCount+5) × activeDays/(activeDays+5))`).
+With 100 valid Attempts on one Track and one day, the raw-count confidence
+would be 0.952 while the diversity-aware candidate is 0.167. With 100 distinct
+Tracks across 100 local Practice days, it is 0.952. Both comparisons keep the
+same 100 Attempt total; no candidate becomes a production parameter here. The
+Album scores and sparse-feed cases should be recalculated beside the sibling
+fixture proposal before any value is accepted.
 
 `saturatingAlbumScore` is a second offline-only candidate in
 `apps/api/src/modules/home/home-ranking-calibration-proposal.ts`. It combines
@@ -83,7 +95,8 @@ low-popularity Albums.
 | Representative case | Baseline | Proposal calculation | Candidate result |
 | --- | ---: | --- | ---: |
 | Four locale views | 1.00 | `4 / (4 + 20)` confidence multiplier | 0.167 |
-| Three valid personal Attempts | 1.00 | `3 / (3 + 5)` confidence multiplier | 0.375 |
+| 100 valid Attempts on one Track/day | 0.952 raw-count confidence | `sqrt((1 / 6) × (1 / 6))` breadth confidence | 0.167 |
+| 100 valid Attempts on 100 Tracks/days | 0.952 raw-count confidence | `sqrt((100 / 105) × (100 / 105))` breadth confidence | 0.952 |
 | One weak voice sample | 1.00 | `1 / (1 + 5)` confidence multiplier | 0.167 |
 | Three repeated singer exposures | 1.00 | `max(0, 1 − 0.10 × 3)` | 0.700 |
 | Three prior progressive Artist exposures | 1.00 | `1 / (1 + 0.25 × 3)` | 0.571 |
@@ -102,13 +115,18 @@ is the maximum share of selected Tracks credited to one Artist; discarded
 Rows and selection latency are recorded per fixed fixture. Do not infer these
 values from impression events, which only describe what was rendered.
 
-The bounded real-composer fixture in
-`apps/api/test/home-fixture-guardrails.e2e-spec.ts` currently has 13 unique
-eligible candidate Tracks and selects 12: coverage is 12/13 (0.9231),
-duplicate exposure is 0/12, maximum Artist share is 2/12 (0.1667), and one of
-three candidate Rows is discarded. It records selection latency with
-`performance.now()` and asserts it is finite; there is no cross-machine
-latency threshold in this synthetic fixture.
+The bounded API fixture in `apps/api/test/home-fixture-guardrails.e2e-spec.ts`
+seeds 13 unique eligible Tracks in Postgres and measures the emitted public
+Home feed. It selects 13/13 candidates (coverage 1.0000), has 0/13 duplicate
+exposure, maximum Artist share 2/13 (0.1538), and discards four of six Track
+candidate Rows after minimum-size and deduplication filters. It records the
+Home API response latency with `performance.now()` and asserts it is finite;
+there is no cross-machine latency threshold in this synthetic fixture. A separate
+measurement regression executes the actual SQL report for a visit whose
+impression was cancelled by fast navigation: the click metadata preserves
+that converting visit. Visits with no impression or click event remain
+unmeasured and do not enter the visit denominator; consequently this report
+measures observed Home interactions, not every mounted Home page.
 
 ## Bounded comparison and stage checklist
 

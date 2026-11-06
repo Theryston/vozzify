@@ -1,5 +1,6 @@
 -- Replace the UTC bounds, then run with psql. This intentionally reports only
--- new events carrying stable event/visit metadata.
+-- new events carrying stable event/visit metadata on either impressions or
+-- clicks. Click-only visits cover navigation before the delayed impression.
 \set start_at '2026-11-01T00:00:00Z'
 \set end_at '2026-11-08T00:00:00Z'
 
@@ -19,8 +20,8 @@ WITH deduplicated_events AS (
     AND e.payload ? 'eventId'
   ORDER BY e.visitor_id, e.payload ->> 'eventId', e.created_at
 ),
-visits AS (
-  SELECT DISTINCT ON (e.visitor_id, e.payload ->> 'visitId')
+visit_candidates AS (
+  SELECT
     e.visitor_id,
     e.user_id,
     e.payload ->> 'visitId' AS "visitId",
@@ -33,7 +34,25 @@ visits AS (
     AND e.payload ? 'visitId'
     AND e.created_at >= :'start_at'::timestamptz
     AND e.created_at < :'end_at'::timestamptz
-  ORDER BY e.visitor_id, e.payload ->> 'visitId', e.created_at
+  UNION ALL
+  SELECT
+    e.visitor_id,
+    e.user_id,
+    e.payload ->> 'visitId' AS "visitId",
+    e.created_at AS "visitedAt",
+    e.algorithm_version,
+    e.payload ->> 'audience' AS audience,
+    e.payload ->> 'locale' AS locale
+  FROM deduplicated_events e
+  WHERE e.type = 'home.item_click'
+    AND e.payload ? 'visitId'
+    AND e.created_at >= :'start_at'::timestamptz
+    AND e.created_at < :'end_at'::timestamptz
+),
+visits AS (
+  SELECT DISTINCT ON (visitor_id, "visitId") *
+  FROM visit_candidates
+  ORDER BY visitor_id, "visitId", "visitedAt"
 ),
 clicks AS (
   SELECT DISTINCT ON (e.visitor_id, e.click_id)

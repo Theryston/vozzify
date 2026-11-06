@@ -10,7 +10,8 @@ export const HOME_RANKING_CALIBRATION_PROPOSAL = {
   albumVarietyUnitsCap: 2,
   distinctSingerRepeatPenalty: 0.1,
   localeSamplePrior: 20,
-  personalHistoryAttemptPrior: 5,
+  personalHistoryDistinctTrackPrior: 5,
+  personalHistoryActiveDayPrior: 5,
   voiceEvidenceSamplePrior: 5,
   explorationShare: 0.2,
   progressiveArtistExposurePenalty: 0.25,
@@ -58,6 +59,27 @@ export const calibrationConfidence = (
   observations: number,
   prior: number,
 ): number => observations / (observations + prior);
+
+/**
+ * Offline personal confidence based on breadth, not raw attempt volume. A
+ * repeated Track adds no distinct-Track evidence; repeated attempts in one
+ * local Practice day add no active-day evidence.
+ */
+export const personalHistoryConfidence = (
+  evidence: readonly { trackId: string; practiceDay: string }[],
+): number => {
+  const distinctTracks = new Set(evidence.map((item) => item.trackId)).size;
+  const activeDays = new Set(evidence.map((item) => item.practiceDay)).size;
+  const trackConfidence = calibrationConfidence(
+    distinctTracks,
+    HOME_RANKING_CALIBRATION_PROPOSAL.personalHistoryDistinctTrackPrior,
+  );
+  const dayConfidence = calibrationConfidence(
+    activeDays,
+    HOME_RANKING_CALIBRATION_PROPOSAL.personalHistoryActiveDayPrior,
+  );
+  return Math.sqrt(trackConfidence * dayConfidence);
+};
 
 /** Repetition factor after the first distinct singer exposure. */
 export const distinctSingerRepeatFactor = (repeatedExposures: number): number =>

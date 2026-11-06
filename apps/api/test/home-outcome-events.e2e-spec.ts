@@ -7,7 +7,7 @@ import { EVENTS_QUEUE } from '../src/modules/events/events.job.js';
 import { EventsProcessor } from '../src/modules/events/events.processor.js';
 import { EventsRepository } from '../src/modules/events/events.repository.js';
 import { signInWithUsername } from './utils/auth.js';
-import { useAuthSpec } from './utils/auth-spec.js';
+import { type AuthSpec, useAuthSpec } from './utils/auth-spec.js';
 import {
   createPasswordUser,
   createTrack,
@@ -27,19 +27,22 @@ const reportQuery = async (startAt: Date, endAt: Date): Promise<string> =>
     .replaceAll(":'start_at'", `'${startAt.toISOString()}'`)
     .replaceAll(":'end_at'", `'${endAt.toISOString()}'`);
 
+const signInOutcomeUser = async (spec: AuthSpec, username: string) => {
+  const user = await createPasswordUser(spec.testApp.db, { username });
+  if (user.username === null) throw new Error('Expected a username');
+  await signInWithUsername(spec.client, {
+    username: user.username,
+    password: DEFAULT_PASSWORD,
+  }).expect(200);
+  return user;
+};
+
 describe('Home outcome measurement report (e2e)', () => {
   const spec = useAuthSpec();
 
   it('deduplicates event retries and counts credited, later practice once', async () => {
-    const user = await createPasswordUser(spec.testApp.db, {
-      username: 'outcomes',
-    });
-    if (user.username === null) throw new Error('Expected a username');
+    const user = await signInOutcomeUser(spec, 'outcomes');
     const track = await createTrack(spec.testApp.db);
-    await signInWithUsername(spec.client, {
-      username: user.username,
-      password: DEFAULT_PASSWORD,
-    }).expect(200);
 
     const now = new Date();
     const startAt = new Date(now.getTime() - 60_000);
@@ -192,6 +195,75 @@ describe('Home outcome measurement report (e2e)', () => {
         returned_within_7d: 2,
         visit_to_sustained_rate: '0.5000',
         sustained_to_return_rate: '1.0000',
+      }),
+    ]);
+  });
+
+  it('includes a fast click-to-practice visit without a row impression', async () => {
+    await signInOutcomeUser(spec, 'fastoutcome');
+    const track = await createTrack(spec.testApp.db);
+    const now = new Date();
+    const startAt = new Date(now.getTime() - 60_000);
+    const endAt = new Date(now.getTime() + 60 * 60_000);
+    const visitorId = 'visitor-fast-outcome';
+    const clickId = 'fast-click-1';
+
+    await spec.client
+      .post('/v1/events')
+      .send({
+        visitorId,
+        events: [
+          {
+            type: 'home.item_click',
+            eventId: clickId,
+            clickId,
+            visitId: 'fast-visit-1',
+            locale: 'pt-BR',
+            audience: 'personal',
+            rowId: 'trending-today',
+            feedVersion: 'a1b2c3d4e5f60718',
+            algorithmVersion: 2,
+            itemId: track.id,
+            position: 0,
+          },
+        ],
+      })
+      .expect(202);
+    await runEventsJob();
+
+    const view = await spec.client
+      .post(`/v1/tracks/${track.id}/views`)
+      .send({ clickId, visitorId, locale: 'pt-BR' })
+      .expect(201);
+    await spec.client
+      .post(`/v1/tracks/${track.id}/attempts`)
+      .send({
+        difficulty: 'NORMAL',
+        octaveMode: 'ANY',
+        transposeSemitones: 0,
+        speed: 1,
+        accuracy: 0.8,
+        coverage: 0.95,
+        forwardSkip: false,
+        bleedSuspected: false,
+        startedAt: now.toISOString(),
+        endedAt: new Date(now.getTime() + 60_000).toISOString(),
+        viewId: view.body.viewId,
+      })
+      .expect(201);
+
+    const rows = await spec.testApp.db.execute(
+      sql.raw(await reportQuery(startAt, endAt)),
+    );
+    expect(rows.rows).toEqual([
+      expect.objectContaining({
+        algorithm_version: 2,
+        audience: 'personal',
+        locale: 'pt-BR',
+        visits: 1,
+        clicked_visits: 1,
+        sustained_visits: 1,
+        returned_within_7d: 0,
       }),
     ]);
   });
