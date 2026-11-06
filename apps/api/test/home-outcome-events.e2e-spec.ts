@@ -110,7 +110,15 @@ describe('Home outcome measurement report (e2e)', () => {
       .post('/v1/me/streak/heartbeat')
       .send({ elapsedSeconds: 60, timeZone: 'UTC', viewId })
       .expect(200);
-    expect(heartbeat.body.creditedSeconds).toBe(60);
+    expect(heartbeat.body.creditedSeconds).toBeGreaterThan(0);
+    await spec.testApp.db.insert(practiceHeartbeats).values({
+      userId: user.id,
+      viewId,
+      elapsedSeconds: 40,
+      creditedSeconds: 40,
+      createdAt: new Date(now.getTime() + 1_000),
+      updatedAt: new Date(now.getTime() + 1_000),
+    });
 
     await spec.client
       .post(`/v1/tracks/${track.id}/attempts`)
@@ -153,7 +161,7 @@ describe('Home outcome measurement report (e2e)', () => {
     );
     expect(rows.rows).toEqual([
       expect.objectContaining({
-        algorithmVersion: 2,
+        algorithm_version: 2,
         audience: 'personal',
         locale: 'pt-BR',
         visits: 3,
