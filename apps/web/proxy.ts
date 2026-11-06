@@ -62,7 +62,11 @@ async function checkCatalogRoute(
       response.headers.set('Cache-Control', 'private, no-store');
       return response;
     }
-    return NextResponse.rewrite(new URL('/_not-found', request.url));
+    // The localized catch-all keeps the site layout; /_not-found bypasses it.
+    return NextResponse.rewrite(
+      new URL(`/${route.locale}/not-found`, request.url),
+      { status: 404 },
+    );
   }
   return undefined;
 }
@@ -91,7 +95,10 @@ async function checkUserProfileRoute(
   }
   const verdict = await fetchUserProfileVerdict(apiUrl, route.username);
   if (verdict.kind === 'missing') {
-    return NextResponse.rewrite(new URL('/_not-found', request.url));
+    return NextResponse.rewrite(
+      new URL(`/${route.locale}/not-found`, request.url),
+      { status: 404 },
+    );
   }
   return undefined;
 }
