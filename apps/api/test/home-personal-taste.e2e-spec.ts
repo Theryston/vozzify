@@ -12,7 +12,6 @@ import { PersonalHomeBuilder } from '../src/modules/home/home-personal-builder.s
 import {
   decayedTaste,
   tasteMatch,
-  topGenres,
 } from '../src/modules/home/home-personal-recommendations.js';
 import { CacheService } from '../src/redis/cache.service.js';
 import { createAuthClient, signIn } from './utils/auth.js';
@@ -202,52 +201,56 @@ describe('Personal home taste rows (e2e)', () => {
     return { source, tracks: seededTracks, repository };
   };
 
-  const expectExplorationShare = (rows: HomeRow[]) => {
-    const tasteRows = new Set([
-      'continue-singing',
-      'sing-again',
-      'because-you-sang',
-      'more-of-your-genres',
-      'explore',
-    ]);
-    const existingIds = new Set(
-      rows
-        .filter((row) => tasteRows.has(row.id) && row.id !== 'explore')
-        .flatMap((row) =>
-          row.layout === 'hero'
-            ? [row.track.id]
-            : row.layout === 'standard'
-              ? row.items.map(({ id }) => id)
-              : [],
-        ),
-    );
-    expect(existingIds.size).toBeGreaterThanOrEqual(30);
-    const trackSlots = rows
-      .filter((row) => row.id !== 'explore')
-      .reduce(
-        (total, row) =>
-          total +
-          (row.layout === 'hero'
-            ? 1
-            : row.layout === 'standard'
-              ? row.items.length
-              : 0),
-        0,
+  const expectDistributedExploration = async (
+    rows: HomeRow[],
+    repository: PersonalHomeRepository,
+    taste: ReturnType<typeof decayedTaste>,
+    signals: Awaited<
+      ReturnType<PersonalHomeRepository['findUserTrackSignals']>
+    >,
+  ) => {
+    const discoveryIds = rows
+      .filter(
+        ({ id }) =>
+          id !== 'top-10-week' &&
+          id !== 'continue-singing' &&
+          id !== 'sing-again',
+      )
+      .flatMap((row) =>
+        row.layout === 'hero'
+          ? [row.track.id]
+          : row.layout === 'standard' || row.layout === 'vocal-range'
+            ? row.items.map(({ id }) => id)
+            : [],
       );
-    expect(rows.map((row) => row.id)).toContain('explore');
-    const explore = rows.find((row) => row.id === 'explore');
-    if (explore?.layout !== 'standard') return;
-    expect(explore.items.length / trackSlots).toBeLessThanOrEqual(0.2);
+    expect(new Set(discoveryIds).size).toBe(discoveryIds.length);
+
+    const signalsByTrack = new Map(
+      signals.map((signal) => [signal.trackId, signal]),
+    );
+    expect(
+      discoveryIds.filter((id) =>
+        isMasteredTrack(signalsByTrack.get(id)?.bestAccuracy ?? 0),
+      ),
+    ).toEqual([]);
+
+    const metadata = await repository.findDiscoveryTracks(discoveryIds);
+    const unfamiliarIds = discoveryIds.filter((id) => {
+      const track = metadata.get(id);
+      return (
+        track !== undefined &&
+        tasteMatch(track.genres, track.artistKey, taste) === 0
+      );
+    });
+    expect(unfamiliarIds.length).toBeGreaterThan(0);
   };
 
-  it('serves taste, co-occurrence, artist and exploration rows', async () => {
+  it('serves taste and community rows with unfamiliar discovery Tracks', async () => {
     const { user: viewer, client } = await signInAs(
       'taste_user',
       'taste-user@example.com',
     );
     const { source, repository } = await seedTasteData(viewer.id);
-    const unfamiliar = await repository.findTracksOutsideGenres(['rock'], 60);
-    expect(unfamiliar.length).toBeGreaterThanOrEqual(6);
     await refresh(viewer.id);
 
     const firstPage = await client.get('/v1/home').expect(200);
@@ -276,35 +279,7 @@ describe('Personal home taste rows (e2e)', () => {
         lastSignalAt: signal.lastAttemptAt,
       })),
     );
-    const visibleBeforeExploration = rows.filter((row) => row.id !== 'explore');
-    const visibleTrackIds = new Set(
-      visibleBeforeExploration.flatMap((row) =>
-        row.layout === 'hero'
-          ? [row.track.id]
-          : row.layout === 'standard'
-            ? row.items.map(({ id }) => id)
-            : [],
-      ),
-    );
-    const eligibleExploration = (
-      await repository.findTracksOutsideGenres(topGenres(taste), 60)
-    ).filter(
-      (track) =>
-        tasteMatch(
-          track.genres,
-          track.artistCredit[0]?.mbid ??
-            track.artistCredit[0]?.name ??
-            track.id,
-          taste,
-        ) === 0 &&
-        !isMasteredTrack(
-          signals.find((signal) => signal.trackId === track.id)?.bestAccuracy ??
-            0,
-        ) &&
-        !visibleTrackIds.has(track.id),
-    );
-    expect(eligibleExploration.length).toBeGreaterThanOrEqual(6);
-    expectExplorationShare(rows);
+    await expectDistributedExploration(rows, repository, taste, signals);
   });
 
   it('keeps weak taste rows out for a User with little data', async () => {
