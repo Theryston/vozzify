@@ -38,6 +38,7 @@ describe('the trending row sources', () => {
     findMostFavoritedTrackIds: vi.fn(),
     countRecentAttempts: vi.fn(),
     countRecentFavorites: vi.fn(),
+    localePracticeEvidence: vi.fn(),
   };
   const ranking = { rank: vi.fn() };
 
@@ -56,10 +57,18 @@ describe('the trending row sources', () => {
     repository.findMostFavoritedTrackIds.mockResolvedValue([]);
     repository.countRecentAttempts.mockResolvedValue([]);
     repository.countRecentFavorites.mockResolvedValue([]);
+    repository.localePracticeEvidence.mockResolvedValue({
+      distinctUsers: 0,
+      activeDays: 0,
+    });
   });
 
   it('falls back to the global trending figures when the locale has no ranking', async () => {
     ranking.rank.mockResolvedValue(undefined);
+    repository.localePracticeEvidence.mockResolvedValue({
+      distinctUsers: 20,
+      activeDays: 5,
+    });
 
     const items = await trendingLoad('pt-BR');
 
@@ -70,6 +79,10 @@ describe('the trending row sources', () => {
   });
 
   it('loads the locale ranking in its own order', async () => {
+    repository.localePracticeEvidence.mockResolvedValue({
+      distinctUsers: 20,
+      activeDays: 5,
+    });
     ranking.rank.mockResolvedValue([
       { trackId: 'b', score: 9 },
       { trackId: 'a', score: 5 },
@@ -99,6 +112,7 @@ describe('the singing row sources', () => {
     findMostFavoritedTrackIds: vi.fn(),
     countRecentAttempts: vi.fn(),
     countRecentFavorites: vi.fn(),
+    localePracticeEvidence: vi.fn(),
   };
   const ranking = { rank: vi.fn() };
 
@@ -119,6 +133,10 @@ describe('the singing row sources', () => {
     repository.findMostFavoritedTrackIds.mockResolvedValue([]);
     repository.countRecentAttempts.mockResolvedValue([]);
     repository.countRecentFavorites.mockResolvedValue([]);
+    repository.localePracticeEvidence.mockResolvedValue({
+      distinctUsers: 0,
+      activeDays: 0,
+    });
   });
 
   it('orders "Most sung" by valid Attempts, best first', async () => {

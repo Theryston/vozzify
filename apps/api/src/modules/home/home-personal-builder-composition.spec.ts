@@ -3,7 +3,9 @@ import { Test } from '@nestjs/testing';
 import type { HomeRow, HomeTrack } from '@vozzify/contracts';
 import { AttemptsService } from '../attempts/attempts.service.js';
 import { StreaksService } from '../streaks/streaks.service.js';
+import { TrackLocaleTrendingService } from '../tracks/track-locale-trending.service.js';
 import { UsersService } from '../users/users.service.js';
+import { HomeRepository } from './home.repository.js';
 import { HomeFeedService } from './home-feed.service.js';
 import { PersonalHomeRepository } from './home-personal.repository.js';
 import { PersonalHomeBuilder } from './home-personal-builder.service.js';
@@ -72,12 +74,17 @@ describe('PersonalHomeBuilder row composition', () => {
               trendingScore: tracks.length - index,
               genres: ['rock'],
               artistKey: item.artistCredit[0]?.name ?? item.id,
+              artistKeys: [],
             },
           ]),
         ),
       ),
     };
     const tasteRows = {
+      findDiscoveryCandidates: vi.fn().mockResolvedValue({
+        tracks: [],
+        byRow: {},
+      }),
       findUserTasteActivities: vi.fn().mockResolvedValue([]),
       build: vi.fn(async ({ usedTrackIds }: { usedTrackIds: Set<string> }) => {
         const items = tracks.slice(6, 12);
@@ -94,6 +101,7 @@ describe('PersonalHomeBuilder row composition', () => {
       explorationRow: vi.fn().mockResolvedValue(undefined),
     };
     const streaks = {
+      practiceDayOf: StreaksService.prototype.practiceDayOf,
       getStatus: vi.fn().mockResolvedValue({
         completedToday: false,
         targetSeconds: 300,
@@ -108,7 +116,20 @@ describe('PersonalHomeBuilder row composition', () => {
         lastPracticeHeartbeatAt: null,
       }),
     };
-    const attempts = { vocalRange: vi.fn().mockResolvedValue(null) };
+    const attempts = {
+      vocalRange: vi.fn().mockResolvedValue(null),
+      vocalRangeEvidenceCount: vi.fn().mockResolvedValue(0),
+    };
+    const homeRepository = {
+      popularityScoresForTracks: vi.fn().mockResolvedValue([]),
+      findPopularAlbums: vi.fn().mockResolvedValue([]),
+      findAlbumTrackSignals: vi.fn().mockResolvedValue([]),
+      localePracticeEvidence: vi.fn().mockResolvedValue({
+        distinctUsers: 0,
+        activeDays: 0,
+      }),
+    };
+    const localeTrending = { rank: vi.fn().mockResolvedValue(undefined) };
     attempts.vocalRange.mockResolvedValue({ lowest: 60, highest: 72 });
     const social = {
       rowsFor: vi.fn().mockResolvedValue([
@@ -129,6 +150,8 @@ describe('PersonalHomeBuilder row composition', () => {
     const testProviders = new Map<InjectionToken, unknown>([
       [HomeFeedService, feeds],
       [PersonalHomeRepository, personal],
+      [HomeRepository, homeRepository],
+      [TrackLocaleTrendingService, localeTrending],
       [PersonalHomeTasteRowsService, tasteRows],
       [StreaksService, streaks],
       [UsersService, users],

@@ -30,6 +30,7 @@ export type PracticeAttemptHistoryRow = {
  * accurate run exactly when its best accuracy reaches the threshold.
  */
 export type VocalRangeGroupRow = {
+  trackId?: string;
   // Null for a Track without notes.
   trackVocalRangeLowest: number | null;
   trackVocalRangeHighest: number | null;
@@ -37,6 +38,10 @@ export type VocalRangeGroupRow = {
   forwardSkip: boolean;
   bleedSuspected: boolean;
   bestAccuracy: number;
+};
+
+export type VocalRangeEvidenceGroupRow = VocalRangeGroupRow & {
+  trackId: string;
 };
 
 export type UserVocalRangeGroupRow = VocalRangeGroupRow & { userId: string };
@@ -139,6 +144,7 @@ export class AttemptsRepository {
   listVocalRangeGroups(userId: string): Promise<VocalRangeGroupRow[]> {
     return this.txHost.tx
       .select({
+        trackId: practiceAttempts.trackId,
         trackVocalRangeLowest: tracks.vocalRangeLowest,
         trackVocalRangeHighest: tracks.vocalRangeHighest,
         transposeSemitones: practiceAttempts.transposeSemitones,
@@ -150,6 +156,7 @@ export class AttemptsRepository {
       .innerJoin(tracks, eq(tracks.id, practiceAttempts.trackId))
       .where(eq(practiceAttempts.userId, userId))
       .groupBy(
+        practiceAttempts.trackId,
         tracks.id,
         tracks.vocalRangeLowest,
         tracks.vocalRangeHighest,
@@ -157,6 +164,15 @@ export class AttemptsRepository {
         practiceAttempts.forwardSkip,
         practiceAttempts.bleedSuspected,
       );
+  }
+
+  async listVocalRangeEvidenceGroups(
+    userId: string,
+  ): Promise<VocalRangeEvidenceGroupRow[]> {
+    const rows = await this.listVocalRangeGroups(userId);
+    return rows.flatMap((row) =>
+      row.trackId === undefined ? [] : [{ ...row, trackId: row.trackId }],
+    );
   }
 
   /** The same Profile range inputs for a batch of Users. */

@@ -23,16 +23,27 @@ describe('the entity row sources', () => {
     findGenreTrackCounts: vi.fn(),
     findPopularArtists: vi.fn(),
     findPopularAlbums: vi.fn(),
+    localePracticeEvidence: vi.fn().mockResolvedValue({
+      distinctUsers: 0,
+      activeDays: 0,
+    }),
   };
+  const ranking = { rank: vi.fn().mockResolvedValue(undefined) };
 
   const sourceOf = (id: string) =>
-    createHomeEntityRowSources(repository).find((row) => row.id === id);
+    createHomeEntityRowSources(repository, ranking).find(
+      (row) => row.id === id,
+    );
 
   beforeEach(() => {
     vi.resetAllMocks();
     repository.findGenreTrackCounts.mockResolvedValue([]);
     repository.findPopularArtists.mockResolvedValue([]);
     repository.findPopularAlbums.mockResolvedValue([]);
+    repository.localePracticeEvidence.mockResolvedValue({
+      distinctUsers: 0,
+      activeDays: 0,
+    });
   });
 
   it('lists the genres with enough completed Tracks, in the feed order', async () => {
@@ -44,7 +55,7 @@ describe('the entity row sources', () => {
       ]),
     );
 
-    const sources = createHomeEntityRowSources(repository);
+    const sources = createHomeEntityRowSources(repository, ranking);
     const genres = sourceOf('genres');
 
     expect(sources.map((source) => source.id)).toEqual([

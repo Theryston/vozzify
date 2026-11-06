@@ -5,6 +5,8 @@ import type {
   HomeTrack,
   TrackVocalRange,
 } from '@vozzify/contracts';
+import { homeArtistKeys } from './home-artist-keys.js';
+import { catalogRecommendationRow } from './home-catalog-recommendation.js';
 import { composeHomeRows } from './home-feed-composer.js';
 import type { PersonalTaste } from './home-personal.js';
 import {
@@ -19,20 +21,31 @@ import { PERSONAL_DISCOVERY_ROW_MIN_ITEMS } from './home-rules.js';
 /** Ranks the public Track pool by its blended score and drops mastered songs. */
 export const blendedDiscoveryPool = (options: {
   publicRows: HomeRow[];
+  catalogTracks?: HomeTrack[];
   discovery: ReadonlyMap<string, DiscoveryTrack>;
   taste: PersonalTaste;
   lambda: number;
   masteredTrackIds: ReadonlySet<string>;
   userRange?: TrackVocalRange | null;
+  voiceConfidence?: number;
 }): DiscoveryCandidate[] => {
-  const { publicRows, discovery, taste, lambda, masteredTrackIds, userRange } =
-    options;
+  const {
+    publicRows,
+    discovery,
+    taste,
+    lambda,
+    masteredTrackIds,
+    userRange,
+    voiceConfidence,
+  } = options;
   return blendDiscoveryCandidates({
     tracks: personalTrackPool(publicRows),
+    catalogTracks: options.catalogTracks,
     discovery,
     taste,
     lambda,
     userRange,
+    voiceConfidence,
   })
     .filter((candidate) => !masteredTrackIds.has(candidate.track.id))
     .sort(byBlendedDesc);
@@ -51,14 +64,15 @@ const discoveryItems = (
   row: Extract<HomeRow, { layout: 'standard' }>,
   options: {
     blended: Map<string, DiscoveryCandidate>;
+    replacementIds: ReadonlySet<string>;
     heroId: string | undefined;
     masteredTrackIds: ReadonlySet<string>;
     alreadyUsedTrackIds: ReadonlySet<string>;
     reservedTrackIds: ReadonlySet<string>;
   },
 ) =>
-  row.items
-    .map((track) => options.blended.get(track.id))
+  [...row.items.map((track) => track.id), ...options.replacementIds]
+    .map((trackId) => options.blended.get(trackId))
     .filter(
       (candidate): candidate is DiscoveryCandidate =>
         candidate !== undefined &&
@@ -71,12 +85,17 @@ const discoveryItems = (
     .map((candidate) => ({
       id: candidate.track.id,
       artistKey: candidate.artistKey,
+      artistKeys:
+        candidate.artistKeys ??
+        homeArtistKeys(candidate.track.artistCredit, candidate.track.id),
       hasCover: candidate.hasCover,
       isCompleted: true,
     }));
 
 const discoveryStandardRows = (options: {
   publicRows: HomeRow[];
+  candidatesByRow?: Record<string, HomeTrack[]>;
+  blended: Map<string, DiscoveryCandidate>;
   sorted: DiscoveryCandidate[];
   masteredTrackIds: ReadonlySet<string>;
   alreadyUsedTrackIds: ReadonlySet<string>;
@@ -84,15 +103,15 @@ const discoveryStandardRows = (options: {
 }): HomeCarouselRow[] => {
   const {
     publicRows,
+    candidatesByRow = {},
     sorted,
+    blended,
     masteredTrackIds,
     alreadyUsedTrackIds,
     reservedTrackIds,
   } = options;
+  const usedTrackIds = new Set(alreadyUsedTrackIds);
   const heroId = sorted.find((candidate) => candidate.hasCover)?.track.id;
-  const blended = new Map(
-    sorted.map((candidate) => [candidate.track.id, candidate]),
-  );
   const rows: HomeCarouselRow[] = [];
   for (const row of publicRows) {
     if (row.layout !== 'standard') {
@@ -106,9 +125,12 @@ const discoveryStandardRows = (options: {
           title: row.title,
           items: discoveryItems(row, {
             blended,
+            replacementIds: new Set(
+              (candidatesByRow[row.id] ?? []).map((track) => track.id),
+            ),
             heroId,
             masteredTrackIds,
-            alreadyUsedTrackIds,
+            alreadyUsedTrackIds: usedTrackIds,
             reservedTrackIds,
           }),
         },
@@ -120,7 +142,12 @@ const discoveryStandardRows = (options: {
     if (!composed?.title) {
       continue;
     }
-    const itemsById = new Map(row.items.map((track) => [track.id, track]));
+    const itemsById = new Map(
+      [...row.items, ...(candidatesByRow[row.id] ?? [])].map((track) => [
+        track.id,
+        track,
+      ]),
+    );
     rows.push({
       id: composed.id,
       layout: 'standard',
@@ -133,6 +160,7 @@ const discoveryStandardRows = (options: {
         return track;
       }),
     });
+    for (const item of composed.items) usedTrackIds.add(item.id);
   }
   return rows;
 };
@@ -140,6 +168,8 @@ const discoveryStandardRows = (options: {
 /** Builds the blended hero and standard rows after personal rows took their Tracks. */
 export const buildPersonalDiscoveryRows = (options: {
   publicRows: HomeRow[];
+  candidatesByRow?: Record<string, HomeTrack[]>;
+  catalogCandidates?: DiscoveryCandidate[];
   sorted: DiscoveryCandidate[];
   masteredTrackIds: ReadonlySet<string>;
   alreadyUsedTrackIds: ReadonlySet<string>;
@@ -147,6 +177,8 @@ export const buildPersonalDiscoveryRows = (options: {
 }): HomeRow[] => {
   const {
     publicRows,
+    candidatesByRow,
+    catalogCandidates = [],
     sorted,
     masteredTrackIds,
     alreadyUsedTrackIds,
@@ -157,15 +189,39 @@ export const buildPersonalDiscoveryRows = (options: {
       !alreadyUsedTrackIds.has(candidate.track.id) ||
       reservedTrackIds.has(candidate.track.id),
   );
-  const hero = discoveryHeroRow(eligible);
+  const blended = new Map(
+    eligible.map((candidate) => [candidate.track.id, candidate]),
+  );
+  const heroEligible = sorted.filter(
+    (candidate) =>
+      !masteredTrackIds.has(candidate.track.id) &&
+      (!alreadyUsedTrackIds.has(candidate.track.id) ||
+        reservedTrackIds.has(candidate.track.id)),
+  );
+  const hero = discoveryHeroRow(heroEligible);
+  const standardRows = discoveryStandardRows({
+    publicRows,
+    candidatesByRow,
+    blended,
+    sorted: eligible,
+    masteredTrackIds,
+    alreadyUsedTrackIds,
+    reservedTrackIds,
+  });
+  const allocated = new Set([
+    ...alreadyUsedTrackIds,
+    ...standardRows.flatMap((row) => row.items.map((track) => track.id)),
+    ...(hero ? [hero.track.id] : []),
+  ]);
+  const catalogRow = catalogRecommendationRow(
+    catalogCandidates,
+    allocated,
+    standardRows,
+    blended,
+  );
   return [
     ...(hero ? [hero] : []),
-    ...discoveryStandardRows({
-      publicRows,
-      sorted: eligible,
-      masteredTrackIds,
-      alreadyUsedTrackIds,
-      reservedTrackIds,
-    }),
+    ...standardRows,
+    ...(catalogRow ? [catalogRow] : []),
   ];
 };

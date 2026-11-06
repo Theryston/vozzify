@@ -98,7 +98,7 @@ describe('PersonalHomeTasteRowsService', () => {
         cards.slice(0, 6).map((card) => ({
           sourceTrackId: 'source',
           targetTrackId: card.id,
-          singers: 3,
+          score: 0.3,
         })),
       ),
       findCommunityTrackCards: vi

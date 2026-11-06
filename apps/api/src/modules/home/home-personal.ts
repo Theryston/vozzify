@@ -1,4 +1,5 @@
 import { accuracyBand } from '@vozzify/contracts';
+import { personalConfidenceLambda } from './home-stage2-scoring.js';
 
 /**
  * The personal blend of the home feed. The public popularity is the base and
@@ -8,12 +9,6 @@ import { accuracyBand } from '@vozzify/contracts';
  * of the User's Attempts and favorites. Pure: the builder loads the signals
  * and maps the rows it gets back.
  */
-
-/**
- * How many taste signals (Attempts and favorites) earn the full personal
- * weight: λ reaches 1 here and grows linearly below it.
- */
-export const PERSONAL_LAMBDA_SATURATION_SIGNALS = 50;
 
 /** What a Track's genres weigh in its personal score. */
 export const PERSONAL_GENRE_WEIGHT = 1;
@@ -33,12 +28,11 @@ export const PERSONAL_GENRE_LIMIT = 3;
 /** The voice-fit signal has one share of the personal score when available. */
 const PERSONAL_VOICE_FIT_WEIGHT = 1;
 
-/**
- * The personal weight of a User with this many taste signals: 0 without data
- * (the feed stays the public one), 1 from the saturation on.
- */
-export const personalLambda = (signalCount: number): number =>
-  Math.min(1, Math.max(0, signalCount) / PERSONAL_LAMBDA_SATURATION_SIGNALS);
+/** Confidence from distinct supported Tracks and active Practice days. */
+export const personalLambda = (
+  distinctTracks: number,
+  activeDays: number,
+): number => personalConfidenceLambda(distinctTracks, activeDays);
 
 /**
  * A Track's share of the User's taste for its genres: the average, over its

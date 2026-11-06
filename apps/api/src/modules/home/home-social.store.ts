@@ -11,6 +11,12 @@ const socialPairSchema = z.object({
   practiceCommonTracks: z.number().int().nonnegative(),
   favoriteCommonTracks: z.number().int().nonnegative(),
   bothCommonTracks: z.number().int().nonnegative(),
+  viewerTrackCount: z.number().int().nonnegative().optional(),
+  practiceTrackCount: z.number().int().nonnegative().optional(),
+  favoriteTrackCount: z.number().int().nonnegative().optional(),
+  bothTrackCount: z.number().int().nonnegative().optional(),
+  practiceLastActivityAt: z.string().datetime().nullable().optional(),
+  favoriteLastActivityAt: z.string().datetime().nullable().optional(),
   vocalDistance: z.number().nonnegative().nullable(),
 });
 

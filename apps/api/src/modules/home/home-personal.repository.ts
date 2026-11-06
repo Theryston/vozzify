@@ -2,16 +2,22 @@ import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import { and, count, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
+import { albumTracks } from '../../database/schema/albums.js';
 import { dailyPracticeStreaks } from '../../database/schema/daily-practice-streaks.js';
 import { practiceAttempts } from '../../database/schema/practice-attempts.js';
 import { trackCooccurrences } from '../../database/schema/track-cooccurrences.js';
 import { trackFavorites } from '../../database/schema/track-favorites.js';
-import { hasCompletedProcessing } from '../../database/schema/track-processings.js';
+import {
+  hasCompletedProcessing,
+  trackProcessings,
+} from '../../database/schema/track-processings.js';
 import {
   type StoredArtistCreditEntry,
   tracks,
 } from '../../database/schema/tracks.js';
+import { homeArtistKeys } from './home-artist-keys.js';
 import type {
+  PersonalAlbumTrack,
   PersonalTrackCandidate,
   UserFavoriteSignal,
   UserTrackSignal,
@@ -19,6 +25,7 @@ import type {
 import { PersonalHomeTasteRepository } from './home-personal-taste.repository.js';
 
 export type {
+  PersonalAlbumTrack,
   PersonalTrackCandidate,
   UserFavoriteSignal,
   UserTrackSignal,
@@ -123,18 +130,53 @@ export class PersonalHomeRepository {
     }));
   }
 
+  async findAlbumTracks(albumIds: string[]): Promise<PersonalAlbumTrack[]> {
+    if (albumIds.length === 0) return [];
+    const rows = await this.txHost.tx
+      .select({
+        albumId: albumTracks.albumId,
+        id: tracks.id,
+        title: tracks.title,
+        coverUrl: tracks.coverUrl,
+        artistCredit: tracks.artistCredit,
+        durationMs: tracks.lengthMs,
+        vocalRangeLowest: tracks.vocalRangeLowest,
+        vocalRangeHighest: tracks.vocalRangeHighest,
+        genres: tracks.genres,
+        trendingScore: tracks.trendingScore,
+      })
+      .from(albumTracks)
+      .innerJoin(tracks, eq(tracks.id, albumTracks.trackId))
+      .where(
+        and(
+          inArray(albumTracks.albumId, albumIds),
+          hasCompletedProcessing(tracks.id),
+        ),
+      );
+    return rows;
+  }
+
   /** Rebuilds the bounded, global co-occurrence ranking consumed by personal feeds. */
   async refreshCommunityCooccurrence(): Promise<void> {
     const result = await this.txHost.tx.execute<{
       sourceTrackId: string;
       targetTrackId: string;
       singerCount: number;
+      score: number;
     }>(sql`
         with signals as (
-          select distinct user_id, track_id from ${practiceAttempts}
-          where forward_skip = false and bleed_suspected = false
+          select distinct attempts.user_id, attempts.track_id
+          from ${practiceAttempts} attempts
+          inner join ${trackProcessings} processing
+            on processing.track_id = attempts.track_id
+            and processing.status = 'COMPLETED'
+          where attempts.forward_skip = false and attempts.bleed_suspected = false
           union
-          select user_id, track_id from ${trackFavorites}
+          select favorites.user_id, favorites.track_id
+          from ${trackFavorites} favorites
+          inner join ${trackProcessings} processing
+            on processing.track_id = favorites.track_id
+            and processing.status = 'COMPLETED'
         ), pairs as (
           select source.track_id as "sourceTrackId",
             target.track_id as "targetTrackId",
@@ -144,16 +186,31 @@ export class PersonalHomeRepository {
           where target.track_id <> source.track_id
           group by source.track_id, target.track_id
           having count(distinct source.user_id) >= 2
-        ), ranked as (
+        ), track_counts as (
+          select track_id, count(distinct user_id)::float as user_count
+          from signals group by track_id
+        ), scored as (
+          select pairs.*,
+            sqrt(source_count.user_count * target_count.user_count) as denominator
+          from pairs
+          inner join track_counts source_count
+            on source_count.track_id = pairs."sourceTrackId"
+          inner join track_counts target_count
+            on target_count.track_id = pairs."targetTrackId"
+        ), scored_pairs as (
           select "sourceTrackId", "targetTrackId", "singerCount",
+            "singerCount"::float / denominator as score
+          from scored
+        ), ranked as (
+          select "sourceTrackId", "targetTrackId", "singerCount", score,
             row_number() over (
               partition by "sourceTrackId"
-              order by "singerCount" desc, "targetTrackId" asc
+              order by score desc, "singerCount" desc, "targetTrackId" asc
             ) as rank
-          from pairs
+          from scored_pairs
         )
-        select "sourceTrackId", "targetTrackId", "singerCount"
-        from ranked where rank <= 12
+        select "sourceTrackId", "targetTrackId", "singerCount", score
+        from ranked where rank <= 48
     `);
     await this.txHost.tx.delete(trackCooccurrences);
     if (result.rows.length > 0) {
@@ -161,10 +218,13 @@ export class PersonalHomeRepository {
     }
   }
 
-  async findCommunityCooccurrence(
-    sourceTrackIds: string[],
-  ): Promise<
-    { sourceTrackId: string; targetTrackId: string; singers: number }[]
+  async findCommunityCooccurrence(sourceTrackIds: string[]): Promise<
+    {
+      sourceTrackId: string;
+      targetTrackId: string;
+      score: number;
+      singers?: number;
+    }[]
   > {
     if (sourceTrackIds.length === 0) {
       return [];
@@ -173,11 +233,13 @@ export class PersonalHomeRepository {
       .select({
         sourceTrackId: trackCooccurrences.sourceTrackId,
         targetTrackId: trackCooccurrences.targetTrackId,
+        score: trackCooccurrences.score,
         singers: trackCooccurrences.singerCount,
       })
       .from(trackCooccurrences)
       .where(inArray(trackCooccurrences.sourceTrackId, sourceTrackIds))
       .orderBy(
+        desc(trackCooccurrences.score),
         desc(trackCooccurrences.singerCount),
         trackCooccurrences.targetTrackId,
       );
@@ -196,11 +258,13 @@ export class PersonalHomeRepository {
         ),
       })
       .from(practiceAttempts)
+      .innerJoin(tracks, eq(tracks.id, practiceAttempts.trackId))
       .where(
         and(
           eq(practiceAttempts.userId, userId),
           eq(practiceAttempts.forwardSkip, false),
           eq(practiceAttempts.bleedSuspected, false),
+          hasCompletedProcessing(tracks.id),
         ),
       )
       .groupBy(practiceAttempts.trackId)
@@ -243,10 +307,20 @@ export class PersonalHomeRepository {
     return this.tasteRepository.findTracksOutsideGenres(genres, limit);
   }
 
-  async findDiscoveryTracks(
-    ids: string[],
-  ): Promise<
-    Map<string, { trendingScore: number; genres: string[]; artistKey: string }>
+  findPopularTasteCandidates(limit: number): Promise<PersonalTrackCandidate[]> {
+    return this.tasteRepository.findPopularTracks(limit);
+  }
+
+  async findDiscoveryTracks(ids: string[]): Promise<
+    Map<
+      string,
+      {
+        trendingScore: number;
+        genres: string[];
+        artistKey: string;
+        artistKeys: string[];
+      }
+    >
   > {
     if (ids.length === 0) {
       return new Map();
@@ -267,6 +341,7 @@ export class PersonalHomeRepository {
           trendingScore: row.trendingScore,
           genres: row.genres,
           artistKey: signalArtistKey(row.credit, row.id),
+          artistKeys: homeArtistKeys(row.credit, row.id),
         },
       ]),
     );

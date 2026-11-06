@@ -5,7 +5,6 @@ import {
   isMasteredTrack,
   PERSONAL_ARTIST_WEIGHT,
   PERSONAL_GENRE_WEIGHT,
-  PERSONAL_LAMBDA_SATURATION_SIGNALS,
   type PersonalTaste,
   personalLambda,
   personalScore,
@@ -28,20 +27,22 @@ const tasteOf = (
 
 describe('personalLambda', () => {
   it('is 0 without data, so the feed stays the public one', () => {
-    expect(personalLambda(0)).toBe(0);
+    expect(personalLambda(0, 0)).toBe(0);
   });
 
   it('is negative-safe', () => {
-    expect(personalLambda(-3)).toBe(0);
+    expect(personalLambda(-3, 1)).toBe(0);
   });
 
-  it('grows linearly up to the saturation', () => {
-    expect(personalLambda(PERSONAL_LAMBDA_SATURATION_SIGNALS / 2)).toBe(0.5);
+  it('uses distinct Track and active-day evidence with a global floor', () => {
+    expect(personalLambda(1, 1)).toBeCloseTo(0.133, 3);
+    expect(personalLambda(20, 5)).toBeCloseTo(0.506, 3);
+    expect(personalLambda(100, 100)).toBeCloseTo(0.762, 3);
   });
 
-  it('is 1 from the saturation on', () => {
-    expect(personalLambda(PERSONAL_LAMBDA_SATURATION_SIGNALS)).toBe(1);
-    expect(personalLambda(PERSONAL_LAMBDA_SATURATION_SIGNALS * 4)).toBe(1);
+  it('keeps at least 20% of popularity at high confidence', () => {
+    expect(personalLambda(100_000, 100_000)).toBeLessThanOrEqual(0.8);
+    expect(personalLambda(100_000, 100_000)).toBeGreaterThan(0.79);
   });
 });
 

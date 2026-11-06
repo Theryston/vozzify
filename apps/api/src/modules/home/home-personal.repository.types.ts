@@ -21,6 +21,7 @@ export type UserFavoriteSignal = {
 };
 
 export type UserTasteActivity = {
+  trackId: string;
   genres: string[];
   artistKey: string;
   createdAt: Date;
@@ -37,3 +38,5 @@ export type PersonalTrackCandidate = {
   genres: string[];
   trendingScore: number;
 };
+
+export type PersonalAlbumTrack = PersonalTrackCandidate & { albumId: string };

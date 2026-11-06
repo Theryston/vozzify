@@ -33,7 +33,11 @@ export const isCountedAttempt = (attempt: {
 }): boolean => !attempt.forwardSkip && !attempt.bleedSuspected;
 
 /** One Track's singing signal: its valid Attempts or recent favorites. */
-export type TrackSignalCount = { trackId: string; count: number };
+export type TrackSignalCount = {
+  trackId: string;
+  count: number;
+  rawCount?: number;
+};
 
 /**
  * Orders Tracks by their signal, most first; ties keep Track id order, so a
@@ -44,7 +48,10 @@ export const rankBySignalCount = (
   entries: readonly TrackSignalCount[],
 ): TrackSignalCount[] =>
   [...entries].sort(
-    (a, b) => b.count - a.count || a.trackId.localeCompare(b.trackId),
+    (a, b) =>
+      b.count - a.count ||
+      (b.rawCount ?? b.count) - (a.rawCount ?? a.count) ||
+      a.trackId.localeCompare(b.trackId),
   );
 
 /**

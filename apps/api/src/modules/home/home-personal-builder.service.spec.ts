@@ -1,7 +1,9 @@
 import { Test } from '@nestjs/testing';
 import type { HomeRow, HomeTrack } from '@vozzify/contracts';
 import { StreaksService } from '../streaks/streaks.service.js';
+import { TrackLocaleTrendingService } from '../tracks/track-locale-trending.service.js';
 import { UsersService } from '../users/users.service.js';
+import { HomeRepository } from './home.repository.js';
 import { HomeFeedService } from './home-feed.service.js';
 import {
   PersonalHomeRepository,
@@ -77,11 +79,15 @@ const personal = {
   findDiscoveryTracks: vi.fn(),
 };
 const tasteRows = {
+  findDiscoveryCandidates: vi.fn(),
   findUserTasteActivities: vi.fn(),
   build: vi.fn(),
   explorationRow: vi.fn(),
 };
-const streaks = { getStatus: vi.fn() };
+const streaks = {
+  getStatus: vi.fn(),
+  practiceDayOf: StreaksService.prototype.practiceDayOf,
+};
 const users = {
   getPracticeSettings: vi.fn().mockResolvedValue({
     dailyPracticeTargetSeconds: 300,
@@ -89,6 +95,16 @@ const users = {
     lastPracticeHeartbeatAt: null,
   }),
 };
+const homeRepository = {
+  popularityScoresForTracks: vi.fn().mockResolvedValue([]),
+  findPopularAlbums: vi.fn().mockResolvedValue([]),
+  findAlbumTrackSignals: vi.fn().mockResolvedValue([]),
+  localePracticeEvidence: vi.fn().mockResolvedValue({
+    distinctUsers: 0,
+    activeDays: 0,
+  }),
+};
+const localeTrending = { rank: vi.fn().mockResolvedValue(undefined) };
 
 const discoveryOf = (ids: string[], scores: Record<string, number>) =>
   new Map(
@@ -98,6 +114,7 @@ const discoveryOf = (ids: string[], scores: Record<string, number>) =>
         trendingScore: scores[id] ?? 10 - index,
         genres: ['rock'],
         artistKey: `Artist ${id}`,
+        artistKeys: [],
       },
     ]),
   );
@@ -108,6 +125,8 @@ const createBuilder = async (): Promise<PersonalHomeBuilder> => {
       PersonalHomeBuilder,
       { provide: HomeFeedService, useValue: feeds },
       { provide: PersonalHomeRepository, useValue: personal },
+      { provide: HomeRepository, useValue: homeRepository },
+      { provide: TrackLocaleTrendingService, useValue: localeTrending },
       { provide: PersonalHomeTasteRowsService, useValue: tasteRows },
       { provide: StreaksService, useValue: streaks },
       { provide: UsersService, useValue: users },
@@ -132,6 +151,11 @@ const resetWith = (options: {
   status?: Record<string, number | boolean | string>;
 }) => {
   const ids = options.publicIds ?? TRACK_IDS;
+  homeRepository.popularityScoresForTracks.mockResolvedValue([]);
+  homeRepository.localePracticeEvidence.mockResolvedValue({
+    distinctUsers: 0,
+    activeDays: 0,
+  });
   feeds.currentPublic.mockResolvedValue(publicFeedOf(ids));
   personal.findUserTrackSignals.mockResolvedValue(options.signals ?? []);
   personal.findUserFavoriteSignals.mockResolvedValue(options.favorites ?? []);
@@ -153,12 +177,35 @@ describe('PersonalHomeBuilder', () => {
     vi.resetAllMocks();
     tasteRows.build.mockResolvedValue([]);
     tasteRows.findUserTasteActivities.mockResolvedValue([]);
+    tasteRows.findDiscoveryCandidates.mockResolvedValue({
+      tracks: [],
+      byRow: {},
+    });
     tasteRows.explorationRow.mockResolvedValue(undefined);
     users.getPracticeSettings.mockResolvedValue({
       dailyPracticeTargetSeconds: 300,
       timeZone: 'America/Sao_Paulo',
       lastPracticeHeartbeatAt: null,
     });
+  });
+
+  it('uses global popularity when a confident locale has no view ranking', async () => {
+    resetWith({});
+    homeRepository.localePracticeEvidence.mockResolvedValue({
+      distinctUsers: 20,
+      activeDays: 5,
+    });
+    localeTrending.rank.mockResolvedValue(undefined);
+
+    await build();
+
+    expect(localeTrending.rank).toHaveBeenCalledOnce();
+    expect(homeRepository.popularityScoresForTracks).toHaveBeenCalledWith(
+      expect.arrayContaining(TRACK_IDS),
+      expect.any(Date),
+      undefined,
+      expect.any(Map),
+    );
   });
 
   it('answers the public rows for a User with no data, plus the strip', async () => {
@@ -263,10 +310,11 @@ describe('PersonalHomeBuilder', () => {
       scores: { t1: 100, t8: 1 },
     });
     tasteRows.findUserTasteActivities.mockResolvedValue(
-      Array.from({ length: 60 }, () => ({
+      Array.from({ length: 100 }, (_, index) => ({
+        trackId: `taste-track-${index}`,
         genres: ['jazz'],
         artistKey: 'Artist t7',
-        createdAt: new Date(),
+        createdAt: new Date(Date.now() - index * 24 * 60 * 60 * 1000),
       })),
     );
     personal.findDiscoveryTracks.mockResolvedValue(
@@ -277,6 +325,7 @@ describe('PersonalHomeBuilder', () => {
             trendingScore: id === 't1' ? 100 : 1,
             genres: [id === 't8' ? 'jazz' : 'rock'],
             artistKey: `Artist ${id}`,
+            artistKeys: [],
           },
         ]),
       ),

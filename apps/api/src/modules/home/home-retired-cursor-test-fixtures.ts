@@ -2,7 +2,9 @@ import { Test } from '@nestjs/testing';
 import type { HomeRow } from '@vozzify/contracts';
 import { AttemptsService } from '../attempts/attempts.service.js';
 import { StreaksService } from '../streaks/streaks.service.js';
+import { TrackLocaleTrendingService } from '../tracks/track-locale-trending.service.js';
 import { UsersService } from '../users/users.service.js';
+import { HomeRepository } from './home.repository.js';
 import { HomeService } from './home.service.js';
 import { HomeFeedService } from './home-feed.service.js';
 import {
@@ -86,10 +88,27 @@ export const createPersonalHomeBuilder = async (
       PersonalHomeBuilder,
       { provide: HomeFeedService, useValue: feeds },
       { provide: PersonalHomeRepository, useValue: personal },
+      {
+        provide: HomeRepository,
+        useValue: {
+          popularityScoresForTracks: vi.fn().mockResolvedValue([]),
+          findPopularAlbums: vi.fn().mockResolvedValue([]),
+          findAlbumTrackSignals: vi.fn().mockResolvedValue([]),
+          localePracticeEvidence: vi.fn().mockResolvedValue({
+            distinctUsers: 0,
+            activeDays: 0,
+          }),
+        },
+      },
+      {
+        provide: TrackLocaleTrendingService,
+        useValue: { rank: vi.fn().mockResolvedValue(undefined) },
+      },
       { provide: PersonalHomeTasteRowsService, useValue: tasteRows },
       {
         provide: StreaksService,
         useValue: {
+          practiceDayOf: StreaksService.prototype.practiceDayOf,
           getStatus: vi.fn().mockResolvedValue({
             day: '2026-10-20',
             listenedSeconds: 0,

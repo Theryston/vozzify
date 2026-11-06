@@ -34,6 +34,8 @@ const candidate = (id: string, username = id) => ({
   image: null,
   practiceTrackIds: ['track-a', 'track-b'],
   favoriteTrackIds: ['track-b', 'track-c'],
+  practiceLastActivityAt: new Date('2026-11-05T18:00:00.000Z'),
+  favoriteLastActivityAt: new Date('2026-11-04T18:00:00.000Z'),
 });
 
 describe('HomeSocialService', () => {
@@ -71,6 +73,12 @@ describe('HomeSocialService', () => {
         practiceCommonTracks: 2,
         favoriteCommonTracks: 1,
         bothCommonTracks: 1,
+        viewerTrackCount: 2,
+        practiceTrackCount: 2,
+        favoriteTrackCount: 2,
+        bothTrackCount: 1,
+        practiceLastActivityAt: '2026-11-05T18:00:00.000Z',
+        favoriteLastActivityAt: '2026-11-04T18:00:00.000Z',
         vocalDistance: 5,
       },
     ]);
@@ -86,6 +94,11 @@ describe('HomeSocialService', () => {
       practiceCommonTracks: 3,
       favoriteCommonTracks: 3,
       bothCommonTracks: 2,
+      viewerTrackCount: 8,
+      practiceTrackCount: 6,
+      favoriteTrackCount: 6,
+      bothTrackCount: 2,
+      lastActivityAt: '2026-11-05T18:00:00.000Z',
       vocalDistance: null,
     }));
     const visibility = {
@@ -137,6 +150,60 @@ describe('HomeSocialService', () => {
 
     await expect(service.rowsFor('viewer')).resolves.toEqual([]);
     expect(visibility.getShownSectionsByUserIds).not.toHaveBeenCalled();
+    await moduleRef.close();
+  });
+
+  it('masks activity and vocal range when their sections are hidden', async () => {
+    const pairs = Array.from({ length: 4 }, (_, index) => ({
+      id: `person-${index}`,
+      username: `person-${index}`,
+      name: `Person ${index}`,
+      image: null,
+      practiceCommonTracks: index === 0 ? 3 : 0,
+      favoriteCommonTracks: index === 0 ? 0 : 3,
+      bothCommonTracks: 0,
+      viewerTrackCount: 8,
+      practiceTrackCount: 5,
+      favoriteTrackCount: index === 0 ? 4 : 8,
+      bothTrackCount: index === 0 ? 1 : 0,
+      practiceLastActivityAt: index === 0 ? '2026-11-06T12:00:00.000Z' : null,
+      favoriteLastActivityAt: '2026-11-01T12:00:00.000Z',
+      vocalDistance: 1,
+    }));
+    let showPractice = true;
+    const visibility = {
+      getShownSectionsByUserIds: vi.fn().mockImplementation(
+        async () =>
+          new Map(
+            pairs.map((pair, index) => [
+              pair.id,
+              {
+                username: pair.username,
+                shown: {
+                  summary: false,
+                  practiceHistory: showPractice && index === 0,
+                  favorites: true,
+                },
+              },
+            ]),
+          ),
+      ),
+    };
+    const store = { read: vi.fn().mockResolvedValue(pairs) };
+    const { moduleRef, service } = await makeService({ visibility, store });
+
+    const rows = await service.rowsFor('viewer');
+
+    expect(rows.map((row) => row.id)).toEqual([
+      'people-who-sing-what-you-sing',
+    ]);
+    expect(rows[0]?.items[0]?.id).toBe('person-0');
+    expect(rows[1]).toBeUndefined();
+    showPractice = false;
+    const hiddenRows = await service.rowsFor('viewer');
+    expect(hiddenRows[0]?.items.map((person) => person.id)).not.toContain(
+      'person-0',
+    );
     await moduleRef.close();
   });
 });

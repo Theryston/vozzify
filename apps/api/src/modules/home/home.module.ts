@@ -25,6 +25,7 @@ import { PersonalHomeQueueModule } from './home-personal-queue.module.js';
 import { PersonalHomeTasteRepository } from './home-personal-taste.repository.js';
 import { PersonalHomeTasteRowsService } from './home-personal-taste-rows.service.js';
 import { HomePinOverlayService } from './home-pin-overlay.service.js';
+import { HomePopularityRepository } from './home-popularity.repository.js';
 import {
   createHomeEntityRowSources,
   createHomeRowSources,
@@ -52,6 +53,7 @@ import { createVoiceRowSources } from './home-voice-row-sources.js';
   ],
   controllers: [HomeController, HomeAdminController],
   providers: [
+    HomePopularityRepository,
     HomeRepository,
     {
       provide: HOME_ROW_SOURCES,
@@ -66,7 +68,7 @@ import { createVoiceRowSources } from './home-voice-row-sources.js';
     },
     {
       provide: HOME_ENTITY_ROW_SOURCES,
-      inject: [HomeRepository],
+      inject: [HomeRepository, TrackLocaleTrendingService],
       useFactory: createHomeEntityRowSources,
     },
     HomeFeedBuilder,

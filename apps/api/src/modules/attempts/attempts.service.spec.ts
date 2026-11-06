@@ -8,6 +8,8 @@ const repository = {
   insert: vi.fn(),
   bestAccuracies: vi.fn(),
   listOwn: vi.fn(),
+  listVocalRangeGroups: vi.fn(),
+  listVocalRangeEvidenceGroups: vi.fn(),
 };
 const tracks = { assertTrackExists: vi.fn() };
 
@@ -55,6 +57,85 @@ describe('AttemptsService', () => {
       ],
     }).compile();
     service = moduleRef.get(AttemptsService);
+  });
+
+  it('counts distinct qualifying Track and transpose groups for voice confidence', async () => {
+    repository.listVocalRangeEvidenceGroups.mockResolvedValue([
+      {
+        trackId: 'track-1',
+        trackVocalRangeLowest: 48,
+        trackVocalRangeHighest: 60,
+        transposeSemitones: 0,
+        forwardSkip: false,
+        bleedSuspected: false,
+        bestAccuracy: 0.85,
+      },
+      {
+        trackId: 'track-1',
+        trackVocalRangeLowest: 48,
+        trackVocalRangeHighest: 60,
+        transposeSemitones: 0,
+        forwardSkip: false,
+        bleedSuspected: false,
+        bestAccuracy: 0.95,
+      },
+      {
+        trackId: 'track-1',
+        trackVocalRangeLowest: 48,
+        trackVocalRangeHighest: 60,
+        transposeSemitones: 2,
+        forwardSkip: false,
+        bleedSuspected: false,
+        bestAccuracy: 0.9,
+      },
+      {
+        trackId: 'track-2',
+        trackVocalRangeLowest: 40,
+        trackVocalRangeHighest: 55,
+        transposeSemitones: 0,
+        forwardSkip: false,
+        bleedSuspected: false,
+        bestAccuracy: 0.9,
+      },
+      {
+        trackId: 'low-accuracy',
+        trackVocalRangeLowest: 48,
+        trackVocalRangeHighest: 60,
+        transposeSemitones: 0,
+        forwardSkip: false,
+        bleedSuspected: false,
+        bestAccuracy: 0.84,
+      },
+      {
+        trackId: 'skipped',
+        trackVocalRangeLowest: 48,
+        trackVocalRangeHighest: 60,
+        transposeSemitones: 0,
+        forwardSkip: true,
+        bleedSuspected: false,
+        bestAccuracy: 0.99,
+      },
+      {
+        trackId: 'bleed',
+        trackVocalRangeLowest: 48,
+        trackVocalRangeHighest: 60,
+        transposeSemitones: 0,
+        forwardSkip: false,
+        bleedSuspected: true,
+        bestAccuracy: 0.99,
+      },
+      {
+        trackId: 'no-range',
+        trackVocalRangeLowest: null,
+        trackVocalRangeHighest: null,
+        transposeSemitones: 0,
+        forwardSkip: false,
+        bleedSuspected: false,
+        bestAccuracy: 0.99,
+      },
+    ]);
+
+    await expect(service.vocalRangeEvidenceCount('user-1')).resolves.toBe(3);
   });
 
   it('saves a valid run of a Track that exists', async () => {

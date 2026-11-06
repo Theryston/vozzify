@@ -130,4 +130,48 @@ describe('composePersonalHomeRows', () => {
 
     expect(rows).toEqual([dailyTarget, voice]);
   });
+
+  it('progressively reorders credited Artists across personal Rows', () => {
+    const discoveryRows: HomeRow[] = [
+      {
+        id: 'first-discovery',
+        layout: 'standard',
+        title: { key: 'home.rows.moreOfYourGenres', params: {} },
+        items: [
+          track('first-shared'),
+          ...Array.from({ length: 5 }, (_, index) => track(`first-${index}`)),
+        ],
+      },
+      {
+        id: 'second-discovery',
+        layout: 'standard',
+        title: { key: 'home.rows.forYou', params: {} },
+        items: [
+          track('second-shared'),
+          track('fresh-first'),
+          ...Array.from({ length: 4 }, (_, index) => track(`second-${index}`)),
+        ],
+      },
+    ];
+    const artistKeysByTrack = new Map([
+      ['first-shared', ['shared']],
+      ['second-shared', ['shared']],
+      ['fresh-first', ['fresh']],
+    ]);
+
+    const rows = composePersonalHomeRows({
+      hero: undefined,
+      dailyTarget,
+      resumes: [],
+      socialRows: [],
+      publicRows: [],
+      recommendations: discoveryRows,
+      artistKeysByTrack,
+    });
+    const second = rows.find((row) => row.id === 'second-discovery');
+
+    expect(second?.layout).toBe('standard');
+    if (second?.layout !== 'standard') throw new Error('Missing second Row');
+    expect(second.items[0]?.id).toBe('fresh-first');
+  });
 });

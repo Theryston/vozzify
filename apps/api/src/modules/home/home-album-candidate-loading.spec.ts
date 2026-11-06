@@ -51,16 +51,25 @@ describe('loadUsefulAlbums', () => {
     const findAlbumTrackSignals = vi.fn(async (ids: string[]) =>
       ids.flatMap((id) => signals.get(id) ?? []),
     );
-
-    const selected = await loadUsefulAlbums({
-      findPopularAlbums,
-      findAlbumTrackSignals,
+    const localePracticeEvidence = vi.fn().mockResolvedValue({
+      distinctUsers: 0,
+      activeDays: 0,
     });
+    const ranking = { rank: vi.fn().mockResolvedValue(undefined) };
+
+    const selected = await loadUsefulAlbums(
+      {
+        findPopularAlbums,
+        findAlbumTrackSignals,
+        localePracticeEvidence,
+      },
+      ranking,
+    );
 
     expect(findPopularAlbums.mock.calls.map(([, offset]) => offset)).toEqual([
       0, 60, 120,
     ]);
-    expect(selected[0]?.id).toBe('album-00');
+    expect(selected[0]?.id).toBe('album-48');
     expect(selected[1]?.id).toBe(independentId);
     expect(selected).toHaveLength(12);
   });

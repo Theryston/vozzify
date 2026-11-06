@@ -1,24 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  gt,
-  gte,
-  inArray,
-  isNotNull,
-  sql,
-} from 'drizzle-orm';
+import type { Locale } from '@vozzify/contracts';
+import { and, asc, desc, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
 import { albums, albumTracks } from '../../database/schema/albums.js';
 import { artists, trackArtists } from '../../database/schema/artists.js';
-import { practiceAttempts } from '../../database/schema/practice-attempts.js';
-import { trackFavorites } from '../../database/schema/track-favorites.js';
 import { hasCompletedProcessing } from '../../database/schema/track-processings.js';
 import { tracks } from '../../database/schema/tracks.js';
 import type { TrackSignalCount } from './home-popularity.js';
+import {
+  type HomeAlbumTrackSignal,
+  HomePopularityRepository,
+} from './home-popularity.repository.js';
 
 /** A Track as the home's candidate queries read it. */
 export type HomeTrackRecord = {
@@ -53,12 +46,6 @@ export type HomeAlbumRecord = {
   secondaryTypes?: string[];
 };
 
-export type HomeAlbumTrackSignal = {
-  albumId: string;
-  trackId: string;
-  popularity: number;
-};
-
 const candidateColumns = {
   id: tracks.id,
   title: tracks.title,
@@ -77,7 +64,11 @@ const candidateColumns = {
  */
 @Injectable()
 export class HomeRepository {
-  constructor(private readonly txHost: TransactionHost<DatabaseAdapter>) {}
+  constructor(
+    private readonly txHost: TransactionHost<DatabaseAdapter>,
+    @Inject(HomePopularityRepository)
+    private readonly popularity: HomePopularityRepository,
+  ) {}
 
   /** Completed Tracks with a trending score, hottest first. */
   findTrendingTracks(limit: number): Promise<HomeTrackRecord[]> {
@@ -146,32 +137,36 @@ export class HomeRepository {
   }
 
   /**
-   * Completed Tracks by valid Attempts since `since`, most sung first. Only
-   * runs without a forward skip and without a suspected bleed count as
-   * singing; ties keep Track id order, so the row is stable.
+   * Completed Tracks by distinct-singer weighted valid Attempts. Each User's
+   * first run contributes one and repeats have a capped diminishing bonus.
    */
   findMostSungTrackIds(
     limit: number,
     since: Date,
+    locale?: 'en' | 'pt-BR',
   ): Promise<TrackSignalCount[]> {
-    return this.txHost.tx
-      .select({
-        trackId: practiceAttempts.trackId,
-        count: sql<number>`count(*)`.mapWith(Number),
-      })
-      .from(practiceAttempts)
-      .innerJoin(tracks, eq(practiceAttempts.trackId, tracks.id))
-      .where(
-        and(
-          hasCompletedProcessing(tracks.id),
-          eq(practiceAttempts.forwardSkip, false),
-          eq(practiceAttempts.bleedSuspected, false),
-          gte(practiceAttempts.createdAt, since),
-        ),
-      )
-      .groupBy(practiceAttempts.trackId)
-      .orderBy(desc(sql`count(*)`), asc(practiceAttempts.trackId))
-      .limit(limit);
+    return this.popularity.findMostSungTrackIds(limit, since, locale);
+  }
+
+  async localePracticeEvidence(
+    locale: 'en' | 'pt-BR',
+    since: Date,
+  ): Promise<{ distinctUsers: number; activeDays: number }> {
+    return this.popularity.localePracticeEvidence(locale, since);
+  }
+
+  popularityScoresForTracks(
+    trackIds: string[],
+    since: Date,
+    locale?: Locale,
+    localeViewScores?: ReadonlyMap<string, number>,
+  ) {
+    return this.popularity.popularityScoresForTracks(
+      trackIds,
+      since,
+      locale,
+      localeViewScores,
+    );
   }
 
   /**
@@ -198,47 +193,16 @@ export class HomeRepository {
     limit: number,
     since: Date,
   ): Promise<TrackSignalCount[]> {
-    return this.txHost.tx
-      .select({
-        trackId: trackFavorites.trackId,
-        count: sql<number>`count(*)`.mapWith(Number),
-      })
-      .from(trackFavorites)
-      .innerJoin(tracks, eq(trackFavorites.trackId, tracks.id))
-      .where(
-        and(
-          hasCompletedProcessing(tracks.id),
-          gte(trackFavorites.createdAt, since),
-        ),
-      )
-      .groupBy(trackFavorites.trackId)
-      .orderBy(desc(sql`count(*)`), asc(trackFavorites.trackId))
-      .limit(limit);
+    return this.popularity.findMostFavoritedTrackIds(limit, since);
   }
 
   /** Valid Attempts since `since` of the given Tracks, one row per Track. */
   countRecentAttempts(
     trackIds: string[],
     since: Date,
+    locale?: 'en' | 'pt-BR',
   ): Promise<TrackSignalCount[]> {
-    if (trackIds.length === 0) {
-      return Promise.resolve([]);
-    }
-    return this.txHost.tx
-      .select({
-        trackId: practiceAttempts.trackId,
-        count: sql<number>`count(*)`.mapWith(Number),
-      })
-      .from(practiceAttempts)
-      .where(
-        and(
-          inArray(practiceAttempts.trackId, trackIds),
-          eq(practiceAttempts.forwardSkip, false),
-          eq(practiceAttempts.bleedSuspected, false),
-          gte(practiceAttempts.createdAt, since),
-        ),
-      )
-      .groupBy(practiceAttempts.trackId);
+    return this.popularity.countRecentAttempts(trackIds, since, locale);
   }
 
   /** Favorites since `since` of the given Tracks, one row per Track. */
@@ -246,22 +210,7 @@ export class HomeRepository {
     trackIds: string[],
     since: Date,
   ): Promise<TrackSignalCount[]> {
-    if (trackIds.length === 0) {
-      return Promise.resolve([]);
-    }
-    return this.txHost.tx
-      .select({
-        trackId: trackFavorites.trackId,
-        count: sql<number>`count(*)`.mapWith(Number),
-      })
-      .from(trackFavorites)
-      .where(
-        and(
-          inArray(trackFavorites.trackId, trackIds),
-          gte(trackFavorites.createdAt, since),
-        ),
-      )
-      .groupBy(trackFavorites.trackId);
+    return this.popularity.countRecentFavorites(trackIds, since);
   }
 
   /**
@@ -305,23 +254,15 @@ export class HomeRepository {
   }
 
   /** Available Track scores for one bounded candidate batch. */
-  findAlbumTrackSignals(albumIds: string[]): Promise<HomeAlbumTrackSignal[]> {
-    if (albumIds.length === 0) {
-      return Promise.resolve([]);
-    }
-    return this.txHost.tx
-      .select({
-        albumId: albumTracks.albumId,
-        trackId: tracks.id,
-        popularity: tracks.trendingScore,
-      })
-      .from(albumTracks)
-      .innerJoin(tracks, eq(tracks.id, albumTracks.trackId))
-      .where(
-        and(
-          inArray(albumTracks.albumId, albumIds),
-          hasCompletedProcessing(tracks.id),
-        ),
-      );
+  async findAlbumTrackSignals(
+    albumIds: string[],
+    locale?: Locale,
+    localeViewScores: readonly { trackId: string; score: number }[] = [],
+  ): Promise<HomeAlbumTrackSignal[]> {
+    return this.popularity.findAlbumTrackSignals(
+      albumIds,
+      locale,
+      localeViewScores,
+    );
   }
 }

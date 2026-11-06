@@ -24,6 +24,7 @@ import {
   type ArtistGroup,
   deriveMostSungArtist,
   deriveVocalRange,
+  VOCAL_RANGE_MIN_ACCURACY,
   type VocalRangeGroup,
 } from './profile-chips.js';
 import { type MostSungArtistActivity } from './profile-chips-ranking.js';
@@ -168,6 +169,21 @@ export class AttemptsService {
   async vocalRange(userId: string): Promise<TrackVocalRange | null> {
     const groups = await this.attempts.listVocalRangeGroups(userId);
     return deriveVocalRange(groups.map(toVocalRangeGroup));
+  }
+
+  async vocalRangeEvidenceCount(userId: string): Promise<number> {
+    const groups = await this.attempts.listVocalRangeEvidenceGroups(userId);
+    const qualifying = groups.filter(
+      (group) =>
+        group.trackVocalRangeLowest !== null &&
+        group.trackVocalRangeHighest !== null &&
+        group.bestAccuracy >= VOCAL_RANGE_MIN_ACCURACY &&
+        !group.forwardSkip &&
+        !group.bleedSuspected,
+    );
+    return new Set(
+      qualifying.map((group) => `${group.trackId}:${group.transposeSemitones}`),
+    ).size;
   }
 
   /** The signed-in User's own attempts, newest first. */

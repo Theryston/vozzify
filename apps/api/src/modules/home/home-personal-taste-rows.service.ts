@@ -8,7 +8,6 @@ import type {
 } from '@vozzify/contracts';
 import { AttemptsService } from '../attempts/attempts.service.js';
 import type { MostSungArtistActivity } from '../attempts/profile-chips-ranking.js';
-import { composeHomeRows } from './home-feed-composer.js';
 import type { PersonalTaste } from './home-personal.js';
 import {
   PersonalHomeRepository,
@@ -27,35 +26,20 @@ import {
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
 import { PersonalHomeTasteRepository } from './home-personal-taste.repository.js';
 import {
+  artistKeyOf,
+  composeTasteTrackRow,
+  homeTrackOf,
+} from './home-personal-taste-track-rows.js';
+import {
   HOME_RECOMMENDATION_ROW_MIN_ITEMS,
   HOME_ROW_RULES,
-  PERSONAL_DISCOVERY_ROW_MIN_ITEMS,
 } from './home-rules.js';
 
 const MIN_TASTE_SIGNALS = 3;
 const CO_OCCURRENCE_SOURCE_LIMIT = 12;
-const PERSONAL_CANDIDATE_LIMIT = 60;
+const PERSONAL_CANDIDATE_LIMIT = 180;
 
 const title = (key: string): HomeRowTitle => ({ key, params: {} });
-
-const artistKeyOf = (track: PersonalTrackCandidate): string =>
-  track.artistCredit[0]?.mbid ?? track.artistCredit[0]?.name ?? track.id;
-
-const homeTrackOf = (track: PersonalTrackCandidate): HomeTrack => ({
-  id: track.id,
-  title: track.title,
-  coverUrl: track.coverUrl,
-  artistCredit: track.artistCredit.map((credit) => ({
-    name: credit.name,
-    joinPhrase: credit.joinPhrase,
-    artistId: null,
-  })),
-  durationMs: track.durationMs,
-  vocalRange:
-    track.vocalRangeLowest === null || track.vocalRangeHighest === null
-      ? null
-      : { lowest: track.vocalRangeLowest, highest: track.vocalRangeHighest },
-});
 
 @Injectable()
 export class PersonalHomeTasteRowsService {
@@ -67,6 +51,40 @@ export class PersonalHomeTasteRowsService {
 
   findUserTasteActivities(userId: string): Promise<UserTasteActivity[]> {
     return this.tasteRepository.findUserTasteActivities(userId);
+  }
+
+  async findDiscoveryCandidates(taste: PersonalTaste): Promise<{
+    tracks: HomeTrack[];
+    byRow: Record<string, HomeTrack[]>;
+  }> {
+    const [popular, matched, newest, mostSung] = await Promise.all([
+      this.personal.findPopularTasteCandidates(PERSONAL_CANDIDATE_LIMIT),
+      this.tasteRepository.findTracksForGenres(
+        topGenres(taste),
+        PERSONAL_CANDIDATE_LIMIT,
+      ),
+      this.tasteRepository.findNewestTracks(PERSONAL_CANDIDATE_LIMIT),
+      this.tasteRepository.findMostSungTracks(
+        PERSONAL_CANDIDATE_LIMIT,
+        new Date(Date.now() - 28 * 24 * 60 * 60 * 1000),
+      ),
+    ]);
+    const byRow = {
+      'trending-today': popular.map(homeTrackOf),
+      'most-sung': mostSung.map(homeTrackOf),
+      'new-tracks': newest.map(homeTrackOf),
+      'more-of-your-genres': matched.map(homeTrackOf),
+    };
+    const unique = new Map(
+      [...popular, ...matched, ...newest, ...mostSung].map((track) => [
+        track.id,
+        track,
+      ]),
+    );
+    return {
+      tracks: [...unique.values()].map(homeTrackOf),
+      byRow,
+    };
   }
 
   async build(options: {
@@ -128,38 +146,51 @@ export class PersonalHomeTasteRowsService {
       options.userId,
       CO_OCCURRENCE_SOURCE_LIMIT,
     );
+    if (sources.length === 0) return undefined;
     const pairs = await this.personal.findCommunityCooccurrence(
       sources.map((source) => source.trackId),
     );
+    if (pairs.length === 0) return undefined;
     const grouped = new Map<string, typeof pairs>();
     for (const pair of pairs) {
       const current = grouped.get(pair.sourceTrackId) ?? [];
       current.push(pair);
       grouped.set(pair.sourceTrackId, current);
     }
-    const source = sources.find((candidate) => grouped.has(candidate.trackId));
-    const signal = options.signals.find(
-      (candidate) => candidate.trackId === source?.trackId,
+    const targetIds = [...grouped.values()].flatMap((pairs) =>
+      pairs.map((pair) => pair.targetTrackId),
     );
-    if (!source || !signal) return undefined;
-    const rankedIds = (grouped.get(source.trackId) ?? [])
-      .sort(
-        (a, b) =>
-          b.singers - a.singers ||
-          a.targetTrackId.localeCompare(b.targetTrackId),
-      )
-      .map((pair) => pair.targetTrackId);
-    const cards = await this.personal.findCommunityTrackCards(rankedIds);
-    return this.composeTasteTrackRow({
-      id: 'because-you-sang',
-      title: {
-        key: 'home.rows.becauseYouSang',
-        params: { trackTitle: signal.title },
-      },
-      cards,
-      mastered: options.mastered,
-      used: options.usedTrackIds,
-    });
+    const cards = await this.personal.findCommunityTrackCards(targetIds);
+    const cardsById = new Map(cards.map((card) => [card.id, card]));
+    for (const source of sources) {
+      const signal = options.signals.find(
+        (candidate) => candidate.trackId === source.trackId,
+      );
+      if (!signal) continue;
+      const rankedIds = (grouped.get(source.trackId) ?? [])
+        .sort(
+          (a, b) =>
+            b.score - a.score ||
+            (b.singers ?? 0) - (a.singers ?? 0) ||
+            a.targetTrackId.localeCompare(b.targetTrackId),
+        )
+        .map((pair) => pair.targetTrackId);
+      const row = this.composeTasteTrackRow({
+        id: 'because-you-sang',
+        title: {
+          key: 'home.rows.becauseYouSang',
+          params: { trackTitle: signal.title },
+        },
+        cards: rankedIds.flatMap((id) => {
+          const card = cardsById.get(id);
+          return card ? [card] : [];
+        }),
+        mastered: options.mastered,
+        used: options.usedTrackIds,
+      });
+      if (row) return row;
+    }
+    return undefined;
   }
 
   private async genreTasteRow(options: {
@@ -260,38 +291,6 @@ export class PersonalHomeTasteRowsService {
     mastered: ReadonlySet<string>;
     used: ReadonlySet<string>;
   }): HomeRow | undefined {
-    const candidates = options.cards
-      .filter(
-        (card) => !options.mastered.has(card.id) && !options.used.has(card.id),
-      )
-      .map((card) => ({
-        id: card.id,
-        artistKey: artistKeyOf(card),
-        hasCover: card.coverUrl !== null,
-        isCompleted: true,
-        track: homeTrackOf(card),
-        score: options.taste
-          ? tasteMatch(card.genres, artistKeyOf(card), options.taste)
-          : 0,
-      }));
-    const [composed] = composeHomeRows(
-      [
-        {
-          id: options.id,
-          layout: 'standard' as const,
-          title: options.title,
-          items: candidates.sort((a, b) => b.score - a.score),
-        },
-      ],
-      { minimumItems: { standard: PERSONAL_DISCOVERY_ROW_MIN_ITEMS } },
-    );
-    return composed
-      ? {
-          id: composed.id,
-          layout: 'standard',
-          title: composed.title ?? options.title,
-          items: composed.items.map((card) => card.track),
-        }
-      : undefined;
+    return composeTasteTrackRow(options);
   }
 }

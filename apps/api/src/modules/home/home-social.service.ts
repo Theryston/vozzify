@@ -59,6 +59,14 @@ export class HomeSocialService {
         practiceCommonTracks: overlapCount(viewerTracks, practices),
         favoriteCommonTracks: overlapCount(viewerTracks, favorites),
         bothCommonTracks: overlapCount(viewerTracks, both),
+        viewerTrackCount: viewerTracks.size,
+        practiceTrackCount: practices.size,
+        favoriteTrackCount: favorites.size,
+        bothTrackCount: both.size,
+        practiceLastActivityAt:
+          profile.practiceLastActivityAt?.toISOString() ?? null,
+        favoriteLastActivityAt:
+          profile.favoriteLastActivityAt?.toISOString() ?? null,
         vocalDistance: distanceOf(
           ranges.get(viewerId) ?? null,
           ranges.get(profile.id) ?? null,
@@ -114,9 +122,45 @@ export class HomeSocialService {
           name: pair.name,
           image: pair.image,
           commonTracks,
-          vocalDistance: pair.vocalDistance,
+          ownVisibleTracks: pair.viewerTrackCount ?? commonTracks,
+          otherVisibleTracks: visibleTrackCount(
+            pair,
+            shown.shown,
+            commonTracks,
+          ),
+          lastActivityAt: latestVisibleActivity(pair, shown.shown),
+          vocalDistance: shown.shown.summary ? pair.vocalDistance : null,
         },
       ];
     });
   }
 }
+
+const visibleTrackCount = (
+  pair: StoredSocialPair,
+  shown: { practiceHistory: boolean; favorites: boolean },
+  commonTracks: number,
+): number => {
+  const practice = pair.practiceTrackCount;
+  const favorite = pair.favoriteTrackCount;
+  const both = pair.bothTrackCount;
+  if (practice === undefined || favorite === undefined || both === undefined) {
+    return commonTracks;
+  }
+  return (
+    (shown.practiceHistory ? practice : 0) +
+    (shown.favorites ? favorite : 0) -
+    (shown.practiceHistory && shown.favorites ? both : 0)
+  );
+};
+
+const latestVisibleActivity = (
+  pair: StoredSocialPair,
+  shown: { practiceHistory: boolean; favorites: boolean },
+): string | null => {
+  const timestamps = [
+    shown.practiceHistory ? pair.practiceLastActivityAt : null,
+    shown.favorites ? pair.favoriteLastActivityAt : null,
+  ].filter((value): value is string => value !== null && value !== undefined);
+  return timestamps.sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;
+};
