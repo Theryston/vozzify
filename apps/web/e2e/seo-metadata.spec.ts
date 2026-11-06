@@ -12,16 +12,16 @@ for (const locale of ['en', 'pt-BR'] as const) {
   const t = createTranslator({ locale, messages });
 
   test.describe(`SEO content and previews (${locale})`, () => {
-    test('home has a stable introduction and its own sharing metadata', async ({
+    test('home keeps its sharing metadata without adding visible SEO content', async ({
       page,
     }) => {
       await mockAuthApi(page);
       await page.goto(`/${locale}`);
 
+      await expect(page.getByRole('heading', { level: 1 })).toHaveCount(0);
       await expect(
-        page.getByRole('heading', { level: 1, name: t('homeSeo.title') }),
-      ).toBeVisible();
-      await expect(page.getByText(t('homeSeo.description'))).toBeVisible();
+        page.locator('[aria-labelledby="how-it-works"]'),
+      ).toHaveCount(0);
       const website = JSON.parse(
         (await page
           .locator('script[type="application/ld+json"]')
@@ -141,7 +141,7 @@ for (const locale of ['en', 'pt-BR'] as const) {
       );
     });
 
-    test('completed song exposes its range and recording metadata', async ({
+    test('completed song keeps its range in metadata without a visible summary', async ({
       page,
     }) => {
       await mockAuthApi(page);
@@ -167,13 +167,8 @@ for (const locale of ['en', 'pt-BR'] as const) {
       await page.goto(`/${locale}/tracks/${id}`);
 
       await expect(
-        page.getByText(
-          t('tracks.practice.noteSummary.range', {
-            low: 'C#3',
-            high: 'G4',
-          }),
-        ),
-      ).toBeVisible();
+        page.locator('[aria-labelledby="track-vocal-range"]'),
+      ).toHaveCount(0);
       await expect(page.locator('meta[name="description"]')).toHaveAttribute(
         'content',
         t('tracks.practice.metaDescription', {

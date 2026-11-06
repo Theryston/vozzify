@@ -280,11 +280,6 @@
         "loopEnd": "Fim do trecho",
         "nextNotes": "Próximas notas",
         "fullscreen": "Alternar tela cheia"
-      },
-      "noteSummary": {
-        "title": "Extensão vocal desta gravação",
-        "range": "As notas vocais originais vão de {low} a {high}.",
-        "practice": "Acompanhe as notas na linha do tempo e use o microfone para comparar sua afinação com a melodia."
       }
     }
   },
@@ -1443,26 +1438,5 @@
       }
     },
     "back": "Começar a praticar"
-  },
-  "homeSeo": {
-    "title": "Veja as notas vocais das músicas e pratique sua afinação",
-    "description": "Acompanhe as notas enquanto a música toca e compare sua voz com a melodia usando o microfone.",
-    "howItWorksTitle": "Como praticar com o Vozzify",
-    "steps": {
-      "find": {
-        "title": "Encontre uma música",
-        "description": "Busque pelo título ou artista e escolha uma música com notas disponíveis."
-      },
-      "follow": {
-        "title": "Acompanhe as notas",
-        "description": "Veja a melodia vocal em uma linha do tempo sincronizada com a música."
-      },
-      "practice": {
-        "title": "Cante e confira sua afinação",
-        "description": "Ative o microfone para comparar sua voz com as notas durante a prática."
-      }
-    },
-    "browseSongs": "Buscar músicas para cantar",
-    "plans": "Conhecer os planos"
   }
 }
