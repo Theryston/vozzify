@@ -128,9 +128,10 @@ survive, the weekly chart is truthful and reserved against discovery
 duplication, daily-target ordering is handled in the personal overlay, and
 Featured Albums are selected by useful Track content. Existing snapshots keep
 their stored algorithm marker and remain readable until their normal cache
-expiry; a first-page read queues a refresh when the marker differs. Reverting
-the composition while keeping Album selection requires restoring version 3
-and allowing version-4 cached feeds to expire or rebuilding them through the
+expiry; normal staleness checks and refresh jobs regenerate feeds. Prompt
+refresh on an algorithm-version mismatch is handled by #484. Reverting the
+composition while keeping Album selection requires restoring version 3 and
+allowing version-4 cached feeds to expire or rebuilding them through the
 regular refresh jobs.
 
 ## Alternatives considered
