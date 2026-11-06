@@ -10,6 +10,7 @@ import { AcquisitionAttributor } from '@/features/auth/components/acquisition-at
 import { AuthGate } from '@/features/auth/components/auth-gate';
 import { NotefinderAnnouncement } from '@/features/notefinder/components/notefinder-announcement';
 import { getSiteUrl } from '@/lib/env/client';
+import { isGoogleTagManagerEnabled } from '@/lib/env/google-tag-manager';
 import { routing } from '@/lib/i18n/routing';
 import { cn } from '@/lib/utils';
 
@@ -66,7 +67,9 @@ export default async function LocaleLayout({
       )}
     >
       <body>
-        <GoogleTagManager gtmId="GTM-PD2H3WNN" />
+        {isGoogleTagManagerEnabled() && (
+          <GoogleTagManager gtmId="GTM-PD2H3WNN" />
+        )}
         {/* Only the namespaces client components need, to keep the RSC
             payload small. */}
         <NextIntlClientProvider messages={{ errors, notefinderNotice }}>

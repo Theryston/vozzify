@@ -21,8 +21,10 @@ COPY apps/web apps/web
 # Public values are baked into browser chunks and prerendered metadata.
 ARG NEXT_PUBLIC_API_URL=https://api.vozzify.com
 ARG NEXT_PUBLIC_SITE_URL=https://vozzify.com
+ARG NEXT_PUBLIC_GTM_ENABLED=false
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
+ENV NEXT_PUBLIC_GTM_ENABLED=${NEXT_PUBLIC_GTM_ENABLED}
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN nub --cwd packages/contracts run build && nub --cwd apps/web run build \
     && rm -rf apps/web/.next/cache
@@ -49,8 +51,10 @@ COPY --from=app-build --chown=node:node /app/apps/web/.next ./.next
 # Keep startup validation and runtime config aligned with the baked values.
 ARG NEXT_PUBLIC_API_URL=https://api.vozzify.com
 ARG NEXT_PUBLIC_SITE_URL=https://vozzify.com
+ARG NEXT_PUBLIC_GTM_ENABLED=false
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
+ENV NEXT_PUBLIC_GTM_ENABLED=${NEXT_PUBLIC_GTM_ENABLED}
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \

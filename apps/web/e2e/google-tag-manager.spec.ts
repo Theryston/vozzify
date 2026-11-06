@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 for (const locale of ['en', 'pt-BR']) {
-  test(`${locale}: initializes the Google Tag Manager container`, async ({
+  test(`${locale}: does not load Google Tag Manager in the e2e build`, async ({
     page,
   }) => {
     const scripts: string[] = [];
@@ -10,24 +10,16 @@ for (const locale of ['en', 'pt-BR']) {
       await route.fulfill({ contentType: 'application/javascript', body: '' });
     });
 
-    await page.goto(`/${locale}/sign-in`);
+    const response = await page.goto(`/${locale}/sign-in`, {
+      waitUntil: 'networkidle',
+    });
 
-    await expect(page.locator('script#_next-gtm')).toHaveAttribute(
-      'src',
-      'https://www.googletagmanager.com/gtm.js?id=GTM-PD2H3WNN',
+    expect(response?.ok()).toBe(true);
+    await expect(page.locator('script#_next-gtm')).toHaveCount(0);
+    await expect(page.locator('script#_next-gtm-init')).toHaveCount(0);
+    expect(await page.evaluate(() => Reflect.get(window, 'dataLayer'))).toBe(
+      undefined,
     );
-    await expect
-      .poll(() => scripts)
-      .toEqual(['https://www.googletagmanager.com/gtm.js?id=GTM-PD2H3WNN']);
-    await expect
-      .poll(() => page.evaluate(() => Reflect.get(window, 'dataLayer')))
-      .toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            event: 'gtm.js',
-            'gtm.start': expect.any(Number),
-          }),
-        ]),
-      );
+    expect(scripts).toEqual([]);
   });
 }
