@@ -3,6 +3,7 @@ import type { Locale } from '@vozzify/contracts';
 import {
   type LocaleTrendingEntry,
   rankLocaleTrending,
+  scoreLocaleTrending,
 } from './track-locale-trending.js';
 import { TrackViewRepository } from './track-view.repository.js';
 import { viewWindowStarts } from './view-windows.js';
@@ -19,7 +20,18 @@ export class TrackLocaleTrendingService {
   async rank(
     locale: Locale,
     now = new Date(),
+    trackIds?: readonly string[],
   ): Promise<LocaleTrendingEntry[] | undefined> {
+    if (trackIds !== undefined) {
+      if (trackIds.length === 0) return [];
+      const starts = viewWindowStarts(now);
+      const [counts, cohort] = await Promise.all([
+        this.views.localeViewCountsForTracks(locale, starts, [...trackIds]),
+        this.views.localePlatformAverages(locale, starts),
+      ]);
+      if (cohort.monthViews === 0) return undefined;
+      return scoreLocaleTrending(counts, cohort.averages);
+    }
     const counts = await this.views.localeViewCounts(
       locale,
       viewWindowStarts(now),

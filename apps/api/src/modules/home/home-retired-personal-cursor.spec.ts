@@ -27,6 +27,10 @@ describe('HomeService retired personal cursors', () => {
     const feeds = createLinkedHomeFeeds([]);
     const personal = createPersonalHomeRepositoryFixture();
     const tasteRows = {
+      findDiscoveryCandidates: vi.fn().mockResolvedValue({
+        tracks: [],
+        byRow: {},
+      }),
       findUserTasteActivities: vi.fn().mockResolvedValue([]),
       build: vi.fn().mockResolvedValue([rawRow]),
       explorationRow: vi.fn().mockResolvedValue(undefined),

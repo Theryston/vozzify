@@ -4,6 +4,7 @@ import type {
   HomeVocalRangeRow,
   TrackVocalRange,
 } from '@vozzify/contracts';
+import { homeArtistKeys } from './home-artist-keys.js';
 import { composeHomeRows } from './home-feed-composer.js';
 import type { DiscoveryTrack } from './home-personal-blend.js';
 import { challengeOverrun, voiceFitScore } from './home-voice-fit.js';
@@ -17,6 +18,7 @@ type VoiceCandidate = {
   id: string;
   track: HomeTrack & { vocalRange: TrackVocalRange };
   artistKey: string;
+  artistKeys: string[];
   hasCover: boolean;
   isCompleted: true;
   hasVocalRange: true;
@@ -53,6 +55,8 @@ const candidateOf = (
     id: track.id,
     track: { ...track, vocalRange: track.vocalRange },
     artistKey: details?.artistKey ?? track.artistCredit[0]?.name ?? track.id,
+    artistKeys:
+      details?.artistKeys ?? homeArtistKeys(track.artistCredit, track.id),
     hasCover: track.coverUrl !== null,
     isCompleted: true,
     hasVocalRange: true,
@@ -71,15 +75,25 @@ const compareTrending = (a: VoiceCandidate, b: VoiceCandidate): number =>
  */
 export const buildPersonalVoiceRows = (options: {
   rows: readonly HomeRow[];
+  candidateTracks?: HomeTrack[];
   userRange: TrackVocalRange;
   discovery: ReadonlyMap<string, DiscoveryTrack>;
   masteredTrackIds: ReadonlySet<string>;
   alreadyUsedTrackIds: ReadonlySet<string>;
 }): HomeVocalRangeRow[] => {
-  const { rows, userRange, discovery, masteredTrackIds, alreadyUsedTrackIds } =
-    options;
+  const {
+    rows,
+    candidateTracks = [],
+    userRange,
+    discovery,
+    masteredTrackIds,
+    alreadyUsedTrackIds,
+  } = options;
   const uniqueTracks = new Map(
-    personalTrackPool(rows).map((track) => [track.id, track]),
+    [...personalTrackPool(rows), ...candidateTracks].map((track) => [
+      track.id,
+      track,
+    ]),
   );
   const candidates = [...uniqueTracks.values()]
     .filter(

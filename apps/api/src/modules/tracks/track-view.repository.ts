@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import type { Locale } from '@vozzify/contracts';
-import { and, eq, gte, isNull, type SQL, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, type SQL, sql } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
 import { trackViews } from '../../database/schema/track-views.js';
 import type { LocaleTrackViews } from './track-locale-trending.js';
@@ -122,6 +122,53 @@ export class TrackViewRepository {
       .where(eq(trackViews.locale, locale))
       .groupBy(trackViews.trackId)
       .having(sql`${viewsSince(starts.month)} > 0`);
+  }
+
+  localeViewCountsForTracks(
+    locale: Locale,
+    starts: ViewWindowStarts,
+    trackIds: string[],
+  ): Promise<LocaleTrackViews[]> {
+    if (trackIds.length === 0) return Promise.resolve([]);
+    return this.txHost.tx
+      .select({ trackId: trackViews.trackId, ...windowCounts(starts) })
+      .from(trackViews)
+      .where(
+        and(
+          eq(trackViews.locale, locale),
+          inArray(trackViews.trackId, trackIds),
+        ),
+      )
+      .groupBy(trackViews.trackId)
+      .having(sql`${viewsSince(starts.month)} > 0`);
+  }
+
+  async localePlatformAverages(
+    locale: Locale,
+    starts: ViewWindowStarts,
+  ): Promise<{ averages: PlatformViewAverages; monthViews: number }> {
+    const [row] = await this.txHost.tx
+      .select({
+        hourViews: viewsSince(starts.hour),
+        hourTracks: tracksViewedSince(starts.hour),
+        dayViews: viewsSince(starts.day),
+        dayTracks: tracksViewedSince(starts.day),
+        monthViews: viewsSince(starts.month),
+      })
+      .from(trackViews)
+      .where(
+        and(
+          eq(trackViews.locale, locale),
+          gte(trackViews.createdAt, starts.month),
+        ),
+      );
+    return {
+      averages: {
+        hour: averageViewsPerTrack(row?.hourViews ?? 0, row?.hourTracks ?? 0),
+        day: averageViewsPerTrack(row?.dayViews ?? 0, row?.dayTracks ?? 0),
+      },
+      monthViews: row?.monthViews ?? 0,
+    };
   }
 
   /** Views per viewed Track on the platform, this hour and today. */

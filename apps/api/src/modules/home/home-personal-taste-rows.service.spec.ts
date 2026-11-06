@@ -64,6 +64,121 @@ const createService = async (
 };
 
 describe('PersonalHomeTasteRowsService', () => {
+  it('refills after mastery exclusions and independently loads voice candidates', async () => {
+    const catalog = Array.from({ length: 240 }, (_, index) => ({
+      ...cards[0],
+      id: `catalog-${index}`,
+    }));
+    const excluded = new Set(catalog.slice(0, 180).map((card) => card.id));
+    const voiceOnly = {
+      ...cards[0],
+      id: 'voice-only',
+      vocalRangeLowest: 60,
+      vocalRangeHighest: 72,
+    };
+    const personal = {
+      findPopularTasteCandidates: vi.fn(
+        async (limit: number, offset: number, excludedIds: string[]) =>
+          catalog
+            .filter((card) => !excludedIds.includes(card.id))
+            .slice(offset, offset + limit),
+      ),
+    } as unknown as PersonalHomeRepository;
+    const tasteRepository = {
+      findTracksForGenres: vi.fn().mockResolvedValue([]),
+      findNewestTracks: vi.fn().mockResolvedValue([]),
+      findMostSungTracks: vi.fn().mockResolvedValue([]),
+      findVoiceCandidates: vi.fn(async (_range: unknown, limit: number) =>
+        [voiceOnly].slice(0, limit),
+      ),
+    } as unknown as PersonalHomeTasteRepository;
+    const service = await createService(personal, tasteRepository, {
+      mostSungArtistActivities: vi.fn(),
+    });
+
+    const candidates = await service.findDiscoveryCandidates(
+      decayedTaste(tasteSignals),
+      { excludedTrackIds: excluded, userRange: { lowest: 60, highest: 72 } },
+    );
+
+    expect(personal.findPopularTasteCandidates).toHaveBeenCalledTimes(2);
+    expect(personal.findPopularTasteCandidates).toHaveBeenNthCalledWith(
+      1,
+      60,
+      0,
+      [...excluded],
+    );
+    expect(candidates.byRow['trending-today']?.map(({ id }) => id)).toEqual(
+      catalog.slice(180).map(({ id }) => id),
+    );
+    expect(candidates.byRow['within-your-voice']?.[0]?.id).toBe('voice-only');
+    expect(candidates.byRow['challenge-your-range']?.[0]?.id).toBe(
+      'voice-only',
+    );
+    expect(tasteRepository.findVoiceCandidates).toHaveBeenNthCalledWith(
+      1,
+      { lowest: 60, highest: 72 },
+      60,
+      0,
+      [...excluded],
+    );
+    expect(candidates.tracks.some(({ id }) => id === 'voice-only')).toBe(true);
+  });
+
+  it('refills the genre-specific row after mastered and already-used Tracks', async () => {
+    const excludedIds = Array.from(
+      { length: 240 },
+      (_, index) => `old-${index}`,
+    );
+    const alternatives = Array.from({ length: 60 }, (_, index) => ({
+      ...cards[index % cards.length],
+      id: `alternative-${index}`,
+    }));
+    const personal = {
+      findUserSungTrackSources: vi.fn().mockResolvedValue([]),
+    } as unknown as PersonalHomeRepository;
+    const tasteRepository = {
+      findTracksForGenres: vi.fn(
+        async (
+          _genres: string[],
+          limit: number,
+          offset: number,
+          excluded: string[],
+        ) =>
+          alternatives
+            .filter((candidate) => !excluded.includes(candidate.id))
+            .slice(offset, offset + limit),
+      ),
+    } as unknown as PersonalHomeTasteRepository;
+    const service = await createService(personal, tasteRepository, {
+      mostSungArtistActivities: vi.fn().mockResolvedValue([]),
+    });
+
+    const rows = await service.build({
+      userId: 'user',
+      signals: [],
+      tasteSignals,
+      taste: decayedTaste(tasteSignals),
+      mastered: new Set(excludedIds.slice(0, 180)),
+      usedTrackIds: new Set(excludedIds.slice(180)),
+      publicRows: [],
+    });
+
+    expect(tasteRepository.findTracksForGenres).toHaveBeenNthCalledWith(
+      1,
+      ['rock'],
+      60,
+      0,
+      excludedIds,
+    );
+    expect(rows.find((row) => row.id === 'more-of-your-genres')).toMatchObject({
+      layout: 'standard',
+      items: expect.arrayContaining([
+        expect.objectContaining({ id: 'alternative-0' }),
+      ]),
+    });
+  });
+
   it('builds an exploration row from a three-to-five-track slot budget', async () => {
     const personal = {
       findTracksOutsideGenres: vi
@@ -98,7 +213,7 @@ describe('PersonalHomeTasteRowsService', () => {
         cards.slice(0, 6).map((card) => ({
           sourceTrackId: 'source',
           targetTrackId: card.id,
-          singers: 3,
+          score: 0.3,
         })),
       ),
       findCommunityTrackCards: vi

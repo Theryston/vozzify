@@ -28,7 +28,10 @@ const discovery = new Map<string, DiscoveryTrack>([
   ['fits', { trendingScore: 1, genres: [], artistKey: 'fits' }],
 ]);
 
-const rankedCandidates = (derivedRange: TrackVocalRange | null) =>
+const rankedCandidates = (
+  derivedRange: TrackVocalRange | null,
+  voiceConfidence = 0,
+) =>
   blendDiscoveryCandidates({
     tracks: [
       track('outside', { lowest: 80, highest: 88 }),
@@ -38,11 +41,14 @@ const rankedCandidates = (derivedRange: TrackVocalRange | null) =>
     taste: emptyTaste,
     lambda: 1,
     userRange: derivedRange,
+    voiceConfidence,
   });
 
 describe('personal voice ranking', () => {
   it('uses a derived range to rank fit above a more popular mismatch', () => {
-    const [fits, outside] = rankedCandidates(userRange).sort(byBlendedDesc);
+    const [fits, outside] = rankedCandidates(userRange, 0.8).sort(
+      byBlendedDesc,
+    );
 
     expect(fits?.track.id).toBe('fits');
     expect(outside?.track.id).toBe('outside');

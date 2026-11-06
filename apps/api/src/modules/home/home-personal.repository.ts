@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import { and, count, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
+import { albumTracks } from '../../database/schema/albums.js';
 import { dailyPracticeStreaks } from '../../database/schema/daily-practice-streaks.js';
 import { practiceAttempts } from '../../database/schema/practice-attempts.js';
 import { trackCooccurrences } from '../../database/schema/track-cooccurrences.js';
@@ -11,7 +12,10 @@ import {
   type StoredArtistCreditEntry,
   tracks,
 } from '../../database/schema/tracks.js';
+import { homeArtistKeys } from './home-artist-keys.js';
+import { refreshCommunityCooccurrence } from './home-community-cooccurrence.repository.js';
 import type {
+  PersonalAlbumTrack,
   PersonalTrackCandidate,
   UserFavoriteSignal,
   UserTrackSignal,
@@ -19,6 +23,7 @@ import type {
 import { PersonalHomeTasteRepository } from './home-personal-taste.repository.js';
 
 export type {
+  PersonalAlbumTrack,
   PersonalTrackCandidate,
   UserFavoriteSignal,
   UserTrackSignal,
@@ -123,48 +128,44 @@ export class PersonalHomeRepository {
     }));
   }
 
-  /** Rebuilds the bounded, global co-occurrence ranking consumed by personal feeds. */
-  async refreshCommunityCooccurrence(): Promise<void> {
-    const result = await this.txHost.tx.execute<{
-      sourceTrackId: string;
-      targetTrackId: string;
-      singerCount: number;
-    }>(sql`
-        with signals as (
-          select distinct user_id, track_id from ${practiceAttempts}
-          where forward_skip = false and bleed_suspected = false
-          union
-          select user_id, track_id from ${trackFavorites}
-        ), pairs as (
-          select source.track_id as "sourceTrackId",
-            target.track_id as "targetTrackId",
-            count(distinct source.user_id)::int as "singerCount"
-          from signals source
-          inner join signals target on target.user_id = source.user_id
-          where target.track_id <> source.track_id
-          group by source.track_id, target.track_id
-          having count(distinct source.user_id) >= 2
-        ), ranked as (
-          select "sourceTrackId", "targetTrackId", "singerCount",
-            row_number() over (
-              partition by "sourceTrackId"
-              order by "singerCount" desc, "targetTrackId" asc
-            ) as rank
-          from pairs
-        )
-        select "sourceTrackId", "targetTrackId", "singerCount"
-        from ranked where rank <= 12
-    `);
-    await this.txHost.tx.delete(trackCooccurrences);
-    if (result.rows.length > 0) {
-      await this.txHost.tx.insert(trackCooccurrences).values(result.rows);
-    }
+  async findAlbumTracks(albumIds: string[]): Promise<PersonalAlbumTrack[]> {
+    if (albumIds.length === 0) return [];
+    const rows = await this.txHost.tx
+      .select({
+        albumId: albumTracks.albumId,
+        id: tracks.id,
+        title: tracks.title,
+        coverUrl: tracks.coverUrl,
+        artistCredit: tracks.artistCredit,
+        durationMs: tracks.lengthMs,
+        vocalRangeLowest: tracks.vocalRangeLowest,
+        vocalRangeHighest: tracks.vocalRangeHighest,
+        genres: tracks.genres,
+        trendingScore: tracks.trendingScore,
+      })
+      .from(albumTracks)
+      .innerJoin(tracks, eq(tracks.id, albumTracks.trackId))
+      .where(
+        and(
+          inArray(albumTracks.albumId, albumIds),
+          hasCompletedProcessing(tracks.id),
+        ),
+      );
+    return rows;
   }
 
-  async findCommunityCooccurrence(
-    sourceTrackIds: string[],
-  ): Promise<
-    { sourceTrackId: string; targetTrackId: string; singers: number }[]
+  /** Rebuilds the bounded, global co-occurrence ranking consumed by personal feeds. */
+  async refreshCommunityCooccurrence(): Promise<void> {
+    await refreshCommunityCooccurrence(this.txHost.tx);
+  }
+
+  async findCommunityCooccurrence(sourceTrackIds: string[]): Promise<
+    {
+      sourceTrackId: string;
+      targetTrackId: string;
+      score: number;
+      singers?: number;
+    }[]
   > {
     if (sourceTrackIds.length === 0) {
       return [];
@@ -173,11 +174,13 @@ export class PersonalHomeRepository {
       .select({
         sourceTrackId: trackCooccurrences.sourceTrackId,
         targetTrackId: trackCooccurrences.targetTrackId,
+        score: trackCooccurrences.score,
         singers: trackCooccurrences.singerCount,
       })
       .from(trackCooccurrences)
       .where(inArray(trackCooccurrences.sourceTrackId, sourceTrackIds))
       .orderBy(
+        desc(trackCooccurrences.score),
         desc(trackCooccurrences.singerCount),
         trackCooccurrences.targetTrackId,
       );
@@ -196,11 +199,13 @@ export class PersonalHomeRepository {
         ),
       })
       .from(practiceAttempts)
+      .innerJoin(tracks, eq(tracks.id, practiceAttempts.trackId))
       .where(
         and(
           eq(practiceAttempts.userId, userId),
           eq(practiceAttempts.forwardSkip, false),
           eq(practiceAttempts.bleedSuspected, false),
+          hasCompletedProcessing(tracks.id),
         ),
       )
       .groupBy(practiceAttempts.trackId)
@@ -243,10 +248,28 @@ export class PersonalHomeRepository {
     return this.tasteRepository.findTracksOutsideGenres(genres, limit);
   }
 
-  async findDiscoveryTracks(
-    ids: string[],
-  ): Promise<
-    Map<string, { trendingScore: number; genres: string[]; artistKey: string }>
+  findPopularTasteCandidates(
+    limit: number,
+    offset = 0,
+    excludedTrackIds: string[] = [],
+  ): Promise<PersonalTrackCandidate[]> {
+    return this.tasteRepository.findPopularTracks(
+      limit,
+      offset,
+      excludedTrackIds,
+    );
+  }
+
+  async findDiscoveryTracks(ids: string[]): Promise<
+    Map<
+      string,
+      {
+        trendingScore: number;
+        genres: string[];
+        artistKey: string;
+        artistKeys: string[];
+      }
+    >
   > {
     if (ids.length === 0) {
       return new Map();
@@ -267,6 +290,7 @@ export class PersonalHomeRepository {
           trendingScore: row.trendingScore,
           genres: row.genres,
           artistKey: signalArtistKey(row.credit, row.id),
+          artistKeys: homeArtistKeys(row.credit, row.id),
         },
       ]),
     );

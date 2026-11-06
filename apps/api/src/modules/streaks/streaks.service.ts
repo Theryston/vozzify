@@ -38,6 +38,11 @@ export class StreaksService {
     private readonly users: UsersService,
   ) {}
 
+  /** Uses the User's practice-day boundary for ranking activity evidence. */
+  practiceDayOf(date: Date, timeZone: string): string {
+    return localDayOf(date, timeZone);
+  }
+
   /** Where today stands, in `timeZone` or the one the last heartbeat kept. */
   async getStatus(
     userId: string,

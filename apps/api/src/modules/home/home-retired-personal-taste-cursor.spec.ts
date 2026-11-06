@@ -77,6 +77,10 @@ describe('HomeService retired personal taste cursors', () => {
       'more-of-your-genres',
     );
     const tasteRows = {
+      findDiscoveryCandidates: vi.fn().mockResolvedValue({
+        tracks: [],
+        byRow: {},
+      }),
       findUserTasteActivities: vi.fn().mockResolvedValue([]),
       build: vi.fn().mockResolvedValue(generatedTasteRows),
       explorationRow: vi.fn().mockResolvedValue(undefined),

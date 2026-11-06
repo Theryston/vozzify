@@ -6,7 +6,7 @@
 
 import type { Locale } from '@vozzify/contracts';
 
-export const HOME_ALGORITHM_VERSION = 4;
+export const HOME_ALGORITHM_VERSION = 5;
 
 /**
  * The feed a request gets when it names no locale. An unsupported locale is

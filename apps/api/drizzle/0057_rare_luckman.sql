@@ -1,0 +1,1 @@
+ALTER TABLE "track_cooccurrences" ADD COLUMN "score" real DEFAULT 0 NOT NULL;

@@ -1,5 +1,6 @@
 import {
   averageViewsPerTrack,
+  type PlatformViewAverages,
   type TrackViewCounts,
   trendingScore,
 } from './trending-score.js';
@@ -17,6 +18,18 @@ export type LocaleTrackViews = TrackViewCounts & { trackId: string };
 
 /** A Track with a positive trending score in one locale. */
 export type LocaleTrendingEntry = { trackId: string; score: number };
+
+export const scoreLocaleTrending = (
+  rows: LocaleTrackViews[],
+  platform: PlatformViewAverages,
+): LocaleTrendingEntry[] =>
+  rows
+    .map((row) => ({
+      trackId: row.trackId,
+      score: trendingScore(row, platform),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.trackId.localeCompare(b.trackId));
 
 const sumOf = (
   rows: LocaleTrackViews[],
@@ -49,12 +62,5 @@ export const rankLocaleTrending = (
   if (monthViews === 0 || monthViews < minViews) {
     return undefined;
   }
-  const platform = localePlatformAverages(rows);
-  return rows
-    .map((row) => ({
-      trackId: row.trackId,
-      score: trendingScore(row, platform),
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score || a.trackId.localeCompare(b.trackId));
+  return scoreLocaleTrending(rows, localePlatformAverages(rows));
 };

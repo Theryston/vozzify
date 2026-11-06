@@ -400,6 +400,13 @@
       "when": 1793824151316,
       "tag": "0056_fat_crystal",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1793984784765,
+      "tag": "0057_rare_luckman",
+      "breakpoints": true
     }
   ]
 }

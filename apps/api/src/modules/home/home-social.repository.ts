@@ -7,6 +7,7 @@ import {
   eq,
   inArray,
   isNotNull,
+  max,
   sql,
 } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
@@ -23,6 +24,8 @@ type SocialProfileSignals = {
   image: string | null;
   practiceTrackIds: string[];
   favoriteTrackIds: string[];
+  practiceLastActivityAt: Date | null;
+  favoriteLastActivityAt: Date | null;
 };
 
 export type SocialSignals = {
@@ -38,7 +41,11 @@ type ProfileRecord = {
   image: string | null;
 };
 
-type TrackSignal = { userId: string; trackId: string };
+type TrackSignal = {
+  userId: string;
+  trackId: string;
+  lastActivityAt: Date | null;
+};
 
 const MAX_SOCIAL_PROFILES = 500;
 const uniqueFor = (
@@ -84,6 +91,14 @@ export class HomeSocialRepository {
         ...profile,
         practiceTrackIds: uniqueFor(practiceRows, profile.id),
         favoriteTrackIds: uniqueFor(favoriteRows, profile.id),
+        practiceLastActivityAt: latestActivityFor(
+          profile.id,
+          profilePracticeRows,
+        ),
+        favoriteLastActivityAt: latestActivityFor(
+          profile.id,
+          profileFavoriteRows,
+        ),
       })),
     };
   }
@@ -175,6 +190,7 @@ export class HomeSocialRepository {
       .selectDistinct({
         userId: practiceAttempts.userId,
         trackId: practiceAttempts.trackId,
+        lastActivityAt: max(practiceAttempts.createdAt),
       })
       .from(practiceAttempts)
       .innerJoin(tracks, eq(tracks.id, practiceAttempts.trackId))
@@ -183,7 +199,8 @@ export class HomeSocialRepository {
           inArray(practiceAttempts.userId, ids),
           hasCompletedProcessing(practiceAttempts.trackId),
         ),
-      );
+      )
+      .groupBy(practiceAttempts.userId, practiceAttempts.trackId);
   }
 
   private findFavoriteTracks(ids: string[]): Promise<TrackSignal[]> {
@@ -191,6 +208,7 @@ export class HomeSocialRepository {
       .selectDistinct({
         userId: trackFavorites.userId,
         trackId: trackFavorites.trackId,
+        lastActivityAt: max(trackFavorites.createdAt),
       })
       .from(trackFavorites)
       .where(
@@ -198,6 +216,19 @@ export class HomeSocialRepository {
           inArray(trackFavorites.userId, ids),
           hasCompletedProcessing(trackFavorites.trackId),
         ),
-      );
+      )
+      .groupBy(trackFavorites.userId, trackFavorites.trackId);
   }
 }
+
+const latestActivityFor = (userId: string, rows: TrackSignal[]): Date | null =>
+  rows
+    .filter((row) => row.userId === userId)
+    .reduce<Date | null>(
+      (latest, row) =>
+        row.lastActivityAt !== null &&
+        (latest === null || row.lastActivityAt > latest)
+          ? row.lastActivityAt
+          : latest,
+      null,
+    );

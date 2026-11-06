@@ -14,7 +14,10 @@ import {
   REFRESH_PERSONAL_NIGHTLY_USER_JOB,
   type RefreshPersonalHomeFeedJob,
 } from './home-personal.job.js';
-import { PERSONAL_REFRESH_DEBOUNCE_MS } from './home-rules.js';
+import {
+  HOME_ALGORITHM_VERSION,
+  PERSONAL_REFRESH_DEBOUNCE_MS,
+} from './home-rules.js';
 
 /** Schedules rebuilds of one User's personal snapshot. */
 @Injectable()
@@ -28,6 +31,19 @@ export class PersonalHomeQueueService implements OnModuleInit {
 
   /** Registers the nightly batch; upserting is safe on every boot. */
   async onModuleInit(): Promise<void> {
+    await this.queue.add(
+      REFRESH_PERSONAL_NIGHTLY_JOB,
+      {},
+      {
+        jobId: `refresh-personal-stage2-${HOME_ALGORITHM_VERSION}`,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 30_000 },
+        // A later rollback can rebuild legacy raw-count pairs, so do not keep
+        // a completed v5 marker that would suppress the next v5 warm-up.
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
+    );
     await this.queue.upsertJobScheduler(
       PERSONAL_NIGHTLY_SCHEDULER_ID,
       { pattern: PERSONAL_NIGHTLY_CRON, tz: 'UTC' },

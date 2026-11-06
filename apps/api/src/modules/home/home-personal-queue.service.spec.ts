@@ -9,7 +9,10 @@ import {
   REFRESH_PERSONAL_NIGHTLY_JOB,
 } from './home-personal.job.js';
 import { PersonalHomeQueueService } from './home-personal-queue.service.js';
-import { PERSONAL_REFRESH_DEBOUNCE_MS } from './home-rules.js';
+import {
+  HOME_ALGORITHM_VERSION,
+  PERSONAL_REFRESH_DEBOUNCE_MS,
+} from './home-rules.js';
 
 const queue = { add: vi.fn(), upsertJobScheduler: vi.fn() };
 
@@ -36,6 +39,22 @@ describe('PersonalHomeQueueService', () => {
       PERSONAL_NIGHTLY_SCHEDULER_ID,
       { pattern: PERSONAL_NIGHTLY_CRON, tz: 'UTC' },
       { name: REFRESH_PERSONAL_NIGHTLY_JOB, data: {} },
+    );
+  });
+
+  it('queues a versioned retryable warm-up that can run again after rollback', async () => {
+    await service.onModuleInit();
+
+    expect(queue.add).toHaveBeenCalledWith(
+      REFRESH_PERSONAL_NIGHTLY_JOB,
+      {},
+      {
+        jobId: `refresh-personal-stage2-${HOME_ALGORITHM_VERSION}`,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 30_000 },
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
     );
   });
 

@@ -1,17 +1,19 @@
 import type { HomeTrack, TrackVocalRange } from '@vozzify/contracts';
+import { homeArtistKeys } from './home-artist-keys.js';
 import {
   blendScore,
   type PersonalTaste,
   personalScore,
-  personalScoreWithVoice,
 } from './home-personal.js';
 import type { UserTrackSignal } from './home-personal.repository.js';
+import { personalScoreWithConfidenceAwareVoice } from './home-stage2-scoring.js';
 import { voiceFitScore } from './home-voice-fit.js';
 
 /** A Track of the public feed with its blend inputs. */
 export type DiscoveryCandidate = {
   track: HomeTrack;
   artistKey: string;
+  artistKeys?: string[];
   hasCover: boolean;
   popularity: number;
   personal: number;
@@ -31,6 +33,7 @@ export type DiscoveryTrack = {
   trendingScore: number;
   genres: string[];
   artistKey: string;
+  artistKeys?: string[];
 };
 
 /**
@@ -80,17 +83,25 @@ export const buildTaste = (
  */
 export const blendDiscoveryCandidates = (options: {
   tracks: HomeTrack[];
+  catalogTracks?: HomeTrack[];
   discovery: ReadonlyMap<string, DiscoveryTrack>;
   taste: PersonalTaste;
   lambda: number;
   userRange?: TrackVocalRange | null;
+  voiceConfidence?: number;
 }): DiscoveryCandidate[] => {
   const { tracks, discovery, taste, lambda, userRange } = options;
+  const uniqueTracks = new Map(
+    [...tracks, ...(options.catalogTracks ?? [])].map((track) => [
+      track.id,
+      track,
+    ]),
+  );
   const maxScore = Math.max(
     0,
     ...[...discovery.values()].map((track) => track.trendingScore),
   );
-  return tracks.map((track) => {
+  return [...uniqueTracks.values()].map((track) => {
     const found = discovery.get(track.id);
     const popularity =
       maxScore > 0 ? (found?.trendingScore ?? 0) / maxScore : 1;
@@ -103,10 +114,16 @@ export const blendDiscoveryCandidates = (options: {
       userRange && track.vocalRange
         ? voiceFitScore(userRange, track.vocalRange)
         : null;
-    const personal = personalScoreWithVoice(tasteScore, voiceFit);
+    const personal = personalScoreWithConfidenceAwareVoice(
+      tasteScore,
+      voiceFit,
+      options.voiceConfidence ?? 0,
+    );
     return {
       track,
-      artistKey: artistKeyOf(track),
+      artistKey: found?.artistKey ?? artistKeyOf(track),
+      artistKeys:
+        found?.artistKeys ?? homeArtistKeys(track.artistCredit, track.id),
       hasCover: track.coverUrl !== null,
       popularity,
       personal,

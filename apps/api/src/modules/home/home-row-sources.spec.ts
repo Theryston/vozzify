@@ -38,6 +38,7 @@ describe('the trending row sources', () => {
     findMostFavoritedTrackIds: vi.fn(),
     countRecentAttempts: vi.fn(),
     countRecentFavorites: vi.fn(),
+    localePracticeEvidence: vi.fn(),
   };
   const ranking = { rank: vi.fn() };
 
@@ -56,10 +57,18 @@ describe('the trending row sources', () => {
     repository.findMostFavoritedTrackIds.mockResolvedValue([]);
     repository.countRecentAttempts.mockResolvedValue([]);
     repository.countRecentFavorites.mockResolvedValue([]);
+    repository.localePracticeEvidence.mockResolvedValue({
+      distinctUsers: 0,
+      activeDays: 0,
+    });
   });
 
   it('falls back to the global trending figures when the locale has no ranking', async () => {
     ranking.rank.mockResolvedValue(undefined);
+    repository.localePracticeEvidence.mockResolvedValue({
+      distinctUsers: 20,
+      activeDays: 5,
+    });
 
     const items = await trendingLoad('pt-BR');
 
@@ -70,6 +79,10 @@ describe('the trending row sources', () => {
   });
 
   it('loads the locale ranking in its own order', async () => {
+    repository.localePracticeEvidence.mockResolvedValue({
+      distinctUsers: 20,
+      activeDays: 5,
+    });
     ranking.rank.mockResolvedValue([
       { trackId: 'b', score: 9 },
       { trackId: 'a', score: 5 },
@@ -99,6 +112,7 @@ describe('the singing row sources', () => {
     findMostFavoritedTrackIds: vi.fn(),
     countRecentAttempts: vi.fn(),
     countRecentFavorites: vi.fn(),
+    localePracticeEvidence: vi.fn(),
   };
   const ranking = { rank: vi.fn() };
 
@@ -119,6 +133,10 @@ describe('the singing row sources', () => {
     repository.findMostFavoritedTrackIds.mockResolvedValue([]);
     repository.countRecentAttempts.mockResolvedValue([]);
     repository.countRecentFavorites.mockResolvedValue([]);
+    repository.localePracticeEvidence.mockResolvedValue({
+      distinctUsers: 0,
+      activeDays: 0,
+    });
   });
 
   it('orders "Most sung" by valid Attempts, best first', async () => {
@@ -229,5 +247,40 @@ describe('the singing row sources', () => {
     // The viewed-only Track would outscore the sung one (120 against 22),
     // but the chart only ranks Tracks the community sang or favorited.
     expect(items?.map((item) => item.id)).toEqual(['sung']);
+  });
+
+  it('counts singers across the whole chart pool beyond the top-singer shortlist', async () => {
+    const singerShortlist = Array.from(
+      { length: 60 },
+      (_, index) => `singer-${index + 1}`,
+    );
+    const outsideShortlist = 'singer-61';
+    repository.findTrendingTracks.mockResolvedValue([
+      { ...record(outsideShortlist), trendingScore: 0 },
+    ]);
+    repository.findMostSungTrackIds.mockResolvedValue(
+      singerShortlist.map((trackId) => ({ trackId, count: 1 })),
+    );
+    repository.findMostFavoritedTrackIds.mockResolvedValue([
+      { trackId: outsideShortlist, count: 1 },
+    ]);
+    repository.findCompletedTracksByIds.mockImplementation(
+      async (ids: string[]) =>
+        ids.map((id) => ({ ...record(id), trendingScore: 0 })),
+    );
+    repository.countRecentAttempts.mockImplementation(async (ids: string[]) =>
+      ids.map((trackId) => ({
+        trackId,
+        count: trackId === outsideShortlist ? 100 : 1,
+      })),
+    );
+    repository.countRecentFavorites.mockResolvedValue([]);
+
+    const items = await sourceLoad('top-10-week');
+
+    expect(repository.countRecentAttempts.mock.calls[0]?.[0]).toContain(
+      outsideShortlist,
+    );
+    expect(items?.[0]?.id).toBe(outsideShortlist);
   });
 });

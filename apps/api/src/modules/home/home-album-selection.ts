@@ -1,4 +1,5 @@
 import type { HomeAlbumRecord } from './home.repository.js';
+import { normalizedAlbumResidualScore } from './home-stage2-scoring.js';
 
 export type HomeAlbumCandidateRecord = HomeAlbumRecord & {
   availableTracks: { id: string; popularity: number }[];
@@ -9,7 +10,10 @@ const compilationRank = (album: HomeAlbumRecord): number => {
   return album.secondaryTypes.includes('Compilation') ? 2 : 0;
 };
 
-const tieBreak = (left: HomeAlbumRecord, right: HomeAlbumRecord): number => {
+export const compareAlbumCandidates = (
+  left: HomeAlbumRecord,
+  right: HomeAlbumRecord,
+): number => {
   const compilation = compilationRank(left) - compilationRank(right);
   if (compilation !== 0) return compilation;
   const cover =
@@ -45,17 +49,16 @@ export const selectUsefulAlbums = (
         return {
           album,
           addedTracks,
-          incrementalPopularity: addedTracks.reduce(
-            (total, track) => total + track.popularity,
-            0,
+          incrementalQuality: normalizedAlbumResidualScore(
+            addedTracks.map((track) => track.popularity),
           ),
         };
       })
       .filter((entry) => entry.addedTracks.length > 0)
       .sort(
         (left, right) =>
-          right.incrementalPopularity - left.incrementalPopularity ||
-          tieBreak(left.album, right.album),
+          right.incrementalQuality - left.incrementalQuality ||
+          compareAlbumCandidates(left.album, right.album),
       );
     const next = ranked[0];
     if (!next) break;

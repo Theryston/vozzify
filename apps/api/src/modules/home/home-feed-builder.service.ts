@@ -9,6 +9,7 @@ import type {
   HomeTrack,
   Locale,
 } from '@vozzify/contracts';
+import type { HomeAlbumCandidateSnapshot } from './home-album-candidates.js';
 import { type StoredHomeFeed } from './home-feed.js';
 import { composeEntityRows, composeHomeRows } from './home-feed-composer.js';
 import {
@@ -52,6 +53,7 @@ type ComposedEntityRow =
       layout: 'albums';
       title: HomeRowTitle;
       items: HomeAlbumCandidate[];
+      albumCandidates?: HomeAlbumCandidateSnapshot[];
     };
 
 export const toHomeTrack = (candidate: HomeCandidate): HomeTrack => ({
@@ -215,15 +217,21 @@ export class HomeFeedBuilder {
               title: source.title,
               items: await source.load(locale),
             };
-          case 'albums':
+          case 'albums': {
+            const snapshot = await source.loadSnapshot?.(locale);
             return {
               id: source.id,
               layout: source.layout,
               title: source.title,
-              items: await source.load(locale),
+              items: snapshot?.items ?? (await source.load(locale)),
+              ...(snapshot ? { albumCandidates: snapshot.candidates } : {}),
             };
+          }
         }
       }),
+    );
+    const albumCandidates = entityCandidates.flatMap((candidate) =>
+      candidate.layout === 'albums' ? (candidate.albumCandidates ?? []) : [],
     );
     const entityRows = composeEntityRows(entityCandidates).map(toHomeEntityRow);
     return {
@@ -232,6 +240,7 @@ export class HomeFeedBuilder {
       version: feedVersion(locale, [...rows, ...entityRows]),
       algorithmVersion: HOME_ALGORITHM_VERSION,
       rows: [...rows, ...entityRows],
+      ...(albumCandidates.length > 0 ? { albumCandidates } : {}),
     };
   }
 }

@@ -14,6 +14,9 @@ const candidate = (
   name: id,
   image: null,
   commonTracks,
+  ownVisibleTracks: 20,
+  otherVisibleTracks: 20,
+  lastActivityAt: null,
   vocalDistance,
 });
 
@@ -50,7 +53,30 @@ describe('buildSocialRows', () => {
     expect(similar?.items[0]).toMatchObject({ id: 'closest', commonTracks: 3 });
   });
 
-  it('omits similar voices unless six candidates have derived ranges', () => {
+  it('balances shared-track count and proportional affinity', () => {
+    const candidates = [
+      {
+        ...candidate('concentrated', 3),
+        ownVisibleTracks: 5,
+        otherVisibleTracks: 5,
+      },
+      {
+        ...candidate('broad', 3),
+        ownVisibleTracks: 5,
+        otherVisibleTracks: 500,
+      },
+    ];
+
+    const [row] = buildSocialRows([...candidates, candidate('third', 3)]);
+
+    expect(row?.items.slice(0, 2).map((person) => person.id)).toEqual([
+      'concentrated',
+      'third',
+    ]);
+    expect(row?.items[2]?.id).toBe('broad');
+  });
+
+  it('omits similar voices when no candidates have derived ranges', () => {
     const candidates = Array.from({ length: 6 }, (_, index) =>
       candidate(`person-${index}`, 3),
     );

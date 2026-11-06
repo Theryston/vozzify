@@ -2,6 +2,7 @@ import {
   index,
   integer,
   pgTable,
+  real,
   text,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
@@ -20,6 +21,7 @@ export const trackCooccurrences = pgTable(
       .notNull()
       .references(() => tracks.id, { onDelete: 'cascade' }),
     singerCount: integer().notNull(),
+    score: real().notNull().default(0),
     ...timestamps,
   },
   (table) => [
