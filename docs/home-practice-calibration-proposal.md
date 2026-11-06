@@ -17,8 +17,9 @@ stable `clickId` as the event retry key and retain the existing join to
 The proposed primary outcome is at least 60 credited singing seconds within
 24 hours of the attributed Track view, or one saved Attempt with at least 90%
 coverage, no forward skip and no suspected bleed. A later practice outcome is
-one or more practice days starting after that first outcome and within seven
-days. The report counts a visit once even when it has several qualifying rows.
+the first valid credited Heartbeat or valid Attempt on a later local Practice
+day, within seven days of the first qualifying outcome. The report counts a
+visit once even when it has several qualifying rows.
 Clicks and views are supporting attribution evidence, not outcomes by
 themselves. These thresholds and windows need maintainer validation before
 they are used to tune live ranking.
@@ -100,6 +101,14 @@ exposure counts repeated Track IDs across emitted Rows; Artist concentration
 is the maximum share of selected Tracks credited to one Artist; discarded
 Rows and selection latency are recorded per fixed fixture. Do not infer these
 values from impression events, which only describe what was rendered.
+
+The bounded real-composer fixture in
+`apps/api/test/home-fixture-guardrails.e2e-spec.ts` currently has 13 unique
+eligible candidate Tracks and selects 12: coverage is 12/13 (0.9231),
+duplicate exposure is 0/12, maximum Artist share is 2/12 (0.1667), and one of
+three candidate Rows is discarded. It records selection latency with
+`performance.now()` and asserts it is finite; there is no cross-machine
+latency threshold in this synthetic fixture.
 
 ## Bounded comparison and stage checklist
 
