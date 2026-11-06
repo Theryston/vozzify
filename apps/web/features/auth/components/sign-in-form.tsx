@@ -96,6 +96,15 @@ function useLeaveWhenSignedIn(
   const router = useRouter();
   const { data: user } = useQuery(sessionUserOptions());
 
+  useEffect(
+    () => () => {
+      // Cache Components retains the form's refs while its Activity is hidden.
+      // Returning through history must run the signed-in visitor redirect.
+      signedIn.current = false;
+    },
+    [signedIn],
+  );
+
   useEffect(() => {
     if (!signedIn.current && isSignedInAndOnboarded(user)) {
       router.replace(redirectTo);
