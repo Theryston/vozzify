@@ -1,6 +1,7 @@
 import type { HomeRowTitle, HomeTrack, Locale } from '@vozzify/contracts';
 import { TrackLocaleTrendingService } from '../tracks/track-locale-trending.service.js';
 import { HomeRepository, type HomeTrackRecord } from './home.repository.js';
+import { loadUsefulAlbums } from './home-album-candidates.js';
 import type {
   ComposableEntity,
   ComposableTrack,
@@ -308,7 +309,8 @@ export const HOME_ENTITY_ROW_SOURCES = Symbol('HOME_ENTITY_ROW_SOURCES');
 type HomeEntityRecords = Pick<
   HomeRepository,
   'findGenreTrackCounts' | 'findPopularArtists' | 'findPopularAlbums'
->;
+> &
+  Partial<Pick<HomeRepository, 'findAlbumTrackSignals'>>;
 
 /**
  * The feed's entity rows, in order: genre tiles, featured artists, featured
@@ -341,12 +343,6 @@ export const createHomeEntityRowSources = (
     id: 'featured-albums',
     layout: 'albums',
     title: title('home.rows.featuredAlbums'),
-    load: async () =>
-      (await repository.findPopularAlbums(CANDIDATE_LIMIT)).map((record) => ({
-        id: record.id,
-        title: record.title,
-        coverArtUrl: record.coverArtUrl,
-        year: record.year,
-      })),
+    load: async () => loadUsefulAlbums(repository),
   },
 ];

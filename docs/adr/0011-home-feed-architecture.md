@@ -38,6 +38,16 @@ clients ignore layouts they do not know.
   leaves its Tracks free; only Tracks whose Processing completed; a hero needs a
   cover.
 
+Featured Albums are selected by the completed Tracks they add to the Albums
+already chosen. Shared Track popularity contributes only once; an Album with no
+additional available Track is omitted, and partial overlap is ranked by the
+popularity of its additional Tracks. Equal scores prefer a known
+non-compilation, available cover, oldest known year, then stable ID. Candidate
+retrieval uses at most four pages of 60 candidates, and the Album Row needs
+three items (up to twelve). Calibrated variety, concentration and overlap
+coefficients remain inactive until validated; see the
+[unvalidated bounded comparison](../home-album-calibration-proposal.md).
+
 **The version is a content hash.** `version` is a SHA-256 of the algorithm
 version and the rows, truncated to 16 hex characters. An unchanged feed keeps
 its version, so its cursors stay valid and the web is not revalidated for

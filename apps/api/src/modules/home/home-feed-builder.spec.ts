@@ -5,6 +5,7 @@ import {
   type HomeCandidate,
   type HomeRowSource,
 } from './home-row-sources.js';
+import { HOME_ALGORITHM_VERSION } from './home-rules.js';
 
 const candidate = (
   id: string,
@@ -57,7 +58,7 @@ describe('HomeFeedBuilder', () => {
 
     expect(feed).toMatchObject({
       audience: 'public',
-      algorithmVersion: 1,
+      algorithmVersion: HOME_ALGORITHM_VERSION,
       rows: [
         { id: 'hero', layout: 'hero' },
         { id: 'trending-today', layout: 'standard' },
