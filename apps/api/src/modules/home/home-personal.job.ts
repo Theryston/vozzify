@@ -9,6 +9,8 @@ import { z } from 'zod';
 
 export const PERSONAL_HOME_FEED_QUEUE = 'personal-home-feed';
 export const REFRESH_PERSONAL_HOME_FEED_JOB = 'refresh-personal-home-feed';
+export const REFRESH_PERSONAL_NIGHTLY_USER_JOB =
+  'refresh-personal-nightly-user';
 export const REFRESH_PERSONAL_NIGHTLY_JOB = 'refresh-personal-nightly';
 
 /** The repeatable job's scheduler ID and cron (every night at 02:30 UTC). */
@@ -20,8 +22,15 @@ export const refreshPersonalHomeFeedJobSchema = z.object({
   locale: localeSchema.optional(),
 });
 
+export const refreshPersonalNightlyUserJobSchema = z.object({
+  userId: z.string().min(1).max(128),
+});
+
 export type RefreshPersonalHomeFeedJob = z.infer<
   typeof refreshPersonalHomeFeedJobSchema
+>;
+export type RefreshPersonalNightlyUserJob = z.infer<
+  typeof refreshPersonalNightlyUserJobSchema
 >;
 
 /**
@@ -42,3 +51,6 @@ export const personalRequestRefreshJobId = (
   userId: string,
   locale: string,
 ): string => `personal-request-${userId}-${locale}`;
+
+export const personalNightlyRefreshJobId = (userId: string): string =>
+  `personal-nightly-user-${userId}`;

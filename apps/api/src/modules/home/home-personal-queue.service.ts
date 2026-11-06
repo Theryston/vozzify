@@ -6,10 +6,12 @@ import {
   PERSONAL_HOME_FEED_QUEUE,
   PERSONAL_NIGHTLY_CRON,
   PERSONAL_NIGHTLY_SCHEDULER_ID,
+  personalNightlyRefreshJobId,
   personalRefreshJobId,
   personalRequestRefreshJobId,
   REFRESH_PERSONAL_HOME_FEED_JOB,
   REFRESH_PERSONAL_NIGHTLY_JOB,
+  REFRESH_PERSONAL_NIGHTLY_USER_JOB,
   type RefreshPersonalHomeFeedJob,
 } from './home-personal.job.js';
 import { PERSONAL_REFRESH_DEBOUNCE_MS } from './home-rules.js';
@@ -20,7 +22,7 @@ export class PersonalHomeQueueService implements OnModuleInit {
   constructor(
     @InjectQueue(PERSONAL_HOME_FEED_QUEUE)
     private readonly queue: Queue<
-      RefreshPersonalHomeFeedJob | Record<string, never>
+      RefreshPersonalHomeFeedJob | { userId: string } | Record<string, never>
     >,
   ) {}
 
@@ -70,6 +72,19 @@ export class PersonalHomeQueueService implements OnModuleInit {
       { userId, locale },
       {
         jobId: personalRequestRefreshJobId(userId, locale),
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
+    );
+  }
+
+  /** Queues one nightly rebuild for every locale of an active User. */
+  async scheduleNightlyRefresh(userId: string): Promise<void> {
+    await this.queue.add(
+      REFRESH_PERSONAL_NIGHTLY_USER_JOB,
+      { userId },
+      {
+        jobId: personalNightlyRefreshJobId(userId),
         removeOnComplete: true,
         removeOnFail: true,
       },
