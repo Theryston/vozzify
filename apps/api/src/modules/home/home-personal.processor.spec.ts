@@ -33,7 +33,10 @@ const store = {
 const personal = {
   findActiveUserIds: vi.fn(),
 };
-const queue = { scheduleRefresh: vi.fn().mockResolvedValue(undefined) };
+const queue = {
+  scheduleRefresh: vi.fn().mockResolvedValue(undefined),
+  scheduleNightlyRefresh: vi.fn().mockResolvedValue(undefined),
+};
 const social = { refreshFor: vi.fn().mockResolvedValue(undefined) };
 
 const job = (name: string, data: unknown) =>
@@ -105,7 +108,7 @@ describe('PersonalHomeProcessor', () => {
     expect(error).toBeInstanceOf(UnrecoverableError);
   });
 
-  it('rebuilds the recently active Users in every locale on the nightly run', async () => {
+  it('queues one nightly batch per recently active User', async () => {
     personal.findActiveUserIds.mockResolvedValue(['user-1', 'user-2']);
 
     await processor.process(job(REFRESH_PERSONAL_NIGHTLY_JOB, {}));
@@ -114,11 +117,10 @@ describe('PersonalHomeProcessor', () => {
       expect.any(Date),
       expect.any(Number),
     );
-    expect(queue.scheduleRefresh).toHaveBeenCalledTimes(4);
-    expect(queue.scheduleRefresh).toHaveBeenCalledWith('user-1', 'en');
-    expect(queue.scheduleRefresh).toHaveBeenCalledWith('user-1', 'pt-BR');
-    expect(queue.scheduleRefresh).toHaveBeenCalledWith('user-2', 'en');
-    expect(queue.scheduleRefresh).toHaveBeenCalledWith('user-2', 'pt-BR');
+    expect(queue.scheduleNightlyRefresh).toHaveBeenCalledTimes(2);
+    expect(queue.scheduleNightlyRefresh).toHaveBeenCalledWith('user-1');
+    expect(queue.scheduleNightlyRefresh).toHaveBeenCalledWith('user-2');
+    expect(queue.scheduleRefresh).not.toHaveBeenCalled();
   });
 
   it('looks the nightly batch back a fortnight', async () => {
