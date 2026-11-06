@@ -52,7 +52,7 @@ export function HomeRows({
 
   return (
     <div className="flex flex-col gap-8">
-      <HomeEventsTracker pages={data.pages} />
+      <HomeEventsTracker pages={data.pages} locale={locale} />
       <HomeFeedRows rows={rows} />
       {isFetchingNextPage ? <CarouselRowSkeleton /> : null}
       {isFetchNextPageError ? <LoadMoreError onRetry={loadMore} /> : null}

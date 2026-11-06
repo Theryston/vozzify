@@ -14,12 +14,21 @@ import type { TrackedHomePage } from './tracked-rows';
 export function useHomeEvents(pages: TrackedHomePage[]): void {
   const queueRef = useRef<HomeImpressionQueue | null>(null);
   const trackedRef = useRef(new Set<string>());
+  const visitIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     if (queueRef.current === null) {
       queueRef.current = new HomeImpressionQueue();
     }
-    return startHomeTracking(pages, queueRef.current, trackedRef.current);
+    if (pages.some((page) => page.locale !== undefined)) {
+      visitIdRef.current ??= crypto.randomUUID();
+    }
+    return startHomeTracking(
+      pages,
+      queueRef.current,
+      trackedRef.current,
+      visitIdRef.current,
+    );
   }, [pages]);
 }

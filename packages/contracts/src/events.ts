@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { homeAudienceSchema } from './home.js';
+import { localeSchema } from './locales.js';
 
 /**
  * Engagement events (`POST /v1/events`): what visitors saw and clicked, stored
@@ -25,8 +27,17 @@ const eventRowIdSchema = z.string().min(1).max(64);
 /** The feed the row was seen in, so impressions join to the feed version. */
 const eventFeedVersionSchema = z.string().min(1).max(64);
 
+/** Identifies one browser page visit and each event across ingestion retries. */
+const eventAttributionFields = {
+  eventId: z.string().min(1).max(128).optional(),
+  visitId: z.string().min(1).max(128).optional(),
+  locale: localeSchema.optional(),
+  audience: homeAudienceSchema.optional(),
+};
+
 /** A home row seen at least half visible for at least one second. */
 export const homeRowImpressionEventSchema = z.object({
+  ...eventAttributionFields,
   type: z.literal('home.row_impression'),
   rowId: eventRowIdSchema,
   feedVersion: eventFeedVersionSchema,
@@ -49,6 +60,7 @@ export type HomeRowImpressionEvent = z.infer<
 
 /** A home card clicked. Sent asynchronously, never delaying the navigation. */
 export const homeItemClickEventSchema = z.object({
+  ...eventAttributionFields,
   type: z.literal('home.item_click'),
   /** Joins the click to the Track view opened by this link. */
   clickId: clickIdSchema.optional(),

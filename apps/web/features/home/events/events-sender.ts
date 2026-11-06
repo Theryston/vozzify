@@ -1,14 +1,7 @@
 import type { HomeItemClickEvent, RecordEventsBody } from '@vozzify/contracts';
 
 /** What a home click carries: the card, its row, and where it was shown. */
-export type ClickTarget = {
-  rowId: string;
-  feedVersion: string;
-  algorithmVersion: number;
-  itemId: string;
-  position?: number;
-  clickId?: string;
-};
+export type ClickTarget = Omit<HomeItemClickEvent, 'type'>;
 
 /** The click event of a home card. Sent asynchronously, never awaited. */
 export function buildClickEvent(target: ClickTarget): HomeItemClickEvent {
