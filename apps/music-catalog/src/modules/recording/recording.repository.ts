@@ -39,6 +39,7 @@ import {
   lRecordingWork,
   work,
 } from '../../database/schema/musicbrainz/work.js';
+import { coverRankSql } from './recording-cover.repository.js';
 import type {
   ExternalUrlRow,
   RecordingRow,
@@ -111,6 +112,7 @@ export class RecordingRepository {
     return this.getDb()
       .select({
         id: release.id,
+        coverRank: coverRankSql(recording.artistCredit),
         mbid: release.gid,
         title: release.name,
         releaseGroupMbid: releaseGroup.gid,
@@ -120,6 +122,7 @@ export class RecordingRepository {
         trackPosition: track.position,
       })
       .from(track)
+      .innerJoin(recording, eq(recording.id, track.recording))
       .innerJoin(medium, eq(medium.id, track.medium))
       .innerJoin(release, eq(release.id, medium.release))
       .innerJoin(releaseGroup, eq(releaseGroup.id, release.releaseGroup))

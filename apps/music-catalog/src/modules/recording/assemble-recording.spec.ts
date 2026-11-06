@@ -32,6 +32,7 @@ const details = (
 
 const release = (n: number, fields: Partial<ReleaseRow> = {}): ReleaseRow => ({
   id: n,
+  coverRank: 0,
   mbid: `00000000-0000-4000-8000-00000000020${n}`,
   title: `Release ${n}`,
   releaseGroupMbid: `00000000-0000-4000-8000-00000000030${n}`,

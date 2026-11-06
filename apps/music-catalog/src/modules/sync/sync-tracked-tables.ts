@@ -1,3 +1,8 @@
+import {
+  COVER_SYNC_TABLES,
+  releaseCreditRecordings,
+} from './cover-sync-tables.js';
+
 /**
  * Which MusicBrainz tables feed a Recording's search document, and how the
  * affected Recordings are found from a changed row. The worker installs one
@@ -118,7 +123,8 @@ export const TRACKED_TABLES: readonly TrackedTable[] = [
   {
     table: 'artist_credit_name',
     selectNew: `SELECT r.id AS recording_id, r.gid AS recording_mbid
-    FROM musicbrainz.recording r WHERE r.artist_credit = NEW.artist_credit`,
+    FROM musicbrainz.recording r WHERE r.artist_credit = NEW.artist_credit
+    UNION ${releaseCreditRecordings}`,
   },
   byArtistColumn('artist', 'id'),
   byArtistColumn('artist_alias', 'artist'),
@@ -127,6 +133,7 @@ export const TRACKED_TABLES: readonly TrackedTable[] = [
   byRelease('medium', 't.medium = NEW.id'),
   byRelease('release_country', 'm.release = NEW.release'),
   byRelease('release_unknown_country', 'm.release = NEW.release'),
+  ...COVER_SYNC_TABLES,
   {
     table: 'release_group_tag',
     selectNew: `SELECT r.id AS recording_id, r.gid AS recording_mbid

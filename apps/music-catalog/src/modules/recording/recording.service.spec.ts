@@ -19,6 +19,7 @@ const row: RecordingRow = {
 };
 
 const releaseRow: ReleaseRow = {
+  coverRank: 1,
   id: 1,
   mbid: '00000000-0000-4000-8000-000000000200',
   title: 'Release',

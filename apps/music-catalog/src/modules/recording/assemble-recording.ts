@@ -1,7 +1,11 @@
-import type { Recording, RecordingRelease } from '@vozzify/contracts';
-import { compareText, compareTextNullsLast } from '../../lib/compare.js';
+import type { Recording } from '@vozzify/contracts';
 import { coverArtUrl } from '../../lib/cover-art-url.js';
 import { chooseTags } from './genre-fallback.js';
+import {
+  earliestCoverDate,
+  orderCoverReleases,
+  type RankedRelease,
+} from './recording-cover-order.js';
 import type {
   RecordingDetails,
   RecordingRow,
@@ -13,31 +17,28 @@ import { pickReleaseEvent } from './release-event.js';
 const toRelease = (
   row: ReleaseRow,
   events: readonly ReleaseEventRow[],
-): RecordingRelease => {
-  const { date, country } = pickReleaseEvent(
-    events.filter((event) => event.releaseId === row.id),
-  );
+): RankedRelease => {
+  const ownEvents = events.filter((event) => event.releaseId === row.id);
+  const { date, country } = pickReleaseEvent(ownEvents);
   return {
-    mbid: row.mbid,
-    title: row.title,
-    releaseGroup: { mbid: row.releaseGroupMbid, primaryType: row.primaryType },
-    status: row.status,
-    date,
-    country,
-    mediumPosition: row.mediumPosition,
-    trackPosition: row.trackPosition,
-    coverArtUrl: coverArtUrl(row.mbid),
+    coverRank: row.coverRank,
+    coverDate: earliestCoverDate(ownEvents),
+    release: {
+      mbid: row.mbid,
+      title: row.title,
+      releaseGroup: {
+        mbid: row.releaseGroupMbid,
+        primaryType: row.primaryType,
+      },
+      status: row.status,
+      date,
+      country,
+      mediumPosition: row.mediumPosition,
+      trackPosition: row.trackPosition,
+      coverArtUrl: coverArtUrl(row.mbid),
+    },
   };
 };
-
-// Oldest first, undated last, then a fixed order so equal releases (a
-// Recording on two tracks of one release, say) always come out the same way.
-const compareReleases = (a: RecordingRelease, b: RecordingRelease): number =>
-  compareTextNullsLast(a.date, b.date) ||
-  compareText(a.title, b.title) ||
-  compareText(a.mbid, b.mbid) ||
-  a.mediumPosition - b.mediumPosition ||
-  a.trackPosition - b.trackPosition;
 
 /**
  * Builds the protocol's `Recording` from the rows read for it. No I/O: the
@@ -58,9 +59,11 @@ export const assembleRecording = (
     video: row.video,
     isrcs: details.isrcs,
     artistCredit: { name: row.artistCreditName, artists: details.artists },
-    releases: details.releases
-      .map((release) => toRelease(release, details.releaseEvents))
-      .sort(compareReleases),
+    releases: orderCoverReleases(
+      details.releases.map((release) =>
+        toRelease(release, details.releaseEvents),
+      ),
+    ),
     works: details.works,
     genres,
     tags,

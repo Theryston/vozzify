@@ -337,7 +337,10 @@ integer ids of MusicBrainz are internal and never leave the service.
   `country` (ISO 3166-1 alpha-2) are the release's **earliest release event**
   (dates keep their precision: `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; a dated
   event beats an undated one; ties go to the smaller country code). Releases
-  come oldest first, undated last, then by title and MBID.
+  prefer non-Compilation groups, then groups sharing a credited artist with
+  the Recording, then Official releases. Within that preference, dates come
+  oldest first, incomplete dates after known dates in their period, undated
+  last, then title, MBID and positions. See `docs/track-covers.md` for repair.
 - `coverArtUrl` is `https://assets.vozzify.com/cover-art-archive/release/<release MBID>/front-500`,
   built from the MBID alone (`cover_art` is loaded in neither dataset), so it can
   answer 404. `src/lib/cover-art-url.ts` is the one place that builds it; the
@@ -389,8 +392,9 @@ Track ID). Meilisearch stores the first four display fields, with the primary
 release MBID used to derive `coverUrl`; display identifiers are not searchable.
 
 - The primary release is chosen during initial indexing and incremental
-  updates with the same earliest-event, undated-last, title/MBID and
-  medium/track-position tie-breaks as `getRecording`.
+  updates with the same cover preferences and date/title/MBID/position
+  tie-breaks as `getRecording`. Deploying a new selection rule requires an
+  explicit index refresh for existing documents (`docs/track-covers.md`).
 - A pre-upgrade index document may not have `primaryReleaseMbid`; it is served
   with `coverUrl: null` until that Recording is reindexed. To fill covers for
   every existing Recording without downloading or restoring MusicBrainz data,
@@ -643,10 +647,13 @@ After the first import, every change to the MusicBrainz tables reaches the
   `recording`, `recording_gid_redirect`, `recording_tag`, `artist_credit`,
   `artist_credit_name`, `artist`, `artist_alias`, `artist_tag`, `release`,
   `medium`, `track`, `release_country`, `release_unknown_country`,
-  `release_group_tag`, `work`, `l_recording_work`, `url`, `link`,
+  `release_group`, `release_group_secondary_type_join`,
+  `release_group_secondary_type`, `release_status`, `release_group_tag`,
+  `work`, `l_recording_work`, `url`, `link`,
   `l_recording_url`, `link_type`, `tag`, `genre`. Only tables whose columns
   feed the indexed document are tracked. Release events are tracked because
-  they select the primary release displayed in search; other data that
+  they select the primary release displayed in search. Release group types,
+  artist credits and release status also feed cover selection; other data that
   `getRecording` shows live (isrcs, link type names) needs no trigger.
 
   To track another table, add one entry to `TRACKED_TABLES`: the MusicBrainz
