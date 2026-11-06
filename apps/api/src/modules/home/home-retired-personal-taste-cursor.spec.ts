@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import type { HomeRow, HomeTrack } from '@vozzify/contracts';
+import { AttemptsService } from '../attempts/attempts.service.js';
 import { StreaksService } from '../streaks/streaks.service.js';
 import { UsersService } from '../users/users.service.js';
 import { HomeService } from './home.service.js';
@@ -18,6 +19,7 @@ import {
   decayedTaste,
   type TasteSignal,
 } from './home-personal-recommendations.js';
+import { PersonalHomeTasteRepository } from './home-personal-taste.repository.js';
 import { PersonalHomeTasteRowsService } from './home-personal-taste-rows.service.js';
 import { personalHomeVersionFromStoredRows } from './home-personal-version.js';
 
@@ -96,25 +98,34 @@ describe('HomeService retired personal taste cursors', () => {
       findTracksForGenres: vi.fn().mockResolvedValue(tasteCards),
       findUserTasteActivities: vi.fn().mockResolvedValue([]),
     };
+    const attempts = {
+      mostSungArtistActivities: vi.fn().mockResolvedValue([]),
+    };
     const tasteSignals: TasteSignal[] = Array.from({ length: 4 }, () => ({
       genres: ['rock'],
       artistKey: 'singer',
       weight: 1,
       lastSignalAt: new Date(),
     }));
-    const generatedTasteRows = await new PersonalHomeTasteRowsService(
-      personal as unknown as PersonalHomeRepository,
-      tasteRepository as never,
-      { mostSungArtistActivities: vi.fn().mockResolvedValue([]) } as never,
-    ).build({
-      userId: 'user-a',
-      signals: [],
-      tasteSignals,
-      taste: decayedTaste(tasteSignals),
-      mastered: new Set(),
-      usedTrackIds: new Set(),
-      publicRows: [publicRow],
-    });
+    const tasteRowsModule = await Test.createTestingModule({
+      providers: [
+        PersonalHomeTasteRowsService,
+        { provide: PersonalHomeRepository, useValue: personal },
+        { provide: PersonalHomeTasteRepository, useValue: tasteRepository },
+        { provide: AttemptsService, useValue: attempts },
+      ],
+    }).compile();
+    const generatedTasteRows = await tasteRowsModule
+      .get(PersonalHomeTasteRowsService)
+      .build({
+        userId: 'user-a',
+        signals: [],
+        tasteSignals,
+        taste: decayedTaste(tasteSignals),
+        mastered: new Set(),
+        usedTrackIds: new Set(),
+        publicRows: [publicRow],
+      });
     expect(generatedTasteRows.map((row) => row.id)).toContain(
       'more-of-your-genres',
     );
