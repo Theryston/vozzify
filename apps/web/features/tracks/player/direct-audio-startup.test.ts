@@ -14,7 +14,13 @@ vi.mock('tone', async () => {
   };
 });
 
-import { Media, settle, tone, urls } from '../../../e2e/direct-audio-fixture';
+import {
+  Media,
+  NativeAudioContext,
+  settle,
+  tone,
+  urls,
+} from '../../../e2e/direct-audio-fixture';
 import { DirectAudioPlayer } from './direct-audio-player';
 
 describe('direct audio startup ordering', () => {
@@ -23,6 +29,7 @@ describe('direct audio startup ordering', () => {
   let resume: () => void;
 
   beforeEach(() => {
+    vi.stubGlobal('AudioContext', NativeAudioContext);
     ordering.length = 0;
     tone.decode.mockResolvedValue({
       duration: 120,

@@ -8,6 +8,8 @@ import { compensatedPitch, waveformPeaks } from './waveform';
 /** Native media seeks and streams; Tone applies transposition after rate correction. */
 export class DirectAudioPlayer extends BasePlayer implements PlayerPort {
   private readonly audio = new Audio();
+  // Tone's default standardized context does not expose native outputLatency.
+  private readonly context = new Tone.Context({ context: new AudioContext() });
   private pitch: Tone.PitchShift | null = null;
   private source: MediaElementAudioSourceNode | null = null;
   private readonly buffers = new Map<string, AudioBuffer>();
@@ -44,7 +46,8 @@ export class DirectAudioPlayer extends BasePlayer implements PlayerPort {
     if (!this.ready || this.disposed) return;
     this.playingRequested = true;
     const generation = this.generation;
-    void Tone.start()
+    void this.context
+      .resume()
       .then(async () => {
         if (!this.wantsPlayback(generation)) return false;
         this.connectGraph();
@@ -65,8 +68,11 @@ export class DirectAudioPlayer extends BasePlayer implements PlayerPort {
   // user gesture resumes the context, otherwise Tone warns about suspended audio.
   private connectGraph(): void {
     if (this.pitch) return;
-    this.pitch = new Tone.PitchShift({ wet: 0 }).toDestination();
-    this.source = Tone.getContext().createMediaElementSource(this.audio);
+    this.pitch = new Tone.PitchShift({
+      context: this.context,
+      wet: 0,
+    }).toDestination();
+    this.source = this.context.createMediaElementSource(this.audio);
     Tone.connect(this.source, this.pitch);
     this.updatePitch();
   }
@@ -76,7 +82,10 @@ export class DirectAudioPlayer extends BasePlayer implements PlayerPort {
     const shift = compensatedPitch(this.semitones, this.rate);
     this.pitch.pitch = shift;
     // PitchShift still delays unison audio by half its window (50 ms by default).
-    this.pitch.wet.setValueAtTime(shift === 0 ? 0 : 1, Tone.immediate());
+    this.pitch.wet.setValueAtTime(
+      shift === 0 ? 0 : 1,
+      this.context.immediate(),
+    );
   }
 
   private wantsPlayback(generation: number): boolean {
@@ -116,7 +125,7 @@ export class DirectAudioPlayer extends BasePlayer implements PlayerPort {
     // The modulated delay lines vary around the center of the processing window.
     const processingDelay =
       this.pitch && this.pitch.pitch !== 0 ? this.pitch.windowSize / 2 : 0;
-    const context = Tone.getContext().rawContext;
+    const context = this.context.rawContext;
     if (!('baseLatency' in context)) return processingDelay;
     return [context.baseLatency, context.outputLatency].reduce(
       (total, delay) =>
@@ -169,6 +178,7 @@ export class DirectAudioPlayer extends BasePlayer implements PlayerPort {
     this.audio.onerror = null;
     this.source?.disconnect();
     this.pitch?.dispose();
+    this.context.dispose();
     this.source = null;
     this.pitch = null;
     this.buffers.clear();
@@ -203,7 +213,7 @@ export class DirectAudioPlayer extends BasePlayer implements PlayerPort {
   private async decode(url: string): Promise<AudioBuffer> {
     const response = await fetch(url, { signal: this.downloads.signal });
     if (!response.ok) throw new Error('Audio download failed');
-    return Tone.getContext().decodeAudioData(await response.arrayBuffer());
+    return this.context.decodeAudioData(await response.arrayBuffer());
   }
 
   private loadMedia(url: string): Promise<void> {

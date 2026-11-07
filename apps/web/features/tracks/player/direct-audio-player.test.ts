@@ -5,7 +5,13 @@ vi.mock(
   async () => (await import('../../../e2e/direct-audio-fixture')).toneModule,
 );
 
-import { Media, settle, tone, urls } from '../../../e2e/direct-audio-fixture';
+import {
+  Media,
+  NativeAudioContext,
+  settle,
+  tone,
+  urls,
+} from '../../../e2e/direct-audio-fixture';
 import { DirectAudioPlayer } from './direct-audio-player';
 
 describe('DirectAudioPlayer', () => {
@@ -15,6 +21,7 @@ describe('DirectAudioPlayer', () => {
   const fetchAudio = vi.fn();
 
   beforeEach(() => {
+    vi.stubGlobal('AudioContext', NativeAudioContext);
     vi.clearAllMocks();
     tone.context.baseLatency = 0;
     tone.context.outputLatency = 0;
@@ -46,6 +53,24 @@ describe('DirectAudioPlayer', () => {
   afterEach(() => {
     player.destroy();
     vi.unstubAllGlobals();
+  });
+
+  it('uses its native render context for output latency and releases it on disposal', async () => {
+    await player.load();
+    tone.context.baseLatency = 0.01;
+    tone.context.outputLatency = 0.2;
+    player.play();
+    await settle();
+    audio.currentTime = 10.21;
+    expect(player.currentTime()).toBeCloseTo(10, 6);
+    const options = tone.createContext.mock.calls[0]?.[0];
+    expect(options?.context).toBeInstanceOf(NativeAudioContext);
+    expect(tone.createPitch).toHaveBeenCalledWith({
+      wet: 0,
+      context: expect.objectContaining({ rawContext: options?.context }),
+    });
+    player.destroy();
+    expect(tone.closeContext).toHaveBeenCalledOnce();
   });
 
   it('decodes real amplitudes and announces readiness after media metadata', async () => {

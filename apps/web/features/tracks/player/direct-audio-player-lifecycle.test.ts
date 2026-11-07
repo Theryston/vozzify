@@ -5,7 +5,13 @@ vi.mock(
   async () => (await import('../../../e2e/direct-audio-fixture')).toneModule,
 );
 
-import { Media, settle, tone, urls } from '../../../e2e/direct-audio-fixture';
+import {
+  Media,
+  NativeAudioContext,
+  settle,
+  tone,
+  urls,
+} from '../../../e2e/direct-audio-fixture';
 import { DirectAudioPlayer } from './direct-audio-player';
 
 function pending<T>() {
@@ -21,6 +27,7 @@ describe('direct audio async lifecycle', () => {
   let player: DirectAudioPlayer;
   const states = vi.fn();
   beforeEach(() => {
+    vi.stubGlobal('AudioContext', NativeAudioContext);
     tone.start.mockResolvedValue(undefined);
     tone.decode.mockResolvedValue({
       duration: 120,
