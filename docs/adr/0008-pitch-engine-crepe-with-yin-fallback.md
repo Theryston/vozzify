@@ -57,8 +57,14 @@ devices that cannot load or keep up with the model.
   Direct audio routed through Tone reports its source head instead of the
   audible position, so that player subtracts its own context's base and output
   latency before exposing Track time. Source switches preserve the unadjusted
-  media position. PitchShift's internal algorithm delay remains an estimate
-  outside this hardware-output correction and needs separate measurement.
+  media position. Unison playback bypasses PitchShift's delay lines immediately.
+  When pitch processing is needed (transposition or rate correction), the player
+  also subtracts half the effect's window as its nominal processing delay,
+  scaled by playback rate. Browser renders at positive and negative shifts
+  measured about 50 ms on average for the default 100 ms window. Instantaneous
+  delay varies with modulation, so this aligns the window's center rather than
+  promising sample-exact timing. Changing transposition anchors presentation
+  time to prevent a backward jump while the processing delay fills.
   Calibration compares singing with the synth's estimated audible onset using
   its output timestamp (reported output latency is the fallback). Old offsets
   are reset when loading preferences because their compensation model changed;

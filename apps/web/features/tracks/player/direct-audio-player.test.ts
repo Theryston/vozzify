@@ -18,6 +18,8 @@ describe('DirectAudioPlayer', () => {
     vi.clearAllMocks();
     tone.context.baseLatency = 0;
     tone.context.outputLatency = 0;
+    tone.context.currentTime = 0;
+    tone.effect.windowSize = 0.1;
     tone.start.mockResolvedValue(undefined);
     audio = new Media();
     vi.stubGlobal(
@@ -90,6 +92,29 @@ describe('DirectAudioPlayer', () => {
     expect(tone.effect.pitch).toBe(10);
   });
 
+  it('bypasses pitch processing at unison and restores it only when needed', async () => {
+    await player.load();
+    tone.context.currentTime = 37.5;
+    player.play();
+    await settle();
+    expect(tone.effect.wet.value).toBe(0);
+    expect(tone.effect.wet.setValueAtTime).toHaveBeenLastCalledWith(0, 37.5);
+    player.setTranspose(4);
+    expect(tone.effect.wet.value).toBe(1);
+    player.setTranspose(0);
+    expect(tone.effect.wet.value).toBe(0);
+    player.setRate(0.5);
+    expect(tone.effect.wet.value).toBe(1);
+    player.setTranspose(-12);
+    expect(tone.effect.pitch).toBe(0);
+    expect(tone.effect.wet.value).toBe(0);
+    player.setTranspose(0);
+    expect(tone.effect.wet.value).toBe(1);
+    player.setRate(1);
+    expect(tone.effect.pitch).toBe(0);
+    expect(tone.effect.wet.value).toBe(0);
+  });
+
   it.each([0.5, 1, 1.5])(
     'reports audible Track time using its own output at %sx',
     async (rate) => {
@@ -99,7 +124,8 @@ describe('DirectAudioPlayer', () => {
       await settle();
       tone.context.baseLatency = 0.01;
       tone.context.outputLatency = 0.2;
-      audio.currentTime = 10 + 0.21 * rate;
+      const outputDelay = rate === 1 ? 0.21 : 0.26;
+      audio.currentTime = 10 + outputDelay * rate;
       expect(player.currentTime()).toBeCloseTo(10, 6);
       tone.context.outputLatency = 0.05;
       expect(player.currentTime()).toBeCloseTo(10 + 0.15 * rate, 6);
@@ -107,6 +133,38 @@ describe('DirectAudioPlayer', () => {
       expect(player.currentTime()).toBe(0);
     },
   );
+
+  it.each([-12, -7, -1, 1, 4, 7, 12])(
+    'includes processing delay when transposed by %s semitones',
+    async (semitones) => {
+      await player.load();
+      player.setTranspose(semitones);
+      player.play();
+      await settle();
+      audio.currentTime = 10.05;
+      expect(player.currentTime()).toBeCloseTo(10, 6);
+      tone.effect.windowSize = 0.08;
+      audio.currentTime = 10.04;
+      expect(player.currentTime()).toBeCloseTo(10, 6);
+    },
+  );
+
+  it('does not rewind presentation time when pitch processing is enabled', async () => {
+    await player.load();
+    player.play();
+    await settle();
+    audio.currentTime = 10;
+    expect(player.currentTime()).toBe(10);
+    player.setTranspose(4);
+    expect(player.currentTime()).toBe(10);
+    audio.currentTime = 10.1;
+    expect(player.currentTime()).toBeCloseTo(10.05, 6);
+    player.pause();
+    expect(player.currentTime()).toBeCloseTo(10.05, 6);
+    player.play();
+    await settle();
+    expect(player.currentTime()).toBeCloseTo(10.05, 6);
+  });
 
   it('keeps the source position when switching audio with output compensation', async () => {
     await player.load();
