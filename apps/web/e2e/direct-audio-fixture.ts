@@ -16,14 +16,42 @@ export const tone = {
     },
   },
   decode: vi.fn(),
+  closeContext: vi.fn(),
+  createContext: vi.fn(),
+  createPitch: vi.fn(),
   context: { baseLatency: 0, outputLatency: 0, currentTime: 0 },
 };
+export class NativeAudioContext {
+  get baseLatency() {
+    return tone.context.baseLatency;
+  }
+  get outputLatency() {
+    return tone.context.outputLatency;
+  }
+  get currentTime() {
+    return tone.context.currentTime;
+  }
+}
+
 export const toneModule = {
+  Context: class {
+    readonly rawContext: NativeAudioContext;
+    constructor(options: { context: NativeAudioContext }) {
+      this.rawContext = options.context;
+      tone.createContext(options);
+    }
+    resume = tone.start;
+    immediate = () => this.rawContext.currentTime;
+    dispose = tone.closeContext;
+    createMediaElementSource = () => ({ disconnect: tone.disconnect });
+    decodeAudioData = tone.decode;
+  },
   start: tone.start,
   connect: tone.connect,
   immediate: () => tone.context.currentTime,
   PitchShift: class {
-    constructor(options?: { wet: number }) {
+    constructor(options?: { wet: number; context?: unknown }) {
+      tone.createPitch(options);
       tone.effect.wet.value = options?.wet ?? 1;
     }
     toDestination() {
@@ -31,7 +59,15 @@ export const toneModule = {
     }
   },
   getContext: () => ({
-    rawContext: tone.context,
+    // Tone's default standardized context hides the native output latency.
+    rawContext: {
+      get baseLatency() {
+        return tone.context.baseLatency;
+      },
+      get currentTime() {
+        return tone.context.currentTime;
+      },
+    },
     createMediaElementSource: () => ({ disconnect: tone.disconnect }),
     decodeAudioData: tone.decode,
   }),
