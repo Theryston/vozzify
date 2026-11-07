@@ -65,15 +65,18 @@ export class DirectAudioPlayer extends BasePlayer implements PlayerPort {
   // user gesture resumes the context, otherwise Tone warns about suspended audio.
   private connectGraph(): void {
     if (this.pitch) return;
-    this.pitch = new Tone.PitchShift().toDestination();
+    this.pitch = new Tone.PitchShift({ wet: 0 }).toDestination();
     this.source = Tone.getContext().createMediaElementSource(this.audio);
     Tone.connect(this.source, this.pitch);
     this.updatePitch();
   }
 
   private updatePitch(): void {
-    if (this.pitch)
-      this.pitch.pitch = compensatedPitch(this.semitones, this.rate);
+    if (!this.pitch) return;
+    const shift = compensatedPitch(this.semitones, this.rate);
+    this.pitch.pitch = shift;
+    // PitchShift still delays unison audio by half its window (50 ms by default).
+    this.pitch.wet.setValueAtTime(shift === 0 ? 0 : 1, Tone.immediate());
   }
 
   private wantsPlayback(generation: number): boolean {
@@ -110,12 +113,15 @@ export class DirectAudioPlayer extends BasePlayer implements PlayerPort {
   }
 
   private outputDelay(): number {
+    // The modulated delay lines vary around the center of the processing window.
+    const processingDelay =
+      this.pitch && this.pitch.pitch !== 0 ? this.pitch.windowSize / 2 : 0;
     const context = Tone.getContext().rawContext;
-    if (!('baseLatency' in context)) return 0;
+    if (!('baseLatency' in context)) return processingDelay;
     return [context.baseLatency, context.outputLatency].reduce(
       (total, delay) =>
         total + (Number.isFinite(delay) && delay > 0 ? delay : 0),
-      0,
+      processingDelay,
     );
   }
   duration(): number {
@@ -133,6 +139,7 @@ export class DirectAudioPlayer extends BasePlayer implements PlayerPort {
   }
 
   setTranspose(semitones: number): void {
+    this.presentationFloor = this.currentTime();
     this.semitones = semitones;
     this.updatePitch();
   }

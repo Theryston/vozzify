@@ -5,14 +5,27 @@ export const tone = {
   connect: vi.fn(),
   disconnect: vi.fn(),
   dispose: vi.fn(),
-  effect: { pitch: 0 },
+  effect: {
+    pitch: 0,
+    windowSize: 0.1,
+    wet: {
+      value: 1,
+      setValueAtTime: vi.fn((value: number): void => {
+        tone.effect.wet.value = value;
+      }),
+    },
+  },
   decode: vi.fn(),
-  context: { baseLatency: 0, outputLatency: 0 },
+  context: { baseLatency: 0, outputLatency: 0, currentTime: 0 },
 };
 export const toneModule = {
   start: tone.start,
   connect: tone.connect,
+  immediate: () => tone.context.currentTime,
   PitchShift: class {
+    constructor(options?: { wet: number }) {
+      tone.effect.wet.value = options?.wet ?? 1;
+    }
     toDestination() {
       return Object.assign(tone.effect, { dispose: tone.dispose });
     }
