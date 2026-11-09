@@ -106,7 +106,9 @@ export class HomeVisitService {
     const frozen = rows.find((row) => row?.id === rowId);
     if (!frozen) return undefined;
     if (!rowId.startsWith('pin-')) return frozen;
-    const live = await this.refreshPins([frozen], locale, signedIn);
+    // Pin placement depends on the complete frozen composition: earlier Pins
+    // and the hero may already claim tracks that this row also references.
+    const live = await this.refreshPins(rows, locale, signedIn);
     const refreshed = live.find((row) => row?.id === rowId);
     if (!refreshed || !sameTrackMembership(frozen, refreshed)) {
       throw expiredVisit();

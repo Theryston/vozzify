@@ -27,7 +27,7 @@ export function homeRowItemsQueryOptions(options: HomeRowItemsQueryInput) {
       ? { rowId, layout, items: [...initialItems], nextCursor: cursor }
       : { rowId, layout, items: [...initialItems], nextCursor: cursor };
   return infiniteQueryOptions({
-    queryKey: ['home', 'row-items', rowId, cursor] as const,
+    queryKey: homeQueryKeys.rowItems(rowId, cursor),
     queryFn: async ({ pageParam, signal }) => {
       const { fetchHomeRowItemsPage } = await import('./home-row-items-client');
       return fetchHomeRowItemsPage({
@@ -105,8 +105,8 @@ export async function restartHomeRowsAfterExpiredVisit(
   const verticalKey = homeQueryKeys.rows(locale, initialPage);
   await Promise.all([
     queryClient.cancelQueries({ queryKey: verticalKey, exact: true }),
-    queryClient.cancelQueries({ queryKey: ['home', 'row-items'] }),
+    queryClient.cancelQueries({ queryKey: homeQueryKeys.rowItemsPrefix() }),
   ]);
-  queryClient.removeQueries({ queryKey: ['home', 'row-items'] });
+  queryClient.removeQueries({ queryKey: homeQueryKeys.rowItemsPrefix() });
   resetHomeRowsAfterExpiredVisit(queryClient, locale, initialPage, firstPage);
 }

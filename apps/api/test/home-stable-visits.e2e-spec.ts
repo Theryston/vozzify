@@ -1,5 +1,7 @@
 import type { TestingModuleBuilder } from '@nestjs/testing';
 import request from 'supertest';
+import { trackProcessings } from '../src/database/schema/track-processings.js';
+import { tracks } from '../src/database/schema/tracks.js';
 import { HomeFeedService } from '../src/modules/home/home-feed.service.js';
 import { encodeHomeRowItemsCursor } from '../src/modules/home/home-row-items-cursor.js';
 import {
@@ -12,10 +14,11 @@ import { createAuthClient } from './utils/auth.js';
 import { createTestApp, type TestApp } from './utils/create-test-app.js';
 import { resetDatabase } from './utils/database.js';
 import {
+  heroPinBody,
   rowPinBody,
   signInPinsAdmin,
 } from './utils/editorial-pin-factories.js';
-import { createArtist } from './utils/factories.js';
+import { createArtist, testMbid } from './utils/factories.js';
 import {
   sharedInMemoryCache,
   withInMemoryCache,
@@ -277,6 +280,63 @@ describe('Home stable visit paging (e2e)', () => {
       )
       .expect(404);
     expect(expired.body.details.reason).toBe('FEED_VERSION_EXPIRED');
+  });
+
+  it('keeps hero-overlapping Pin rows readable across horizontal pages', async () => {
+    const createdTracks = await testApp.db
+      .insert(tracks)
+      .values(
+        Array.from({ length: 24 }, (_, index) => ({
+          recordingMbid: testMbid(5000 + index),
+          title: `Overlapping ${index}`,
+          lengthMs: 180_000,
+          disambiguation: '',
+          video: false,
+          isrcs: [],
+          genres: [],
+          ...(index === 0
+            ? { coverUrl: 'https://cdn.example/overlapping.webp' }
+            : {}),
+        })),
+      )
+      .returning();
+    await testApp.db.insert(trackProcessings).values(
+      createdTracks.map((track) => ({
+        trackId: track.id,
+        status: 'COMPLETED' as const,
+      })),
+    );
+    const trackIds = createdTracks.map((track) => track.id);
+    const hero = await client
+      .post('/v1/admin/home-pins')
+      .send(heroPinBody(trackIds[0] ?? ''))
+      .expect(201);
+    const row = await client
+      .post('/v1/admin/home-pins')
+      .send(rowPinBody(trackIds, { position: 1 }))
+      .expect(201);
+
+    const first = await request(testApp.app.getHttpServer())
+      .get('/v1/home?locale=en')
+      .expect(200);
+    const frozenRow = first.body.rows.find(
+      (candidate: { id: string }) => candidate.id === `pin-${row.body.id}`,
+    );
+    expect(first.body.rows[0]?.id).toBe(`pin-${hero.body.id as string}`);
+    expect(frozenRow.items).toHaveLength(12);
+    expect(frozenRow.nextItemsCursor).toEqual(expect.any(String));
+
+    const later = await request(testApp.app.getHttpServer())
+      .get(
+        `/v1/home/rows/${frozenRow.id}/items?cursor=${encodeURIComponent(frozenRow.nextItemsCursor)}`,
+      )
+      .expect(200);
+
+    expect(later.body.items).toHaveLength(11);
+    expect(later.body.items.map((item: { id: string }) => item.id)).toEqual(
+      trackIds.slice(13),
+    );
+    expect(later.body.nextCursor).toBeNull();
   });
 
   it('links Artist credits on horizontal pages after the first twelve items', async () => {

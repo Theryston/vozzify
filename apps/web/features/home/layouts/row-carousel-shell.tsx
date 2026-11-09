@@ -2,6 +2,7 @@ import type { HomeRowTitle, HomeTrack } from '@vozzify/contracts';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { TrackCard } from '@/features/tracks/components/track-card';
 import { creditText } from '@/lib/track-credit';
 import { CarouselScroller } from '../components/carousel-scroller';
@@ -64,13 +65,9 @@ export function RowCarouselShell({
           <p className="text-muted-foreground">
             {carouselText('loadMoreItemsError')}
           </p>
-          <button
-            type="button"
-            className="text-primary underline underline-offset-4"
-            onClick={onRetry}
-          >
+          <Button type="button" variant="link" size="default" onClick={onRetry}>
             {carouselText('retryItems')}
-          </button>
+          </Button>
         </div>
       ) : null}
     </section>
