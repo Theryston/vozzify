@@ -10,7 +10,7 @@ const isCI = Boolean(process.env.CI);
 // The streak specs sing into the fake microphone too, so they run there.
 const micSpec = /(track-mic|track-streak|streak-toast-clearance)\.spec\.ts$/;
 const sharedHomeSpecs =
-  /home(?:-discovery|-ranked|-hero|-composition|-circular)?\.spec\.ts$/;
+  /home(?:-discovery|-ranked|-hero|-composition|-circular(?:-touch)?)?\.spec\.ts$/;
 const realSearchSpecs = /[/\\]real-search[/\\]/;
 // Escape hatch for machines with a preinstalled Chromium that doesn't match
 // this Playwright version (and can't download one). CI leaves it unset and

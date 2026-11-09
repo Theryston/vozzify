@@ -88,11 +88,14 @@ export function RowTrackCards({
   items,
   priority,
   rangeBar,
+  carouselCopy,
 }: {
   items: readonly HomeTrack[];
   priority: boolean;
   rangeBar?: boolean;
+  carouselCopy?: 'before' | 'middle' | 'after';
 }) {
+  const isCopy = carouselCopy === 'before' || carouselCopy === 'after';
   return (
     <>
       {items.map((track, index) => (
@@ -101,6 +104,8 @@ export function RowTrackCards({
           className={CAROUSEL_ITEM_CLASS}
           data-home-item-id={track.id}
           data-home-item-position={index}
+          data-carousel-copy={carouselCopy}
+          aria-hidden={isCopy ? true : undefined}
         >
           <TrackCard
             trackId={track.id}

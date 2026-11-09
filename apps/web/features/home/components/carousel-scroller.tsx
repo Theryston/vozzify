@@ -198,8 +198,13 @@ export function CarouselScroller({
       <ul
         ref={trackRef}
         className={CAROUSEL_TRACK_CLASS}
+        onAuxClickCapture={circular.onAuxClickCapture}
+        onClickCapture={circular.onClickCapture}
         onFocusCapture={circular.onFocusCapture}
         onKeyDown={circular.onKeyDown}
+        onPointerDownCapture={circular.onPointerDownCapture}
+        onPointerCancelCapture={circular.onPointerCancelCapture}
+        onPointerUpCapture={circular.onPointerUpCapture}
       >
         {circular.children}
       </ul>

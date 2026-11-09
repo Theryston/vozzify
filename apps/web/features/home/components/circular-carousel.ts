@@ -8,36 +8,77 @@ import {
   type KeyboardEvent,
   type MutableRefObject,
   type ReactElement,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
-  useEffect,
   useLayoutEffect,
+  useRef,
   useState,
 } from 'react';
+import {
+  segmentWidth,
+  useLooping,
+  useRecenterOnScroll,
+} from './circular-carousel-geometry';
 
-const EDGE_TOLERANCE = 2;
 type Copy = 'before' | 'middle' | 'after';
+type PendingFocus = {
+  id: string;
+  shift: number;
+  center: number;
+};
 
-function carouselChildren(children: ReactNode, copy: Copy) {
+function carouselChildren(children: ReactNode, copy: Copy, position: number) {
   return Children.toArray(children).map((child) => {
     if (!isValidElement(child)) return child;
     const element = child as ReactElement<Record<string, unknown>>;
     return cloneElement(element, {
-      key: `${copy}-${child.key ?? 'item'}`,
-      'data-carousel-copy': copy,
-      ...(copy === 'middle'
-        ? {}
-        : {
-            'aria-hidden': true,
-          }),
+      key: `segment-${position}-${child.key ?? 'item'}`,
+      carouselCopy: copy,
     });
   });
 }
 
-function moveKeyboardFocus(
-  track: HTMLUListElement,
-  event: KeyboardEvent<HTMLUListElement>,
-  looping: boolean,
-): void {
+function queueSeamFocus({
+  track,
+  destination,
+  direction,
+  center,
+  setCenter,
+  pendingFocus,
+}: {
+  track: HTMLUListElement;
+  destination: HTMLElement;
+  direction: -1 | 1;
+  center: number;
+  setCenter: (center: number) => void;
+  pendingFocus: MutableRefObject<PendingFocus | null>;
+}): void {
+  const width = segmentWidth(track);
+  const nextCenter = (center + direction + 3) % 3;
+  const cardWidth = destination.getBoundingClientRect().width;
+  pendingFocus.current = {
+    id: destination.dataset.homeItemId ?? '',
+    shift: width === undefined ? 0 : -direction * (width - cardWidth),
+    center: nextCenter,
+  };
+  setCenter(nextCenter);
+}
+
+function moveKeyboardFocus({
+  track,
+  event,
+  looping,
+  center,
+  setCenter,
+  pendingFocus,
+}: {
+  track: HTMLUListElement;
+  event: KeyboardEvent<HTMLUListElement>;
+  looping: boolean;
+  center: number;
+  setCenter: (center: number) => void;
+  pendingFocus: MutableRefObject<PendingFocus | null>;
+}): void {
   if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
   if (!(event.target instanceof Element)) return;
   const current = event.target.closest<HTMLElement>(
@@ -51,143 +92,151 @@ function moveKeyboardFocus(
   );
   const index = cards.indexOf(current);
   const nextIndex = index + (event.key === 'ArrowRight' ? 1 : -1);
-  const destination = looping
+  const wrapped = looping && (nextIndex < 0 || nextIndex >= cards.length);
+  const destination = wrapped
     ? cards[(nextIndex + cards.length) % cards.length]
     : cards[nextIndex];
   const link = destination?.querySelector<HTMLAnchorElement>('a[href]');
-  if (!link) return;
+  if (!destination || !link) return;
   event.preventDefault();
+  if (wrapped) {
+    queueSeamFocus({
+      track,
+      destination,
+      direction: event.key === 'ArrowRight' ? 1 : -1,
+      center,
+      setCenter,
+      pendingFocus,
+    });
+    return;
+  }
   link.focus();
 }
 
 function moveFocusToLogicalCopy(
-  track: HTMLUListElement,
-  event: FocusEvent<HTMLUListElement>,
+  event: FocusEvent<HTMLUListElement> | ReactMouseEvent<HTMLUListElement>,
+  center: number,
+  setCenter: (center: number) => void,
+  pendingFocus: MutableRefObject<PendingFocus | null>,
 ): void {
-  if (!(event.target instanceof Element)) return;
-  const copy = event.target.closest<HTMLElement>(
+  const link =
+    event.target instanceof Element
+      ? event.target.closest<HTMLAnchorElement>('a[href]')
+      : null;
+  const copy = link?.closest<HTMLElement>(
     'li[data-carousel-copy="before"], li[data-carousel-copy="after"]',
   );
-  const itemId = copy?.dataset.homeItemId;
-  if (!itemId) return;
-  const canonical = Array.from(
-    track.querySelectorAll<HTMLElement>(
-      'li[data-carousel-copy="middle"][data-home-item-id]',
-    ),
-  ).find((item) => item.dataset.homeItemId === itemId);
-  canonical?.querySelector<HTMLAnchorElement>('a[href]')?.focus({
+  if (!copy?.dataset.homeItemId) return;
+  link?.blur();
+  const direction = copy.dataset.carouselCopy === 'after' ? 1 : -1;
+  const width = segmentWidth(event.currentTarget);
+  const nextCenter = (center + direction + 3) % 3;
+  pendingFocus.current = {
+    id: copy.dataset.homeItemId,
+    shift: width === undefined ? 0 : -direction * width,
+    center: nextCenter,
+  };
+  setCenter(nextCenter);
+}
+
+function orderedCopies(center: number): Copy[] {
+  const copies: Copy[] = ['before', 'middle', 'after'];
+  return [0, 1, 2].map(
+    (position) => copies[(position - center + 1 + 3) % 3] ?? 'middle',
+  );
+}
+
+function focusVisibleItem(
+  track: HTMLUListElement,
+  item: HTMLElement | undefined,
+): void {
+  if (!item) return;
+  const trackBounds = track.getBoundingClientRect();
+  const itemBounds = item.getBoundingClientRect();
+  if (itemBounds.left < trackBounds.left) {
+    track.scrollLeft += itemBounds.left - trackBounds.left;
+  } else if (itemBounds.right > trackBounds.right) {
+    track.scrollLeft += itemBounds.right - trackBounds.right;
+  }
+  item.querySelector<HTMLAnchorElement>('a[href]')?.focus({
     preventScroll: true,
   });
 }
 
-function recenter(track: HTMLUListElement): void {
-  const segmentStart = segmentWidth(track);
-  if (segmentStart === undefined || segmentStart <= 0) return;
-  const segmentEnd = segmentStart * 2;
-  if (track.scrollLeft < segmentStart) {
-    track.scrollLeft += segmentStart;
-  } else if (track.scrollLeft > segmentEnd) {
-    track.scrollLeft -= segmentStart;
+function setCopyTabStops(track: HTMLUListElement, center: number): void {
+  const children = Array.from(track.children);
+  const itemsPerSegment = children.length / 3;
+  for (const [position, copy] of orderedCopies(center).entries()) {
+    const start = position * itemsPerSegment;
+    const end = start + itemsPerSegment;
+    for (const item of children.slice(start, end)) {
+      for (const link of item.querySelectorAll<HTMLAnchorElement>('a')) {
+        if (copy === 'middle') link.removeAttribute('tabindex');
+        else link.tabIndex = -1;
+      }
+    }
   }
-}
-
-function segmentWidth(track: HTMLUListElement): number | undefined {
-  const before = track.querySelector<HTMLElement>(
-    '[data-carousel-copy="before"]',
-  );
-  const middle = track.querySelector<HTMLElement>(
-    '[data-carousel-copy="middle"]',
-  );
-  if (!before || !middle) return undefined;
-  return (
-    middle.getBoundingClientRect().left - before.getBoundingClientRect().left
-  );
-}
-
-function useLooping(
-  trackRef: MutableRefObject<HTMLUListElement | null>,
-  exhausted: boolean,
-): boolean {
-  const [looping, setLooping] = useState(false);
-  useEffect(() => {
-    const track = trackRef.current;
-    if (!track) return;
-    const update = () => updateLooping(track, looping, exhausted, setLooping);
-    update();
-    const resizeObserver =
-      typeof ResizeObserver === 'undefined'
-        ? undefined
-        : new ResizeObserver(update);
-    resizeObserver?.observe(track);
-    const contents = new MutationObserver(update);
-    contents.observe(track, { childList: true });
-    return () => {
-      resizeObserver?.disconnect();
-      contents.disconnect();
-    };
-  }, [exhausted, looping, trackRef]);
-  return looping;
-}
-
-function updateLooping(
-  track: HTMLUListElement,
-  looping: boolean,
-  exhausted: boolean,
-  setLooping: (looping: boolean) => void,
-): void {
-  const width = segmentWidth(track);
-  const contentWidth = looping ? width : track.scrollWidth;
-  const overflow =
-    contentWidth !== undefined &&
-    contentWidth - track.clientWidth > EDGE_TOLERANCE;
-  const shouldLoop = exhausted && overflow;
-  if (shouldLoop === looping) return;
-  const previousOffset = track.scrollLeft;
-  const first = track.firstElementChild;
-  const firstOffset = first
-    ? first.getBoundingClientRect().left - track.getBoundingClientRect().left
-    : 0;
-  setLooping(shouldLoop);
-  if (shouldLoop) {
-    requestAnimationFrame(() => {
-      const middle = track.querySelector<HTMLElement>(
-        '[data-carousel-copy="middle"]',
-      );
-      if (!middle) return;
-      const middleOffset =
-        middle.getBoundingClientRect().left -
-        track.getBoundingClientRect().left;
-      track.scrollLeft = previousOffset + middleOffset - firstOffset;
-    });
-  }
-}
-
-function useRecenterOnScroll(
-  trackRef: MutableRefObject<HTMLUListElement | null>,
-  looping: boolean,
-): void {
-  useEffect(() => {
-    const track = trackRef.current;
-    if (!track || !looping) return;
-    const update = () => recenter(track);
-    track.addEventListener('scroll', update, { passive: true });
-    return () => track.removeEventListener('scroll', update);
-  }, [looping, trackRef]);
 }
 
 function useHideCopiesFromTabOrder(
   trackRef: MutableRefObject<HTMLUListElement | null>,
   looping: boolean,
+  center: number,
 ): void {
   useLayoutEffect(() => {
     const track = trackRef.current;
-    if (!track || !looping) return;
-    const selector =
-      '[data-carousel-copy="before"] a, [data-carousel-copy="after"] a';
-    for (const link of track.querySelectorAll<HTMLAnchorElement>(selector)) {
-      link.tabIndex = -1;
+    if (!track) return;
+    if (!looping) {
+      for (const link of track.querySelectorAll<HTMLAnchorElement>('a')) {
+        link.removeAttribute('tabindex');
+      }
+      return;
     }
-  }, [looping, trackRef.current]);
+    setCopyTabStops(track, center);
+  }, [center, looping, trackRef.current]);
+}
+
+function useCopyFocus(
+  center: number,
+  setCenter: (center: number) => void,
+  pendingFocus: MutableRefObject<PendingFocus | null>,
+) {
+  const pointerInteraction = useRef(false);
+  const onFocusCapture = (event: FocusEvent<HTMLUListElement>) => {
+    if (!pointerInteraction.current)
+      moveFocusToLogicalCopy(event, center, setCenter, pendingFocus);
+  };
+  const onPointerClickCapture = (event: ReactMouseEvent<HTMLUListElement>) => {
+    pointerInteraction.current = false;
+    moveFocusToLogicalCopy(event, center, setCenter, pendingFocus);
+  };
+  return {
+    onFocusCapture,
+    onPointerDownCapture: () => {
+      pointerInteraction.current = true;
+    },
+    onPointerUpCapture: () => {
+      pointerInteraction.current = false;
+    },
+    onPointerCancelCapture: () => {
+      pointerInteraction.current = false;
+    },
+    onClickCapture: onPointerClickCapture,
+    onAuxClickCapture: onPointerClickCapture,
+  };
+}
+
+function scrollByPage(
+  trackRef: MutableRefObject<HTMLUListElement | null>,
+  direction: 'left' | 'right',
+): void {
+  const track = trackRef.current;
+  if (!track) return;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  track.scrollBy({
+    left: (direction === 'left' ? -1 : 1) * track.clientWidth,
+    behavior: reduce ? 'auto' : 'smooth',
+  });
 }
 
 export function useCircularCarousel(
@@ -195,41 +244,50 @@ export function useCircularCarousel(
   children: ReactNode,
   exhausted: boolean,
 ) {
-  const looping = useLooping(trackRef, exhausted);
-  useRecenterOnScroll(trackRef, looping);
-  useHideCopiesFromTabOrder(trackRef, looping);
+  const { looping, centered } = useLooping(trackRef, exhausted);
+  const [center, setCenter] = useState(1);
+  const pendingFocus = useRef<PendingFocus | null>(null);
+  const copyFocus = useCopyFocus(center, setCenter, pendingFocus);
+  useRecenterOnScroll(trackRef, looping && centered, setCenter);
+  useHideCopiesFromTabOrder(trackRef, looping, center);
+
+  useLayoutEffect(() => {
+    const pending = pendingFocus.current;
+    const track = trackRef.current;
+    if (!pending || !track || pending.center !== center) return;
+    pendingFocus.current = null;
+    track.scrollLeft += pending.shift;
+    const destination = Array.from(
+      track.querySelectorAll<HTMLElement>(
+        'li[data-carousel-copy="middle"][data-home-item-id]',
+      ),
+    ).find((item) => item.dataset.homeItemId === pending.id);
+    focusVisibleItem(track, destination);
+  }, [center, trackRef]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLUListElement>) => {
     const track = trackRef.current;
-    if (track) moveKeyboardFocus(track, event, looping);
+    if (track) {
+      moveKeyboardFocus({
+        track,
+        event,
+        looping,
+        center,
+        setCenter,
+        pendingFocus,
+      });
+    }
   };
-  const onFocusCapture = (event: FocusEvent<HTMLUListElement>) => {
-    const track = trackRef.current;
-    if (track) moveFocusToLogicalCopy(track, event);
-  };
-  const scrollByPage = (direction: 'left' | 'right') => {
-    const track = trackRef.current;
-    if (!track) return;
-    const reduce = window.matchMedia(
-      '(prefers-reduced-motion: reduce)',
-    ).matches;
-    track.scrollBy({
-      left: (direction === 'left' ? -1 : 1) * track.clientWidth,
-      behavior: reduce ? 'auto' : 'smooth',
-    });
-  };
-
   return {
     looping,
     children: looping
-      ? [
-          ...carouselChildren(children, 'before'),
-          ...carouselChildren(children, 'middle'),
-          ...carouselChildren(children, 'after'),
-        ]
+      ? orderedCopies(center).flatMap((copy, position) =>
+          carouselChildren(children, copy, position),
+        )
       : children,
     onKeyDown,
-    onFocusCapture,
-    scrollByPage,
+    ...copyFocus,
+    scrollByPage: (direction: 'left' | 'right') =>
+      scrollByPage(trackRef, direction),
   };
 }
