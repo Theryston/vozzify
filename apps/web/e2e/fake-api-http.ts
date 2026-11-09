@@ -51,7 +51,8 @@ export const json = (
     'content-type': 'application/json',
     ...cors(request),
     'access-control-allow-methods': 'GET, POST, OPTIONS',
-    'access-control-allow-headers': 'content-type',
+    'access-control-allow-headers':
+      request.headers['access-control-request-headers'] ?? 'content-type',
   });
   response.end(JSON.stringify(body));
 };

@@ -6,7 +6,10 @@ import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { resetHomeRowsAfterExpiredVisit } from '../home-rows-query';
+import {
+  fetchHomeRowsPage,
+  restartHomeRowsAfterExpiredVisit,
+} from '../home-rows-query';
 import { isHomeVisitRestartError } from '../home-visit-restart';
 import { useHomeRows } from '../hooks/use-home-rows';
 import { HomeFeedRows } from './home-feed-rows';
@@ -54,7 +57,7 @@ export function HomeRows({
 
   useEffect(() => {
     if (!isHomeVisitRestartError(error)) return;
-    resetHomeRowsAfterExpiredVisit(
+    void restartHomeRowsAfterExpiredVisit(
       queryClient,
       locale,
       initialPage,
@@ -64,11 +67,37 @@ export function HomeRows({
   const loadMore = useCallback(() => {
     void fetchNextPage();
   }, [fetchNextPage]);
+  const restartVisit = useCallback(
+    async (expiredPage?: HomeFeedPage) => {
+      const firstPage =
+        expiredPage ??
+        (await fetchHomeRowsPage({
+          locale,
+          cursor: undefined,
+          signal: new AbortController().signal,
+        }));
+      await restartHomeRowsAfterExpiredVisit(
+        queryClient,
+        locale,
+        initialPage,
+        firstPage,
+      );
+    },
+    [initialPage, locale, queryClient],
+  );
+  const onVisitExpired = useCallback(
+    (expiredPage: HomeFeedPage) => void restartVisit(expiredPage),
+    [restartVisit],
+  );
 
   return (
     <div className="flex flex-col gap-8">
       <HomeEventsTracker pages={data.pages} locale={locale} />
-      <HomeFeedRows rows={rows} />
+      <HomeFeedRows
+        rows={rows}
+        locale={locale}
+        onVisitExpired={onVisitExpired}
+      />
       {isFetchingNextPage ? <CarouselRowSkeleton /> : null}
       {isFetchNextPageError ? <LoadMoreError onRetry={loadMore} /> : null}
       {hasNextPage && !isFetchNextPageError ? (

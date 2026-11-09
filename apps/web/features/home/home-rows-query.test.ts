@@ -1,7 +1,19 @@
-import { QueryClient } from '@tanstack/react-query';
+import { InfiniteQueryObserver, QueryClient } from '@tanstack/react-query';
 import type { HomeFeedPage } from '@vozzify/contracts';
 import { describe, expect, it, vi } from 'vitest';
-import { fetchHomeRowsPage, homeRowsQueryOptions } from './home-rows-query';
+import {
+  fetchHomeRowsPage,
+  homeRowItemsQueryOptions,
+  homeRowsQueryOptions,
+  resetHomeRowsAfterExpiredVisit,
+  restartHomeRowsAfterExpiredVisit,
+} from './home-rows-query';
+
+const { browserApiMock } = vi.hoisted(() => ({ browserApiMock: vi.fn() }));
+
+vi.mock('@/lib/api/browser', () => ({
+  browserApi: (...args: unknown[]) => browserApiMock(...args),
+}));
 
 const fetchHomePageInBrowser = vi.fn();
 
@@ -136,5 +148,146 @@ describe('homeRowsQueryOptions', () => {
       'cursor-2',
     );
     expect(getNextPageParam(page(null), [], undefined, [])).toBeUndefined();
+  });
+});
+
+describe('homeRowItemsQueryOptions', () => {
+  it('leaves transient page failures for the explicit Retry action', () => {
+    expect(
+      homeRowItemsQueryOptions({
+        rowId: 'row-1',
+        layout: 'standard',
+        initialItems: [],
+        cursor: 'opaque-cursor',
+        locale: 'en',
+      }).retry,
+    ).toBe(false);
+  });
+
+  it('seeds the first horizontal page and resumes from its opaque cursor', () => {
+    const items = [
+      {
+        id: 'track-1',
+        title: 'Track 1',
+        coverUrl: null,
+        artistCredit: [],
+        durationMs: null,
+        vocalRange: null,
+      },
+    ];
+    const options = homeRowItemsQueryOptions({
+      rowId: 'row-1',
+      layout: 'standard',
+      initialItems: items,
+      cursor: 'opaque-cursor',
+      locale: 'pt-BR',
+    });
+
+    expect(options.initialData).toMatchObject({
+      pages: [
+        {
+          rowId: 'row-1',
+          layout: 'standard',
+          items,
+          nextCursor: 'opaque-cursor',
+        },
+      ],
+    });
+  });
+
+  it('fetches a bounded page through the row URL', async () => {
+    const page = {
+      rowId: 'row-1',
+      layout: 'standard' as const,
+      items: [
+        {
+          id: 'track-1',
+          title: 'Track 1',
+          coverUrl: null,
+          artistCredit: [],
+          durationMs: null,
+          vocalRange: null,
+        },
+      ],
+      nextCursor: null,
+    };
+    browserApiMock.mockResolvedValue(page);
+    const { queryFn } = homeRowItemsQueryOptions({
+      rowId: 'row-1',
+      layout: 'standard',
+      initialItems: [],
+      cursor: 'cursor-12',
+      locale: 'en',
+    });
+
+    await expect(
+      (
+        queryFn as (context: {
+          pageParam: string;
+          signal: AbortSignal;
+        }) => Promise<unknown>
+      )({
+        pageParam: 'cursor-12',
+        signal: new AbortController().signal,
+      }),
+    ).resolves.toBe(page);
+    expect(browserApiMock).toHaveBeenCalledWith(
+      '/home/rows/row-1/items',
+      expect.objectContaining({ query: { cursor: 'cursor-12' } }),
+    );
+  });
+});
+
+describe('resetHomeRowsAfterExpiredVisit', () => {
+  it('replaces the vertical pages with the fresh first page', () => {
+    const client = new QueryClient();
+    const oldPage = page('vertical-2');
+    const freshPage = { ...page(null), version: 'b1b2b3b4b5b6b7b8' };
+    const key = homeRowsQueryOptions('en', oldPage).queryKey;
+    client.setQueryData(key, {
+      pages: [oldPage, page('vertical-3')],
+      pageParams: [undefined, 'vertical-2'],
+    });
+
+    resetHomeRowsAfterExpiredVisit(client, 'en', oldPage, freshPage);
+
+    expect(client.getQueryData(key)).toEqual({
+      pages: [freshPage],
+      pageParams: [undefined],
+    });
+  });
+
+  it('cancels an in-flight vertical page before clearing horizontal pages', async () => {
+    const client = new QueryClient();
+    const oldPage = page('vertical-2');
+    const freshPage = { ...page(null), version: 'b1b2b3b4b5b6b7b8' };
+    const options = homeRowsQueryOptions('en', oldPage);
+    let resolveOld: ((value: HomeFeedPage) => void) | undefined;
+    const pendingOldPage = new Promise<HomeFeedPage>((resolve) => {
+      resolveOld = resolve;
+    });
+    const observer = new InfiniteQueryObserver(client, {
+      ...options,
+      queryFn: () => pendingOldPage,
+    });
+    client.setQueryData(['home', 'row-items', 'row-1', 'items-12'], {
+      pages: [],
+      pageParams: [],
+    });
+    const pendingFetch = observer.getCurrentResult().fetchNextPage();
+    await vi.waitFor(() => expect(resolveOld).toBeTypeOf('function'));
+
+    await restartHomeRowsAfterExpiredVisit(client, 'en', oldPage, freshPage);
+    resolveOld?.(page('vertical-3'));
+    await pendingFetch;
+
+    expect(client.getQueryData(options.queryKey)).toEqual({
+      pages: [freshPage],
+      pageParams: [undefined],
+    });
+    expect(
+      client.getQueryData(['home', 'row-items', 'row-1', 'items-12']),
+    ).toBeUndefined();
+    observer.destroy();
   });
 });

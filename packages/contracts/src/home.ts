@@ -83,6 +83,8 @@ export const homeCarouselRowSchema = z.object({
   title: homeRowTitleSchema,
   sponsored: z.boolean().optional(),
   items: z.array(homeTrackSchema).min(1).max(HOME_CAROUSEL_MAX_ITEMS),
+  /** Opaque cursor for the next horizontal item page. */
+  nextItemsCursor: z.string().min(1).max(512).nullable().optional(),
 });
 
 export type HomeCarouselRow = z.infer<typeof homeCarouselRowSchema>;
@@ -279,6 +281,30 @@ export const homeFeedPageSchema = homeFeedSchema.extend({
 });
 
 export type HomeFeedPage = z.output<typeof homeFeedPageSchema>;
+
+/** One bounded horizontal page for a frozen Home Track Row. */
+export const homeRowItemsPageSchema = z.discriminatedUnion('layout', [
+  z.object({
+    rowId: homeRowIdSchema,
+    layout: z.literal('standard'),
+    items: z.array(homeTrackSchema).min(1).max(12),
+    nextCursor: z.string().min(1).max(512).nullable(),
+  }),
+  z.object({
+    rowId: homeRowIdSchema,
+    layout: z.literal('vocal-range'),
+    items: z.array(homeVocalRangeTrackSchema).min(1).max(12),
+    nextCursor: z.string().min(1).max(512).nullable(),
+  }),
+]);
+
+export type HomeRowItemsPage = z.infer<typeof homeRowItemsPageSchema>;
+
+export const homeRowItemsQuerySchema = z.object({
+  cursor: z.string().min(1).max(512),
+});
+
+export type HomeRowItemsQuery = z.infer<typeof homeRowItemsQuerySchema>;
 
 /**
  * `locale` picks the feed: omitted, the feed is `en`; an unsupported locale is

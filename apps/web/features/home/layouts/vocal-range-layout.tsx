@@ -1,5 +1,11 @@
-import type { HomeVocalRangeRow } from '@vozzify/contracts';
-
+import type {
+  HomeFeedPage,
+  HomeTrack,
+  HomeVocalRangeRow,
+  HomeVocalRangeTrack,
+  Locale,
+} from '@vozzify/contracts';
+import { useHomeRowItems } from '../hooks/use-home-row-items';
 import { RowCarouselShell, RowTrackCards } from './row-carousel-shell';
 
 /**
@@ -11,17 +17,86 @@ import { RowCarouselShell, RowTrackCards } from './row-carousel-shell';
 export function VocalRangeLayout({
   row,
   priority,
+  locale,
+  onVisitExpired,
 }: {
   row: HomeVocalRangeRow;
   priority: boolean;
+  locale?: Locale;
+  onVisitExpired?: (page: HomeFeedPage) => void;
+}) {
+  return row.nextItemsCursor ? (
+    <PagedVocalRangeLayout
+      row={row}
+      priority={priority}
+      locale={locale ?? 'en'}
+      onVisitExpired={onVisitExpired}
+    />
+  ) : (
+    <VocalRangeRowView row={row} priority={priority} items={row.items} />
+  );
+}
+
+function PagedVocalRangeLayout({
+  row,
+  priority,
+  locale,
+  onVisitExpired,
+}: {
+  row: HomeVocalRangeRow;
+  priority: boolean;
+  locale: Locale;
+  onVisitExpired?: (page: HomeFeedPage) => void;
+}) {
+  const loaded = useHomeRowItems({
+    rowId: row.id,
+    layout: 'vocal-range',
+    initialItems: row.items,
+    cursor: row.nextItemsCursor,
+    locale,
+    onVisitExpired,
+  });
+  const items = loaded.items.filter(isVocalRangeTrack);
+  return (
+    <VocalRangeRowView
+      row={row}
+      priority={priority}
+      items={items}
+      loadMore={loaded.loadMore}
+      failed={loaded.failed}
+      retry={loaded.retry}
+    />
+  );
+}
+
+const isVocalRangeTrack = (track: HomeTrack): track is HomeVocalRangeTrack =>
+  track.vocalRange !== null;
+
+function VocalRangeRowView({
+  row,
+  priority,
+  items,
+  loadMore,
+  failed,
+  retry,
+}: {
+  row: HomeVocalRangeRow;
+  priority: boolean;
+  items: HomeVocalRangeRow['items'];
+  loadMore?: () => void;
+  failed?: boolean;
+  retry?: () => void;
 }) {
   return (
     <RowCarouselShell
       rowId={row.id}
       title={row.title}
       sponsored={row.sponsored}
+      onNearEnd={loadMore}
+      loadFailed={failed}
+      onRetry={retry}
     >
-      <RowTrackCards items={row.items} priority={priority} rangeBar />
+      <RowTrackCards items={items} priority={priority} rangeBar />
     </RowCarouselShell>
   );
 }

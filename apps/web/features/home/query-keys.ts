@@ -4,4 +4,7 @@ import type { HomeFeedPage, Locale } from '@vozzify/contracts';
 export const homeQueryKeys = {
   rows: (locale: Locale, page: Pick<HomeFeedPage, 'audience' | 'version'>) =>
     ['home', 'rows', locale, page.audience, page.version] as const,
+  rowItems: (rowId: string, cursor: string | null | undefined) =>
+    ['home', 'row-items', rowId, cursor] as const,
+  rowItemsPrefix: () => ['home', 'row-items'] as const,
 };

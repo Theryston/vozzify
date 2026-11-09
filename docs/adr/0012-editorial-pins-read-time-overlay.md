@@ -33,9 +33,10 @@ the current live set. A Pin that ended, changed audience or locale, or whose
 Tracks became ineligible is removed from its original slot; remaining slots
 do not move. The response omits empty slots but advances the cursor by the
 fixed six-slot page boundary. Existing Pins refresh their current Tracks and
-sponsored label in place. Pins that become eligible after the first page wait
-for a new visit. Feed regeneration and social recommendation refresh likewise
-do not repack a visit. For a personal people Row, current profile visibility is
+sponsored label in place on vertical pages. Pins that become eligible after
+the first page wait for a new visit. Feed regeneration and social
+recommendation refresh likewise do not repack a visit. For a personal people
+Row, current profile visibility is
 rechecked and its current content replaces the matching frozen slot; if it no
 longer qualifies, that slot is omitted. If an expired public visit's source
 feed and Pin composition remain current, the API recreates it only when its
@@ -112,6 +113,15 @@ the exact time (`editorial-pins` queue, `invalidate-home-for-pin`), which
 revalidates the same tags when it runs. The job revalidates; it does not rebuild
 anything, because the stored feed holds no pin. A stale job (for a time since
 changed) only revalidates, which is harmless, so no job is removed on an edit.
+
+**Horizontal continuations retain the Pin's visible promise.** A long pinned
+Row is stored in the visit snapshot and exposed twelve Tracks at a time. Every
+item continuation rechecks that Pin's live eligibility, ordered membership
+and sponsored state. If any of those change, it returns
+`FEED_VERSION_EXPIRED`; the client restarts the full Home visit so the first
+page can show the current Pin and its sponsorship notice. This is necessary
+because an item page carries Tracks, not a replacement row header. See ADR
+0011 for the shared horizontal and vertical visit lifecycle.
 
 **The admin API** is `/v1/admin/home-pins`, restricted to the `ADMIN` role
 (`@Roles('ADMIN')`): list, create, read, update, remove and history. Anonymous

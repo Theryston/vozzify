@@ -5,6 +5,7 @@ import {
   LOCALES,
   type Locale,
 } from '@vozzify/contracts';
+import { AppException } from '../../common/errors/app-exception.js';
 import { HomeFeedService } from './home-feed.service.js';
 import { HomePinOverlayService } from './home-pin-overlay.service.js';
 import { HomeSocialService } from './home-social.service.js';
@@ -62,6 +63,57 @@ export class HomeVisitService {
       ...visit,
       rows: await this.refreshSocial(rows, userId),
     };
+  }
+
+  async rowItemsVersion(
+    version: string,
+    rowId: string,
+    userId: string | undefined,
+    locale: Locale,
+  ): Promise<HomeRow | undefined> {
+    const visit =
+      (await this.store.read(version)) ??
+      (await this.recreatePublicVersion(version));
+    if (!visit) throw expiredVisit();
+    if (visit.audience === 'public' && visit.ownerId === null) {
+      if (visit.locale !== locale) return undefined;
+      return this.currentItemRow(
+        visit.rows,
+        rowId,
+        visit.locale,
+        userId !== undefined,
+      );
+    }
+    if (userId === undefined) return undefined;
+    if (
+      visit.ownerId !== userId ||
+      visit.audience !== 'personal' ||
+      visit.locale !== locale
+    )
+      return undefined;
+    const row = await this.currentItemRow(visit.rows, rowId, locale, true);
+    if (row?.layout !== 'people') return row;
+    const socialRows = await this.refreshSocial([row], userId);
+    return socialRows[0] ?? undefined;
+  }
+
+  private async currentItemRow(
+    rows: (HomeRow | null)[],
+    rowId: string,
+    locale: Locale,
+    signedIn: boolean,
+  ): Promise<HomeRow | undefined> {
+    const frozen = rows.find((row) => row?.id === rowId);
+    if (!frozen) return undefined;
+    if (!rowId.startsWith('pin-')) return frozen;
+    // Pin placement depends on the complete frozen composition: earlier Pins
+    // and the hero may already claim tracks that this row also references.
+    const live = await this.refreshPins(rows, locale, signedIn);
+    const refreshed = live.find((row) => row?.id === rowId);
+    if (!refreshed || !sameTrackMembership(frozen, refreshed)) {
+      throw expiredVisit();
+    }
+    return refreshed;
   }
 
   private async recreatePublicVersion(
@@ -153,4 +205,33 @@ const preserveFrozenPinLayout = (
     };
   }
   return null;
+};
+
+const expiredVisit = () =>
+  new AppException(
+    'NOT_FOUND',
+    'This home visit is no longer served; start again from the first page',
+    { reason: 'FEED_VERSION_EXPIRED' },
+  );
+
+const sameTrackMembership = (
+  frozen: HomeRow | null,
+  current: HomeRow | null | undefined,
+): boolean => {
+  if (!current || frozen?.layout !== current.layout) return false;
+  if (frozen.layout === 'standard' && current.layout === 'standard') {
+    return (
+      frozen.sponsored === current.sponsored &&
+      JSON.stringify(frozen.title) === JSON.stringify(current.title) &&
+      frozen.items.map(({ id }) => id).join(',') ===
+        current.items.map(({ id }) => id).join(',')
+    );
+  }
+  if (frozen.layout === 'vocal-range' && current.layout === 'vocal-range') {
+    return (
+      frozen.items.map(({ id }) => id).join(',') ===
+      current.items.map(({ id }) => id).join(',')
+    );
+  }
+  return frozen.layout === 'hero' && current.layout === 'hero';
 };

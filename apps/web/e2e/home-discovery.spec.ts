@@ -110,6 +110,168 @@ test.afterAll(async () => {
 });
 
 test.describe('home discovery rows', () => {
+  test('a long carousel loads later cards once and retries a failed page', async ({
+    page,
+  }) => {
+    const items = Array.from({ length: 24 }, (_, index) =>
+      toItem(card(`long-row-${index}`, `Long row song ${index}`)),
+    );
+    const rows = [
+      hero(uniqueId('en-hero')),
+      {
+        id: 'long-carousel',
+        layout: 'standard',
+        title: { key: 'home.rows.trendingToday', params: {} },
+        items,
+      },
+    ];
+    await installFeed({ en: rows });
+    await setHomeMock({ itemPageFailures: 1 });
+    const requests: number[] = [];
+    page.on('response', (response) => {
+      if (response.url().includes('/v1/home/rows/long-carousel/items')) {
+        requests.push(response.status());
+      }
+    });
+    await page.goto('/en');
+    const row = page.locator('[data-home-row-id="long-carousel"]');
+    const track = row.locator('ul');
+    await expect(
+      row.locator('[data-home-item-id="long-row-11"]'),
+    ).toBeAttached();
+    await expect(row.locator('[data-home-item-id="long-row-12"]')).toHaveCount(
+      0,
+    );
+
+    await track.evaluate((element) => {
+      element.scrollLeft = element.scrollWidth;
+      element.dispatchEvent(new Event('scroll'));
+      element.dispatchEvent(new Event('scroll'));
+      element.dispatchEvent(new Event('scroll'));
+    });
+    await expect.poll(() => requests.length).toBeGreaterThan(0);
+    expect(requests).toEqual([503]);
+    await expect(row.getByRole('alert')).toBeVisible();
+    await page.waitForTimeout(750);
+    expect(requests).toEqual([503]);
+
+    await row
+      .getByRole('button', { name: messages.en.home.carousel.retryItems })
+      .click();
+    await expect(
+      row.locator('[data-home-item-id="long-row-12"]'),
+    ).toBeAttached();
+    await expect(
+      row.locator('[data-home-item-id="long-row-23"]'),
+    ).toBeAttached();
+    expect(requests).toEqual([503, 200]);
+    await expect(
+      row.getByRole('button', { name: messages.en.home.carousel.scrollRight }),
+    ).toBeEnabled();
+    await expect(
+      row.locator('[data-home-item-id="long-row-12"]'),
+    ).toHaveAttribute('data-home-item-position', '12');
+  });
+
+  test('an expired horizontal cursor restarts both Home axes from page one', async ({
+    page,
+  }) => {
+    const buildFeed = (prefix: string) => [
+      hero(`${prefix}-hero`),
+      ...Array.from({ length: 4 }, (_, index) => ({
+        id: `${prefix}-before-${index}`,
+        layout: 'standard' as const,
+        title: { key: 'home.rows.trendingToday', params: {} },
+        items: [toItem(card(`${prefix}-before-track-${index}`, 'Earlier row'))],
+      })),
+      {
+        id: 'rolling-carousel',
+        layout: 'standard',
+        title: { key: 'home.rows.trendingToday', params: {} },
+        items: Array.from({ length: 48 }, (_, index) =>
+          toItem(card(`${prefix}-${index}`, `${prefix} song ${index}`)),
+        ),
+      },
+      ...Array.from({ length: 8 }, (_, index) => ({
+        id: `${prefix}-after-${index}`,
+        layout: 'standard' as const,
+        title: { key: 'home.rows.trendingToday', params: {} },
+        items: [toItem(card(`${prefix}-after-track-${index}`, 'Later row'))],
+      })),
+    ];
+    await installFeed({ en: buildFeed('old') });
+    const itemResponses: number[] = [];
+    page.on('response', (response) => {
+      if (response.url().includes('/v1/home/rows/rolling-carousel/items')) {
+        itemResponses.push(response.status());
+      }
+    });
+    const verticalPage = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname === '/v1/home' && url.searchParams.has('cursor');
+    });
+    await page.goto('/en');
+    await page
+      .locator('[data-home-row-id="old-before-3"]')
+      .scrollIntoViewIfNeeded();
+    await verticalPage;
+    await expect(page.locator('[data-home-row-id="old-after-0"]')).toHaveCount(
+      1,
+    );
+    const row = page.locator('[data-home-row-id="rolling-carousel"]');
+    await row.scrollIntoViewIfNeeded();
+    await expect(row.locator('[data-home-item-id="old-11"]')).toBeAttached();
+    await row.locator('ul').evaluate((element) => {
+      element.scrollLeft = element.scrollWidth;
+      element.dispatchEvent(new Event('scroll'));
+    });
+    await expect(row.locator('[data-home-item-id="old-12"]')).toBeAttached();
+    await expect(row.locator('[data-home-item-id="old-23"]')).toBeAttached();
+
+    await setHomeMock({ feeds: { en: buildFeed('new') } });
+    await revalidateHome();
+    const scrollRight = row.getByRole('button', {
+      name: messages.en.home.carousel.scrollRight,
+    });
+    await scrollRight.click();
+    await scrollRight.click();
+    await scrollRight.click();
+    await expect.poll(() => itemResponses).toContain(404);
+    const refreshedRow = page.locator('[data-home-row-id="rolling-carousel"]');
+    await expect(
+      refreshedRow.locator('[data-home-item-id="new-11"]'),
+    ).toBeAttached();
+    await expect(
+      refreshedRow.locator('[data-home-item-id="old-12"]'),
+    ).toHaveCount(0);
+    await expect(
+      refreshedRow.locator('[data-home-item-id="old-0"]'),
+    ).toHaveCount(0);
+    await expect(page.locator('[data-home-row-id="old-after-0"]')).toHaveCount(
+      0,
+    );
+    await expect(page.locator('[data-home-row-id="new-after-0"]')).toHaveCount(
+      1,
+    );
+    await expect
+      .poll(() =>
+        refreshedRow.locator('ul').evaluate((element) => element.scrollLeft),
+      )
+      .toBe(0);
+    const firstNewCard = refreshedRow.locator('[data-home-item-id="new-0"]');
+    await expect
+      .poll(() =>
+        firstNewCard.evaluate((element) => {
+          const card = element.getBoundingClientRect();
+          const track = element.closest('ul')?.getBoundingClientRect();
+          return Boolean(
+            track && card.left >= track.left && card.right <= track.right,
+          );
+        }),
+      )
+      .toBe(true);
+  });
+
   test('a visitor sees the genre tiles, each a real link to its search', async ({
     page,
   }) => {

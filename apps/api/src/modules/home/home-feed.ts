@@ -1,6 +1,7 @@
-import { homeRowSchema, localeSchema } from '@vozzify/contracts';
+import { localeSchema } from '@vozzify/contracts';
 import { z } from 'zod';
 import { HOME_ALGORITHM_VERSION } from './home-rules.js';
+import { homeStoredRowSchema } from './home-stored-row.js';
 
 /**
  * A feed as it is stored in Redis: the response minus the cursor, which is
@@ -15,7 +16,7 @@ export const storedHomeFeedSchema = z.object({
   locale: localeSchema.optional(),
   version: z.string().min(1).max(64),
   algorithmVersion: z.number().int().positive(),
-  rows: z.array(homeRowSchema),
+  rows: z.array(homeStoredRowSchema),
   // The bounded pool from the background build lets personal refreshes rank
   // Albums without rescanning the complete catalog for each User.
   albumCandidates: z

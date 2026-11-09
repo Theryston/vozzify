@@ -2,6 +2,7 @@ import type { HomeRowTitle, HomeTrack } from '@vozzify/contracts';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { TrackCard } from '@/features/tracks/components/track-card';
 import { creditText } from '@/lib/track-credit';
 import { CarouselScroller } from '../components/carousel-scroller';
@@ -28,18 +29,26 @@ export function RowCarouselShell({
   title,
   sponsored,
   children,
+  onNearEnd,
+  loadFailed,
+  onRetry,
 }: {
   rowId: string;
   title: HomeRowTitle;
   sponsored: boolean | undefined;
   children: ReactNode;
+  onNearEnd?: () => void;
+  loadFailed?: boolean;
+  onRetry?: () => void;
 }) {
   const t = useTranslations();
+  const carouselText = useTranslations('home.carousel');
   if (!isHomeRowTitleKey(title.key)) return null;
   const headingId = rowHeadingId(rowId);
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-2">
       <CarouselScroller
+        onNearEnd={onNearEnd}
         header={
           <div className={CAROUSEL_HEADER_CLASS}>
             <h2 id={headingId} className={CAROUSEL_TITLE_CLASS}>
@@ -51,6 +60,16 @@ export function RowCarouselShell({
       >
         {children}
       </CarouselScroller>
+      {loadFailed ? (
+        <div role="alert" className="flex items-center gap-3 text-sm">
+          <p className="text-muted-foreground">
+            {carouselText('loadMoreItemsError')}
+          </p>
+          <Button type="button" variant="link" size="default" onClick={onRetry}>
+            {carouselText('retryItems')}
+          </Button>
+        </div>
+      ) : null}
     </section>
   );
 }
