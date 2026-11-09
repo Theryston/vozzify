@@ -1,3 +1,11 @@
+import {
+  type HomeCarouselRow,
+  type HomeRow,
+  type HomeRowItemsPage,
+  type HomeVocalRangeRow,
+  homeFeedPageSchema,
+  homeRowItemsPageSchema,
+} from '@vozzify/contracts';
 import request from 'supertest';
 import {
   createAlbumDisc,
@@ -25,13 +33,7 @@ import { createCompletedTrack } from './utils/track-processing-factories.js';
 const PINS = '/v1/admin/home-pins';
 const spec = useAuthSpec({ override: withInMemoryCache });
 
-type TrackCard = { id: string };
-type HomeRow = {
-  id: string;
-  items?: TrackCard[];
-  nextItemsCursor?: string | null;
-};
-type ItemPage = { items: TrackCard[]; nextCursor: string | null };
+type PagedHomeRow = HomeCarouselRow | HomeVocalRangeRow;
 
 describe('48-Track editorial Pins (e2e)', () => {
   beforeEach(async () => {
@@ -44,17 +46,20 @@ describe('48-Track editorial Pins (e2e)', () => {
     return response.body.id as string;
   };
 
-  const findRow = (rows: HomeRow[], pinId: string): HomeRow => {
+  const findRow = (rows: HomeRow[], pinId: string): PagedHomeRow => {
     const row = rows.find((candidate) => candidate.id === `pin-${pinId}`);
     if (!row) throw new Error('The editorial Row was not present in Home');
+    if (row.layout !== 'standard' && row.layout !== 'vocal-range') {
+      throw new Error('The editorial Pin did not produce a carousel Row');
+    }
     return row;
   };
 
   const readPages = async (
-    row: HomeRow,
+    row: PagedHomeRow,
     signedIn: boolean,
   ): Promise<{ ids: string[]; sizes: number[] }> => {
-    const ids = (row.items ?? []).map((item) => item.id);
+    const ids = row.items.map((item) => item.id);
     const sizes = [ids.length];
     let cursor = row.nextItemsCursor;
     while (cursor) {
@@ -62,7 +67,12 @@ describe('48-Track editorial Pins (e2e)', () => {
       const response = signedIn
         ? await spec.client.get(path).expect(200)
         : await request(spec.testApp.app.getHttpServer()).get(path).expect(200);
-      const page = response.body as ItemPage;
+      const page: HomeRowItemsPage = homeRowItemsPageSchema.parse(
+        response.body,
+      );
+      if (page.layout !== row.layout) {
+        throw new Error('The continuation layout did not match its Home Row');
+      }
       ids.push(...page.items.map((item) => item.id));
       sizes.push(page.items.length);
       cursor = page.nextCursor;
@@ -86,8 +96,10 @@ describe('48-Track editorial Pins (e2e)', () => {
       .get('/v1/home?locale=en')
       .expect(200);
     const personalResponse = await spec.client.get('/v1/home').expect(200);
-    const visitor = findRow(visitorResponse.body.rows as HomeRow[], pinId);
-    const personal = findRow(personalResponse.body.rows as HomeRow[], pinId);
+    const visitorFeed = homeFeedPageSchema.parse(visitorResponse.body);
+    const personalFeed = homeFeedPageSchema.parse(personalResponse.body);
+    const visitor = findRow(visitorFeed.rows, pinId);
+    const personal = findRow(personalFeed.rows, pinId);
     const [visitorPages, personalPages] = await Promise.all([
       readPages(visitor, false),
       readPages(personal, true),
@@ -141,7 +153,8 @@ describe('48-Track editorial Pins (e2e)', () => {
       const response = await request(spec.testApp.app.getHttpServer())
         .get('/v1/home?locale=en')
         .expect(200);
-      const row = findRow(response.body.rows as HomeRow[], pinId);
+      const feed = homeFeedPageSchema.parse(response.body);
+      const row = findRow(feed.rows, pinId);
       const pages = await readPages(row, false);
 
       expect(pages.sizes).toEqual([12, 12, 12, 12]);

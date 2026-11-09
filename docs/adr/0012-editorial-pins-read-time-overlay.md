@@ -54,6 +54,10 @@ retention covers that bound.
   Tracks; dynamic sources resolve up to the same capacity when the feed is read
   (with the same eligibility rules), so a newly processed Track shows without
   an edit of the pin.
+- This capacity is persisted in `editorial_pin_tracks` and in history states.
+  A rollback after a 48-Track Pin is saved must retain a reader that accepts 48
+  Track IDs, even if the admin writer is rolled back to a lower limit. Deploying
+  a pre-capacity reader against those records is not compatible.
 - It has a position (row 0 is the hero slot), a priority, an audience
   (`everyone`, or `visitors` for visitors who are not signed in), an optional
   locale, an optional start and end (no start: live at once; no end:

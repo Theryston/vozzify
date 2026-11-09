@@ -36,4 +36,12 @@ describe('editorial pin Track capacity', () => {
       pinTrackSearchQuerySchema.safeParse({ ids: ids.join(',') }).success,
     ).toBe(true);
   });
+
+  it('rejects summary lookups with more than 48 selected Track IDs', () => {
+    const ids = Array.from({ length: 49 }, (_, index) => `track-${index}`);
+
+    expect(
+      pinTrackSearchQuerySchema.safeParse({ ids: ids.join(',') }).success,
+    ).toBe(false);
+  });
 });

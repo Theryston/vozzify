@@ -76,4 +76,15 @@ test('an admin can create an editorial Pin with 48 ordered Tracks', async ({
   expect(posted?.source.trackIds).toEqual(
     tracks.slice(0, 48).map((track) => track.id),
   );
+
+  await page
+    .getByRole('button', { name: messages.en.adminHomePins.edit })
+    .click();
+  const editDialog = page.getByRole('dialog');
+  await expect(
+    editDialog.getByRole('button', { name: /Remove Editorial Track/ }),
+  ).toHaveCount(48);
+  await expect(
+    editDialog.getByText('Editorial Track 47', { exact: true }),
+  ).toBeVisible();
 });

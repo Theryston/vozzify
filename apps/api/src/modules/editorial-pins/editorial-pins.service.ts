@@ -3,6 +3,7 @@ import { Transactional } from '@nestjs-cls/transactional';
 import {
   type CreateEditorialPinBody,
   createEditorialPinBodySchema,
+  EDITORIAL_PIN_MAX_TRACKS,
   type EditorialPin,
   type EditorialPinActor,
   type EditorialPinDynamicSource,
@@ -10,7 +11,6 @@ import {
   type EditorialPinHistoryPage,
   type EditorialPinPage,
   type Locale,
-  PIN_TRACK_SEARCH_MAX_LIMIT,
   type PinTrackSearchQuery,
   type PinTrackSearchResult,
   type PinTrackSummary,
@@ -227,7 +227,7 @@ export class EditorialPinsService {
           .map((id) => id.trim())
           .filter((id) => id.length > 0),
       ),
-    ].slice(0, PIN_TRACK_SEARCH_MAX_LIMIT);
+    ].slice(0, EDITORIAL_PIN_MAX_TRACKS);
     const items = await this.pins.findPinTracksByIds(ids);
     return { items: items.map(toPinTrackSummary) };
   }

@@ -28,11 +28,12 @@ async function revalidateHome() {
 
 test.describe.configure({ mode: 'serial' });
 
-test.afterAll(() =>
-  setHomeMock({
+test.afterAll(async () => {
+  await setHomeMock({
     feeds: { en: defaultHomeRows('en'), 'pt-BR': defaultHomeRows('pt-BR') },
-  }),
-);
+  });
+  await revalidateHome();
+});
 
 test('renders and loads all 48 items of a Home editorial carousel', async ({
   page,
