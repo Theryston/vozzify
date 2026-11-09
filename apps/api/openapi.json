@@ -105,6 +105,45 @@
         ]
       }
     },
+    "/v1/home/rows/{rowId}/items": {
+      "get": {
+        "operationId": "HomeController_getRowItems_v1",
+        "parameters": [
+          {
+            "name": "rowId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 512,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of a frozen Home Track Row."
+          },
+          "400": {
+            "description": "The item cursor is malformed."
+          },
+          "404": {
+            "description": "The visit or Row has expired."
+          }
+        },
+        "tags": [
+          "home"
+        ]
+      }
+    },
     "/v1/admin/home-pins/preview": {
       "post": {
         "operationId": "HomeAdminController_preview_v1",

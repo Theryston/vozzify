@@ -1,5 +1,5 @@
-import type { HomeCarouselRow } from '@vozzify/contracts';
-
+import type { HomeCarouselRow, HomeFeedPage, Locale } from '@vozzify/contracts';
+import { useHomeRowItems } from '../hooks/use-home-row-items';
 import { RowCarouselShell, RowTrackCards } from './row-carousel-shell';
 
 /**
@@ -10,17 +10,82 @@ import { RowCarouselShell, RowTrackCards } from './row-carousel-shell';
 export function CarouselLayout({
   row,
   priority,
+  locale,
+  onVisitExpired,
 }: {
   row: HomeCarouselRow;
   priority: boolean;
+  locale?: Locale;
+  onVisitExpired?: (page: HomeFeedPage) => void;
+}) {
+  return row.nextItemsCursor ? (
+    <PagedCarouselLayout
+      row={row}
+      priority={priority}
+      locale={locale ?? 'en'}
+      onVisitExpired={onVisitExpired}
+    />
+  ) : (
+    <CarouselRowView row={row} priority={priority} items={row.items} />
+  );
+}
+
+function PagedCarouselLayout({
+  row,
+  priority,
+  locale,
+  onVisitExpired,
+}: {
+  row: HomeCarouselRow;
+  priority: boolean;
+  locale: Locale;
+  onVisitExpired?: (page: HomeFeedPage) => void;
+}) {
+  const loaded = useHomeRowItems({
+    rowId: row.id,
+    layout: 'standard',
+    initialItems: row.items,
+    cursor: row.nextItemsCursor,
+    locale,
+    onVisitExpired,
+  });
+  return (
+    <CarouselRowView
+      row={row}
+      priority={priority}
+      items={loaded.items}
+      loadMore={loaded.loadMore}
+      failed={loaded.failed}
+      retry={loaded.retry}
+    />
+  );
+}
+
+function CarouselRowView({
+  row,
+  priority,
+  items,
+  loadMore,
+  failed,
+  retry,
+}: {
+  row: HomeCarouselRow;
+  priority: boolean;
+  items: HomeCarouselRow['items'];
+  loadMore?: () => void;
+  failed?: boolean;
+  retry?: () => void;
 }) {
   return (
     <RowCarouselShell
       rowId={row.id}
       title={row.title}
       sponsored={row.sponsored}
+      onNearEnd={loadMore}
+      loadFailed={failed}
+      onRetry={retry}
     >
-      <RowTrackCards items={row.items} priority={priority} />
+      <RowTrackCards items={items} priority={priority} />
     </RowCarouselShell>
   );
 }

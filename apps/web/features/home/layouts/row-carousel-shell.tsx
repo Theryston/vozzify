@@ -28,18 +28,26 @@ export function RowCarouselShell({
   title,
   sponsored,
   children,
+  onNearEnd,
+  loadFailed,
+  onRetry,
 }: {
   rowId: string;
   title: HomeRowTitle;
   sponsored: boolean | undefined;
   children: ReactNode;
+  onNearEnd?: () => void;
+  loadFailed?: boolean;
+  onRetry?: () => void;
 }) {
   const t = useTranslations();
+  const carouselText = useTranslations('home.carousel');
   if (!isHomeRowTitleKey(title.key)) return null;
   const headingId = rowHeadingId(rowId);
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-2">
       <CarouselScroller
+        onNearEnd={onNearEnd}
         header={
           <div className={CAROUSEL_HEADER_CLASS}>
             <h2 id={headingId} className={CAROUSEL_TITLE_CLASS}>
@@ -51,6 +59,20 @@ export function RowCarouselShell({
       >
         {children}
       </CarouselScroller>
+      {loadFailed ? (
+        <div role="alert" className="flex items-center gap-3 text-sm">
+          <p className="text-muted-foreground">
+            {carouselText('loadMoreItemsError')}
+          </p>
+          <button
+            type="button"
+            className="text-primary underline underline-offset-4"
+            onClick={onRetry}
+          >
+            {carouselText('retryItems')}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

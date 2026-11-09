@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import type { HomeFeed, Locale } from '@vozzify/contracts';
-import { homeRowSchema, localeSchema } from '@vozzify/contracts';
+import { localeSchema } from '@vozzify/contracts';
 import { z } from 'zod';
 import { CacheService } from '../../redis/cache.service.js';
 import { HOME_FEED_RETAINED_TTL_SECONDS } from './home-rules.js';
+import { homeStoredRowSchema } from './home-stored-row.js';
 
 const visitSchema = z.object({
   audience: z.enum(['public', 'personal']),
@@ -12,7 +13,7 @@ const visitSchema = z.object({
   ownerId: z.string().min(1).nullable(),
   version: z.string().regex(/^[0-9a-f]{16}$/),
   algorithmVersion: z.number().int().positive(),
-  rows: z.array(homeRowSchema.nullable()),
+  rows: z.array(homeStoredRowSchema.nullable()),
 });
 
 export type StoredHomeVisit = z.infer<typeof visitSchema>;

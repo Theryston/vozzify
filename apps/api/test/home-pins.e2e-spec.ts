@@ -306,11 +306,29 @@ describe('Home feed with editorial pins (e2e)', () => {
   it('fills a genre pin with the best eligible Tracks, out of the other rows', async () => {
     const pinId = await createPin(genrePinBody('rock'));
 
-    const rows = await visitorRows();
+    const first = await request(testApp.app.getHttpServer())
+      .get('/v1/home?locale=en')
+      .expect(200);
+    const rows = first.body.rows as Row[];
     const pinned = rows.find((row) => row.id === `pin-${pinId}`);
+    const cursor = (
+      pinned as (Row & { nextItemsCursor?: string | null }) | undefined
+    )?.nextItemsCursor;
 
+    expect(itemIds(pinned)).toHaveLength(12);
+    expect(cursor).toEqual(expect.any(String));
+    const later = await request(testApp.app.getHttpServer())
+      .get(
+        `/v1/home/rows/${pinned?.id}/items?cursor=${encodeURIComponent(cursor ?? '')}`,
+      )
+      .expect(200);
+    expect(later.body.items).toHaveLength(8);
+    expect(later.body.nextCursor).toBeNull();
     // Every seeded Track is rock, hottest first, so the pin holds them all.
-    expect(itemIds(pinned)).toEqual(ids);
+    expect([
+      ...itemIds(pinned),
+      ...(later.body.items as { id: string }[]).map((item) => item.id),
+    ]).toEqual(ids);
     expect(rows.find((row) => row.id === 'trending-today')).toBeUndefined();
   });
 
@@ -372,11 +390,27 @@ describe('Home feed with editorial pins (e2e)', () => {
       .set({ status: 'QUEUED' })
       .where(eq(trackProcessings.trackId, ids[0] ?? ''));
 
-    const rows = await visitorRows();
-
-    expect(itemIds(rows.find((row) => row.id === `pin-${pinId}`))).toEqual(
-      ids.slice(1),
-    );
+    const first = await request(testApp.app.getHttpServer())
+      .get('/v1/home?locale=en')
+      .expect(200);
+    const rows = first.body.rows as Row[];
+    const pinned = rows.find((row) => row.id === `pin-${pinId}`);
+    const cursor = (
+      pinned as (Row & { nextItemsCursor?: string | null }) | undefined
+    )?.nextItemsCursor;
+    expect(itemIds(pinned)).toHaveLength(12);
+    expect(cursor).toEqual(expect.any(String));
+    const later = await request(testApp.app.getHttpServer())
+      .get(
+        `/v1/home/rows/${pinned?.id}/items?cursor=${encodeURIComponent(cursor ?? '')}`,
+      )
+      .expect(200);
+    expect(later.body.items).toHaveLength(7);
+    expect(later.body.nextCursor).toBeNull();
+    expect([
+      ...itemIds(pinned),
+      ...(later.body.items as { id: string }[]).map((item) => item.id),
+    ]).toEqual(ids.slice(1));
   });
 
   it('links served credits to their Artist page, null when unknown', async () => {

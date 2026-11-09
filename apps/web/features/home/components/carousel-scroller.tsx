@@ -2,7 +2,13 @@
 
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import {
+  type MutableRefObject,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import { CAROUSEL_TRACK_CLASS } from '../layout-dimensions';
 
@@ -23,6 +29,54 @@ function scrollableDirections(track: HTMLUListElement | null): {
 }
 
 type ArrowDirection = 'left' | 'right';
+
+function useTrackUpdates(
+  trackRef: MutableRefObject<HTMLUListElement | null>,
+  hoverable: boolean,
+  onNearEndRef: MutableRefObject<(() => void) | undefined>,
+  setDirections: (directions: { left: boolean; right: boolean }) => void,
+): void {
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const update = () =>
+      updateTrackState(track, hoverable, onNearEndRef, setDirections);
+    update();
+    track.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('scroll', update, { passive: true });
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined'
+        ? undefined
+        : new ResizeObserver(update);
+    resizeObserver?.observe(track);
+    const contentObserver = new MutationObserver(update);
+    contentObserver.observe(track, { childList: true });
+    return () => {
+      track.removeEventListener('scroll', update);
+      window.removeEventListener('scroll', update);
+      resizeObserver?.disconnect();
+      contentObserver.disconnect();
+    };
+  }, [hoverable, onNearEndRef, setDirections, trackRef]);
+}
+
+function updateTrackState(
+  track: HTMLUListElement,
+  hoverable: boolean,
+  onNearEndRef: MutableRefObject<(() => void) | undefined>,
+  setDirections: (directions: { left: boolean; right: boolean }) => void,
+): void {
+  if (hoverable) setDirections(scrollableDirections(track));
+  const rect = track.getBoundingClientRect();
+  const visible = rect.bottom > 0 && rect.top < window.innerHeight;
+  if (
+    visible &&
+    track.scrollWidth - track.clientWidth - track.scrollLeft <=
+      track.clientWidth
+  ) {
+    onNearEndRef.current?.();
+  }
+}
 
 function ArrowButton({
   direction,
@@ -49,6 +103,32 @@ function ArrowButton({
   );
 }
 
+function ArrowControls({
+  directions,
+  onScroll,
+}: {
+  directions: { left: boolean; right: boolean };
+  onScroll: (direction: ArrowDirection) => void;
+}) {
+  const t = useTranslations('home.carousel');
+  return (
+    <div className="flex shrink-0 items-center gap-1.5">
+      <ArrowButton
+        direction="left"
+        label={t('scrollLeft')}
+        disabled={!directions.left}
+        onScroll={() => onScroll('left')}
+      />
+      <ArrowButton
+        direction="right"
+        label={t('scrollRight')}
+        disabled={!directions.right}
+        onScroll={() => onScroll('right')}
+      />
+    </div>
+  );
+}
+
 /**
  * A horizontal row track with its title and edge arrows: on devices with a
  * fine pointer, a pair of arrows sits top-right, justified against the title,
@@ -59,14 +139,20 @@ function ArrowButton({
 export function CarouselScroller({
   header,
   children,
+  onNearEnd,
 }: {
   header: ReactNode;
   children: ReactNode;
+  onNearEnd?: () => void;
 }) {
-  const t = useTranslations('home.carousel');
   const trackRef = useRef<HTMLUListElement>(null);
+  const onNearEndRef = useRef(onNearEnd);
   const [hoverable, setHoverable] = useState(false);
   const [directions, setDirections] = useState({ left: false, right: false });
+
+  useEffect(() => {
+    onNearEndRef.current = onNearEnd;
+  }, [onNearEnd]);
 
   // Desktop only: a coarse pointer never hovers, so the arrows stay out.
   useEffect(() => {
@@ -77,22 +163,7 @@ export function CarouselScroller({
     return () => query.removeEventListener('change', update);
   }, []);
 
-  useEffect(() => {
-    const track = trackRef.current;
-    if (!track || !hoverable) return;
-    const update = () => setDirections(scrollableDirections(track));
-    update();
-    track.addEventListener('scroll', update, { passive: true });
-    const observer =
-      typeof ResizeObserver === 'undefined'
-        ? undefined
-        : new ResizeObserver(update);
-    observer?.observe(track);
-    return () => {
-      track.removeEventListener('scroll', update);
-      observer?.disconnect();
-    };
-  }, [hoverable]);
+  useTrackUpdates(trackRef, hoverable, onNearEndRef, setDirections);
 
   const scroll = (direction: ArrowDirection) => {
     const track = trackRef.current;
@@ -111,20 +182,7 @@ export function CarouselScroller({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">{header}</div>
         {hoverable && (directions.left || directions.right) && (
-          <div className="flex shrink-0 items-center gap-1.5">
-            <ArrowButton
-              direction="left"
-              label={t('scrollLeft')}
-              disabled={!directions.left}
-              onScroll={() => scroll('left')}
-            />
-            <ArrowButton
-              direction="right"
-              label={t('scrollRight')}
-              disabled={!directions.right}
-              onScroll={() => scroll('right')}
-            />
-          </div>
+          <ArrowControls directions={directions} onScroll={scroll} />
         )}
       </div>
       <ul ref={trackRef} className={CAROUSEL_TRACK_CLASS}>

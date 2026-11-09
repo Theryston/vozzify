@@ -25,6 +25,7 @@ type HomeMockState = {
   feeds?: Partial<Record<FakeHomeLocale, FakeHomeRow[]>>;
   /** The signed-in feed of each locale given; the rest fall back to `feeds`. */
   personal?: Partial<Record<FakeHomeLocale, FakeHomeRow[]>>;
+  itemPageFailures?: number;
 };
 
 const feeds = new Map<
@@ -61,6 +62,7 @@ const feedOfVersion = (version: string | undefined) => {
 };
 
 let versionCounter = 0;
+let itemPageFailures = 0;
 
 const installFeed = (
   store: Map<FakeHomeLocale, { version: string; rows: FakeHomeRow[] }>,
@@ -123,6 +125,107 @@ const parseCursor = (
   return { version: match[1], offset: Number(match[2]) };
 };
 
+type FakeItemCursor = { version: string; rowId: string; position: number };
+
+const encodeItemCursor = (cursor: FakeItemCursor): string =>
+  Buffer.from(JSON.stringify(cursor)).toString('base64url');
+
+const decodeItemCursor = (cursor: string): FakeItemCursor | undefined => {
+  try {
+    const parsed: unknown = JSON.parse(
+      Buffer.from(cursor, 'base64url').toString('utf8'),
+    );
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'version' in parsed &&
+      typeof parsed.version === 'string' &&
+      'rowId' in parsed &&
+      typeof parsed.rowId === 'string' &&
+      'position' in parsed &&
+      typeof parsed.position === 'number'
+    ) {
+      return {
+        version: parsed.version,
+        rowId: parsed.rowId,
+        position: parsed.position,
+      };
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+};
+
+const visibleRow = (row: FakeHomeRow, version: string): FakeHomeRow => {
+  if (
+    (row.layout !== 'standard' && row.layout !== 'vocal-range') ||
+    !Array.isArray(row.items) ||
+    row.items.length <= 12
+  ) {
+    return row;
+  }
+  return {
+    ...row,
+    items: row.items.slice(0, 12),
+    nextItemsCursor: encodeItemCursor({ version, rowId: row.id, position: 12 }),
+  };
+};
+
+const serveHomeRowItems = (
+  request: IncomingMessage,
+  response: ServerResponse,
+) => {
+  const url = new URL(request.url ?? '/', 'http://fake.local');
+  if (itemPageFailures > 0) {
+    itemPageFailures -= 1;
+    json(response, 503, { statusCode: 503, code: 'INTERNAL_ERROR' }, request);
+    return Promise.resolve();
+  }
+  const cursor = decodeItemCursor(url.searchParams.get('cursor') ?? '');
+  const feed = feedOfVersion(cursor?.version);
+  const row = feed?.rows.find((entry) => entry.id === cursor?.rowId);
+  if (cursor && !feed) {
+    json(
+      response,
+      404,
+      {
+        statusCode: 404,
+        code: 'NOT_FOUND',
+        message: 'Home visit expired',
+        details: { reason: 'FEED_VERSION_EXPIRED' },
+      },
+      request,
+    );
+    return Promise.resolve();
+  }
+  if (!cursor || !feed || !row || cursor.position < 0) {
+    json(response, 404, { statusCode: 404, code: 'NOT_FOUND' }, request);
+    return Promise.resolve();
+  }
+  const allItems = row.items;
+  if (!Array.isArray(allItems)) {
+    json(response, 404, { statusCode: 404, code: 'NOT_FOUND' }, request);
+    return Promise.resolve();
+  }
+  const end = cursor.position + 12;
+  json(
+    response,
+    200,
+    {
+      rowId: row.id,
+      layout: row.layout,
+      items: allItems.slice(cursor.position, end),
+      nextCursor:
+        end < allItems.length
+          ? encodeItemCursor({ ...cursor, position: end })
+          : null,
+    },
+    request,
+  );
+  return Promise.resolve();
+};
+
 const serveHome = (request: IncomingMessage, response: ServerResponse) => {
   const search = new URL(request.url ?? '/', 'http://fake.local').searchParams;
   const requested = search.get('locale') ?? 'en';
@@ -174,7 +277,9 @@ const serveHome = (request: IncomingMessage, response: ServerResponse) => {
       audience,
       version: feed.version,
       algorithmVersion: 1,
-      rows: feed.rows.slice(offset, next),
+      rows: feed.rows
+        .slice(offset, next)
+        .map((row) => visibleRow(row, feed.version)),
       nextCursor: next < feed.rows.length ? `${feed.version}.${next}` : null,
     },
     request,
@@ -187,6 +292,7 @@ const serveHomeMockSet = async (
   response: ServerResponse,
 ) => {
   const state = (await readBody(request)) as HomeMockState;
+  itemPageFailures = state.itemPageFailures ?? 0;
   for (const locale of ['en', 'pt-BR'] as const) {
     const rows = state.feeds?.[locale];
     if (rows) installFeed(feeds, locale, rows);
@@ -198,6 +304,12 @@ const serveHomeMockSet = async (
 
 /** The home routes of the fake API, in the router's route-table shape. */
 export const homeRoutes = [
+  {
+    method: 'GET',
+    pathname: (pathname: string) =>
+      /^\/v1\/home\/rows\/[^/]+\/items$/.test(pathname),
+    serve: serveHomeRowItems,
+  },
   {
     method: 'GET',
     pathname: '/v1/home',

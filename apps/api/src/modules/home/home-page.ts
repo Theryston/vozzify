@@ -1,6 +1,8 @@
-import type { HomeFeed, HomeRow } from '@vozzify/contracts';
+import type { HomeFeed, HomeRow, Locale } from '@vozzify/contracts';
 import { encodeHomeCursor } from './home-cursor.js';
+import { pageHomeRowItems } from './home-row-page.js';
 import {
+  DEFAULT_HOME_LOCALE,
   HOME_PAGE_SIZE,
   PRIVATE_HOME_CACHE_CONTROL,
   PUBLIC_HOME_CACHE_CONTROL,
@@ -17,10 +19,11 @@ export type ServedFeed = {
   audience: HomeFeed['audience'];
   version: string;
   algorithmVersion: number;
+  locale?: Locale;
   rows: (HomeRow | null)[];
 };
 
-export const pageOf = (feed: ServedFeed, position: number): HomeFeed => {
+const pageOf = (feed: ServedFeed, position: number): HomeFeed => {
   const end = position + HOME_PAGE_SIZE;
   return {
     audience: feed.audience,
@@ -34,10 +37,33 @@ export const pageOf = (feed: ServedFeed, position: number): HomeFeed => {
   };
 };
 
-export const cacheControlOf = (
-  cacheable: boolean,
-  signedIn: boolean,
-): string => {
+const cacheControlOf = (cacheable: boolean, signedIn: boolean): string => {
   if (!cacheable) return UNCACHED_HOME_CACHE_CONTROL;
   return signedIn ? PRIVATE_HOME_CACHE_CONTROL : PUBLIC_HOME_CACHE_CONTROL;
+};
+
+export const answerHomePage = async ({
+  feed,
+  position,
+  cacheable,
+  signedIn,
+  linkRows,
+}: {
+  feed: ServedFeed;
+  position: number;
+  cacheable: boolean;
+  signedIn: boolean;
+  linkRows: (rows: HomeRow[]) => Promise<HomeRow[]>;
+}): Promise<HomePage> => {
+  const page = pageOf(feed, position);
+  const rows = await linkRows(
+    page.rows.map((row) =>
+      pageHomeRowItems(row, feed.version, feed.locale ?? DEFAULT_HOME_LOCALE),
+    ),
+  );
+  return {
+    page: { ...page, rows },
+    cacheable,
+    cacheControl: cacheControlOf(cacheable, signedIn),
+  };
 };

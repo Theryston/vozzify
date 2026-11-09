@@ -1,8 +1,55 @@
 import { infiniteQueryOptions, type QueryClient } from '@tanstack/react-query';
-import type { HomeFeedPage, Locale } from '@vozzify/contracts';
-
+import type {
+  HomeFeedPage,
+  HomeTrack,
+  HomeVocalRangeTrack,
+  Locale,
+} from '@vozzify/contracts';
 import type { HomePageRequest } from './home-feed-client';
 import { homeQueryKeys } from './query-keys';
+
+export type HomeRowItemsQueryInput = {
+  rowId: string;
+  cursor: string | null | undefined;
+  locale: Locale;
+} & (
+  | { layout: 'standard'; initialItems: readonly HomeTrack[] }
+  | {
+      layout: 'vocal-range';
+      initialItems: readonly HomeVocalRangeTrack[];
+    }
+);
+
+export function homeRowItemsQueryOptions(options: HomeRowItemsQueryInput) {
+  const { rowId, layout, initialItems, cursor, locale } = options;
+  const initialPage =
+    layout === 'standard'
+      ? { rowId, layout, items: [...initialItems], nextCursor: cursor }
+      : { rowId, layout, items: [...initialItems], nextCursor: cursor };
+  return infiniteQueryOptions({
+    queryKey: ['home', 'row-items', rowId, cursor] as const,
+    queryFn: async ({ pageParam, signal }) => {
+      const { fetchHomeRowItemsPage } = await import('./home-row-items-client');
+      return fetchHomeRowItemsPage({
+        rowId,
+        cursor: pageParam,
+        locale,
+        signal,
+      });
+    },
+    initialPageParam: cursor ?? '',
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    initialData: cursor
+      ? {
+          pages: [initialPage],
+          pageParams: [cursor],
+        }
+      : undefined,
+    enabled: Boolean(cursor),
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
 
 /**
  * Fetches one page of rows in the browser. The client module is loaded on
@@ -47,4 +94,19 @@ export function resetHomeRowsAfterExpiredVisit(
     pages: [firstPage],
     pageParams: [undefined],
   });
+}
+
+export async function restartHomeRowsAfterExpiredVisit(
+  queryClient: QueryClient,
+  locale: Locale,
+  initialPage: HomeFeedPage,
+  firstPage: HomeFeedPage,
+): Promise<void> {
+  const verticalKey = homeQueryKeys.rows(locale, initialPage);
+  await Promise.all([
+    queryClient.cancelQueries({ queryKey: verticalKey, exact: true }),
+    queryClient.cancelQueries({ queryKey: ['home', 'row-items'] }),
+  ]);
+  queryClient.removeQueries({ queryKey: ['home', 'row-items'] });
+  resetHomeRowsAfterExpiredVisit(queryClient, locale, initialPage, firstPage);
 }

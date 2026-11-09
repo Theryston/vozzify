@@ -1,4 +1,4 @@
-import type { HomeRow } from '@vozzify/contracts';
+import type { HomeFeedPage, HomeRow, Locale } from '@vozzify/contracts';
 import type { ReactNode } from 'react';
 
 import type { SponsoredPlacement } from '../components/sponsored-notice';
@@ -20,7 +20,12 @@ type LayoutOf<TLayout extends HomeRow['layout']> = Extract<
 /** One registered layout: where its sponsored notice goes, and how it renders. */
 export type HomeLayoutEntry = {
   placement: SponsoredPlacement;
-  render: (row: HomeRow, priority: boolean) => ReactNode;
+  render: (
+    row: HomeRow,
+    priority: boolean,
+    locale?: Locale,
+    onVisitExpired?: (page: HomeFeedPage) => void,
+  ) => ReactNode;
 };
 
 function isLayoutOf<TLayout extends HomeRow['layout']>(
@@ -41,13 +46,20 @@ function registerLayout<TLayout extends HomeRow['layout']>(
   Component: (props: {
     row: LayoutOf<TLayout>;
     priority: boolean;
+    locale?: Locale;
+    onVisitExpired?: (page: HomeFeedPage) => void;
   }) => ReactNode,
 ): HomeLayoutEntry {
   return {
     placement,
-    render: (row, priority) =>
+    render: (row, priority, locale, onVisitExpired) =>
       isLayoutOf(row, layout) ? (
-        <Component row={row} priority={priority} />
+        <Component
+          row={row}
+          priority={priority}
+          locale={locale}
+          onVisitExpired={onVisitExpired}
+        />
       ) : null,
   };
 }

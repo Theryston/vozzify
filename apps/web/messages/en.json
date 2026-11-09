@@ -9,6 +9,8 @@
       "sing": "Sing this song"
     },
     "carousel": {
+      "loadMoreItemsError": "Could not load more Tracks in this row.",
+      "retryItems": "Retry",
       "scrollLeft": "Scroll row left",
       "scrollRight": "Scroll row right"
     },

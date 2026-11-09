@@ -1,11 +1,15 @@
-import { Controller, Get, Query, Res } from '@nestjs/common';
+import { Controller, Get, Param, Query, Res } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { type HomeFeed, homeFeedSchema } from '@vozzify/contracts';
+import {
+  type HomeFeed,
+  homeFeedSchema,
+  homeRowItemsPageSchema,
+} from '@vozzify/contracts';
 import type { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { Public } from '../../common/decorators/public.decorator.js';
@@ -13,11 +17,16 @@ import { ZodSerializerDto } from '../../common/zod/zod-serializer.interceptor.js
 import type { AuthUser } from '../auth/auth.js';
 import { HomeService } from './home.service.js';
 import { HomeFeedQueryDto } from './home-feed-query.dto.js';
+import { HomeRowItemsService } from './home-row-items.service.js';
+import { HomeRowItemsQueryDto } from './home-row-items-query.dto.js';
 
 @ApiTags('home')
 @Controller('home')
 export class HomeController {
-  constructor(private readonly home: HomeService) {}
+  constructor(
+    private readonly home: HomeService,
+    private readonly rowItems: HomeRowItemsService,
+  ) {}
 
   // Public: a signed-in visitor gets the same route, with the pins for Users.
   // Its response is private, since it differs from the anonymous one. A cursor
@@ -46,5 +55,22 @@ export class HomeController {
     );
     response.setHeader('Cache-Control', cacheControl);
     return page;
+  }
+
+  @Public()
+  @Get('rows/:rowId/items')
+  @ZodSerializerDto(homeRowItemsPageSchema)
+  @ApiOkResponse({ description: 'One page of a frozen Home Track Row.' })
+  @ApiBadRequestResponse({ description: 'The item cursor is malformed.' })
+  @ApiNotFoundResponse({ description: 'The visit or Row has expired.' })
+  async getRowItems(
+    @Param('rowId') rowId: string,
+    @Query() query: HomeRowItemsQueryDto,
+    @CurrentUser() user: AuthUser | undefined,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.rowItems.getPage(rowId, query.cursor, user?.id);
+    response.setHeader('Cache-Control', result.cacheControl);
+    return result.page;
   }
 }

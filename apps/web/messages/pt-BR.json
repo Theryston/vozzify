@@ -9,6 +9,8 @@
       "sing": "Cante esta música"
     },
     "carousel": {
+      "loadMoreItemsError": "Não foi possível carregar mais faixas nesta fileira.",
+      "retryItems": "Tentar novamente",
       "scrollLeft": "Rolar a fileira para a esquerda",
       "scrollRight": "Rolar a fileira para a direita"
     },

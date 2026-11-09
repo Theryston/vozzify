@@ -84,6 +84,16 @@ public row ever flashes before the personal rows land. The resume carousels
 land in the skeleton's carousel slots; cursor paging from the browser
 forwards the session the same way.
 
+**Horizontal pages share the owner-scoped visit.** The complete standard and
+vocal-range Rows are retained in the personal visit snapshot and exposed to
+the client in pages of twelve. The item cursor binds the visit version,
+locale, Row and position, and each request verifies the same User owns the
+visit. A signed-in fallback built from public rows is still a personal,
+owner-scoped visit with private cache headers. Expiry of either axis replaces
+the vertical pages and clears horizontal item pages together; it never appends
+a fresh personal first page to rows from the expired version. See ADR 0011
+for the endpoint and expand-first capacity rollout.
+
 ## Consequences
 
 - A signed-in visit costs one snapshot rebuild per User per staleness window
@@ -105,7 +115,10 @@ Algorithm version 2 identifies newly generated feeds with this composition.
 Previously cached snapshots retain their stored marker and are served as-is
 until normal expiry; ordinary refreshes write the current marker. Rollback
 sets the algorithm marker back to 1 and lets version-2 snapshots expire or
-rebuilds them with the standard jobs.
+rebuilds them with the standard jobs. If a later writer rollout stores Rows
+larger than the old reader accepts, rollback also expires the personal
+`current`, `current:retired`, and retained visit keys for those Users before
+older readers start, alongside the public keys described in ADR 0011.
 
 ## Alternatives considered
 

@@ -9,12 +9,7 @@ import { AppException } from '../../common/errors/app-exception.js';
 import { decodeHomeCursor } from './home-cursor.js';
 import type { StoredPersonalHomeFeed } from './home-feed.js';
 import { HomeFeedService } from './home-feed.service.js';
-import {
-  cacheControlOf,
-  type HomePage,
-  pageOf,
-  type ServedFeed,
-} from './home-page.js';
+import { answerHomePage, type HomePage, type ServedFeed } from './home-page.js';
 import { personalSnapshotStale } from './home-personal.js';
 import { PersonalHomeStore } from './home-personal.store.js';
 import { PersonalHomeQueueService } from './home-personal-queue.service.js';
@@ -23,6 +18,7 @@ import {
   personalHomeVersionFromStoredRows,
 } from './home-personal-version.js';
 import { HomePinOverlayService } from './home-pin-overlay.service.js';
+import { needsFrozenVisit } from './home-row-page.js';
 import {
   DEFAULT_HOME_LOCALE,
   HOME_ALGORITHM_VERSION,
@@ -34,19 +30,6 @@ import {
 import { HomeSocialService } from './home-social.service.js';
 import { HomeVisitService } from './home-visit.service.js';
 
-/**
- * Serves the home feed a request asks for. The first page comes from the
- * locale's current feed; a cursor resumes the version it was issued for, so a
- * feed regenerated in between never shifts the rows of the visit. The live
- * editorial pins are overlaid on the stored rows per request.
- *
- * A signed-in visitor gets their personal feed: the stored snapshot when one
- * is served (fresh or stale), or the public rows meanwhile. A snapshot older
- * than the staleness limit, or a missing one, queues a rebuild, so the
- * request never computes it. The personal answer carries `audience:
- * personal` with private, non-storable headers, and never reaches a shared
- * cache.
- */
 @Injectable()
 export class HomeService {
   private readonly logger = new Logger(HomeService.name);
@@ -61,7 +44,6 @@ export class HomeService {
     @Optional() private readonly refresh?: PersonalHomeQueueService,
   ) {}
 
-  // Visibility changes must mask social snapshots on every signed-in read.
   @Optional()
   @Inject(HomeSocialService)
   private readonly social?: HomeSocialService;
@@ -70,12 +52,6 @@ export class HomeService {
   @Inject(HomeVisitService)
   private readonly visits?: HomeVisitService;
 
-  /**
-   * The first page is the locale's current feed; a cursor resumes the version
-   * it was issued for, and the locale is the one that feed was built for, so
-   * the `locale` argument is ignored for it. The minimal home is never
-   * overlaid. A signed-in visitor is named by `userId`.
-   */
   async getPage(
     cursor: string | undefined,
     locale: Locale = DEFAULT_HOME_LOCALE,
@@ -91,7 +67,6 @@ export class HomeService {
       : this.personalVersionPage(userId, cursor, locale);
   }
 
-  /** A private admin preview from the neutral current feed, never a snapshot. */
   async preview(request: HomePinPreviewRequest): Promise<{
     page: HomePinPreviewResponse;
     cacheable: false;
@@ -125,14 +100,13 @@ export class HomeService {
     const shown = cacheable
       ? await this.withPins(feed.rows, locale, false)
       : feed.rows;
-    const visit =
-      shown.length > HOME_PAGE_SIZE
-        ? await this.visits?.create(feed, shown, locale)
-        : undefined;
+    const visit = needsFrozenVisit(shown)
+      ? await this.visits?.create(feed, shown, locale)
+      : undefined;
     const canCache =
       this.visits === undefined
         ? cacheable
-        : cacheable && (shown.length <= HOME_PAGE_SIZE || visit !== undefined);
+        : cacheable && (!needsFrozenVisit(shown) || visit !== undefined);
     return this.answer(
       {
         ...feed,
@@ -164,10 +138,9 @@ export class HomeService {
     }
     const currentRows = await this.withSocialRows(snapshot.rows, userId);
     const shown = await this.withPins(currentRows, locale, true, 'personal');
-    const visit =
-      shown.length > HOME_PAGE_SIZE
-        ? await this.visits?.create(snapshot, shown, locale, userId)
-        : undefined;
+    const visit = needsFrozenVisit(shown)
+      ? await this.visits?.create(snapshot, shown, locale, userId)
+      : undefined;
     return this.answer(
       {
         ...snapshot,
@@ -191,9 +164,10 @@ export class HomeService {
       ? await this.withPins(currentRows, locale, true)
       : currentRows;
     const personalFeed = { ...feed, audience: 'personal' as const };
-    const visit = cacheable
-      ? await this.visits?.create(personalFeed, shown, locale, userId)
-      : undefined;
+    const visit =
+      cacheable && needsFrozenVisit(shown)
+        ? await this.visits?.create(personalFeed, shown, locale, userId)
+        : undefined;
     const version =
       visit?.version ??
       (this.social
@@ -216,8 +190,6 @@ export class HomeService {
     }
     const feed = await this.feeds.publicVersion(version);
     if (!feed) {
-      // Not a 410 with its own code: that code would need a translation in
-      // every client. The client restarts from the first page on this one.
       throw new AppException(
         'NOT_FOUND',
         'This home feed version is no longer served; start again from the first page',
@@ -229,11 +201,6 @@ export class HomeService {
     return this.answer({ ...feed, rows: shown }, position, true, signedIn);
   }
 
-  /**
-   * A cursor page of a signed-in visitor: the snapshot version it names when
-   * still served, else the public one. Either way the answer is personal with
-   * private headers, so no shared cache can keep it.
-   */
   private async personalVersionPage(
     userId: string,
     cursor: string,
@@ -292,7 +259,6 @@ export class HomeService {
       : undefined;
   }
 
-  /** Queues a snapshot rebuild without failing the request when it cannot. */
   private async requestRefresh(userId: string, locale: Locale): Promise<void> {
     try {
       await this.refresh?.requestRefresh(userId, locale);
@@ -315,7 +281,6 @@ export class HomeService {
     return this.pinOverlay.apply(rows, { locale, signedIn, audience });
   }
 
-  /** Rebuilds social rows from current profile visibility before serving cache. */
   private async withSocialRows(
     rows: HomeRow[],
     userId: string,
@@ -331,15 +296,13 @@ export class HomeService {
     cacheable: boolean,
     signedIn: boolean,
   ): Promise<HomePage> {
-    const page = pageOf(feed, position);
-    // Spec doubles of the feed service predate the artist linker; production
-    // always wires the real one.
-    const rows = await this.linkRows(page.rows);
-    return {
-      page: { ...page, rows },
+    return answerHomePage({
+      feed,
+      position,
       cacheable,
-      cacheControl: cacheControlOf(cacheable, signedIn),
-    };
+      signedIn,
+      linkRows: (rows) => this.linkRows(rows),
+    });
   }
 
   private async linkRows(rows: HomeRow[]): Promise<HomeRow[]> {

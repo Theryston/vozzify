@@ -34,6 +34,7 @@ export async function fetchHomePageInBrowser({
     const firstPage = await browserApi('/home', {
       schema: homeFeedPageSchema,
       query: { locale, cursor: undefined },
+      headers: { 'Cache-Control': 'no-cache' },
       signal,
     });
     throw new HomeVisitRestartError(firstPage);

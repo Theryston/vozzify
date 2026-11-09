@@ -143,3 +143,34 @@ regular refresh jobs.
   error code needs a translation in each client, and the web's locale files are
   not part of this slice. The 404 with a reason keeps the envelope and the
   translations as they are. Adding the code later is additive.
+
+## Horizontal Track Row pages
+
+The visit snapshot retains the complete membership of each standard and
+vocal-range Row. The HTTP feed exposes at most twelve Tracks per Row and adds
+optional `nextItemsCursor` metadata when more remain. `GET
+/v1/home/rows/:rowId/items?cursor=...` returns the next bounded page. Its opaque
+cursor binds the visit version, locale, Row ID and item position. A visit is
+created when either vertical rows or a Row's items continue, so a one-Row feed
+has the same stable lifecycle as a feed with later vertical pages. The item
+endpoint checks the viewer against the visit owner; public answers are shared
+cacheable and personal answers are `private, no-store`.
+
+The visit reader accepts standard and vocal-range Rows up to 48 Tracks, while
+each public Home Row and item page remains bounded to twelve. Current writers
+keep algorithmic Rows at twelve and editorial Pins at their existing maximum
+of 24; the larger internal reader capacity does not change either writer
+limit. Expand-first rollout: deploy the 48-item visit reader while all writers
+retain those limits, then wait until every old API instance has drained before
+any later rollout lets a writer persist more than 24. On rollback after such a
+writer rollout, stop expanded writers, expire public and personal current and
+retired feed and visit keys through the cache maintenance path, then deploy old
+readers and rebuild the snapshots. This intentionally expires in-flight visits
+rather than letting an old reader reject and delete a larger-than-24 snapshot
+on first read. See ADRs 0012 and 0013 for the live-Pin and personal-snapshot
+effects of this transition.
+
+Horizontal and vertical cursors share the frozen visit version. If that visit
+expires, the client restarts both axes from a fresh first page. An item request
+failure by itself retains loaded cards and remains retryable; only the explicit
+`FEED_VERSION_EXPIRED` reason triggers the coordinated restart.
