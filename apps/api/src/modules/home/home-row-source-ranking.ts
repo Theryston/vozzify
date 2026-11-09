@@ -3,7 +3,6 @@ import type { TrackLocaleTrendingService } from '../tracks/track-locale-trending
 import type { HomeRepository, HomeTrackRecord } from './home.repository.js';
 import {
   popularityScore,
-  rankBySignalCount,
   SINGING_SIGNAL_WINDOW_DAYS,
   TOP_10_WINDOW_DAYS,
 } from './home-popularity.js';
@@ -53,8 +52,14 @@ export const localeTrending = async (
   repository: TrendingRecords,
   ranking: TrendingRanking,
   locale: Locale,
-  activityWindowDays = SINGING_SIGNAL_WINDOW_DAYS,
-): Promise<HomeTrackRecord[]> => {
+  options: {
+    activityWindowDays?: number;
+    offset?: number;
+  } = {},
+): Promise<{ items: HomeTrackRecord[]; hasMore: boolean }> => {
+  const activityWindowDays =
+    options.activityWindowDays ?? SINGING_SIGNAL_WINDOW_DAYS;
+  const offset = options.offset ?? 0;
   const evidence = await repository.localePracticeEvidence(
     locale,
     windowSince(activityWindowDays),
@@ -62,14 +67,36 @@ export const localeTrending = async (
   if (
     !hasSufficientLocaleEvidence(evidence.distinctUsers, evidence.activeDays)
   ) {
-    return repository.findTrendingTracks(CANDIDATE_LIMIT);
+    const items =
+      offset === 0
+        ? repository.findTrendingTracks(CANDIDATE_LIMIT)
+        : repository.findTrendingTracks(CANDIDATE_LIMIT, offset);
+    return items.then((records) => ({
+      items: records,
+      hasMore: records.length === CANDIDATE_LIMIT,
+    }));
   }
   const entries = await ranking.rank(locale);
   if (entries === undefined) {
-    return repository.findTrendingTracks(CANDIDATE_LIMIT);
+    const items =
+      offset === 0
+        ? repository.findTrendingTracks(CANDIDATE_LIMIT)
+        : repository.findTrendingTracks(CANDIDATE_LIMIT, offset);
+    return items.then((records) => ({
+      items: records,
+      hasMore: records.length === CANDIDATE_LIMIT,
+    }));
   }
-  const ids = entries.slice(0, CANDIDATE_LIMIT).map((entry) => entry.trackId);
-  return rankedHomeRecords(await repository.findCompletedTracksByIds(ids), ids);
+  const ids = entries
+    .slice(offset, offset + CANDIDATE_LIMIT)
+    .map((entry) => entry.trackId);
+  return {
+    items: rankedHomeRecords(
+      await repository.findCompletedTracksByIds(ids),
+      ids,
+    ),
+    hasMore: entries.length > offset + CANDIDATE_LIMIT,
+  };
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -77,19 +104,6 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** The start of the rolling window `days` long that ends now. */
 export const windowSince = (days: number, now: number = Date.now()): Date =>
   new Date(now - days * DAY_MS);
-
-/**
- * The completed Tracks behind a signal count (valid Attempts, recent
- * favorites), best first. The repository reads them in signal order already;
- * `inRankOrder` keeps that order and skips Tracks that stopped being completed.
- */
-export const rankedBySignal = async (
-  repository: Pick<HomeRepository, 'findCompletedTracksByIds'>,
-  count: () => Promise<{ trackId: string; count: number }[]>,
-): Promise<HomeTrackRecord[]> => {
-  const ids = rankBySignalCount(await count()).map((entry) => entry.trackId);
-  return rankedHomeRecords(await repository.findCompletedTracksByIds(ids), ids);
-};
 
 const scoreWeeklyRecords = (options: {
   records: HomeTrackRecord[];

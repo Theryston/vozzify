@@ -157,18 +157,15 @@ endpoint checks the viewer against the visit owner; public answers are shared
 cacheable and personal answers are `private, no-store`.
 
 The visit reader accepts standard and vocal-range Rows up to 48 Tracks, while
-each public Home Row and item page remains bounded to twelve. Current writers
-keep algorithmic Rows at twelve and editorial Pins at their existing maximum
-of 24; the larger internal reader capacity does not change either writer
-limit. Expand-first rollout: deploy the 48-item visit reader while all writers
-retain those limits, then wait until every old API instance has drained before
-any later rollout lets a writer persist more than 24. On rollback after such a
-writer rollout, stop expanded writers, expire public and personal current and
-retired feed and visit keys through the cache maintenance path, then deploy old
-readers and rebuild the snapshots. This intentionally expires in-flight visits
-rather than letting an old reader reject and delete a larger-than-24 snapshot
-on first read. See ADRs 0012 and 0013 for the live-Pin and personal-snapshot
-effects of this transition.
+each public Home Row and item page remains bounded to twelve. The #505 reader
+rollout precedes writers that store larger Rows. Public algorithmic writers
+now retain up to 48 Tracks; editorial Pins have their own 48-Track limit. On
+rollback to a v5 composer, stop expanded writers before deploying it: v5
+composition returns to its prior 12-item Rows, while the compatible reader can
+continue to serve retained snapshots. If a rollback also changes the paging
+protocol, expire incompatible visits through the cache maintenance path before
+deploying readers that cannot parse them. See ADRs 0012 and 0013 for the
+live-Pin and personal-snapshot effects of this transition.
 
 Horizontal and vertical cursors share the frozen visit version. If that visit
 expires, the client restarts both axes from a fresh first page. An item request

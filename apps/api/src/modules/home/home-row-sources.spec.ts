@@ -101,6 +101,16 @@ describe('the trending row sources', () => {
     expect(repository.findTrendingTracks).not.toHaveBeenCalled();
     expect(items?.map((item) => item.id)).toEqual(['b', 'a']);
   });
+
+  it('loads later bounded global ranking pages by offset', async () => {
+    const source = createHomeRowSources(repository, ranking).find(
+      (row) => row.id === 'trending-today',
+    );
+
+    await source?.load('en', 60);
+
+    expect(repository.findTrendingTracks).toHaveBeenCalledWith(60, 60);
+  });
 });
 
 describe('the singing row sources', () => {

@@ -40,6 +40,7 @@ import {
 import {
   HOME_RECOMMENDATION_ROW_MIN_ITEMS,
   HOME_ROW_RULES,
+  HOME_TRACK_PAGE_SIZE,
 } from './home-rules.js';
 
 const MIN_TASTE_SIGNALS = 3;
@@ -270,7 +271,7 @@ export class PersonalHomeTasteRowsService {
     visibleTrackSlots: number;
   }): Promise<HomeRow | undefined> {
     const slots = Math.min(
-      HOME_ROW_RULES.standard.maxItems,
+      HOME_TRACK_PAGE_SIZE,
       explorationSlotCount(options.visibleTrackSlots),
     );
     if (slots < HOME_RECOMMENDATION_ROW_MIN_ITEMS) return undefined;

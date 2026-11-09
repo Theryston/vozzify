@@ -159,6 +159,75 @@ describe('HomeFeedBuilder', () => {
     }
   });
 
+  it('replenishes bounded source pages when a public Row needs more candidates', async () => {
+    const offsets: (number | undefined)[] = [];
+    const source: HomeRowSource = {
+      ...trendingSource([]),
+      candidatePageSize: 60,
+      load: async (_locale, offset) => {
+        offsets.push(offset);
+        if ((offset ?? 0) >= 120) return [];
+        const start = offset ?? 0;
+        return Array.from({ length: 60 }, (_, index) =>
+          candidate(`page-${start + index}`),
+        );
+      },
+    };
+    const feed = await buildWith([source]);
+
+    expect(offsets).toEqual([0]);
+    expect(feed.rows[0]?.layout).toBe('standard');
+    if (feed.rows[0]?.layout !== 'standard') {
+      throw new Error('expected a standard Row');
+    }
+    expect(feed.rows[0].items).toHaveLength(48);
+    expect(new Set(feed.rows[0].items.map(({ id }) => id)).size).toBe(48);
+  });
+
+  it('continues bounded queries past the initial 240 candidates when the cap excludes them', async () => {
+    const offsets: number[] = [];
+    const source: HomeRowSource = {
+      ...trendingSource([]),
+      candidatePageSize: 60,
+      load: async (_locale, offset = 0) =>
+        (await source.loadPage?.('en', offset))?.items ?? [],
+      loadPage: async (_locale, offset = 0) => {
+        offsets.push(offset);
+        const items = Array.from({ length: 60 }, (_, index) => {
+          const id = `page-${offset + index}`;
+          return candidate(id, {
+            artistKey: offset < 240 ? 'dominant-artist' : id,
+            hasVocalRange: true,
+          });
+        });
+        return { items, hasMore: offset < 240 };
+      },
+    };
+    const feed = await buildWith([source]);
+
+    expect(offsets).toEqual([0, 60, 120, 180, 240]);
+    expect(feed.rows[0]?.layout).toBe('standard');
+    if (feed.rows[0]?.layout !== 'standard') {
+      throw new Error('expected a standard Row');
+    }
+    expect(feed.rows[0].items).toHaveLength(48);
+    const selectedIds = feed.rows[0].items.map(({ id }) => id);
+    expect(selectedIds).toContain('page-240');
+    expect(selectedIds).toContain('page-2');
+    expect(new Set(selectedIds).size).toBe(48);
+    expect(selectedIds.filter((id) => Number(id.slice(5)) < 240)).toHaveLength(
+      4,
+    );
+    for (let offset = 0; offset < 48; offset += 12) {
+      const batch = selectedIds.slice(offset, offset + 12);
+      expect(batch.filter((id) => Number(id.slice(5)) < 240)).toHaveLength(
+        offset < 24 ? 2 : 0,
+      );
+    }
+    expect(Buffer.byteLength(JSON.stringify(feed.rows))).toBe(10_157);
+    expect(Buffer.byteLength(JSON.stringify(feed))).toBe(98_324);
+  });
+
   it('leaves a range-less Track out of a vocal-range row', async () => {
     const ranged = candidates(6).map((item) => ({
       ...item,

@@ -10,8 +10,10 @@ import type {
   Locale,
 } from '@vozzify/contracts';
 import type { HomeAlbumCandidateSnapshot } from './home-album-candidates.js';
+import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import { type StoredHomeFeed } from './home-feed.js';
-import { composeEntityRows, composeHomeRows } from './home-feed-composer.js';
+import { composeEntityRows } from './home-feed-composer.js';
+import { composePublicRows } from './home-row-composition.js';
 import {
   HOME_ENTITY_ROW_SOURCES,
   HOME_ROW_SOURCES,
@@ -31,7 +33,7 @@ import {
 type ComposedRow = {
   id: string;
   layout: HomeLayout;
-  title: HomeRowTitle | undefined;
+  title?: HomeRowTitle;
   items: HomeCandidate[];
 };
 
@@ -163,13 +165,18 @@ const toHomeEntityRow = (row: ComposedEntityRow): HomeRow => {
  * and the web is not revalidated for nothing. The locale is in the hash, so
  * the version alone names one locale's feed.
  */
-const feedVersion = (locale: Locale, rows: HomeRow[]): string =>
+const feedVersion = (
+  locale: Locale,
+  rows: HomeRow[],
+  compositionCandidates: HomeCompositionCandidateRow[],
+): string =>
   createHash('sha256')
     .update(
       JSON.stringify({
         algorithmVersion: HOME_ALGORITHM_VERSION,
         locale,
         rows,
+        compositionCandidates,
       }),
     )
     .digest('hex')
@@ -189,15 +196,8 @@ export class HomeFeedBuilder {
   ) {}
 
   async build(locale: Locale = DEFAULT_HOME_LOCALE): Promise<StoredHomeFeed> {
-    const candidates = await Promise.all(
-      this.sources.map(async (source) => ({
-        id: source.id,
-        layout: source.layout,
-        title: source.title,
-        items: await source.load(locale),
-      })),
-    );
-    const rows = composeHomeRows(candidates)
+    const composed = await composePublicRows(this.sources, locale);
+    const rows = composed.rows
       .map(toHomeRow)
       .filter((row): row is HomeRow => row !== undefined);
     const entityCandidates = await Promise.all(
@@ -237,9 +237,14 @@ export class HomeFeedBuilder {
     return {
       audience: 'public',
       locale,
-      version: feedVersion(locale, [...rows, ...entityRows]),
+      version: feedVersion(
+        locale,
+        [...rows, ...entityRows],
+        composed.compositionCandidates,
+      ),
       algorithmVersion: HOME_ALGORITHM_VERSION,
       rows: [...rows, ...entityRows],
+      compositionCandidates: composed.compositionCandidates,
       ...(albumCandidates.length > 0 ? { albumCandidates } : {}),
     };
   }

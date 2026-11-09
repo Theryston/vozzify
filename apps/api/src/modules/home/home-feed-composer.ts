@@ -1,93 +1,25 @@
+import type { ComposableTrack } from './home-composable-track.js';
 import {
   HOME_RECOMMENDATION_ROW_MIN_ITEMS,
   HOME_ROW_RULES,
+  HOME_TRACK_PAGE_SIZE,
   type HomeEntityLayout,
   type HomeLayout,
-  type HomeRowRule,
   isHomeRecommendationRow,
-  MAX_TRACKS_PER_ARTIST_PER_ROW,
 } from './home-rules.js';
 import { progressiveExposureFactor } from './home-stage2-scoring.js';
+import { isEligible, pickRowItems } from './home-track-row-picker.js';
 
-/** What the composer needs to know about a Track to place it in a row. */
-export type ComposableTrack = {
-  id: string;
-  /** The artist the per-row cap counts by (the credit's first artist). */
-  artistKey: string;
-  /** Every credited Artist participates in the same per-row limit. */
-  artistKeys?: string[];
-  hasCover: boolean;
-  /** Only Tracks whose Processing completed may appear in the feed. */
-  isCompleted: boolean;
-  /** Absent means no stored Vocal range: only the by-voice rows ask for one. */
-  hasVocalRange?: boolean;
-};
+export type { ComposableTrack } from './home-composable-track.js';
 
-type RowCandidate<T extends ComposableTrack> = {
+type HomeTrackRowCandidate<T extends ComposableTrack> = {
   id: string;
   layout: HomeLayout;
   /** Best first: the composer keeps the first eligible ones. */
   items: readonly T[];
 };
 
-const isEligible = <T extends ComposableTrack>(
-  track: T,
-  rule: HomeRowRule,
-): boolean =>
-  track.isCompleted &&
-  (!rule.requiresCover || track.hasCover) &&
-  (!rule.requiresVocalRange || track.hasVocalRange === true);
-
-type PickRowOptions<T extends ComposableTrack> = {
-  candidates: readonly T[];
-  rule: HomeRowRule;
-  used: ReadonlySet<string>;
-  reserved: ReadonlySet<string>;
-  bypassArtistCap: boolean;
-  overlapsExisting: boolean;
-  overlapsReserved: boolean;
-};
-
-const isTrackTaken = <T extends ComposableTrack>(
-  track: T,
-  picked: readonly T[],
-  options: PickRowOptions<T>,
-): boolean =>
-  (!options.overlapsExisting && options.used.has(track.id)) ||
-  (!options.overlapsReserved && options.reserved.has(track.id)) ||
-  picked.some((p) => p.id === track.id);
-
-const pickRowItems = <T extends ComposableTrack>(
-  options: PickRowOptions<T>,
-): T[] => {
-  const { candidates, rule, bypassArtistCap } = options;
-  const picked: T[] = [];
-  const perArtist = new Map<string, number>();
-  for (const track of candidates) {
-    if (picked.length >= rule.maxItems) {
-      break;
-    }
-    const taken = isTrackTaken(track, picked, options);
-    if (taken || !isEligible(track, rule)) {
-      continue;
-    }
-    const artistKeys = [...new Set(track.artistKeys ?? [track.artistKey])];
-    if (
-      !bypassArtistCap &&
-      artistKeys.some(
-        (artistKey) =>
-          (perArtist.get(artistKey) ?? 0) >= MAX_TRACKS_PER_ARTIST_PER_ROW,
-      )
-    ) {
-      continue;
-    }
-    for (const artistKey of artistKeys) {
-      perArtist.set(artistKey, (perArtist.get(artistKey) ?? 0) + 1);
-    }
-    picked.push(track);
-  }
-  return picked;
-};
+type RowCandidate<T extends ComposableTrack> = HomeTrackRowCandidate<T>;
 
 const reweightByExposure = <T extends ComposableTrack>(
   candidates: readonly T[],
@@ -128,6 +60,35 @@ const addArtistExposures = (
       exposures.set(artistKey, (exposures.get(artistKey) ?? 0) + 1);
     }
   }
+};
+
+/** What the composer needs to place an entity (a genre, Artist or Album). */
+export type ComposableEntity = { id: string };
+
+type EntityRowCandidate<T extends ComposableEntity> = {
+  layout: HomeEntityLayout;
+  items: readonly T[];
+};
+
+/** Preserves first occurrences and releases entities from dropped Rows. */
+export const composeEntityRows = <
+  T extends ComposableEntity,
+  R extends EntityRowCandidate<T>,
+>(
+  candidates: readonly R[],
+): (R & { items: T[] })[] => {
+  const used = new Set<string>();
+  const rows: (R & { items: T[] })[] = [];
+  for (const candidate of candidates) {
+    const rule = HOME_ROW_RULES[candidate.layout];
+    const items = candidate.items
+      .filter((item) => !used.has(item.id))
+      .slice(0, rule.maxItems);
+    if (items.length < rule.minItems) continue;
+    for (const item of items) used.add(item.id);
+    rows.push({ ...candidate, items });
+  }
+  return rows;
 };
 
 const reserveRankedTracks = <T extends ComposableTrack>(
@@ -175,81 +136,135 @@ export const composeHomeRows = <
   R extends RowCandidate<T>,
 >(
   candidates: readonly R[],
-  options: { minimumItems?: Partial<Record<HomeLayout, number>> } = {},
+  options: {
+    minimumItems?: Partial<Record<HomeLayout, number>>;
+    expandRecommendationRows?: boolean;
+  } = {},
 ): (R & { items: T[] })[] => {
   const rankedTrackIds = reserveRankedTracks(candidates);
   const used = new Set<string>();
   const artistExposures = new Map<string, number>();
   const rows: (R & { items: T[] })[] = [];
+  const expansionContexts: {
+    candidate: R;
+    exposures: Map<string, number>;
+  }[] = [];
   for (const candidate of candidates) {
-    const rule = HOME_ROW_RULES[candidate.layout];
-    const isException = bypassesArtistCap(candidate);
-    const rankedCandidates = isException
-      ? candidate.items
-      : reweightByExposure(candidate.items, artistExposures);
-    const items = pickRowItems({
-      candidates: rankedCandidates,
-      rule,
+    const composed = composeInitialRow<T, R>({
+      candidate,
+      exposures: artistExposures,
       used,
       reserved: rankedTrackIds,
-      bypassArtistCap: isException,
-      overlapsExisting: candidate.layout === 'ranked',
-      overlapsReserved:
-        candidate.layout === 'ranked' || candidate.layout === 'hero',
+      options,
     });
-    const minimum = minimumRowItems(candidate, options.minimumItems);
-    if (items.length < minimum) {
-      continue;
-    }
+    if (!composed) continue;
+    const { row, priorExposures } = composed;
+    const { items } = row;
     for (const item of items) {
       used.add(item.id);
     }
     if (candidate.id !== 'continue-singing' && candidate.id !== 'sing-again') {
       addArtistExposures(items, artistExposures);
     }
-    rows.push({ ...candidate, items });
+    rows.push(row);
+    if (options.expandRecommendationRows && isTrackCarousel(candidate.layout)) {
+      expansionContexts.push({
+        candidate,
+        exposures: priorExposures,
+      });
+    }
+  }
+  if (options.expandRecommendationRows) {
+    expandRows(rows, expansionContexts, used, rankedTrackIds);
   }
   return rows;
 };
 
-/** What the composer needs to place an entity (a genre, artist or album). */
-export type ComposableEntity = {
-  /** Stable across rows, so an entity appears once per feed. */
-  id: string;
+const isTrackCarousel = (layout: HomeLayout): boolean =>
+  layout === 'standard' || layout === 'vocal-range';
+
+const composeInitialRow = <
+  T extends ComposableTrack,
+  R extends RowCandidate<T>,
+>(input: {
+  candidate: R;
+  exposures: Map<string, number>;
+  used: ReadonlySet<string>;
+  reserved: ReadonlySet<string>;
+  options: {
+    minimumItems?: Partial<Record<HomeLayout, number>>;
+    expandRecommendationRows?: boolean;
+  };
+}):
+  | { row: R & { items: T[] }; priorExposures: Map<string, number> }
+  | undefined => {
+  const { candidate, exposures, used, reserved, options } = input;
+  const rule = HOME_ROW_RULES[candidate.layout];
+  const exception = bypassesArtistCap(candidate);
+  const priorExposures = new Map(exposures);
+  const rankedCandidates = exception
+    ? candidate.items
+    : reweightByExposure(candidate.items, exposures);
+  const limit =
+    options.expandRecommendationRows && isTrackCarousel(candidate.layout)
+      ? HOME_TRACK_PAGE_SIZE
+      : Math.min(rule.maxItems, HOME_TRACK_PAGE_SIZE);
+  const items = pickRowItems({
+    candidates: rankedCandidates,
+    rule,
+    used,
+    reserved,
+    bypassArtistCap: exception,
+    overlapsExisting: candidate.layout === 'ranked',
+    overlapsReserved:
+      candidate.layout === 'ranked' || candidate.layout === 'hero',
+    limit,
+    batchOffset: 0,
+  });
+  if (items.length < minimumRowItems(candidate, options.minimumItems)) {
+    return undefined;
+  }
+  return { row: { ...candidate, items }, priorExposures };
 };
 
-type EntityRowCandidate<T extends ComposableEntity> = {
-  layout: HomeEntityLayout;
-  items: readonly T[];
-};
-
-/**
- * Turns candidate entity rows, in feed order, into the rows of the feed. An
- * entity appears once per feed (the earlier row keeps it), a row below its
- * minimum size is dropped (and its entities stay free for the rows after
- * it), and a row keeps at most its maximum. Pure: the caller loads the
- * candidates and maps the rows it gets back.
- */
-export const composeEntityRows = <
-  T extends ComposableEntity,
-  R extends EntityRowCandidate<T>,
->(
-  candidates: readonly R[],
-): (R & { items: T[] })[] => {
-  const used = new Set<string>();
-  const rows: (R & { items: T[] })[] = [];
-  for (const candidate of candidates) {
-    const rule = HOME_ROW_RULES[candidate.layout];
-    const items = candidate.items
-      .filter((item) => !used.has(item.id))
-      .slice(0, rule.maxItems);
-    if (items.length < rule.minItems) {
+const expandRows = <T extends ComposableTrack, R extends RowCandidate<T>>(
+  rows: (R & { items: T[] })[],
+  contexts: { candidate: R; exposures: Map<string, number> }[],
+  used: Set<string>,
+  reserved: Set<string>,
+): void => {
+  const priorExpansionExposures = new Map<string, number>();
+  for (const { candidate, exposures } of contexts) {
+    const row = rows.find((entry) => entry.id === candidate.id);
+    if (!row || row.items.length >= HOME_ROW_RULES[candidate.layout].maxItems) {
       continue;
     }
-    for (const item of items) {
-      used.add(item.id);
+    const ownIds = new Set(row.items.map((item) => item.id));
+    const otherUsed = new Set([...used].filter((id) => !ownIds.has(id)));
+    const currentExposures = new Map(exposures);
+    for (const [artistKey, count] of priorExpansionExposures) {
+      currentExposures.set(
+        artistKey,
+        (currentExposures.get(artistKey) ?? 0) + count,
+      );
     }
-    rows.push({ ...candidate, items });
+    const additions = pickRowItems({
+      candidates: reweightByExposure(
+        candidate.items.filter((item) => !ownIds.has(item.id)),
+        currentExposures,
+      ),
+      rule: HOME_ROW_RULES[candidate.layout],
+      used: otherUsed,
+      reserved,
+      bypassArtistCap: false,
+      overlapsExisting: false,
+      overlapsReserved: false,
+      limit: HOME_ROW_RULES[candidate.layout].maxItems - row.items.length,
+      batchOffset: row.items.length,
+      startingItems: row.items,
+    });
+    row.items.push(...additions);
+    for (const item of additions) used.add(item.id);
+    addArtistExposures(additions, priorExpansionExposures);
   }
-  return rows;
 };
