@@ -1268,7 +1268,7 @@
             "required": false,
             "in": "query",
             "schema": {
-              "maxLength": 2000,
+              "maxLength": 6400,
               "type": "string"
             }
           },
@@ -2893,7 +2893,7 @@
                       },
                       "trackIds": {
                         "minItems": 1,
-                        "maxItems": 24,
+                        "maxItems": 48,
                         "type": "array",
                         "items": {
                           "type": "string",
@@ -3432,7 +3432,7 @@
                   },
                   "trackIds": {
                     "minItems": 1,
-                    "maxItems": 24,
+                    "maxItems": 48,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -3595,7 +3595,7 @@
                   },
                   "trackIds": {
                     "minItems": 1,
-                    "maxItems": 24,
+                    "maxItems": 48,
                     "type": "array",
                     "items": {
                       "type": "string",
