@@ -9,8 +9,8 @@ import {
   useRef,
   useState,
 } from 'react';
-
 import { CAROUSEL_TRACK_CLASS } from '../layout-dimensions';
+import { useCircularCarousel } from './circular-carousel';
 
 /** Pixels of tolerance for fractional scroll positions. */
 const EDGE_TOLERANCE = 2;
@@ -30,17 +30,25 @@ function scrollableDirections(track: HTMLUListElement | null): {
 
 type ArrowDirection = 'left' | 'right';
 
-function useTrackUpdates(
-  trackRef: MutableRefObject<HTMLUListElement | null>,
-  hoverable: boolean,
-  onNearEndRef: MutableRefObject<(() => void) | undefined>,
-  setDirections: (directions: { left: boolean; right: boolean }) => void,
-): void {
+type TrackUpdates = {
+  trackRef: MutableRefObject<HTMLUListElement | null>;
+  hoverable: boolean;
+  onNearEndRef: MutableRefObject<(() => void) | undefined>;
+  setDirections: (directions: { left: boolean; right: boolean }) => void;
+};
+
+function useTrackUpdates(options: TrackUpdates): void {
+  const { trackRef, hoverable, onNearEndRef, setDirections } = options;
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
     const update = () =>
-      updateTrackState(track, hoverable, onNearEndRef, setDirections);
+      updateTrackState({
+        track,
+        hoverable,
+        onNearEndRef,
+        setDirections,
+      });
     update();
     track.addEventListener('scroll', update, { passive: true });
     window.addEventListener('scroll', update, { passive: true });
@@ -60,12 +68,12 @@ function useTrackUpdates(
   }, [hoverable, onNearEndRef, setDirections, trackRef]);
 }
 
-function updateTrackState(
-  track: HTMLUListElement,
-  hoverable: boolean,
-  onNearEndRef: MutableRefObject<(() => void) | undefined>,
-  setDirections: (directions: { left: boolean; right: boolean }) => void,
-): void {
+function updateTrackState({
+  track,
+  hoverable,
+  onNearEndRef,
+  setDirections,
+}: Omit<TrackUpdates, 'trackRef'> & { track: HTMLUListElement }): void {
   if (hoverable) setDirections(scrollableDirections(track));
   const rect = track.getBoundingClientRect();
   const visible = rect.bottom > 0 && rect.top < window.innerHeight;
@@ -76,6 +84,18 @@ function updateTrackState(
   ) {
     onNearEndRef.current?.();
   }
+}
+
+function useHoverablePointer(): boolean {
+  const [hoverable, setHoverable] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia('(hover: hover) and (pointer: fine)');
+    const update = () => setHoverable(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+  return hoverable;
 }
 
 function ArrowButton({
@@ -140,53 +160,48 @@ export function CarouselScroller({
   header,
   children,
   onNearEnd,
+  exhausted = false,
 }: {
   header: ReactNode;
   children: ReactNode;
   onNearEnd?: () => void;
+  exhausted?: boolean;
 }) {
   const trackRef = useRef<HTMLUListElement>(null);
   const onNearEndRef = useRef(onNearEnd);
-  const [hoverable, setHoverable] = useState(false);
+  const hoverable = useHoverablePointer();
   const [directions, setDirections] = useState({ left: false, right: false });
+  const circular = useCircularCarousel(trackRef, children, exhausted);
 
   useEffect(() => {
     onNearEndRef.current = onNearEnd;
   }, [onNearEnd]);
 
-  // Desktop only: a coarse pointer never hovers, so the arrows stay out.
-  useEffect(() => {
-    const query = window.matchMedia('(hover: hover) and (pointer: fine)');
-    const update = () => setHoverable(query.matches);
-    update();
-    query.addEventListener('change', update);
-    return () => query.removeEventListener('change', update);
-  }, []);
-
-  useTrackUpdates(trackRef, hoverable, onNearEndRef, setDirections);
-
-  const scroll = (direction: ArrowDirection) => {
-    const track = trackRef.current;
-    if (!track) return;
-    const reduce = window.matchMedia(
-      '(prefers-reduced-motion: reduce)',
-    ).matches;
-    track.scrollBy({
-      left: (direction === 'left' ? -1 : 1) * track.clientWidth,
-      behavior: reduce ? 'auto' : 'smooth',
-    });
-  };
+  useTrackUpdates({
+    trackRef,
+    hoverable,
+    onNearEndRef,
+    setDirections,
+  });
 
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">{header}</div>
         {hoverable && (directions.left || directions.right) && (
-          <ArrowControls directions={directions} onScroll={scroll} />
+          <ArrowControls
+            directions={directions}
+            onScroll={circular.scrollByPage}
+          />
         )}
       </div>
-      <ul ref={trackRef} className={CAROUSEL_TRACK_CLASS}>
-        {children}
+      <ul
+        ref={trackRef}
+        className={CAROUSEL_TRACK_CLASS}
+        onFocusCapture={circular.onFocusCapture}
+        onKeyDown={circular.onKeyDown}
+      >
+        {circular.children}
       </ul>
     </div>
   );

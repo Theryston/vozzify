@@ -338,6 +338,13 @@ section heading) with its items `gap-2` below it; rows are spaced `gap-8`.
   against the title; clicking one pages the row by its own width, like the TV
   rails. Each arrow disables when its side has nothing left to scroll to.
   Touch devices never see the arrows, and rows that fit show none.
+  Once every horizontal page is loaded, an overflowing Track row wraps in both
+  directions. The repeated edge cards are visual copies only: they are hidden
+  from assistive technology. Their logical Track IDs and positions stay the
+  same, so visible-item impressions and clicks keep their original attribution;
+  the scroller recenters by one content width when a copy reaches either edge.
+  Before exhaustion, the row stays finite and continues to prefetch unseen
+  pages. Rows that fit keep their single, non-scrolling representation.
 - **Ranked** (Top 10 row): an ordered list (`<ol>`, the ranking) in a
   `rounded-2xl bg-card shadow-sm` block divided by `divide-border`. Each row
   is one link (`min-h-16`, `px-4 py-2`, `hover:bg-accent`, inset focus ring)

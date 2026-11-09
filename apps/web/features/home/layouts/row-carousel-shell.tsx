@@ -29,6 +29,7 @@ export function RowCarouselShell({
   title,
   sponsored,
   children,
+  exhausted,
   onNearEnd,
   loadFailed,
   onRetry,
@@ -37,6 +38,7 @@ export function RowCarouselShell({
   title: HomeRowTitle;
   sponsored: boolean | undefined;
   children: ReactNode;
+  exhausted?: boolean;
   onNearEnd?: () => void;
   loadFailed?: boolean;
   onRetry?: () => void;
@@ -49,6 +51,7 @@ export function RowCarouselShell({
     <section aria-labelledby={headingId} className="flex flex-col gap-2">
       <CarouselScroller
         onNearEnd={onNearEnd}
+        exhausted={exhausted ?? false}
         header={
           <div className={CAROUSEL_HEADER_CLASS}>
             <h2 id={headingId} className={CAROUSEL_TITLE_CLASS}>

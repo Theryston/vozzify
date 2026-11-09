@@ -33,7 +33,12 @@ export function VocalRangeLayout({
       onVisitExpired={onVisitExpired}
     />
   ) : (
-    <VocalRangeRowView row={row} priority={priority} items={row.items} />
+    <VocalRangeRowView
+      row={row}
+      priority={priority}
+      items={row.items}
+      exhausted
+    />
   );
 }
 
@@ -62,6 +67,7 @@ function PagedVocalRangeLayout({
       row={row}
       priority={priority}
       items={items}
+      exhausted={!loaded.hasMore}
       loadMore={loaded.loadMore}
       failed={loaded.failed}
       retry={loaded.retry}
@@ -76,6 +82,7 @@ function VocalRangeRowView({
   row,
   priority,
   items,
+  exhausted,
   loadMore,
   failed,
   retry,
@@ -83,6 +90,7 @@ function VocalRangeRowView({
   row: HomeVocalRangeRow;
   priority: boolean;
   items: HomeVocalRangeRow['items'];
+  exhausted: boolean;
   loadMore?: () => void;
   failed?: boolean;
   retry?: () => void;
@@ -92,6 +100,7 @@ function VocalRangeRowView({
       rowId={row.id}
       title={row.title}
       sponsored={row.sponsored}
+      exhausted={exhausted}
       onNearEnd={loadMore}
       loadFailed={failed}
       onRetry={retry}
