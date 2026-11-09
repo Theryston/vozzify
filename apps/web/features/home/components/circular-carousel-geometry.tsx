@@ -19,15 +19,16 @@ type LoopingUpdate = {
 };
 
 export function segmentWidth(track: HTMLUListElement): number | undefined {
-  const before = track.querySelector<HTMLElement>(
-    '[data-carousel-copy="before"]',
-  );
-  const middle = track.querySelector<HTMLElement>(
-    '[data-carousel-copy="middle"]',
-  );
-  if (!before || !middle) return undefined;
+  const children = Array.from(track.children);
+  const itemsPerSegment = children.length / 3;
+  if (!Number.isInteger(itemsPerSegment) || itemsPerSegment === 0) {
+    return undefined;
+  }
+  const first = children[0];
+  const second = children[itemsPerSegment];
+  if (!first || !second) return undefined;
   return (
-    middle.getBoundingClientRect().left - before.getBoundingClientRect().left
+    second.getBoundingClientRect().left - first.getBoundingClientRect().left
   );
 }
 

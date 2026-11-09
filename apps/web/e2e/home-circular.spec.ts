@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, type Locator, test } from '@playwright/test';
 
 import {
   circularHero,
@@ -45,6 +45,40 @@ async function installCircularFeed(
     },
     lead,
   );
+}
+
+async function moveByArrows(
+  row: Locator,
+  track: Locator,
+  direction: 'left' | 'right',
+  steps: number,
+): Promise<void> {
+  const button = row.getByRole('button', {
+    name: messages.en.home.carousel[
+      direction === 'left' ? 'scrollLeft' : 'scrollRight'
+    ],
+  });
+  let visible = await visibleTrackIds(track);
+  for (let step = 0; step < steps; step += 1) {
+    const previous = visible;
+    await expect(button).toBeEnabled();
+    await button.click();
+    await expect.poll(() => visibleTrackIds(track)).not.toEqual(previous);
+    visible = await visibleTrackIds(track);
+    expect(new Set(visible).size).toBe(visible.length);
+    const previousFirst = previous[0];
+    const currentFirst = visible[0];
+    if (!previousFirst || !currentFirst) {
+      throw new Error('Carousel movement did not expose a Track');
+    }
+    const previousIndex = Number(previousFirst.split('-').at(-1));
+    const currentIndex = Number(currentFirst.split('-').at(-1));
+    const delta =
+      direction === 'right'
+        ? (currentIndex - previousIndex + 12) % 12
+        : (previousIndex - currentIndex + 12) % 12;
+    expect(delta).toBeGreaterThan(0);
+  }
 }
 
 async function wheelTrack(
@@ -151,12 +185,14 @@ test.describe('exhausted Home carousels', () => {
     await expect(middle).toHaveCount(12);
     const visibleIds = await visibleTrackIds(track);
     expect(new Set(visibleIds).size).toBe(visibleIds.length);
-    const hiddenTabIndexes = await row
+    const initialHiddenTabIndexes = await row
       .locator('[data-carousel-copy="before"][aria-hidden="true"] a')
       .evaluateAll((links) =>
         links.map((link) => (link as HTMLAnchorElement).tabIndex),
       );
-    expect(hiddenTabIndexes).toEqual(Array.from({ length: 12 }, () => -1));
+    expect(initialHiddenTabIndexes).toEqual(
+      Array.from({ length: 12 }, () => -1),
+    );
 
     const scrollRight = row.getByRole('button', {
       name: messages.en.home.carousel.scrollRight,
@@ -222,12 +258,16 @@ test.describe('exhausted Home carousels', () => {
 
     await reloadedRow.scrollIntoViewIfNeeded();
     await page.waitForTimeout(1100);
-    for (let revolution = 0; revolution < 6; revolution += 1) {
-      await reloadedRow
-        .getByRole('button', { name: messages.en.home.carousel.scrollRight })
-        .click();
-    }
+    await moveByArrows(reloadedRow, reloadedTrack, 'right', 24);
+    await moveByArrows(reloadedRow, reloadedTrack, 'left', 24);
     await expect(reloadedRow.locator('[data-home-item-id]')).toHaveCount(36);
+    await expect(reloadedRow.locator('[aria-hidden="true"] a')).toHaveCount(24);
+    const hiddenTabIndexes = await reloadedRow
+      .locator('[aria-hidden="true"] a')
+      .evaluateAll((links) =>
+        links.map((link) => (link as HTMLAnchorElement).tabIndex),
+      );
+    expect(hiddenTabIndexes).toEqual(Array.from({ length: 24 }, () => -1));
     await page.evaluate(() => {
       document.addEventListener(
         'click',

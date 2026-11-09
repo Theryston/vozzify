@@ -56,6 +56,7 @@ test('native touch swipes cross both circular Home Track boundaries', async ({
   const cdp = await context.newCDPSession(page);
 
   const swipe = async (direction: 'left' | 'right') => {
+    const previous = await visibleTrackIds(track);
     const bounds = await track.boundingBox();
     if (!bounds) throw new Error('Carousel track is not visible');
     const y = bounds.y + bounds.height / 2;
@@ -83,6 +84,10 @@ test('native touch swipes cross both circular Home Track boundaries', async ({
       touchPoints: [],
     });
     await page.waitForTimeout(80);
+    await expect.poll(() => visibleTrackIds(track)).not.toEqual(previous);
+    const visible = await visibleTrackIds(track);
+    expect(new Set(visible).size).toBe(visible.length);
+    return visible;
   };
 
   const crossBoundary = async (direction: 'left' | 'right') => {
@@ -90,25 +95,32 @@ test('native touch swipes cross both circular Home Track boundaries', async ({
       throw new Error('Touch fixture Track IDs are missing');
     }
     for (let swipeCount = 0; swipeCount < 20; swipeCount += 1) {
-      const visible = await visibleTrackIds(track);
+      const visible = await swipe(direction);
       if (visible.includes(firstTrackId) && visible.includes(lastTrackId)) {
         return visible;
       }
-      await swipe(direction);
     }
     return visibleTrackIds(track);
   };
 
+  for (let revolution = 0; revolution < 24; revolution += 1) {
+    await swipe('right');
+  }
   const rightSeam = await crossBoundary('right');
   expect(rightSeam).toContain(firstTrackId);
   expect(rightSeam).toContain(lastTrackId);
 
-  await page.reload();
-  await row.scrollIntoViewIfNeeded();
   const leftSeam = await crossBoundary('left');
   expect(leftSeam).toContain(firstTrackId);
   expect(leftSeam).toContain(lastTrackId);
   expect(new Set(leftSeam).size).toBe(leftSeam.length);
+  await expect(row.locator('[aria-hidden="true"] a')).toHaveCount(24);
+  const hiddenTabIndexes = await row
+    .locator('[aria-hidden="true"] a')
+    .evaluateAll((links) =>
+      links.map((link) => (link as HTMLAnchorElement).tabIndex),
+    );
+  expect(hiddenTabIndexes).toEqual(Array.from({ length: 24 }, () => -1));
   await context.close();
 });
 
