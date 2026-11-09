@@ -74,6 +74,9 @@ export type HomeHero = z.infer<typeof homeHeroSchema>;
 
 export const HOME_CAROUSEL_MAX_ITEMS = 24;
 
+/** Complete carousel size in the admin preview, independent of pin limits. */
+export const HOME_PREVIEW_MAX_CAROUSEL_ITEMS = 48;
+
 /** A weekly Top 10: at most ten Tracks, shown with big rank numbers. */
 export const HOME_RANKED_MAX_ITEMS = 10;
 
@@ -241,6 +244,28 @@ export const homeRowSchema = z.discriminatedUnion('layout', [
 ]);
 
 export type HomeRow = z.infer<typeof homeRowSchema>;
+
+/** Admin previews carry complete algorithmic carousel contents. */
+export const homePreviewRowSchema = z.discriminatedUnion('layout', [
+  homeHeroSchema,
+  homeCarouselRowSchema.extend({
+    items: z.array(homeTrackSchema).min(1).max(HOME_PREVIEW_MAX_CAROUSEL_ITEMS),
+  }),
+  homeVocalRangeRowSchema.extend({
+    items: z
+      .array(homeVocalRangeTrackSchema)
+      .min(1)
+      .max(HOME_PREVIEW_MAX_CAROUSEL_ITEMS),
+  }),
+  homeDailyTargetRowSchema,
+  homeRankedRowSchema,
+  homeGenresRowSchema,
+  homeArtistsRowSchema,
+  homeAlbumsRowSchema,
+  homePeopleRowSchema,
+]);
+
+export type HomePreviewRow = z.infer<typeof homePreviewRowSchema>;
 
 export const HOME_FEED_MAX_ROWS = 24;
 

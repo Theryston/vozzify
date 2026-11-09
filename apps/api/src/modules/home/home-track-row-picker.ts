@@ -54,9 +54,6 @@ const canSelectTrack = <T extends ComposableTrack>(
   ) {
     return false;
   }
-  if ((options.batchOffset + picked.length) % HOME_TRACK_PAGE_SIZE === 0) {
-    perArtist.clear();
-  }
   const artistKeys = [...new Set(track.artistKeys ?? [track.artistKey])];
   const violatesCap = artistKeys.some(
     (key) => (perArtist.get(key) ?? 0) >= MAX_TRACKS_PER_ARTIST_PER_ROW,
@@ -66,7 +63,7 @@ const canSelectTrack = <T extends ComposableTrack>(
   return true;
 };
 
-/** Selects eligible, unique Tracks while resetting diversity at page edges. */
+/** Selects each logical page independently so rejected candidates can be retried. */
 export const pickRowItems = <T extends ComposableTrack>(
   options: PickRowOptions<T>,
 ): T[] => {
@@ -78,9 +75,21 @@ export const pickRowItems = <T extends ComposableTrack>(
   for (const item of options.startingItems?.slice(firstPageStart) ?? []) {
     addArtists(item.artistKeys ?? [item.artistKey], perArtist);
   }
-  for (const track of candidates) {
-    if (picked.length >= options.limit) break;
-    if (canSelectTrack(track, options, picked, perArtist)) picked.push(track);
+  while (picked.length < options.limit) {
+    const logicalPosition = options.batchOffset + picked.length;
+    const pageRemaining =
+      HOME_TRACK_PAGE_SIZE - (logicalPosition % HOME_TRACK_PAGE_SIZE);
+    const pageLimit = Math.min(options.limit - picked.length, pageRemaining);
+    let pagePicked = 0;
+    for (const track of candidates) {
+      if (pagePicked >= pageLimit) break;
+      if (canSelectTrack(track, options, picked, perArtist)) {
+        picked.push(track);
+        pagePicked += 1;
+      }
+    }
+    if (pagePicked < pageLimit) break;
+    perArtist.clear();
   }
   return picked;
 };

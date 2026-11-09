@@ -200,6 +200,27 @@ describe('composeHomeRows', () => {
     }
   });
 
+  it('reconsiders rejected candidates after the Artist cap resets', () => {
+    const items = Array.from({ length: 120 }, (_, index) =>
+      track(`grouped-${index}`, {
+        artistKey: `artist-${Math.floor(index / 20)}`,
+      }),
+    );
+    const [row] = composeHomeRows(
+      [{ id: 'row', layout: 'standard' as const, items }],
+      { expandRecommendationRows: true },
+    );
+
+    expect(row?.items).toHaveLength(48);
+    for (let offset = 0; offset < 48; offset += 12) {
+      const counts = new Map<string, number>();
+      for (const item of row?.items.slice(offset, offset + 12) ?? []) {
+        counts.set(item.artistKey, (counts.get(item.artistKey) ?? 0) + 1);
+      }
+      expect(Math.max(...counts.values())).toBeLessThanOrEqual(2);
+    }
+  });
+
   it('keeps a Track out of a later hero once the first row used it', () => {
     const items = tracks(6);
     const rows = composeHomeRows([

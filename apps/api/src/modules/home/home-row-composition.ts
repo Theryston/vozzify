@@ -4,6 +4,7 @@ import {
   toHomeCompositionCandidateTrack,
 } from './home-composition-candidates.js';
 import { composeHomeRows } from './home-feed-composer.js';
+import { readHomeRowSourcePage } from './home-row-source-pages.js';
 import { CANDIDATE_LIMIT } from './home-row-source-ranking.js';
 import type { HomeCandidate, HomeRowSource } from './home-row-sources.js';
 import {
@@ -19,18 +20,6 @@ type LoadedCandidateSource = {
   pageSize: number;
   hasMore: boolean;
 };
-
-const readCandidatePage = async (
-  source: HomeRowSource,
-  locale: Locale,
-  offset: number,
-): Promise<{ items: HomeCandidate[]; hasMore: boolean }> =>
-  source.loadPage
-    ? source.loadPage(locale, offset)
-    : source.load(locale, offset).then((items) => ({
-        items,
-        hasMore: items.length >= (source.candidatePageSize ?? CANDIDATE_LIMIT),
-      }));
 
 const composeLoadedRows = (
   loaded: LoadedCandidateSource[],
@@ -51,7 +40,11 @@ const loadNextCandidatePage = async (
   locale: Locale,
 ): Promise<void> => {
   loaded.offset += loaded.pageSize;
-  const page = await readCandidatePage(loaded.source, locale, loaded.offset);
+  const page = await readHomeRowSourcePage(
+    loaded.source,
+    locale,
+    loaded.offset,
+  );
   loaded.items.push(...page.items);
   loaded.hasMore = page.hasMore;
 };
@@ -112,28 +105,44 @@ const boundedCandidatePool = (
     [{ ...loaded.source, items: loaded.items }],
     { expandRecommendationRows: true },
   );
-  if (!composed) return undefined;
-  const items = loaded.items;
-  const itemIndex = new Map(items.map((item, index) => [item.id, index]));
-  const selectedOutsidePool = composed.items.filter(
-    (item) =>
-      (itemIndex.get(item.id) ?? 0) >=
-      HOME_COMPOSITION_CANDIDATE_POOL_MAX_ITEMS,
+  const firstPool = loaded.items.slice(
+    0,
+    HOME_COMPOSITION_CANDIDATE_POOL_MAX_ITEMS,
   );
-  const firstItemsLimit =
-    HOME_COMPOSITION_CANDIDATE_POOL_MAX_ITEMS - selectedOutsidePool.length;
-  const includedIds = new Set([
-    ...items.slice(0, firstItemsLimit).map(({ id }) => id),
-    ...selectedOutsidePool.map(({ id }) => id),
-  ]);
+  const firstPoolIds = new Set(firstPool.map(({ id }) => id));
+  const selectedOutsidePool = (composed?.items ?? []).filter(
+    (item) => !firstPoolIds.has(item.id),
+  );
+  const retainedItems = [
+    ...firstPool.slice(
+      0,
+      HOME_COMPOSITION_CANDIDATE_POOL_MAX_ITEMS - selectedOutsidePool.length,
+    ),
+    ...selectedOutsidePool,
+  ];
+  const retainedIds = new Set(retainedItems.map(({ id }) => id));
+  const sourcePositions = new Map(
+    loaded.items.map(({ id }, index) => [id, index] as const),
+  );
+  const firstOmittedIndex = loaded.items.findIndex(
+    ({ id }) => !retainedIds.has(id),
+  );
+  const hasMore = firstOmittedIndex >= 0 || loaded.hasMore;
+  const nextOffset =
+    firstOmittedIndex >= 0
+      ? firstOmittedIndex
+      : loaded.offset + loaded.pageSize;
   return {
     id: loaded.source.id,
     layout,
     ...(loaded.source.title ? { title: loaded.source.title } : {}),
-    items: items
-      .filter(({ id }) => includedIds.has(id))
+    ...(hasMore ? { nextOffset, hasMore } : {}),
+    items: retainedItems
       .slice(0, HOME_COMPOSITION_CANDIDATE_POOL_MAX_ITEMS)
-      .map(toHomeCompositionCandidateTrack),
+      .map((item) => ({
+        ...toHomeCompositionCandidateTrack(item),
+        sourcePosition: sourcePositions.get(item.id) ?? 0,
+      })),
   };
 };
 
@@ -157,7 +166,7 @@ export const composePublicRows = async (
   const loadedSources = await Promise.all(
     sources.map(async (source): Promise<LoadedCandidateSource> => {
       const pageSize = source.candidatePageSize ?? CANDIDATE_LIMIT;
-      const page = await readCandidatePage(source, locale, 0);
+      const page = await readHomeRowSourcePage(source, locale, 0);
       return {
         source,
         items: page.items,

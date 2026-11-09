@@ -216,16 +216,14 @@ describe('HomeFeedBuilder', () => {
     expect(selectedIds).toContain('page-2');
     expect(new Set(selectedIds).size).toBe(48);
     expect(selectedIds.filter((id) => Number(id.slice(5)) < 240)).toHaveLength(
-      4,
+      8,
     );
     for (let offset = 0; offset < 48; offset += 12) {
       const batch = selectedIds.slice(offset, offset + 12);
-      expect(batch.filter((id) => Number(id.slice(5)) < 240)).toHaveLength(
-        offset < 24 ? 2 : 0,
-      );
+      expect(batch.filter((id) => Number(id.slice(5)) < 240)).toHaveLength(2);
     }
-    expect(Buffer.byteLength(JSON.stringify(feed.rows))).toBe(10_157);
-    expect(Buffer.byteLength(JSON.stringify(feed))).toBe(98_324);
+    expect(Buffer.byteLength(JSON.stringify(feed.rows))).toBe(10_125);
+    expect(Buffer.byteLength(JSON.stringify(feed))).toBe(104_482);
   });
 
   it('leaves a range-less Track out of a vocal-range row', async () => {

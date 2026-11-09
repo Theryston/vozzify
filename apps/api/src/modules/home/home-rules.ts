@@ -32,6 +32,11 @@ export const HOME_TRACK_PAGE_SIZE = 12;
 /** The complete stored recommendation Row may span four item pages. */
 export const HOME_TRACK_ROW_MAX_ITEMS = 48;
 
+/** Maximum useful candidates per Artist across four recommendation batches. */
+export const HOME_EXPANDED_ROW_ARTIST_CANDIDATE_LIMIT =
+  (MAX_TRACKS_PER_ARTIST_PER_ROW * HOME_TRACK_ROW_MAX_ITEMS) /
+  HOME_TRACK_PAGE_SIZE;
+
 /** Candidate room for every Track slot in a maximum-size visit. */
 export const HOME_COMPOSITION_CANDIDATE_POOL_MAX_ITEMS =
   HOME_MAX_ROWS * HOME_TRACK_ROW_MAX_ITEMS;

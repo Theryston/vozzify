@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { homeFeedSchema } from './home.js';
+import {
+  HOME_FEED_MAX_ROWS,
+  homeFeedSchema,
+  homePreviewRowSchema,
+} from './home.js';
 import { LOCALES, type Locale, localeSchema } from './locales.js';
 import { cursorPageSchema } from './pagination.js';
 import { trackArtistCreditEntrySchema, trackCoverUrlSchema } from './tracks.js';
@@ -261,6 +265,7 @@ export type HomePinPreviewRequest = z.infer<typeof homePinPreviewRequestSchema>;
 
 /** A complete bounded feed returned for preview, without public-feed paging. */
 export const homePinPreviewResponseSchema = homeFeedSchema.extend({
+  rows: z.array(homePreviewRowSchema).max(HOME_FEED_MAX_ROWS),
   nextCursor: z.null(),
 });
 

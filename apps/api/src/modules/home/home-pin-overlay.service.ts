@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
   type CreateEditorialPinBody,
   EDITORIAL_PIN_MAX_TRACKS,
@@ -13,8 +13,12 @@ import { HomeRepository } from './home.repository.js';
 import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import { toHomeTrack } from './home-feed-builder.service.js';
 import type { OverlayPin } from './home-pin-overlay.js';
-import { composePublicVisitRows } from './home-public-visit-composer.js';
-import { toHomeCandidate } from './home-row-sources.js';
+import { composePublicVisitRowsWithRefill } from './home-public-visit-refill.js';
+import {
+  HOME_ROW_SOURCES,
+  type HomeRowSource,
+  toHomeCandidate,
+} from './home-row-sources.js';
 
 /**
  * The title key of a pinned row. Its text is the admin's, in the locale of the
@@ -38,6 +42,9 @@ export class HomePinOverlayService {
   constructor(
     private readonly pins: EditorialPinsService,
     private readonly homeRepository: HomeRepository,
+    @Optional()
+    @Inject(HOME_ROW_SOURCES)
+    private readonly sources?: HomeRowSource[],
   ) {}
 
   async apply(
@@ -97,20 +104,22 @@ export class HomePinOverlayService {
       return rows;
     }
     if (live.length === 0) {
-      return composePublicVisitRows(
+      return composePublicVisitRowsWithRefill({
         rows,
-        candidates,
-        [],
-        viewer.audience ?? 'public',
-      );
+        candidateRows: candidates,
+        pins: [],
+        sources: this.sources ?? [],
+        locale: viewer.locale,
+      });
     }
     const overlayPins = await this.resolvePins(live, viewer);
-    return composePublicVisitRows(
+    return composePublicVisitRowsWithRefill({
       rows,
-      candidates,
-      overlayPins,
-      viewer.audience ?? 'public',
-    );
+      candidateRows: candidates,
+      pins: overlayPins,
+      sources: this.sources ?? [],
+      locale: viewer.locale,
+    });
   }
 
   private async resolvePins(

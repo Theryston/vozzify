@@ -53,7 +53,7 @@ const toPublicRow = (
     : { id: row.id, layout: 'standard', title: row.title, items };
 };
 
-const tracksInRow = (row: HomeRow): HomeTrack[] => {
+export const tracksInHomeRow = (row: HomeRow): HomeTrack[] => {
   if (row.layout === 'hero') return [row.track];
   if (
     row.layout === 'standard' ||
@@ -65,12 +65,21 @@ const tracksInRow = (row: HomeRow): HomeTrack[] => {
   return [];
 };
 
-const rowsWithCompositionCandidates = (
-  rows: HomeRow[],
-  candidates: HomeCompositionCandidateRow[],
-  pins: readonly OverlayPin[],
-  audience: 'public' | 'personal',
-): HomeRow[] => {
+type CandidateCompositionInput = {
+  rows: HomeRow[];
+  candidates: HomeCompositionCandidateRow[];
+  pins: readonly OverlayPin[];
+  audience: 'public' | 'personal';
+  expandRecommendationRows?: boolean;
+};
+
+const rowsWithCompositionCandidates = ({
+  rows,
+  candidates,
+  pins,
+  audience,
+  expandRecommendationRows = true,
+}: CandidateCompositionInput): HomeRow[] => {
   const initiallyPlaced = applyEditorialPins(rows, pins, audience);
   const candidateSourceIds = new Set(candidates.map(({ id }) => id));
   const retainedPinRows = new Set(
@@ -82,14 +91,14 @@ const rowsWithCompositionCandidates = (
   const retainedPinIds = new Set(
     initiallyPlaced
       .filter((row) => row.id.startsWith('pin-'))
-      .flatMap((row) => tracksInRow(row).map(({ id }) => id)),
+      .flatMap((row) => tracksInHomeRow(row).map(({ id }) => id)),
   );
   const eligibleCandidates = candidates.map((candidate) => ({
     ...candidate,
     items: candidate.items.filter((item) => !retainedPinIds.has(item.id)),
   }));
   const previewRows = composeHomeRows(eligibleCandidates, {
-    expandRecommendationRows: true,
+    expandRecommendationRows,
   }).flatMap((row) => {
     const publicRow = toPublicRow(row);
     return publicRow ? [publicRow] : [];
@@ -116,7 +125,7 @@ const rowsWithCompositionCandidates = (
   );
   const recomposed = composeHomeRows(
     eligibleCandidates.filter(({ id }) => retainedIds.has(id)),
-    { expandRecommendationRows: true },
+    { expandRecommendationRows },
   ).flatMap((row) => {
     const publicRow = toPublicRow(row);
     return publicRow ? [publicRow] : [];
@@ -136,5 +145,19 @@ export const composePublicVisitRows = (
   audience: 'public' | 'personal' = 'public',
 ): HomeRow[] =>
   candidates
-    ? rowsWithCompositionCandidates(rows, candidates, pins, audience)
+    ? rowsWithCompositionCandidates({ rows, candidates, pins, audience })
     : applyEditorialPins(rows, pins, audience);
+
+export const composeVisitPhase = (
+  rows: HomeRow[],
+  candidates: HomeCompositionCandidateRow[],
+  pins: readonly OverlayPin[],
+  expandRecommendationRows: boolean,
+): HomeRow[] =>
+  rowsWithCompositionCandidates({
+    rows,
+    candidates,
+    pins,
+    audience: 'public',
+    expandRecommendationRows,
+  });

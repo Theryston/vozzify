@@ -124,9 +124,16 @@ zero use raw count ordering until the next batch completes.
 For rollback from v6 to v5, deploy v5 after stopping v6 writers; the #505
 reader already accepts complete Rows through 48, and v5 composition generates
 its prior 12-item Rows. Keep the `recommended-for-you` web title key during API
-rollback so clients can render active v6 cursors. The earlier rollback from v5
-to v4 still requires the co-occurrence refresh described in the v5 rollout
-record. No public contract or legacy route changes.
+rollback so clients can render active v6 cursors.
+
+For rollback from v5 to v4, deploy v4 and run its co-occurrence refresh before
+refreshing personal feeds; this rebuilds the legacy raw top-12 pair set because
+the normalized top-48 set is not guaranteed to contain every old pair. Keep
+the `recommended-for-you` web title key during API rollback so clients can
+render active v5 cursors. For roll-forward to v5, deploy v5 and run the
+co-occurrence refresh again before relying on normalized ordering. Completed
+warm-up jobs are removed so a later v5 deployment cannot mistake a prior
+completed marker for current data. No public contract or legacy route changes.
 
 ## Outcome checks
 
