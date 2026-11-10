@@ -55,7 +55,7 @@ export class HomePublicOverlayCache {
   ): Promise<HomeRow[]> {
     const key = overlayKey(input);
     const pending = this.pending.get(key);
-    if (pending) return pending;
+    if (pending !== undefined) return pending;
     const result = this.resolveShared(key, build);
     this.pending.set(key, result);
     try {
