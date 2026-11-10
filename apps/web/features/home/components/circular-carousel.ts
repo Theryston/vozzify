@@ -235,7 +235,7 @@ export function useCircularCarousel(
     pendingFocus.current = null;
   }, [looping]);
 
-  useLogicalFocus(trackRef, center, pendingFocus);
+  useLogicalFocus(trackRef, center, pendingFocus, looping);
 
   const onKeyDown = (event: KeyboardEvent<HTMLUListElement>) => {
     const track = trackRef.current;

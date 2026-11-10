@@ -18,7 +18,7 @@ const trackIds = Array.from(
 const firstTrackId = trackIds[0];
 const lastTrackId = trackIds[trackIds.length - 1];
 
-async function installTouchFeed(): Promise<void> {
+async function installTouchFeed(count = 12): Promise<void> {
   await installHomeMock({
     feeds: {
       en: [
@@ -27,9 +27,11 @@ async function installTouchFeed(): Promise<void> {
           id: rowId,
           layout: 'standard',
           title: { key: 'home.rows.trendingToday', params: {} },
-          items: trackIds.map((id, index) =>
-            circularTrack(id, `Touch song ${index}`, 'Touch fixture'),
-          ),
+          items: trackIds
+            .slice(0, count)
+            .map((id, index) =>
+              circularTrack(id, `Touch song ${index}`, 'Touch fixture'),
+            ),
         },
       ],
     },
@@ -159,4 +161,24 @@ test('keeps keyboard focus on the logical Track after scroll recentering', async
     )
     .toBe(true);
   await expect(row.locator('[data-home-item-id]')).toHaveCount(36);
+});
+
+test('keeps focus while resizing a circular row to fit and back', async ({
+  page,
+}) => {
+  await installTouchFeed(4);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/en');
+  const row = page.locator(`[data-home-row-id="${rowId}"]`);
+  const middle = row.locator('[data-carousel-copy="middle"]');
+  await expect(middle).toHaveCount(4);
+  await middle.first().locator('a').focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect(middle.last().locator('a')).toBeFocused();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(row.locator('[data-carousel-copy]')).toHaveCount(0);
+  await expect(row.locator('li').last().locator('a')).toBeFocused();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(middle).toHaveCount(4);
+  await expect(middle.last().locator('a')).toBeFocused();
 });

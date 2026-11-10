@@ -29,9 +29,25 @@ function Cards({ carouselCopy }: { carouselCopy?: string }) {
 }
 
 let viewportWidth = 400;
+const resizeCallbacks = new Set<() => void>();
 
 beforeEach(() => {
   viewportWidth = 400;
+  resizeCallbacks.clear();
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      readonly callback: () => void;
+      observe = vi.fn();
+      constructor(callback: () => void) {
+        this.callback = callback;
+        resizeCallbacks.add(callback);
+      }
+      disconnect() {
+        resizeCallbacks.delete(this.callback);
+      }
+    },
+  );
   vi.stubGlobal('matchMedia', () => ({
     matches: true,
     addEventListener: vi.fn(),
@@ -121,6 +137,12 @@ async function renderCarousel(exhausted = true) {
     key,
     render,
     scroll,
+    resize: async (width: number) => {
+      await act(async () => {
+        viewportWidth = width;
+        for (const callback of resizeCallbacks) callback();
+      });
+    },
     close: async () => {
       await act(async () => root.unmount());
       container.remove();
@@ -235,6 +257,56 @@ describe('circular Home carousel interaction', () => {
       ).toBe('middle');
     } finally {
       await carousel.close();
+    }
+  });
+
+  it('preserves the focused Track when the last page enables looping and a resize removes it', async () => {
+    const carousel = await renderCarousel(false);
+    try {
+      carousel.links()[2]?.focus();
+      await carousel.render(true);
+      expect(document.activeElement?.textContent).toBe('Track 2');
+      expect(document.activeElement?.closest('li')?.dataset.carouselCopy).toBe(
+        'middle',
+      );
+      carousel.links()[0]?.focus();
+      await carousel.key('ArrowLeft');
+      expect(document.activeElement?.textContent).toBe('Track 5');
+      await carousel.resize(800);
+      expect(carousel.track.children).toHaveLength(6);
+      expect(document.activeElement?.textContent).toBe('Track 5');
+      expect(document.activeElement?.closest('li')?.dataset.carouselCopy).toBe(
+        undefined,
+      );
+      await carousel.resize(400);
+      expect(carousel.track.children).toHaveLength(18);
+      expect(document.activeElement?.textContent).toBe('Track 5');
+    } finally {
+      await carousel.close();
+    }
+  });
+
+  it('does not restore a Track after focus moved outside or was explicitly blurred', async () => {
+    const carousel = await renderCarousel(false);
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    try {
+      carousel.links()[2]?.focus();
+      outside.focus();
+      await carousel.render(true);
+      expect(document.activeElement).toBe(outside);
+      carousel.links()[3]?.focus();
+      carousel.links()[3]?.blur();
+      await carousel.resize(800);
+      expect(document.activeElement).toBe(document.body);
+      await carousel.resize(400);
+      carousel.links()[4]?.focus();
+      outside.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+      await carousel.resize(800);
+      expect(document.activeElement).toBe(document.body);
+    } finally {
+      await carousel.close();
+      outside.remove();
     }
   });
 });

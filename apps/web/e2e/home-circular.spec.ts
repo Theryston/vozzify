@@ -376,6 +376,38 @@ test.describe('exhausted Home carousels', () => {
     await expect(row.locator('[data-carousel-copy]')).toHaveCount(0);
   });
 
+  test('keeps focus on the logical Track when its final item page enables looping', async ({
+    page,
+  }) => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(`**/v1/home/rows/${rowId}/items**`, async (route) => {
+      await gate;
+      await route.continue();
+    });
+    await installCircularFeed(24);
+    try {
+      await page.goto('/en');
+      const row = page.locator(`[data-home-row-id="${rowId}"]`);
+      const card = row.locator('[data-home-item-id="circular-track-2"] a');
+      await expect(row.locator('[data-carousel-copy]')).toHaveCount(0);
+      await card.focus();
+      release();
+      await expect(row.locator('[data-carousel-copy="middle"]')).toHaveCount(
+        24,
+      );
+      await expect(
+        row.locator(
+          '[data-carousel-copy="middle"][data-home-item-id="circular-track-2"] a',
+        ),
+      ).toBeFocused();
+    } finally {
+      release();
+    }
+  });
+
   test('waits for the last item page before enabling circular presentation', async ({
     page,
   }) => {
