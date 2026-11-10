@@ -182,6 +182,16 @@ test.describe('home feed', () => {
   test('loads every Track in a 48-item public carousel page by page', async ({
     page,
   }) => {
+    const pageReleases: (() => void)[] = [];
+    const pageSizes: number[] = [];
+    await page.route(/\/v1\/home\/rows\/[^/]+\/items\?/, async (route) => {
+      const response = await route.fetch();
+      const body = (await response.json()) as { items: unknown[] };
+      pageSizes.push(body.items.length);
+      // Prefetch may run ahead; release one real response per paging assertion.
+      await new Promise<void>((resolve) => pageReleases.push(resolve));
+      await route.fulfill({ response });
+    });
     const cards = Array.from({ length: 48 }, (_, index) =>
       card(`public-48-${index}`, `Public 48 song ${index}`),
     );
@@ -196,7 +206,7 @@ test.describe('home feed', () => {
     const row = page.getByRole('region', {
       name: messages.en.home.rows.trendingToday,
     });
-    const items = row.locator('[data-home-item-id]');
+    const items = row.locator('[data-home-item-id]:not([aria-hidden="true"])');
     const track = row.locator('ul');
     await expect(items).toHaveCount(12);
     for (const expected of [24, 36, 48]) {
@@ -204,12 +214,17 @@ test.describe('home feed', () => {
         element.scrollLeft = element.scrollWidth;
         element.dispatchEvent(new Event('scroll'));
       });
+      await expect.poll(() => pageReleases.length).toBeGreaterThan(0);
+      const release = pageReleases.shift();
+      if (!release) throw new Error('Expected the next horizontal response');
+      release();
       await expect(items).toHaveCount(expected);
     }
     const ids = await items.evaluateAll((elements) =>
       elements.map((element) => element.getAttribute('data-home-item-id')),
     );
     expect(new Set(ids).size).toBe(48);
+    expect(pageSizes).toEqual([12, 12, 12]);
     expect(ids).toEqual(cards.map(({ id }) => id));
   });
 
