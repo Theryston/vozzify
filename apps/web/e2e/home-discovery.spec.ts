@@ -159,17 +159,23 @@ test.describe('home discovery rows', () => {
       .getByRole('button', { name: messages.en.home.carousel.retryItems })
       .click();
     await expect(
-      row.locator('[data-home-item-id="long-row-12"]'),
+      row.locator(
+        '[data-home-item-id="long-row-12"]:not([aria-hidden="true"])',
+      ),
     ).toBeAttached();
     await expect(
-      row.locator('[data-home-item-id="long-row-23"]'),
+      row.locator(
+        '[data-home-item-id="long-row-23"]:not([aria-hidden="true"])',
+      ),
     ).toBeAttached();
     expect(requests).toEqual([503, 200]);
     await expect(
       row.getByRole('button', { name: messages.en.home.carousel.scrollRight }),
     ).toBeEnabled();
     await expect(
-      row.locator('[data-home-item-id="long-row-12"]'),
+      row.locator(
+        '[data-home-item-id="long-row-12"]:not([aria-hidden="true"])',
+      ),
     ).toHaveAttribute('data-home-item-position', '12');
   });
 

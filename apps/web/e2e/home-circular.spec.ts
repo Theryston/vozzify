@@ -268,6 +268,17 @@ test.describe('exhausted Home carousels', () => {
         links.map((link) => (link as HTMLAnchorElement).tabIndex),
       );
     expect(hiddenTabIndexes).toEqual(Array.from({ length: 24 }, () => -1));
+    await reloadedTrack.evaluate((element) => {
+      const last = element.querySelector<HTMLElement>(
+        '[data-carousel-copy="middle"][data-home-item-id="circular-track-11"]',
+      );
+      if (!last) throw new Error('Last logical Track is not rendered');
+      const bounds = element.getBoundingClientRect();
+      element.scrollLeft += last.getBoundingClientRect().left - bounds.left;
+    });
+    await expect
+      .poll(() => visibleTrackIds(reloadedTrack))
+      .toContain('circular-track-0');
     await page.evaluate(() => {
       document.addEventListener(
         'click',
@@ -411,8 +422,13 @@ test.describe('exhausted Home carousels', () => {
       row.locator('[data-home-item-id="expired-track-0"]'),
     ).toBeAttached();
     await installCircularFeed(24, { itemPrefix: 'fresh-track' });
+    const expiredPage = page.waitForResponse(
+      (response) =>
+        response.url().includes(`/v1/home/rows/${rowId}/items`) &&
+        response.status() === 404,
+    );
     await row.scrollIntoViewIfNeeded();
-    await wheelTrack(page, row.locator('ul'), 1600);
+    await expiredPage;
     await expect(
       row.locator(
         '[data-carousel-copy="middle"][data-home-item-id="fresh-track-0"]',

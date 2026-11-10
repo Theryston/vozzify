@@ -127,3 +127,36 @@ test('native touch swipes cross both circular Home Track boundaries', async ({
 test.afterAll(async () => {
   await restoreHomeMocks();
 });
+
+test('keeps keyboard focus on the logical Track after scroll recentering', async ({
+  page,
+}) => {
+  await installTouchFeed();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/en');
+  const row = page.locator(`[data-home-row-id="${rowId}"]`);
+  const track = row.locator('ul');
+  const middle = row.locator('[data-carousel-copy="middle"]');
+  await expect(middle).toHaveCount(12);
+  await middle.nth(2).locator('a').focus();
+  await track.evaluate((element) => {
+    const first = element.children[0];
+    const next = element.children[element.children.length / 3];
+    if (!first || !next) throw new Error('Carousel segments are missing');
+    const width =
+      next.getBoundingClientRect().left - first.getBoundingClientRect().left;
+    element.scrollLeft = width * 2 + 100;
+    element.dispatchEvent(new Event('scroll'));
+  });
+  await expect(middle.nth(2).locator('a')).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(middle.nth(3).locator('a')).toBeFocused();
+  await middle.last().locator('a').focus();
+  await page.keyboard.press('Tab');
+  await expect
+    .poll(() =>
+      row.evaluate((element) => !element.contains(document.activeElement)),
+    )
+    .toBe(true);
+  await expect(row.locator('[data-home-item-id]')).toHaveCount(36);
+});

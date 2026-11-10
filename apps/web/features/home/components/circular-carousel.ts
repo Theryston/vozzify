@@ -14,6 +14,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { type PendingFocus, useLogicalFocus } from './circular-carousel-focus';
 import {
   segmentWidth,
   useLooping,
@@ -21,12 +22,6 @@ import {
 } from './circular-carousel-geometry';
 
 type Copy = 'before' | 'middle' | 'after';
-type PendingFocus = {
-  id: string;
-  shift: number;
-  center: number;
-};
-
 function carouselChildren(children: ReactNode, copy: Copy, position: number) {
   return Children.toArray(children).map((child) => {
     if (!isValidElement(child)) return child;
@@ -146,23 +141,6 @@ function orderedCopies(center: number): Copy[] {
   );
 }
 
-function focusVisibleItem(
-  track: HTMLUListElement,
-  item: HTMLElement | undefined,
-): void {
-  if (!item) return;
-  const trackBounds = track.getBoundingClientRect();
-  const itemBounds = item.getBoundingClientRect();
-  if (itemBounds.left < trackBounds.left) {
-    track.scrollLeft += itemBounds.left - trackBounds.left;
-  } else if (itemBounds.right > trackBounds.right) {
-    track.scrollLeft += itemBounds.right - trackBounds.right;
-  }
-  item.querySelector<HTMLAnchorElement>('a[href]')?.focus({
-    preventScroll: true,
-  });
-}
-
 function setCopyTabStops(track: HTMLUListElement, center: number): void {
   const children = Array.from(track.children);
   const itemsPerSegment = children.length / 3;
@@ -252,18 +230,12 @@ export function useCircularCarousel(
   useHideCopiesFromTabOrder(trackRef, looping, center);
 
   useLayoutEffect(() => {
-    const pending = pendingFocus.current;
-    const track = trackRef.current;
-    if (!pending || !track || pending.center !== center) return;
+    if (looping) return;
+    setCenter(1);
     pendingFocus.current = null;
-    track.scrollLeft += pending.shift;
-    const destination = Array.from(
-      track.querySelectorAll<HTMLElement>(
-        'li[data-carousel-copy="middle"][data-home-item-id]',
-      ),
-    ).find((item) => item.dataset.homeItemId === pending.id);
-    focusVisibleItem(track, destination);
-  }, [center, trackRef]);
+  }, [looping]);
+
+  useLogicalFocus(trackRef, center, pendingFocus);
 
   const onKeyDown = (event: KeyboardEvent<HTMLUListElement>) => {
     const track = trackRef.current;
