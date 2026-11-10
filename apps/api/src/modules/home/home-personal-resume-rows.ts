@@ -1,7 +1,10 @@
 import type { HomeCarouselRow, HomeRow, HomeTrack } from '@vozzify/contracts';
 import { composeHomeRows } from './home-feed-composer.js';
 import type { UserTrackSignal } from './home-personal.repository.js';
-import { PERSONAL_RESUME_ROW_MIN_ITEMS } from './home-rules.js';
+import {
+  HOME_TRACK_ROW_MAX_ITEMS,
+  PERSONAL_RESUME_ROW_MIN_ITEMS,
+} from './home-rules.js';
 
 const title = (key: string) => ({ key, params: {} });
 
@@ -42,6 +45,7 @@ const toResumeCandidate = (signal: UserTrackSignal) => ({
 export const resumeRows = (
   signals: UserTrackSignal[],
   mastered: ReadonlySet<string>,
+  expanded = false,
 ): HomeRow[] => {
   const candidates = signals.map(toResumeCandidate);
   const bestOf = new Map(
@@ -71,7 +75,10 @@ export const resumeRows = (
       id: composed.id,
       layout: 'standard',
       title: composed.title ?? descriptor.title,
-      items: composed.items.map((item) => item.track),
+      items: (expanded
+        ? descriptor.items.slice(0, HOME_TRACK_ROW_MAX_ITEMS)
+        : composed.items
+      ).map((item) => item.track),
     } satisfies HomeCarouselRow);
   }
   return rows;

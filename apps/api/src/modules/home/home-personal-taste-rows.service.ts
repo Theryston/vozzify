@@ -12,15 +12,13 @@ import type { MostSungArtistActivity } from '../attempts/profile-chips-ranking.j
 import type { PersonalTaste } from './home-personal.js';
 import {
   PersonalHomeRepository,
-  type PersonalTrackCandidate,
   type UserTrackSignal,
 } from './home-personal.repository.js';
 import type { UserTasteActivity } from './home-personal.repository.types.js';
 import {
+  loadExplorationCandidates,
   loadGenreTasteCandidates,
   loadPersonalDiscoveryCandidates,
-  PERSONAL_CANDIDATE_BATCH_SIZE,
-  PERSONAL_CANDIDATE_BATCHES,
 } from './home-personal-discovery-candidates.js';
 import {
   decayedSignalCount,
@@ -45,8 +43,6 @@ import {
 
 const MIN_TASTE_SIGNALS = 3;
 const CO_OCCURRENCE_SOURCE_LIMIT = 12;
-const PERSONAL_CANDIDATE_LIMIT =
-  PERSONAL_CANDIDATE_BATCH_SIZE * PERSONAL_CANDIDATE_BATCHES;
 
 const title = (key: string): HomeRowTitle => ({ key, params: {} });
 
@@ -67,6 +63,7 @@ export class PersonalHomeTasteRowsService {
     options: {
       excludedTrackIds: ReadonlySet<string>;
       userRange?: TrackVocalRange | null;
+      expandRecommendationRows?: boolean;
     } = {
       excludedTrackIds: new Set(),
     },
@@ -81,6 +78,7 @@ export class PersonalHomeTasteRowsService {
         taste,
         excludedTrackIds: [...options.excludedTrackIds],
         userRange: options.userRange,
+        expanded: options.expandRecommendationRows,
       });
     const byRow = {
       'trending-today': popular.map(homeTrackOf),
@@ -109,6 +107,7 @@ export class PersonalHomeTasteRowsService {
     mastered: ReadonlySet<string>;
     usedTrackIds: Set<string>;
     publicRows: HomeRow[];
+    sourcePoolsByRow?: Record<string, HomeTrack[]>;
   }): Promise<HomeRow[]> {
     if (decayedSignalCount(options.tasteSignals) < MIN_TASTE_SIGNALS) {
       return [];
@@ -142,6 +141,7 @@ export class PersonalHomeTasteRowsService {
     tasteSignals: TasteSignal[];
     mastered: ReadonlySet<string>;
     usedTrackIds: ReadonlySet<string>;
+    sourcePoolsByRow?: Record<string, HomeTrack[]>;
     visibleTrackSlots: number;
   }): Promise<HomeRow | undefined> {
     if (decayedSignalCount(options.tasteSignals) < MIN_TASTE_SIGNALS) {
@@ -155,6 +155,7 @@ export class PersonalHomeTasteRowsService {
     signals: UserTrackSignal[];
     mastered: ReadonlySet<string>;
     usedTrackIds: ReadonlySet<string>;
+    sourcePoolsByRow?: Record<string, HomeTrack[]>;
   }): Promise<HomeRow | undefined> {
     const sources = await this.personal.findUserSungTrackSources(
       options.userId,
@@ -189,7 +190,7 @@ export class PersonalHomeTasteRowsService {
             a.targetTrackId.localeCompare(b.targetTrackId),
         )
         .map((pair) => pair.targetTrackId);
-      const row = this.composeTasteTrackRow({
+      const row = composeTasteTrackRow({
         id: 'because-you-sang',
         title: {
           key: 'home.rows.becauseYouSang',
@@ -201,6 +202,7 @@ export class PersonalHomeTasteRowsService {
         }),
         mastered: options.mastered,
         used: options.usedTrackIds,
+        sourcePoolsByRow: options.sourcePoolsByRow,
       });
       if (row) return row;
     }
@@ -211,6 +213,7 @@ export class PersonalHomeTasteRowsService {
     taste: PersonalTaste;
     mastered: ReadonlySet<string>;
     usedTrackIds: ReadonlySet<string>;
+    sourcePoolsByRow?: Record<string, HomeTrack[]>;
   }): Promise<HomeRow | undefined> {
     const genres = topGenres(options.taste);
     const excludedTrackIds = [
@@ -220,8 +223,9 @@ export class PersonalHomeTasteRowsService {
       this.tasteRepository,
       genres,
       excludedTrackIds,
+      options.sourcePoolsByRow !== undefined,
     );
-    return this.composeTasteTrackRow({
+    return composeTasteTrackRow({
       id: 'more-of-your-genres',
       title: title('home.rows.moreOfYourGenres'),
       cards: cards.sort(
@@ -234,6 +238,7 @@ export class PersonalHomeTasteRowsService {
       taste: options.taste,
       mastered: options.mastered,
       used: options.usedTrackIds,
+      sourcePoolsByRow: options.sourcePoolsByRow,
     });
   }
 
@@ -268,6 +273,7 @@ export class PersonalHomeTasteRowsService {
     taste: PersonalTaste;
     mastered: ReadonlySet<string>;
     usedTrackIds: ReadonlySet<string>;
+    sourcePoolsByRow?: Record<string, HomeTrack[]>;
     visibleTrackSlots: number;
   }): Promise<HomeRow | undefined> {
     const slots = Math.min(
@@ -275,40 +281,27 @@ export class PersonalHomeTasteRowsService {
       explorationSlotCount(options.visibleTrackSlots),
     );
     if (slots < HOME_RECOMMENDATION_ROW_MIN_ITEMS) return undefined;
-    const candidates = await this.personal.findTracksOutsideGenres(
-      topGenres(options.taste),
-      PERSONAL_CANDIDATE_LIMIT,
+    const candidates = await loadExplorationCandidates(this.personal, {
+      taste: options.taste,
+      excludedTrackIds: [...options.mastered, ...options.usedTrackIds],
+      expanded: options.sourcePoolsByRow !== undefined,
+    });
+    const unfamiliar = candidates.filter(
+      (candidate) =>
+        tasteMatch(candidate.genres, artistKeyOf(candidate), options.taste) ===
+          0 &&
+        !options.mastered.has(candidate.id) &&
+        !options.usedTrackIds.has(candidate.id),
     );
-    const unfamiliar = candidates
-      .filter(
-        (candidate) =>
-          tasteMatch(
-            candidate.genres,
-            artistKeyOf(candidate),
-            options.taste,
-          ) === 0 &&
-          !options.mastered.has(candidate.id) &&
-          !options.usedTrackIds.has(candidate.id),
-      )
-      .slice(0, slots);
-    const row = this.composeTasteTrackRow({
+    if (options.sourcePoolsByRow)
+      options.sourcePoolsByRow.explore = unfamiliar.map(homeTrackOf);
+    const row = composeTasteTrackRow({
       id: 'explore',
       title: title('home.rows.explore'),
-      cards: unfamiliar,
+      cards: unfamiliar.slice(0, slots),
       mastered: options.mastered,
       used: options.usedTrackIds,
     });
     return row;
-  }
-
-  private composeTasteTrackRow(options: {
-    id: string;
-    title: HomeRowTitle;
-    cards: PersonalTrackCandidate[];
-    taste?: PersonalTaste;
-    mastered: ReadonlySet<string>;
-    used: ReadonlySet<string>;
-  }): HomeRow | undefined {
-    return composeTasteTrackRow(options);
   }
 }

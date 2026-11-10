@@ -23,7 +23,7 @@ const trackForComposer = (track: HomeCompositionCandidateTrack): HomeTrack => {
   return homeTrack;
 };
 
-const toPublicRow = (
+export const toComposedHomeRow = (
   row: ReturnType<
     typeof composeHomeRows<
       HomeCompositionCandidateTrack,
@@ -101,7 +101,7 @@ const rowsWithCompositionCandidates = ({
   const previewRows = composeHomeRows(eligibleCandidates, {
     expandRecommendationRows,
   }).flatMap((row) => {
-    const publicRow = toPublicRow(row);
+    const publicRow = toComposedHomeRow(row);
     return publicRow ? [publicRow] : [];
   });
   const nonCandidateRows = initiallyPlaced.filter(
@@ -128,7 +128,7 @@ const rowsWithCompositionCandidates = ({
     eligibleCandidates.filter(({ id }) => retainedIds.has(id)),
     { expandRecommendationRows },
   ).flatMap((row) => {
-    const publicRow = toPublicRow(row);
+    const publicRow = toComposedHomeRow(row);
     return publicRow ? [publicRow] : [];
   });
   const finalBaseRows = [

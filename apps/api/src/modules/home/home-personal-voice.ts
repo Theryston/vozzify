@@ -73,37 +73,20 @@ const compareTrending = (a: VoiceCandidate, b: VoiceCandidate): number =>
  * Builds the two personal range rows from public Tracks. Both rows share the
  * same composer, so their dedupe, per-artist cap and six-item minimum apply.
  */
-export const buildPersonalVoiceRows = (options: {
+type PersonalVoiceOptions = {
   rows: readonly HomeRow[];
   candidateTracks?: HomeTrack[];
   userRange: TrackVocalRange;
   discovery: ReadonlyMap<string, DiscoveryTrack>;
   masteredTrackIds: ReadonlySet<string>;
   alreadyUsedTrackIds: ReadonlySet<string>;
-}): HomeVocalRangeRow[] => {
-  const {
-    rows,
-    candidateTracks = [],
-    userRange,
-    discovery,
-    masteredTrackIds,
-    alreadyUsedTrackIds,
-  } = options;
-  const uniqueTracks = new Map(
-    [...personalTrackPool(rows), ...candidateTracks].map((track) => [
-      track.id,
-      track,
-    ]),
-  );
-  const candidates = [...uniqueTracks.values()]
-    .filter(
-      (track) =>
-        !masteredTrackIds.has(track.id) && !alreadyUsedTrackIds.has(track.id),
-    )
-    .flatMap((track) => {
-      const candidate = candidateOf(track, userRange, discovery);
-      return candidate ? [candidate] : [];
-    });
+  sourcePoolsByRow?: Record<string, HomeTrack[]>;
+};
+
+export const buildPersonalVoiceRows = (
+  options: PersonalVoiceOptions,
+): HomeVocalRangeRow[] => {
+  const candidates = personalVoiceCandidates(options);
   const within = candidates
     .filter((candidate) => candidate.fitScore > 0)
     .sort((a, b) => b.fitScore - a.fitScore || compareTrending(a, b));
@@ -114,6 +97,14 @@ export const buildPersonalVoiceRows = (options: {
     .sort(
       (a, b) => (a.overrun ?? 0) - (b.overrun ?? 0) || compareTrending(a, b),
     );
+  if (options.sourcePoolsByRow) {
+    options.sourcePoolsByRow['within-your-voice'] = within.map(
+      ({ track, fitScore }) => ({ ...track, fitsVoice: fitScore === 1 }),
+    );
+    options.sourcePoolsByRow['challenge-your-range'] = challenge.map(
+      ({ track }) => track,
+    );
+  }
   const composed = composeHomeRows([
     {
       id: 'within-your-voice',
@@ -144,3 +135,31 @@ export const personalVoiceRowTrackIds = (
   rows: readonly HomeVocalRangeRow[],
 ): Set<string> =>
   new Set(rows.flatMap((row) => row.items.map((item) => item.id)));
+
+const personalVoiceCandidates = (
+  options: PersonalVoiceOptions,
+): VoiceCandidate[] => {
+  const {
+    rows,
+    candidateTracks = [],
+    userRange,
+    discovery,
+    masteredTrackIds,
+    alreadyUsedTrackIds,
+  } = options;
+  const uniqueTracks = new Map(
+    [...personalTrackPool(rows), ...candidateTracks].map((track) => [
+      track.id,
+      track,
+    ]),
+  );
+  return [...uniqueTracks.values()]
+    .filter(
+      (track) =>
+        !masteredTrackIds.has(track.id) && !alreadyUsedTrackIds.has(track.id),
+    )
+    .flatMap((track) => {
+      const candidate = candidateOf(track, userRange, discovery);
+      return candidate ? [candidate] : [];
+    });
+};

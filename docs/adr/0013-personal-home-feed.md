@@ -130,3 +130,45 @@ older readers start, alongside the public keys described in ADR 0011.
   would serve one locale's rows to another's visit.
 - **Bake pins into the snapshot.** Rejected already in ADR 0012: a pin would
   have to reach every snapshot and audience rules would apply at write time.
+
+## Expanded personal carousels (algorithm 7, #507)
+
+Personal composition keeps the existing taste, voice, discovery and exploration
+initial selections before expanding any recommendation Row. Each retained
+standard or Vocal-range carousel may keep 48 distinct logical Tracks, delivered
+by the existing owner-scoped visit in pages of at most twelve. Earlier expansion
+cannot consume a later retained Row's initial contents. The Daily target and
+quality-category placement remain unchanged. Continue singing and Sing again
+retain their disjoint history/mastery membership, order and Artist-cap exception;
+their retained history is reserved against ordinary discovery. Charts retain
+their collective order and overlap exceptions.
+
+Source pools retain their own semantic eligibility and ordering. Personal
+refreshes reuse public background source candidates, including source-specific
+favorite candidates, and replenish taste, voice, newest, singing and exploration
+sources in 60-item queries. A source stops on exhaustion or the existing bounded
+useful-candidate budget (24 × 48); no full-catalog popularity aggregation is
+introduced in a User refresh or HTTP item request. Final progressive ordering
+and exploration preserve the two-per-credited-Artist rule within each logical
+12-item batch. Exploration swaps stay within a logical batch and substitutions
+count the target batch, rather than the complete expanded Row.
+
+New personal snapshots optionally retain ordered composition candidates using
+the existing compatible internal candidate schema. Live Pins recompose retained
+Rows against those private pools; capacity-excluded Rows release their claims,
+while retained initial contents precede expansion. Older snapshots without this
+optional field continue through their existing overlay path. No-history public
+fallback keeps expanded contents and the established private, owner-scoped visit
+and cache headers. Snapshot TTL, stale-while-rebuild and retained versions are
+unchanged.
+
+Deploy the compatible #505 readers before expanded writers. Algorithm 7 queues
+normal rebuilds while old shorter snapshots remain readable. Rollback to the
+previous compatible composer stops expanded generation and preserves retained
+visits until expiry; no cache flush or schema migration is needed. #507 and
+#509 are parallel changes using marker 7 independently: whichever merges second
+must advance the marker again after rebasing on the first, so snapshots generated
+by the first deployment are rebuilt for the combined composition.
+
+Controlled composition evidence and its limits are recorded in
+[the personal carousel report](../home-personal-carousel-comparison.md).

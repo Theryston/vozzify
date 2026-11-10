@@ -65,9 +65,8 @@ export class PersonalHomeBuilder {
     const activities = await requirePersonalTasteRows(
       this.tasteRows,
     ).findUserTasteActivities(userId);
-    const socialRows = await (this.social?.rowsFor(userId) ??
-      Promise.resolve([]));
-    const rows = await buildPersonalRows(
+    const socialRows = (await this.social?.rowsFor(userId)) ?? [];
+    const { rows, compositionCandidates } = await buildPersonalRows(
       {
         personal: this.personal,
         streaks: this.streaks,
@@ -80,6 +79,7 @@ export class PersonalHomeBuilder {
         locale,
         publicRows: feed.rows,
         albumCandidates: feed.albumCandidates,
+        compositionCandidates: feed.compositionCandidates,
         signals,
         favorites,
         activities,
@@ -100,6 +100,7 @@ export class PersonalHomeBuilder {
       ),
       algorithmVersion: HOME_ALGORITHM_VERSION,
       rows,
+      compositionCandidates,
       generatedAt: new Date().toISOString(),
     });
   }

@@ -1,5 +1,6 @@
 import type { HomeRow, HomeTrack, Locale } from '@vozzify/contracts';
 import type { AttemptsService } from '../attempts/attempts.service.js';
+import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import type { UserTrackSignal } from './home-personal.repository.js';
 import type {
   PersonalBuilderDependencies,
@@ -21,6 +22,7 @@ import { hasSufficientLocaleEvidence } from './home-stage2-scoring.js';
 
 type VoiceAndDiscoveryOptions = {
   publicRows: HomeRow[];
+  compositionCandidates?: HomeCompositionCandidateRow[];
   locale: Locale;
   taste: ReturnType<typeof decayedTaste>;
   lambda: number;
@@ -33,6 +35,7 @@ type VoiceAndDiscoveryOptions = {
 type RecommendationOptions = {
   userId: string;
   publicRows: HomeRow[];
+  compositionCandidates?: HomeCompositionCandidateRow[];
   locale: Locale;
   signals: UserTrackSignal[];
   tasteSignals: TasteSignal[];
@@ -90,13 +93,20 @@ const voiceAndDiscoveryRows = async (
   const candidates = await requirePersonalTasteRows(
     deps.tasteRows,
   ).findDiscoveryCandidates(options.taste, {
-    excludedTrackIds: new Set([...options.mastered, ...options.usedTrackIds]),
+    excludedTrackIds: options.mastered,
     userRange: options.userRange,
+    expandRecommendationRows: true,
   });
+  const sourcePools = mergePersonalSourcePools(
+    candidates.byRow,
+    options.compositionCandidates,
+  );
+  const sourceTracks = Object.values(sourcePools).flat();
   const discovery = await deps.personal.findDiscoveryTracks([
     ...new Set([
       ...options.publicRows.flatMap(trackIdsOfRow),
       ...candidates.tracks.map((track) => track.id),
+      ...sourceTracks.map((track) => track.id),
     ]),
   ]);
   const collectiveByTrack = await discoveryCollectiveScores(
@@ -115,8 +125,8 @@ const voiceAndDiscoveryRows = async (
   );
   return buildPersonalVoiceAndDiscoveryRows({
     publicRows: options.publicRows,
-    candidateTracks: candidates.tracks,
-    candidatesByRow: candidates.byRow,
+    candidateTracks: [...candidates.tracks, ...sourceTracks],
+    candidatesByRow: sourcePools,
     discovery: rankedDiscovery,
     taste: options.taste,
     lambda: options.lambda,
@@ -164,6 +174,7 @@ export const recommendationRows = async (
 ): Promise<PersonalRecommendation> => {
   const { tasteRows } = deps;
   const usedTrackIds = usedRecommendationTrackIds(options);
+  const tasteSourcePools: Record<string, HomeTrack[]> = {};
   const personalTasteRows = await requirePersonalTasteRows(tasteRows).build({
     userId: options.userId,
     signals: options.signals,
@@ -172,10 +183,12 @@ export const recommendationRows = async (
     mastered: options.mastered,
     usedTrackIds,
     publicRows: options.publicRows,
+    sourcePoolsByRow: tasteSourcePools,
   });
   const { voiceRows, discoveryRows, sourcePoolsByRow } =
     await voiceAndDiscoveryRows(deps, {
       publicRows: options.publicRows,
+      compositionCandidates: options.compositionCandidates,
       locale: options.locale,
       taste: options.taste,
       lambda: options.lambda,
@@ -190,6 +203,7 @@ export const recommendationRows = async (
     tasteSignals: options.tasteSignals,
     mastered: options.mastered,
     usedTrackIds: finalUsedTrackIds,
+    sourcePoolsByRow: tasteSourcePools,
     visibleTrackSlots: [
       ...options.leadingRows,
       ...personalTasteRows,
@@ -205,6 +219,27 @@ export const recommendationRows = async (
   ];
   return {
     rows,
-    sourcePoolsByRow: recommendationSourcePools(rows, sourcePoolsByRow),
+    sourcePoolsByRow: recommendationSourcePools(rows, {
+      ...sourcePoolsByRow,
+      ...tasteSourcePools,
+    }),
   };
+};
+
+const mergePersonalSourcePools = (
+  pools: Record<string, HomeTrack[]>,
+  publicCandidates: HomeCompositionCandidateRow[] = [],
+): Record<string, HomeTrack[]> => {
+  const merged = { ...pools };
+  for (const row of publicCandidates) {
+    merged[row.id] = [
+      ...new Map(
+        [...(merged[row.id] ?? []), ...row.items].map((track) => [
+          track.id,
+          track,
+        ]),
+      ).values(),
+    ];
+  }
+  return merged;
 };

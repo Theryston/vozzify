@@ -1,9 +1,11 @@
 import type { HomeRow, HomeTrack } from '@vozzify/contracts';
 import { homeArtistKeys } from './home-artist-keys.js';
 import { progressiveOrderItems } from './home-feed-composer.js';
+import { expandPersonalRows } from './home-personal-expansion.js';
 import { spreadPersonalExploration } from './home-personal-exploration.js';
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
 import type { PersonalHomeTasteRowsService } from './home-personal-taste-rows.service.js';
+import { HOME_MAX_ROWS } from './home-rules.js';
 
 type PersonalComposition = {
   hero: HomeRow | undefined;
@@ -17,6 +19,7 @@ type PersonalComposition = {
   tasteByTrack?: ReadonlyMap<string, number>;
   explorationPoolsByRow?: ReadonlyMap<string, readonly HomeTrack[]>;
   explorationSeed?: string;
+  expandRecommendationRows?: boolean;
 };
 
 const progressiveRows = (
@@ -123,14 +126,23 @@ export const composePersonalHomeRows = ({
   tasteByTrack = new Map<string, number>(),
   explorationPoolsByRow = new Map<string, readonly HomeTrack[]>(),
   explorationSeed,
+  expandRecommendationRows = false,
 }: PersonalComposition): HomeRow[] => {
+  const fallbackVoice = fallbackVoiceRows(
+    publicRows,
+    resumes,
+    recommendations,
+    masteredTrackIds,
+  );
+  const sourcePools = new Map(explorationPoolsByRow);
+  for (const row of fallbackVoice)
+    if (row.layout === 'vocal-range') sourcePools.set(row.id, row.items);
   const categories = [
     ...publicRows.filter(publicCategory),
-    ...fallbackVoiceRows(
-      publicRows,
-      resumes,
-      recommendations,
-      masteredTrackIds,
+    ...fallbackVoice.map((row) =>
+      expandRecommendationRows && row.layout === 'vocal-range'
+        ? { ...row, items: row.items.slice(0, 12) }
+        : row,
     ),
   ];
   const remainder = [
@@ -144,13 +156,23 @@ export const composePersonalHomeRows = ({
     [...socialRows, ...categories],
     Math.max(0, 5 - prefixLength),
   );
+  const initial = progressiveRows(
+    [...(hero ? [hero] : []), dailyTarget, ...resumes, ...prioritized],
+    artistKeysByTrack,
+  );
+  const expanded = expandRecommendationRows
+    ? expandPersonalRows({
+        rows: initial.slice(0, HOME_MAX_ROWS),
+        sourcePoolsByRow: sourcePools,
+        artistKeysByTrack,
+        masteredTrackIds,
+        reservedTrackIds: reservedChartTrackIds(publicRows),
+      })
+    : initial;
   return spreadPersonalExploration({
-    rows: progressiveRows(
-      [...(hero ? [hero] : []), dailyTarget, ...resumes, ...prioritized],
-      artistKeysByTrack,
-    ),
+    rows: expanded,
     tasteByTrack,
-    sourcePoolsByRow: explorationPoolsByRow,
+    sourcePoolsByRow: sourcePools,
     masteredTrackIds,
     reservedTrackIds: reservedChartTrackIds(publicRows),
     artistKeysByTrack,

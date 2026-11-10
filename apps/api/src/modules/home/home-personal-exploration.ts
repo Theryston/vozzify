@@ -6,7 +6,10 @@ import type {
 import { homeArtistKeys } from './home-artist-keys.js';
 import { EXPLORATION_SLOT_SHARE } from './home-personal.js';
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
-import { MAX_TRACKS_PER_ARTIST_PER_ROW } from './home-rules.js';
+import {
+  HOME_TRACK_PAGE_SIZE,
+  MAX_TRACKS_PER_ARTIST_PER_ROW,
+} from './home-rules.js';
 
 type ExplorationOptions = {
   rows: HomeRow[];
@@ -78,6 +81,8 @@ const desiredTrack = (options: {
   if (!current || isNearby(current, tasteByTrack) === nearby) return current;
   return rowItems.tracks.find(
     (track, index) =>
+      Math.floor(index / HOME_TRACK_PAGE_SIZE) ===
+        Math.floor(targetIndex / HOME_TRACK_PAGE_SIZE) &&
       index !== targetIndex &&
       !protectedIndices.has(index) &&
       isNearby(track, tasteByTrack) === nearby,
@@ -91,7 +96,12 @@ const rowArtistCounts = (
 ): Map<string, number> => {
   const counts = new Map<string, number>();
   for (const [index, track] of items.entries()) {
-    if (index === omitIndex) continue;
+    if (
+      index === omitIndex ||
+      Math.floor(index / HOME_TRACK_PAGE_SIZE) !==
+        Math.floor(omitIndex / HOME_TRACK_PAGE_SIZE)
+    )
+      continue;
     for (const key of artistKeysByTrack.get(track.id) ??
       homeArtistKeys(track.artistCredit, track.id)) {
       counts.set(key, (counts.get(key) ?? 0) + 1);

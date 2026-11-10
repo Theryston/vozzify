@@ -11,7 +11,6 @@ import { HomeFeedService } from './home-feed.service.js';
 import { answerHomePage, type HomePage, type ServedFeed } from './home-page.js';
 import { personalSnapshotStale } from './home-personal.js';
 import { PersonalHomeStore } from './home-personal.store.js';
-import { capPersonalTrackRows } from './home-personal-public-capacity.js';
 import { PersonalHomeQueueService } from './home-personal-queue.service.js';
 import { queuePersonalHomeRefresh } from './home-personal-refresh.js';
 import { findPersonalSnapshotVersion } from './home-personal-snapshot-lookup.js';
@@ -76,7 +75,7 @@ export class HomeService {
   }> {
     const feed = await this.feeds.storedPublicForPreview(request.locale);
     const signedIn = request.audience === 'signed-in';
-    const previewRows = signedIn ? capPersonalTrackRows(feed.rows) : feed.rows;
+    const previewRows = feed.rows;
     const rows = this.pinOverlay
       ? await this.pinOverlay.applyPreview(
           previewRows,
@@ -149,6 +148,7 @@ export class HomeService {
       locale,
       signedIn: true,
       audience: 'personal',
+      candidates: snapshot.compositionCandidates,
     });
     const visit = needsFrozenVisit(shown)
       ? await this.visits?.create(snapshot, shown, locale, userId)
@@ -249,6 +249,7 @@ export class HomeService {
         locale: snapshot.locale,
         signedIn: true,
         audience: 'personal',
+        candidates: snapshot.compositionCandidates,
       });
       return this.answer({ ...snapshot, rows: shown }, position, true, true);
     }
@@ -269,8 +270,7 @@ export class HomeService {
     options: HomePinOverlayOptions,
   ): Promise<HomeRow[]> {
     const audience = options.audience ?? 'public';
-    const visibleRows =
-      audience === 'personal' ? capPersonalTrackRows(rows) : rows;
+    const visibleRows = rows;
     if (!this.pinOverlay) {
       return visibleRows;
     }

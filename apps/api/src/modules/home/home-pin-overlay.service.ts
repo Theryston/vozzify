@@ -12,6 +12,7 @@ import { EditorialPinsService } from '../editorial-pins/editorial-pins.service.j
 import { HomeRepository } from './home.repository.js';
 import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import { toHomeTrack } from './home-feed-builder.service.js';
+import { composePersonalVisitRows } from './home-personal-visit-composer.js';
 import { applyEditorialPins, type OverlayPin } from './home-pin-overlay.js';
 import { HomePublicOverlayCache } from './home-public-overlay-cache.js';
 import { composePublicVisitRows } from './home-public-visit-composer.js';
@@ -120,7 +121,7 @@ export class HomePinOverlayService {
     const overlayPins =
       live.length === 0 ? [] : await this.resolvePins(live, viewer);
     if (viewer.audience === 'personal') {
-      return applyEditorialPins(rows, overlayPins, 'personal');
+      return composePersonalVisitRows(rows, candidates, overlayPins);
     }
     return this.publicRows(rows, viewer, overlayPins, candidates);
   }

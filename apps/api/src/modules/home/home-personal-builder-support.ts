@@ -4,6 +4,7 @@ import type { StreaksService } from '../streaks/streaks.service.js';
 import type { TrackLocaleTrendingService } from '../tracks/track-locale-trending.service.js';
 import type { HomeRepository } from './home.repository.js';
 import type { HomeAlbumCandidateSnapshot } from './home-album-candidates.js';
+import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import { personalScore } from './home-personal.js';
 import type {
   PersonalHomeRepository,
@@ -31,6 +32,7 @@ export type PersonalBuilderOptions = {
   userId: string;
   locale: Locale;
   publicRows: HomeRow[];
+  compositionCandidates?: HomeCompositionCandidateRow[];
   albumCandidates?: HomeAlbumCandidateSnapshot[];
   signals: UserTrackSignal[];
   favorites: Awaited<

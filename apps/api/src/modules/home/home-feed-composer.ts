@@ -138,6 +138,7 @@ export const composeHomeRows = <
   candidates: readonly R[],
   options: {
     minimumItems?: Partial<Record<HomeLayout, number>>;
+    minimumItemsByRow?: Readonly<Record<string, number>>;
     expandRecommendationRows?: boolean;
   } = {},
 ): (R & { items: T[] })[] => {
@@ -193,6 +194,7 @@ const composeInitialRow = <
   reserved: ReadonlySet<string>;
   options: {
     minimumItems?: Partial<Record<HomeLayout, number>>;
+    minimumItemsByRow?: Readonly<Record<string, number>>;
     expandRecommendationRows?: boolean;
   };
 }):
@@ -217,11 +219,15 @@ const composeInitialRow = <
     bypassArtistCap: exception,
     overlapsExisting: candidate.layout === 'ranked',
     overlapsReserved:
-      candidate.layout === 'ranked' || candidate.layout === 'hero',
+      bypassesArtistCap(candidate) || candidate.layout === 'hero',
     limit,
     batchOffset: 0,
   });
-  if (items.length < minimumRowItems(candidate, options.minimumItems)) {
+  if (
+    items.length <
+    (options.minimumItemsByRow?.[candidate.id] ??
+      minimumRowItems(candidate, options.minimumItems))
+  ) {
     return undefined;
   }
   return { row: { ...candidate, items }, priorExposures };
@@ -249,16 +255,18 @@ const expandRows = <T extends ComposableTrack, R extends RowCandidate<T>>(
       );
     }
     const additions = pickRowItems({
-      candidates: reweightByExposure(
-        candidate.items.filter((item) => !ownIds.has(item.id)),
-        currentExposures,
-      ),
+      candidates: bypassesArtistCap(candidate)
+        ? candidate.items.filter((item) => !ownIds.has(item.id))
+        : reweightByExposure(
+            candidate.items.filter((item) => !ownIds.has(item.id)),
+            currentExposures,
+          ),
       rule: HOME_ROW_RULES[candidate.layout],
       used: otherUsed,
       reserved,
-      bypassArtistCap: false,
+      bypassArtistCap: bypassesArtistCap(candidate),
       overlapsExisting: false,
-      overlapsReserved: false,
+      overlapsReserved: bypassesArtistCap(candidate),
       limit: HOME_ROW_RULES[candidate.layout].maxItems - row.items.length,
       batchOffset: row.items.length,
       startingItems: row.items,
