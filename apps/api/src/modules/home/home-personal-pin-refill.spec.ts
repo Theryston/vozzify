@@ -171,3 +171,41 @@ describe('personal live Pin refill', () => {
     );
   });
 });
+
+describe('canonical resume history after capacity changes', () => {
+  it('restores released ordinary Tracks at their original history positions', () => {
+    const history = Array.from({ length: 30 }, (_, index) =>
+      track(`history-${index}`),
+    );
+    const entities: HomeRow[] = Array.from({ length: 21 }, (_, index) => ({
+      id: `artists-${index}`,
+      layout: 'artists',
+      title: { key: 'home.rows.featuredArtists', params: {} },
+      items: Array.from({ length: 3 }, (_, item) => ({
+        id: `artist-${index}-${item}`,
+        name: `Artist ${index}-${item}`,
+      })),
+    }));
+    const rows = [
+      daily,
+      row('continue-singing', [...history.slice(0, 12), ...history.slice(24)]),
+      ...entities,
+      row('most-sung', history.slice(12, 24)),
+    ];
+    const candidates = personalCompositionCandidates({
+      rows,
+      sourcePoolsByRow: { 'continue-singing': history, 'most-sung': history },
+      artistKeysByTrack: new Map(),
+      mastered: new Set(),
+    });
+    const shown = composePersonalVisitRows(rows, candidates, [
+      pin([track('unrelated')]),
+    ]);
+    expect(shown.some(({ id }) => id === 'most-sung')).toBe(false);
+    const resumed = shown.find(({ id }) => id === 'continue-singing');
+    if (resumed?.layout !== 'standard') throw new Error('Missing resume');
+    expect(resumed.items.map(({ id }) => id)).toEqual(
+      history.map(({ id }) => id),
+    );
+  });
+});

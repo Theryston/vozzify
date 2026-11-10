@@ -88,9 +88,9 @@ export const personalCompositionScores = async (
     taste: ReturnType<typeof decayedTaste>;
   },
 ) => {
-  const sourcePoolIds = Object.values(
-    options.recommendation.sourcePoolsByRow,
-  ).flatMap((tracks) => tracks.map((track) => track.id));
+  const sourcePoolIds = Object.entries(options.recommendation.sourcePoolsByRow)
+    .filter(([id]) => id !== 'continue-singing' && id !== 'sing-again')
+    .flatMap(([, tracks]) => tracks.map((track) => track.id));
   const ids = [
     ...new Set(options.rows.flatMap(trackIdsOfRow).concat(sourcePoolIds)),
   ];

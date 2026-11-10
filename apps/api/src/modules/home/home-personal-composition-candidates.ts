@@ -42,12 +42,13 @@ export const personalCompositionCandidates = (
       row.layout === 'hero' ||
       row.id === 'continue-singing' ||
       row.id === 'sing-again';
+    const source = options.sourcePoolsByRow[row.id] ?? [];
+    const ordered =
+      row.id === 'continue-singing' || row.id === 'sing-again'
+        ? [...source, ...initial]
+        : [...initial, ...source];
     const tracks = [
-      ...new Map(
-        [...initial, ...(options.sourcePoolsByRow[row.id] ?? [])].map(
-          (track) => [track.id, track],
-        ),
-      ).values(),
+      ...new Map(ordered.map((track) => [track.id, track])).values(),
     ].filter(
       (track) =>
         exceptional ||

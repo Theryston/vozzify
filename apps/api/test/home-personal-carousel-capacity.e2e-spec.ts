@@ -4,6 +4,7 @@ import { practiceAttempts } from '../src/database/schema/practice-attempts.js';
 import { trackFavorites } from '../src/database/schema/track-favorites.js';
 import { trackProcessings } from '../src/database/schema/track-processings.js';
 import { tracks } from '../src/database/schema/tracks.js';
+import { HomeFeedService } from '../src/modules/home/home-feed.service.js';
 import { PersonalHomeRepository } from '../src/modules/home/home-personal.repository.js';
 import { PersonalHomeStore } from '../src/modules/home/home-personal.store.js';
 import { PersonalHomeBuilder } from '../src/modules/home/home-personal-builder.service.js';
@@ -98,6 +99,59 @@ describe('personal carousel capacity (e2e)', () => {
     return feed;
   };
 
+  type CapacityRecords = Awaited<ReturnType<typeof seed>>['records'];
+  const setVoiceRanges = async (
+    records: CapacityRecords,
+    withinCount: number,
+  ) => {
+    await testApp.db
+      .update(tracks)
+      .set({ vocalRangeLowest: 60, vocalRangeHighest: 68 })
+      .where(
+        inArray(
+          tracks.id,
+          records.slice(0, withinCount).map(({ id }) => id),
+        ),
+      );
+    await testApp.db
+      .update(tracks)
+      .set({ vocalRangeLowest: 59, vocalRangeHighest: 69 })
+      .where(
+        inArray(
+          tracks.id,
+          records.slice(withinCount).map(({ id }) => id),
+        ),
+      );
+  };
+  const seedCoordinatedHistory = async (
+    userId: string,
+    history: CapacityRecords,
+    masteredFrom = history.length,
+  ) => {
+    await testApp.db.update(tracks).set({ genres: [] });
+    await testApp.db
+      .update(tracks)
+      .set({ trendingScore: 0 })
+      .where(
+        inArray(
+          tracks.id,
+          history.map(({ id }) => id),
+        ),
+      );
+    await testApp.db
+      .insert(practiceAttempts)
+      .values(
+        history.map((track, index) =>
+          attemptValue(
+            userId,
+            track.id,
+            index < masteredFrom ? 0.7 : 0.95,
+            new Date(Date.now() - index * 1000),
+          ),
+        ),
+      );
+  };
+
   it('exposes expanded no-history fallback and favorite-only personal recommendations privately', async () => {
     const { records, user, client } = await seed();
     const fallback = homeFeedPageSchema.parse(
@@ -180,24 +234,7 @@ describe('personal carousel capacity (e2e)', () => {
   });
   it('expands evidence-qualified voice Rows without mixing fit and challenge candidates', async () => {
     const { records, user, client } = await seed();
-    await testApp.db
-      .update(tracks)
-      .set({ vocalRangeLowest: 60, vocalRangeHighest: 68 })
-      .where(
-        inArray(
-          tracks.id,
-          records.slice(0, 90).map(({ id }) => id),
-        ),
-      );
-    await testApp.db
-      .update(tracks)
-      .set({ vocalRangeLowest: 59, vocalRangeHighest: 69 })
-      .where(
-        inArray(
-          tracks.id,
-          records.slice(90).map(({ id }) => id),
-        ),
-      );
+    await setVoiceRanges(records, 90);
     const reference = records[0];
     if (!reference) throw new Error('Missing reference');
     await testApp.db
@@ -253,24 +290,7 @@ describe('personal carousel capacity (e2e)', () => {
   });
   it('finds challenge candidates beyond a full1152-item fit pool without weakening voice semantics', async () => {
     const { records, user } = await seed(1260, true);
-    await testApp.db
-      .update(tracks)
-      .set({ vocalRangeLowest: 60, vocalRangeHighest: 68 })
-      .where(
-        inArray(
-          tracks.id,
-          records.slice(0, 1200).map(({ id }) => id),
-        ),
-      );
-    await testApp.db
-      .update(tracks)
-      .set({ vocalRangeLowest: 59, vocalRangeHighest: 69 })
-      .where(
-        inArray(
-          tracks.id,
-          records.slice(1200).map(({ id }) => id),
-        ),
-      );
+    await setVoiceRanges(records, 1200);
     const reference = records[0];
     if (!reference) throw new Error('Missing reference');
     await testApp.db
@@ -293,29 +313,8 @@ describe('personal carousel capacity (e2e)', () => {
   });
   it('protects ordinary initial contents before expanding resume history', async () => {
     const { records, user } = await seed();
-    await testApp.db.update(tracks).set({ genres: [] });
     const history = records.slice(0, 60);
-    await testApp.db
-      .update(tracks)
-      .set({ trendingScore: 0 })
-      .where(
-        inArray(
-          tracks.id,
-          history.map(({ id }) => id),
-        ),
-      );
-    await testApp.db
-      .insert(practiceAttempts)
-      .values(
-        history.map((track, index) =>
-          attemptValue(
-            user.id,
-            track.id,
-            index < 30 ? 0.7 : 0.95,
-            new Date(Date.now() - index * 1000),
-          ),
-        ),
-      );
+    await seedCoordinatedHistory(user.id, history, 30);
     const feed = await refresh(user.id);
     const mostSung = feed.rows.find(({ id }) => id === 'most-sung');
     const resume = feed.rows.find(({ id }) => id === 'continue-singing');
@@ -350,5 +349,72 @@ describe('personal carousel capacity (e2e)', () => {
             : [],
       );
     expect(discoveryIds.some((id) => mastered.has(id))).toBe(false);
+  });
+  it('continues past the first48 history candidates after other initial claims', async () => {
+    const { records, user } = await seed(300);
+    const history = records.slice(0, 100);
+    await seedCoordinatedHistory(user.id, history);
+    const feed = await refresh(user.id);
+    const resume = feed.rows.find(({ id }) => id === 'continue-singing');
+    const mostSung = feed.rows.find(({ id }) => id === 'most-sung');
+    if (resume?.layout !== 'standard' || mostSung?.layout !== 'standard')
+      throw new Error('Missing protected Row');
+    expect(resume.items).toHaveLength(48);
+    expect(mostSung.items.length).toBeGreaterThanOrEqual(3);
+    const singingIds = new Set(mostSung.items.map(({ id }) => id));
+    expect(resume.items.some(({ id }) => singingIds.has(id))).toBe(false);
+    const resumedIds = new Set(resume.items.map(({ id }) => id));
+    expect(resume.items.map(({ id }) => id)).toEqual(
+      history.filter(({ id }) => resumedIds.has(id)).map(({ id }) => id),
+    );
+    expect(
+      resume.items.some(({ id }) =>
+        history.slice(48).some((track) => track.id === id),
+      ),
+    ).toBe(true);
+  });
+  it('refills inherited voice Rows from their full public source for a favourite-only User without range evidence', async () => {
+    const { records, user } = await seed(180, true);
+    await testApp.db
+      .update(tracks)
+      .set({ vocalRangeLowest: 60, vocalRangeHighest: 68 });
+    const { feed: publicFeed } = await testApp.app
+      .get(HomeFeedService)
+      .currentPublic('en');
+    const publicVoice = publicFeed.rows.find(
+      (row) => row.layout === 'vocal-range',
+    );
+    if (
+      publicVoice?.layout !== 'vocal-range' ||
+      publicVoice.items.length !== 48
+    )
+      throw new Error('Missing public voice fixture');
+    const claimed = publicVoice.items[12];
+    if (!claimed) throw new Error('Missing voice expansion candidate');
+    await testApp.db
+      .update(tracks)
+      .set({ trendingScore: 5000 })
+      .where(inArray(tracks.id, [claimed.id]));
+    await testApp.db
+      .insert(trackFavorites)
+      .values({ userId: user.id, trackId: claimed.id });
+    const feed = await refresh(user.id);
+    expect(feed.rows.some(({ id }) => id === 'within-your-voice')).toBe(false);
+    const inherited = feed.rows.find(({ id }) => id === publicVoice.id);
+    if (inherited?.layout !== 'vocal-range')
+      throw new Error('Inherited voice Row was lost');
+    expect(inherited.items).toHaveLength(48);
+    expect(inherited.items.some(({ id }) => id === claimed.id)).toBe(false);
+    const publicIds = new Set(publicVoice.items.map(({ id }) => id));
+    expect(inherited.items.some(({ id }) => !publicIds.has(id))).toBe(true);
+    const eligible = new Set(records.map(({ id }) => id));
+    expect(
+      inherited.items.every(
+        (track) =>
+          eligible.has(track.id) &&
+          track.vocalRange.lowest === 60 &&
+          track.vocalRange.highest === 68,
+      ),
+    ).toBe(true);
   });
 });

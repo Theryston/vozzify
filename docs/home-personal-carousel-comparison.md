@@ -21,7 +21,11 @@ The earliest source overlaps the later sources heavily. Initial protection
 preserves both later Rows while each source expands to 48. The new behavior tests
 also cover a partial initial batch, collaboration credits after exploration,
 capacity-excluded Rows releasing Tracks, and live Pins removing selected Tracks
-before source-specific replenishment. A301-Track source regression proves replenishment can cross the old four-page
+before source-specific replenishment. Full-pipeline regressions preserve ordinary
+initial Rows before resume expansion, continue beyond the first48 history
+candidates, restore canonical resume order after capacity release and refill
+inherited voice Rows from their complete same-source pool for favourite-only
+Users without range evidence. A301-Track source regression proves replenishment can cross the old four-page
 cutoff without changing source order or filling an empty source from another. A
 600-Track HTTP fixture proves every retained standard Row fills to48 while
 personal queries stop before source exhaustion; each source page is bounded to60

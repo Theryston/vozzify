@@ -41,18 +41,15 @@ const toResumeCandidate = (signal: UserTrackSignal) => ({
   } satisfies HomeTrack,
 });
 
-/** Keep unfinished and mastered practice available before recommendations. */
-export const resumeRows = (
+const resumeDescriptors = (
   signals: UserTrackSignal[],
   mastered: ReadonlySet<string>,
-  expanded = false,
-): HomeRow[] => {
+) => {
   const candidates = signals.map(toResumeCandidate);
   const bestOf = new Map(
     signals.map((signal) => [signal.trackId, signal.bestAccuracy]),
   );
-  const rows: HomeRow[] = [];
-  for (const descriptor of [
+  return [
     {
       id: 'continue-singing',
       title: title('home.rows.continueSinging'),
@@ -65,7 +62,29 @@ export const resumeRows = (
         .filter((candidate) => mastered.has(candidate.id))
         .sort((a, b) => (bestOf.get(b.id) ?? 0) - (bestOf.get(a.id) ?? 0)),
     },
-  ]) {
+  ];
+};
+
+/** Canonical history is independent of the48-item final Row ceiling. */
+export const resumeTrackPools = (
+  signals: UserTrackSignal[],
+  mastered: ReadonlySet<string>,
+): Record<string, HomeTrack[]> =>
+  Object.fromEntries(
+    resumeDescriptors(signals, mastered).map((row) => [
+      row.id,
+      row.items.map(({ track }) => track),
+    ]),
+  );
+
+/** Keep unfinished and mastered practice available before recommendations. */
+export const resumeRows = (
+  signals: UserTrackSignal[],
+  mastered: ReadonlySet<string>,
+  expanded = false,
+): HomeRow[] => {
+  const rows: HomeRow[] = [];
+  for (const descriptor of resumeDescriptors(signals, mastered)) {
     const [composed] = composeHomeRows(
       [{ ...descriptor, layout: 'standard' as const }],
       { minimumItems: { standard: PERSONAL_RESUME_ROW_MIN_ITEMS } },

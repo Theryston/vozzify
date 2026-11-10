@@ -19,6 +19,10 @@ import type {
 } from './home-personal-recommendations.js';
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
 import { SINGING_SIGNAL_WINDOW_DAYS } from './home-popularity.js';
+import {
+  toComposedHomeRow,
+  tracksInHomeRow,
+} from './home-public-visit-composer.js';
 import { hasSufficientLocaleEvidence } from './home-stage2-scoring.js';
 
 type VoiceAndDiscoveryOptions = {
@@ -109,6 +113,7 @@ const voiceAndDiscoveryRows = async (
   const sourcePools = mergePersonalSourcePools(
     candidates.byRow,
     options.compositionCandidates,
+    !options.userRange,
   );
   const sourceTracks = Object.values(sourcePools).flat();
   const ids = [
@@ -237,29 +242,57 @@ export const recommendationRows = async (
     ...(exploration ? [exploration] : []),
     ...discoveryRows,
   ];
-  return {
-    rows,
-    sourcePoolsByRow: recommendationSourcePools(rows, {
-      ...sourcePoolsByRow,
-      ...tasteSourcePools,
-    }),
-  };
+  const pools = recommendationSourcePools(rows, {
+    ...sourcePoolsByRow,
+    ...tasteSourcePools,
+  });
+  Object.assign(pools, inheritedVoiceSourcePools(options, voiceRows));
+  return { rows, sourcePoolsByRow: pools };
 };
 
 const mergePersonalSourcePools = (
   pools: Record<string, HomeTrack[]>,
   publicCandidates: HomeCompositionCandidateRow[] = [],
+  includePublicVoice = true,
 ): Record<string, HomeTrack[]> => {
   const merged = { ...pools };
   for (const row of publicCandidates) {
+    if (!includePublicVoice && row.layout === 'vocal-range') continue;
     merged[row.id] = [
       ...new Map(
-        [...(merged[row.id] ?? []), ...row.items].map((track) => [
-          track.id,
-          track,
-        ]),
+        [...(merged[row.id] ?? []), ...compositionSourceTracks(row)].map(
+          (track) => [track.id, track],
+        ),
       ).values(),
     ];
   }
   return merged;
+};
+
+const compositionSourceTracks = (
+  candidate: HomeCompositionCandidateRow,
+): HomeTrack[] => {
+  const row = toComposedHomeRow({
+    ...candidate,
+    items: candidate.items.filter((track) => track.isCompleted),
+  });
+  return row ? tracksInHomeRow(row) : [];
+};
+
+const inheritedVoiceSourcePools = (
+  options: RecommendationOptions,
+  personalVoiceRows: HomeRow[],
+): Record<string, HomeTrack[]> => {
+  if (personalVoiceRows.some((row) => row.layout === 'vocal-range')) return {};
+  return Object.fromEntries(
+    options.publicRows.flatMap((row) => {
+      if (row.layout !== 'vocal-range') return [];
+      const candidate = options.compositionCandidates?.find(
+        ({ id }) => id === row.id,
+      );
+      return [
+        [row.id, candidate ? compositionSourceTracks(candidate) : row.items],
+      ];
+    }),
+  );
 };

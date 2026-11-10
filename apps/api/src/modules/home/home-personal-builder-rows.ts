@@ -11,7 +11,7 @@ import { PersonalCandidateSession } from './home-personal-candidate-session.js';
 import { composePersonalHomeRows } from './home-personal-composition.js';
 import { personalCompositionCandidates } from './home-personal-composition-candidates.js';
 import { dailyTargetRow } from './home-personal-daily-target.js';
-import { resumeRows } from './home-personal-resume-rows.js';
+import { resumeRows, resumeTrackPools } from './home-personal-resume-rows.js';
 
 const leadingRows = async (
   deps: PersonalBuilderDependencies,
@@ -23,13 +23,13 @@ const leadingRows = async (
       .map((signal) => signal.trackId),
   );
   const resumes = resumeRows(options.signals, mastered);
-  const resumeCandidates = resumeRows(options.signals, mastered, true);
+  const resumePools = resumeTrackPools(options.signals, mastered);
   const dailyTarget = await dailyTargetRow(
     deps.streaks,
     options.userId,
     options.timeZone,
   );
-  return { mastered, resumes, resumeCandidates, dailyTarget };
+  return { mastered, resumes, resumePools, dailyTarget };
 };
 
 const buildPersonalRowsPass = async (
@@ -45,14 +45,7 @@ const buildPersonalRowsPass = async (
     candidateSession,
     leadingRows: [...resumes, ...options.socialRows],
   });
-  Object.assign(
-    recommendation.sourcePoolsByRow,
-    Object.fromEntries(
-      context.resumeCandidates.flatMap((row) =>
-        row.layout === 'standard' ? [[row.id, row.items]] : [],
-      ),
-    ),
-  );
+  Object.assign(recommendation.sourcePoolsByRow, context.resumePools);
   const { artistKeys, tasteByTrack } = await personalCompositionScores(
     deps.personal,
     {
@@ -126,8 +119,10 @@ const personalBuildContext = async (
     lambda,
     voiceConfidence,
   });
-  const { mastered, resumes, resumeCandidates, dailyTarget } =
-    await leadingRows(deps, options);
+  const { mastered, resumes, resumePools, dailyTarget } = await leadingRows(
+    deps,
+    options,
+  );
   return {
     tasteSignals,
     taste,
@@ -136,7 +131,7 @@ const personalBuildContext = async (
     publicRows,
     mastered,
     resumes,
-    resumeCandidates,
+    resumePools,
     dailyTarget,
   };
 };

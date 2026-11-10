@@ -142,6 +142,9 @@ quality-category placement remain unchanged. Continue singing and Sing again
 retain their disjoint history/mastery membership, order and Artist-cap exception;
 each resume Row protects its initial12 before ordinary selection, then expands
 from the remaining ordered history after all retained initials are allocated.
+The canonical history source is separate from the final48-item display limit,
+and private snapshots preserve source history order so a capacity change can
+restore released Tracks at their correct positions.
 All mastered Tracks remain excluded from discovery regardless of Sing again
 allocation. Charts retain
 their collective order and overlap exceptions.
@@ -153,13 +156,18 @@ sources in 60-item queries. A per-build candidate session first reads one page
 per applicable source, composes the entire feed, and advances only sources whose
 retained or still-eligible Rows need more contents. It stops when those Rows fill
 or their sources are exhausted, caching pages, Track metadata and collective
-scores across passes. The useful retained-candidate budget remains24 ×48; it is
+scores across passes. Raw public voice source pools survive only when those
+Rows are actually inherited; generated personal voice Rows replace them without
+pulling unused raw public voice pools into metadata/scoring work. The useful retained-candidate budget remains24 ×48; it is
 not treated as proof of source exhaustion. Compaction protects selected Tracks
 and prioritizes still-missing semantic targets; filled voice targets retain a
 bounded replacement reserve rather than crowding out later fit or challenge
 candidates. Both semantics keep the existing voice eligibility functions and
 source ordering. Stable community/Artist queries are also memoized strictly within that build
 (and therefore within one User and locale), never shared across refreshes.
+Full resume source pools do not cause full-history metadata/popularity reads;
+resume Rows bypass exploration and Artist caps, while their selected cards
+receive ordinary serving-time Artist links.
 No full-catalog popularity aggregation
 is introduced in a User refresh or HTTP item request. Final progressive ordering
 and exploration preserve the two-per-credited-Artist rule within each logical
