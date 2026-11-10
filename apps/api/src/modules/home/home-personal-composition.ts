@@ -4,11 +4,15 @@ import type {
   HomeVocalRangeTrack,
 } from '@vozzify/contracts';
 import { homeArtistKeys } from './home-artist-keys.js';
-import { progressiveOrderItems } from './home-feed-composer.js';
+import {
+  composeHomeRows,
+  progressiveOrderItems,
+} from './home-feed-composer.js';
 import { expandPersonalRows } from './home-personal-expansion.js';
 import { spreadPersonalExploration } from './home-personal-exploration.js';
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
 import type { PersonalHomeTasteRowsService } from './home-personal-taste-rows.service.js';
+import { personalTrackCandidate } from './home-personal-track-candidate.js';
 import { HOME_MAX_ROWS } from './home-rules.js';
 
 type PersonalComposition = {
@@ -82,12 +86,14 @@ const fallbackVoiceRows = ({
   recommendations,
   masteredTrackIds,
   sourcePoolsByRow,
+  artistKeysByTrack,
 }: {
   publicRows: HomeRow[];
   resumes: HomeRow[];
   recommendations: HomeRow[];
   masteredTrackIds: ReadonlySet<string>;
   sourcePoolsByRow: ReadonlyMap<string, readonly HomeTrack[]>;
+  artistKeysByTrack: ReadonlyMap<string, string[]>;
 }): HomeRow[] => {
   if (recommendations.some((row) => row.layout === 'vocal-range')) return [];
   const usedTrackIds = new Set([
@@ -110,7 +116,19 @@ const fallbackVoiceRows = ({
         !usedTrackIds.has(item.id) &&
         !masteredTrackIds.has(item.id),
     );
-    return items.length >= 6 ? [{ ...row, items }] : [];
+    const [initial] = composeHomeRows([
+      {
+        id: row.id,
+        layout: 'vocal-range' as const,
+        items: items.map((track) => ({
+          ...personalTrackCandidate(track, artistKeysByTrack),
+          track,
+        })),
+      },
+    ]);
+    return initial
+      ? [{ ...row, items: initial.items.map(({ track }) => track) }]
+      : [];
   });
 };
 
@@ -151,16 +169,17 @@ export const composePersonalHomeRows = ({
   expandRecommendationRows = false,
 }: PersonalComposition): HomeRow[] => {
   const sourcePools = new Map(explorationPoolsByRow);
+  for (const row of publicRows)
+    if (row.layout === 'vocal-range' && !sourcePools.has(row.id))
+      sourcePools.set(row.id, row.items);
   const fallbackVoice = fallbackVoiceRows({
     publicRows,
     resumes,
     recommendations,
     masteredTrackIds,
     sourcePoolsByRow: sourcePools,
+    artistKeysByTrack,
   });
-  for (const row of fallbackVoice)
-    if (row.layout === 'vocal-range' && !sourcePools.has(row.id))
-      sourcePools.set(row.id, row.items);
   const categories = [
     ...publicRows.filter(publicCategory),
     ...fallbackVoice.map((row) =>

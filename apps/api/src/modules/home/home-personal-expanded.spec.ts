@@ -250,3 +250,48 @@ describe('resume expansion chart exceptions', () => {
     );
   });
 });
+
+describe('inherited voice batch diversity after personal exclusions', () => {
+  it('reapplies the credited Artist cap when exclusions collapse public batch boundaries', () => {
+    const shared = Array.from({ length: 4 }, (_, index) =>
+      track(`shared-${index}`, 'shared'),
+    );
+    const mastered = Array.from({ length: 10 }, (_, index) =>
+      track(`mastered-${index}`),
+    );
+    const fresh = Array.from({ length: 10 }, (_, index) =>
+      track(`fresh-${index}`),
+    );
+    const cards = [
+      ...shared.slice(0, 2),
+      ...mastered,
+      ...shared.slice(2),
+      ...fresh,
+    ].map((item) => ({ ...item, vocalRange: { lowest: 60, highest: 68 } }));
+    const inherited: HomeRow = {
+      id: 'by-voice-higher-voices',
+      layout: 'vocal-range',
+      title: { key: 'home.rows.higherVoices', params: {} },
+      items: cards,
+    };
+    const rows = composePersonalHomeRows({
+      hero: undefined,
+      dailyTarget,
+      resumes: [],
+      socialRows: [],
+      publicRows: [inherited],
+      recommendations: [],
+      masteredTrackIds: new Set(mastered.map(({ id }) => id)),
+      explorationPoolsByRow: new Map([[inherited.id, cards]]),
+      expandRecommendationRows: true,
+    });
+    const voice = rows.find(({ id }) => id === inherited.id);
+    if (voice?.layout !== 'vocal-range')
+      throw new Error('Missing inherited voice Row');
+    expect(voice.items).toHaveLength(14);
+    expectDiverse(voice.items);
+    expect(voice.items.some(({ id }) => id.startsWith('mastered-'))).toBe(
+      false,
+    );
+  });
+});
