@@ -11,6 +11,7 @@ import { PersonalCandidateSession } from './home-personal-candidate-session.js';
 import { composePersonalHomeRows } from './home-personal-composition.js';
 import { personalCompositionCandidates } from './home-personal-composition-candidates.js';
 import { dailyTargetRow } from './home-personal-daily-target.js';
+import { personalGenreCandidates } from './home-personal-genres.js';
 import { resumeRows, resumeTrackPools } from './home-personal-resume-rows.js';
 
 const leadingRows = async (
@@ -38,7 +39,8 @@ const buildPersonalRowsPass = async (
   candidateSession: PersonalCandidateSession,
   context: Awaited<ReturnType<typeof personalBuildContext>>,
 ) => {
-  const { publicRows, mastered, resumes, dailyTarget } = context;
+  const { publicRows, mastered, resumes, dailyTarget, genreCandidates } =
+    context;
   const recommendation = await recommendationRows(deps, {
     ...options,
     ...context,
@@ -60,6 +62,11 @@ const buildPersonalRowsPass = async (
       taste: context.taste,
     },
   );
+  for (const row of genreCandidates)
+    for (const track of row.items) {
+      artistKeys.set(track.id, track.artistKeys ?? [track.artistKey]);
+      tasteByTrack.set(track.id, track.personalTasteScore ?? 0);
+    }
   const rows = composePersonalHomeRows({
     expandRecommendationRows: true,
     hero: recommendation.rows.find((row) => row.layout === 'hero'),
@@ -74,10 +81,12 @@ const buildPersonalRowsPass = async (
     explorationPoolsByRow: new Map(
       Object.entries(recommendation.sourcePoolsByRow),
     ),
+    genreCandidates,
     explorationSeed: `${options.userId}:${new Date().toISOString().slice(0, 10)}`,
   });
   return {
     rows,
+    genreCandidates,
     compositionCandidates: personalCompositionCandidates({
       rows,
       sourcePoolsByRow: recommendation.sourcePoolsByRow,
@@ -133,6 +142,14 @@ const personalBuildContext = async (
     resumes,
     resumePools,
     dailyTarget,
+    genreCandidates: personalGenreCandidates({
+      candidates: options.genreCandidates ?? [],
+      taste,
+      lambda,
+      userRange: options.userRange,
+      voiceConfidence,
+      mastered,
+    }),
   };
 };
 

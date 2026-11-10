@@ -200,3 +200,50 @@ personal carousels and the shared genre composition.
 
 Controlled composition evidence and its limits are recorded in
 [the personal carousel report](../home-personal-carousel-comparison.md).
+
+## Quality-gated personal genre Rows
+
+Algorithm 9 consumes the public background snapshot's optional complete
+`genreCandidates` pool, before public visit exclusions. It does not personalize
+only the genres selected for anonymous visitors or repeat the collective catalog
+aggregate for each User. Existing no-history/public fallback and its private
+cache headers remain unchanged. Legacy snapshots without that optional pool
+continue to serve their existing categories until the normal rebuild lifecycle.
+
+Each strong candidate retains its global collective score. Track ordering reuses
+the existing normalized popularity, decayed taste and confidence-aware voice
+blend with the existing lambda; no ranking coefficients change. For each
+provisional initial twelve, genre priority is the mean of those blended scores.
+Because the blend is linear and uses one common popularity denominator, this
+is the existing blend of the recomputed collective mean and personal mean.
+Stable genre identity breaks ties. Exclusions and every accepted overlapping
+genre cause the provisional membership, minimum and priority to be recalculated.
+
+All retained existing personal initials precede genre allocation. Genres append
+after existing algorithmic Rows within the remaining 24-Row budget, require
+twelve strong distinct Tracks and six credited Artists, then share ordinary
+expansion up to 48. Mastered Tracks, chart and resume initials remain reserved;
+no weak Track or personal affinity can rescue an underfilled genre. Genre
+source pools preserve membership and collective admission during expansion and
+exploration. Exploration cannot remove the sixth credited Artist from the
+initial batch; all credited Artists still count toward each final batch's cap.
+Canonical Artist keys survive the complete pool, including same-name credits.
+
+Personal snapshots retain complete personalized genre candidates separately
+from bounded ordinary candidates, including the private per-Track blended
+priority. Live Pin recomposition considers every saved genre, including genres
+absent from the stored selected Rows, after retained ordinary initials and actual
+Pin/capacity exclusions. It rechecks the same qualification and recomputes the
+initial means before expansion. Frozen visits keep their selected contents;
+item-page reads reuse the common protocol and never rerank or rescan catalog
+scores. Internal scores are stripped from delivered cards.
+
+Deploy compatible optional-field readers before these writers. The existing
+recognized English/Brazilian Portuguese title and stable genre identity are
+reused. Algorithm 9 triggers ordinary personal rebuilds; stale snapshots and
+retained old visits remain readable. Rollback can ignore the additive internal
+score field and pool without deleting snapshots. Rebuild current snapshots
+through the older compatible builder before serving its composition; retained
+visits expire normally, and no schema migration or quality-config change is
+required. Controlled comparisons and limits belong in
+[the personal genre evidence](../research/home-personal-genre-evidence.md).

@@ -165,9 +165,10 @@ legacy/public-fallback overlays also recheck the minimum and batch diversity.
 
 The recognized title is `home.rows.popularGenre` with a `genre` parameter and
 English/Brazilian Portuguese messages. Genre Rows are algorithmic and never
-sponsored. Established personal generation excludes public-selected genre Rows
-until #510 implements independent personal selection from the collective pool;
-signed-in public fallback may display the public selection under private headers.
+sponsored. Established personal generation excludes public-selected genre Rows and selects
+independently from the collective pool with the existing taste/voice blend; see
+ADR 0013. Signed-in public fallback may display the public selection under
+private headers.
 
 Deploy the web title reader before enabling the API build. Existing shorter
 snapshots remain readable and retained visits keep their original contents.

@@ -268,7 +268,24 @@ describe('personal carousel capacity (e2e)', () => {
     );
     try {
       const feed = await refresh(user.id);
-      const discovery = feed.rows.filter((row) => row.layout === 'standard');
+      const discovery = feed.rows.filter(
+        (row) =>
+          row.layout === 'standard' &&
+          row.title.key !== 'home.rows.popularGenre',
+      );
+      const genreRows = feed.rows.filter(
+        (row) =>
+          row.layout === 'standard' &&
+          row.title.key === 'home.rows.popularGenre',
+      );
+      expect(
+        genreRows.every(
+          (row) =>
+            row.layout === 'standard' &&
+            row.items.length >= 12 &&
+            row.items.length <= 48,
+        ),
+      ).toBe(true);
       expect(discovery.length).toBeGreaterThanOrEqual(2);
       expect(
         discovery.every(

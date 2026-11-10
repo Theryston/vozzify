@@ -3,13 +3,13 @@ import type {
   HomeTrack,
   HomeVocalRangeTrack,
 } from '@vozzify/contracts';
-import { homeArtistKeys } from './home-artist-keys.js';
 import { EXPLORATION_SLOT_SHARE } from './home-personal.js';
-import { trackIdsOfRow } from './home-personal-resume-rows.js';
 import {
-  HOME_TRACK_PAGE_SIZE,
-  MAX_TRACKS_PER_ARTIST_PER_ROW,
-} from './home-rules.js';
+  isNearby,
+  personalExplorationReplacement,
+} from './home-personal-exploration-replacements.js';
+import { trackIdsOfRow } from './home-personal-resume-rows.js';
+import { HOME_TRACK_PAGE_SIZE } from './home-rules.js';
 
 type ExplorationOptions = {
   rows: HomeRow[];
@@ -63,11 +63,6 @@ const trackPlacements = (rows: HomeRow[]) =>
     return items?.tracks.map((_, itemIndex) => ({ rowIndex, itemIndex })) ?? [];
   });
 
-const isNearby = (
-  track: HomeTrack,
-  tasteByTrack: ReadonlyMap<string, number>,
-): boolean => (tasteByTrack.get(track.id) ?? 0) > 0;
-
 const desiredTrack = (options: {
   rowItems: TrackItems;
   targetIndex: number;
@@ -89,70 +84,14 @@ const desiredTrack = (options: {
   );
 };
 
-const rowArtistCounts = (
-  items: readonly HomeTrack[],
-  omitIndex: number,
-  artistKeysByTrack: ReadonlyMap<string, string[]> = new Map(),
-): Map<string, number> => {
-  const counts = new Map<string, number>();
-  for (const [index, track] of items.entries()) {
-    if (
-      index === omitIndex ||
-      Math.floor(index / HOME_TRACK_PAGE_SIZE) !==
-        Math.floor(omitIndex / HOME_TRACK_PAGE_SIZE)
-    )
-      continue;
-    for (const key of artistKeysByTrack.get(track.id) ??
-      homeArtistKeys(track.artistCredit, track.id)) {
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-  }
-  return counts;
-};
-
-const eligibleReplacement = (options: {
-  rowId: string;
-  currentIndex: number;
-  currentTrack: HomeTrack;
-  rows: HomeRow[];
-  rowItems: TrackItems;
-  tasteByTrack: ReadonlyMap<string, number>;
-  sourcePoolsByRow: ReadonlyMap<string, readonly HomeTrack[]>;
-  masteredTrackIds: ReadonlySet<string>;
-  reservedTrackIds: ReadonlySet<string>;
-  artistKeysByTrack?: ReadonlyMap<string, string[]>;
-  nearby: boolean;
-}): HomeTrack | undefined => {
-  const used = new Set(options.rows.flatMap(trackIdsOfRow));
-  const artistCounts = rowArtistCounts(
-    options.rowItems.tracks,
-    options.currentIndex,
-    options.artistKeysByTrack,
-  );
-  return options.sourcePoolsByRow.get(options.rowId)?.find((candidate) => {
-    if (
-      used.has(candidate.id) ||
-      options.masteredTrackIds.has(candidate.id) ||
-      options.reservedTrackIds.has(candidate.id) ||
-      isNearby(candidate, options.tasteByTrack) !== options.nearby
-    ) {
-      return false;
-    }
-    return (
-      options.artistKeysByTrack?.get(candidate.id) ??
-      homeArtistKeys(candidate.artistCredit, candidate.id)
-    ).every(
-      (key) => (artistCounts.get(key) ?? 0) < MAX_TRACKS_PER_ARTIST_PER_ROW,
-    );
-  });
-};
-
 const setExplorationSlot = (
   options: ExplorationOptions & {
     rows: HomeRow[];
     rowIndex: number;
     itemIndex: number;
     nearby: boolean;
+    usedTrackIds: ReadonlySet<string>;
+    availableByRow: Map<string, readonly HomeTrack[]>;
   },
   protectedIndices: Set<number>,
 ): { rows: HomeRow[]; reservedIndices: number[] } | undefined => {
@@ -176,11 +115,10 @@ const setExplorationSlot = (
     next[index] = current;
     next[options.itemIndex] = inRow;
   } else if (isNearby(current, options.tasteByTrack) !== options.nearby) {
-    const replacement = eligibleReplacement({
+    const replacement = personalExplorationReplacement({
       ...options,
       rowId: row.id,
       currentIndex: options.itemIndex,
-      currentTrack: current,
       rowItems: items,
     });
     if (!replacement) return undefined;
@@ -215,6 +153,8 @@ const allocateExplorationSlot = (
   slot: { targetIndex: number; nearby: boolean },
   placements: ReturnType<typeof trackPlacements>,
 ): ExplorationAllocationState => {
+  const usedTrackIds = new Set(state.rows.flatMap(trackIdsOfRow));
+  const availableByRow = new Map<string, readonly HomeTrack[]>();
   const candidates = placements
     .map((placement, index) => ({
       placement,
@@ -231,6 +171,8 @@ const allocateExplorationSlot = (
         rows: state.rows,
         ...placement,
         nearby: slot.nearby,
+        usedTrackIds,
+        availableByRow,
       },
       protectedIndices,
     );

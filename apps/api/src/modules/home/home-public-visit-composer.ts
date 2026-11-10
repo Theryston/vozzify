@@ -22,6 +22,7 @@ const trackForComposer = (track: HomeCompositionCandidateTrack): HomeTrack => {
     sourcePosition: _sourcePosition,
     personalTasteScore: _personalTasteScore,
     collectiveScore: _collectiveScore,
+    personalBlendedScore: _personalBlendedScore,
     ...homeTrack
   } = track;
   return homeTrack;

@@ -14,15 +14,25 @@ import { isEligible, pickRowItems } from './home-track-row-picker.js';
 
 export type { ComposableTrack } from './home-composable-track.js';
 
-type HomeTrackRowCandidate<T extends ComposableTrack> = {
+type RowCandidate<T extends ComposableTrack> = {
   id: string;
   genre?: string;
   layout: HomeLayout;
-  /** Best first: the composer keeps the first eligible ones. */
   items: readonly T[];
 };
 
-type RowCandidate<T extends ComposableTrack> = HomeTrackRowCandidate<T>;
+type CompositionOptions = {
+  minimumItems?: Partial<Record<HomeLayout, number>>;
+  minimumItemsByRow?: Readonly<Record<string, number>>;
+  expandRecommendationRows?: boolean;
+  preserveOrder?: boolean;
+  genreRowCapacity?: number;
+};
+
+const availableGenreRows = (
+  initialCount: number,
+  capacity = HOME_MAX_ROWS - initialCount,
+) => Math.max(0, capacity);
 
 const reweightByExposure = <T extends ComposableTrack>(
   candidates: readonly T[],
@@ -139,12 +149,7 @@ export const composeHomeRows = <
   R extends RowCandidate<T>,
 >(
   candidates: readonly R[],
-  options: {
-    minimumItems?: Partial<Record<HomeLayout, number>>;
-    minimumItemsByRow?: Readonly<Record<string, number>>;
-    expandRecommendationRows?: boolean;
-    preserveOrder?: boolean;
-  } = {},
+  options: CompositionOptions = {},
 ): (R & { items: T[] })[] => {
   const rankedTrackIds = reserveRankedTracks(candidates);
   const used = new Set<string>();
@@ -186,7 +191,7 @@ export const composeHomeRows = <
     genreCandidates,
     used,
     rankedTrackIds,
-    Math.max(0, HOME_MAX_ROWS - rows.length),
+    availableGenreRows(rows.length, options.genreRowCapacity),
   );
   rows.push(...genreRows);
   for (const row of genreRows) {
@@ -210,12 +215,7 @@ const composeInitialRow = <
   exposures: Map<string, number>;
   used: ReadonlySet<string>;
   reserved: ReadonlySet<string>;
-  options: {
-    minimumItems?: Partial<Record<HomeLayout, number>>;
-    minimumItemsByRow?: Readonly<Record<string, number>>;
-    expandRecommendationRows?: boolean;
-    preserveOrder?: boolean;
-  };
+  options: CompositionOptions;
 }):
   | { row: R & { items: T[] }; priorExposures: Map<string, number> }
   | undefined => {
