@@ -12,4 +12,6 @@ export type ComposableTrack = {
   hasVocalRange?: boolean;
   /** Global collective score, present only in the strong genre pool. */
   collectiveScore?: number;
+  /** Existing confidence-aware blend; collective admission remains separate. */
+  personalBlendedScore?: number;
 };

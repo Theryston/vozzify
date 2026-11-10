@@ -52,8 +52,11 @@ const provisionalGenreItems = <T extends ComposableTrack>(
 };
 
 const meanScore = (items: readonly ComposableTrack[]): number =>
-  items.reduce((sum, item) => sum + (item.collectiveScore ?? 0), 0) /
-  items.length;
+  items.reduce(
+    (sum, item) =>
+      sum + (item.personalBlendedScore ?? item.collectiveScore ?? 0),
+    0,
+  ) / items.length;
 
 /** Recomputes both qualification and priority after every accepted genre. */
 export const allocateGenreRows = <

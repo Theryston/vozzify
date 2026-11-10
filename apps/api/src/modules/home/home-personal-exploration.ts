@@ -5,6 +5,7 @@ import type {
 } from '@vozzify/contracts';
 import { homeArtistKeys } from './home-artist-keys.js';
 import { EXPLORATION_SLOT_SHARE } from './home-personal.js';
+import { personalGenreReplacementQualifies } from './home-personal-genre-exploration.js';
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
 import {
   HOME_TRACK_PAGE_SIZE,
@@ -131,6 +132,7 @@ const eligibleReplacement = (options: {
   );
   return options.sourcePoolsByRow.get(options.rowId)?.find((candidate) => {
     if (
+      !personalGenreReplacementQualifies(options, candidate) ||
       used.has(candidate.id) ||
       options.masteredTrackIds.has(candidate.id) ||
       options.reservedTrackIds.has(candidate.id) ||

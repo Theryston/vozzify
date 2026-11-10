@@ -34,6 +34,7 @@ export type PersonalBuilderOptions = {
   locale: Locale;
   publicRows: HomeRow[];
   compositionCandidates?: HomeCompositionCandidateRow[];
+  genreCandidates?: HomeCompositionCandidateRow[];
   albumCandidates?: HomeAlbumCandidateSnapshot[];
   signals: UserTrackSignal[];
   favorites: Awaited<

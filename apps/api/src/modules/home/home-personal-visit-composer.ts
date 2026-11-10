@@ -1,6 +1,8 @@
 import type { HomeRow, HomeTrack } from '@vozzify/contracts';
 import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import { composeHomeRows } from './home-feed-composer.js';
+import { genreArtistKeys } from './home-genre-overlay.js';
+import { isGenreRow } from './home-genre-rows.js';
 import { spreadPersonalExploration } from './home-personal-exploration.js';
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
 import { applyEditorialPins, type OverlayPin } from './home-pin-overlay.js';
@@ -8,16 +10,18 @@ import {
   toComposedHomeRow,
   tracksInHomeRow,
 } from './home-public-visit-composer.js';
+import { HOME_MAX_ROWS } from './home-rules.js';
 
 const compose = (
   rows: HomeRow[],
   candidates: HomeCompositionCandidateRow[],
   pinned: ReadonlySet<string>,
+  genreCapacity?: number,
 ): HomeRow[] => {
   const retained = new Set(rows.map(({ id }) => id));
   const recommendation = composeHomeRows(
     candidates
-      .filter(({ id }) => retained.has(id))
+      .filter(({ id, genre }) => retained.has(id) || genre !== undefined)
       .map((row) => ({
         ...row,
         items: row.items.filter((track) => !pinned.has(track.id)),
@@ -27,6 +31,7 @@ const compose = (
       minimumItemsByRow: { 'continue-singing': 1, 'sing-again': 1 },
       expandRecommendationRows: true,
       preserveOrder: true,
+      genreRowCapacity: genreCapacity,
     },
   ).flatMap((row) => {
     const composed = toComposedHomeRow(row);
@@ -34,10 +39,13 @@ const compose = (
   });
   const byId = new Map(recommendation.map((row) => [row.id, row]));
   const sourceIds = new Set(candidates.map(({ id }) => id));
-  return rows.flatMap((row) => {
-    const replacement = byId.get(row.id);
-    return replacement ? [replacement] : sourceIds.has(row.id) ? [] : [row];
-  });
+  const regular = rows
+    .filter((row) => !isGenreRow(row))
+    .flatMap((row) => {
+      const replacement = byId.get(row.id);
+      return replacement ? [replacement] : sourceIds.has(row.id) ? [] : [row];
+    });
+  return [...regular, ...recommendation.filter(isGenreRow)];
 };
 
 const sourcePreview = (
@@ -100,15 +108,19 @@ export const composePersonalVisitRows = (
   candidates: HomeCompositionCandidateRow[] | undefined,
   pins: readonly OverlayPin[],
 ): HomeRow[] => {
-  const placed = applyEditorialPins(rows, pins, 'personal');
+  const artists = genreArtistKeys(candidates);
+  const placed = applyEditorialPins(rows, pins, 'personal', artists);
   if (!candidates || pins.length === 0 || unchangedSelection(rows, placed))
     return placed;
   const excludedRows = new Set<string>();
   for (;;) {
     const preview = applyEditorialPins(
-      sourcePreview(rows, candidates).filter(({ id }) => !excludedRows.has(id)),
+      sourcePreview(rows, candidates).filter(
+        (row) => !isGenreRow(row) && !excludedRows.has(row.id),
+      ),
       pins,
       'personal',
+      artists,
     );
     const pinned = new Set(
       preview
@@ -117,7 +129,13 @@ export const composePersonalVisitRows = (
         .map(({ id }) => id),
     );
     const initialRows = preview.filter(({ id }) => !id.startsWith('pin-'));
-    const recomposed = compose(initialRows, candidates, pinned);
+    const pinCount = preview.length - initialRows.length;
+    const recomposed = compose(
+      initialRows,
+      candidates,
+      pinned,
+      Math.max(0, HOME_MAX_ROWS - pinCount - initialRows.length),
+    );
     const retained = new Set(recomposed.map(({ id }) => id));
     const rejected = initialRows.filter(({ id }) => !retained.has(id));
     if (rejected.length > 0) {
@@ -128,6 +146,7 @@ export const composePersonalVisitRows = (
       personalExploration(recomposed, candidates, pinned),
       pins,
       'personal',
+      artists,
     );
   }
 };

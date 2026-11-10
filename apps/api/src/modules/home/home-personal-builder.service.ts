@@ -67,29 +67,44 @@ export class PersonalHomeBuilder {
       this.tasteRows,
     ).findUserTasteActivities(userId);
     const socialRows = (await this.social?.rowsFor(userId)) ?? [];
-    const { rows, compositionCandidates } = await buildPersonalRows(
-      {
-        personal: this.personal,
-        streaks: this.streaks,
-        homeRepository: this.homeRepository,
-        localeTrending: this.localeTrending,
-        tasteRows: this.tasteRows,
-      },
-      {
-        userId,
-        locale,
-        publicRows: feed.rows.filter((row) => !isGenreRow(row)),
-        albumCandidates: feed.albumCandidates,
-        compositionCandidates: feed.compositionCandidates,
-        signals,
-        favorites,
-        activities,
-        socialRows,
-        timeZone: settings.timeZone,
-        userRange,
-        voiceEvidenceCount,
-      },
-    );
+    const { rows, compositionCandidates, genreCandidates } =
+      await buildPersonalRows(
+        {
+          personal: this.personal,
+          streaks: this.streaks,
+          homeRepository: this.homeRepository,
+          localeTrending: this.localeTrending,
+          tasteRows: this.tasteRows,
+        },
+        {
+          userId,
+          locale,
+          publicRows: feed.rows.filter((row) => !isGenreRow(row)),
+          albumCandidates: feed.albumCandidates,
+          compositionCandidates: feed.compositionCandidates,
+          genreCandidates: feed.genreCandidates,
+          signals,
+          favorites,
+          activities,
+          socialRows,
+          timeZone: settings.timeZone,
+          userRange,
+          voiceEvidenceCount,
+        },
+      );
+    return this.snapshot(userId, locale, {
+      rows,
+      compositionCandidates,
+      genreCandidates,
+    });
+  }
+
+  private snapshot(
+    userId: string,
+    locale: Locale,
+    result: Awaited<ReturnType<typeof buildPersonalRows>>,
+  ) {
+    const { rows, compositionCandidates, genreCandidates } = result;
     return this.linkArtistPages({
       audience: 'personal',
       locale,
@@ -102,6 +117,7 @@ export class PersonalHomeBuilder {
       algorithmVersion: HOME_ALGORITHM_VERSION,
       rows,
       compositionCandidates,
+      genreCandidates,
       generatedAt: new Date().toISOString(),
     });
   }

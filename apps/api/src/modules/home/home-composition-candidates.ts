@@ -15,6 +15,7 @@ const homeCompositionCandidateTrackSchema = homeTrackSchema.extend({
   hasVocalRange: z.boolean().optional(),
   personalTasteScore: z.number().finite().optional(),
   collectiveScore: z.number().positive().optional(),
+  personalBlendedScore: z.number().finite().optional(),
 });
 
 const homeCompositionCandidateRowSchema = z.object({
