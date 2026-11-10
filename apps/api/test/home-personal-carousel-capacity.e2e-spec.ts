@@ -55,14 +55,19 @@ describe('personal carousel capacity (e2e)', () => {
     await resetDatabase(testApp.db);
   });
 
-  const seed = async (count = 180) => {
+  const seed = async (count = 180, uniqueArtists = false) => {
     const records = await testApp.db
       .insert(tracks)
       .values(
         Array.from({ length: count }, (_, index) => ({
           recordingMbid: testMbid(90_000 + index),
           title: `Capacity ${index}`,
-          artistCredit: [{ name: `Artist ${index % 30}`, joinPhrase: '' }],
+          artistCredit: [
+            {
+              name: `Artist ${uniqueArtists ? index : index % 30}`,
+              joinPhrase: '',
+            },
+          ],
           genres: ['rock'],
           trendingScore: 1000 - index,
           lengthMs: 180_000,
@@ -245,5 +250,45 @@ describe('personal carousel capacity (e2e)', () => {
     } finally {
       popular.mockRestore();
     }
+  });
+  it('finds challenge candidates beyond a full1152-item fit pool without weakening voice semantics', async () => {
+    const { records, user } = await seed(1260, true);
+    await testApp.db
+      .update(tracks)
+      .set({ vocalRangeLowest: 60, vocalRangeHighest: 68 })
+      .where(
+        inArray(
+          tracks.id,
+          records.slice(0, 1200).map(({ id }) => id),
+        ),
+      );
+    await testApp.db
+      .update(tracks)
+      .set({ vocalRangeLowest: 59, vocalRangeHighest: 69 })
+      .where(
+        inArray(
+          tracks.id,
+          records.slice(1200).map(({ id }) => id),
+        ),
+      );
+    const reference = records[0];
+    if (!reference) throw new Error('Missing reference');
+    await testApp.db
+      .insert(practiceAttempts)
+      .values(attemptValue(user.id, reference.id, 0.95, new Date()));
+    const feed = await refresh(user.id);
+    const challenge = feed.rows.find(({ id }) => id === 'challenge-your-range');
+    if (challenge?.layout !== 'vocal-range')
+      throw new Error('Later challenge source was lost');
+    expect(challenge.items).toHaveLength(48);
+    const allowed = new Set(records.slice(1200).map(({ id }) => id));
+    expect(
+      challenge.items.every(
+        (item) =>
+          allowed.has(item.id) &&
+          item.vocalRange.lowest === 59 &&
+          item.vocalRange.highest === 69,
+      ),
+    ).toBe(true);
   });
 });

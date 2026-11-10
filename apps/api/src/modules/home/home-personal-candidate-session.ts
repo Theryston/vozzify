@@ -1,8 +1,7 @@
-import type { HomeRow } from '@vozzify/contracts';
-import { homeArtistKeys } from './home-artist-keys.js';
-import { retainUsefulCompositionCandidates } from './home-composition-candidates.js';
+import type { HomeRow, TrackVocalRange } from '@vozzify/contracts';
 import type { PersonalHomeRepository } from './home-personal.repository.js';
 import type { PersonalTrackCandidate } from './home-personal.repository.types.js';
+import { compactPersonalCandidates } from './home-personal-candidate-compaction.js';
 
 type DiscoveryTrack =
   Awaited<
@@ -13,7 +12,11 @@ type DiscoveryTrack =
 
 import { explorationSlotCount } from './home-personal-recommendations.js';
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
-import { HOME_MAX_ROWS, HOME_TRACK_ROW_MAX_ITEMS } from './home-rules.js';
+import {
+  HOME_MAX_ROWS,
+  HOME_TRACK_ROW_MAX_ITEMS,
+  PERSONAL_CANDIDATE_BATCH_SIZE,
+} from './home-rules.js';
 
 const SOURCE_ROWS: Readonly<Record<string, string[]>> = {
   popular: ['trending-today', 'recommended-for-you'],
@@ -28,6 +31,7 @@ type SourceState = {
   offset: number;
   exhausted: boolean;
   requested: boolean;
+  neededRows: Set<string>;
 };
 
 /** One background build: cached pages advance only after composition needs more. */
@@ -39,7 +43,12 @@ export class PersonalCandidateSession {
   private readonly collectiveScores = new Map<string, number>();
   private readonly collectiveRead = new Set<string>();
 
-  constructor(private readonly publicRowIds: ReadonlySet<string>) {}
+  private selectedTrackIds = new Set<string>();
+
+  constructor(
+    private readonly publicRowIds: ReadonlySet<string>,
+    private readonly userRange: TrackVocalRange | null = null,
+  ) {}
 
   target(source: string, rowId: string): void {
     const targets = this.extraTargets.get(source) ?? new Set<string>();
@@ -56,32 +65,35 @@ export class PersonalCandidateSession {
       offset: 0,
       exhausted: false,
       requested: true,
+      neededRows: new Set(this.targets(source)),
     };
     if (state.requested && !state.exhausted) {
       const page = await read(state.offset);
       state.offset += page.length;
-      state.exhausted = page.length < 60;
+      state.exhausted = page.length < PERSONAL_CANDIDATE_BATCH_SIZE;
       state.requested = false;
-      state.items = retainUsefulCompositionCandidates(
-        [...state.items, ...page].map((track) => ({
-          ...track,
-          artistKey: track.id,
-          artistKeys: homeArtistKeys(track.artistCredit, track.id),
-        })),
-        new Set(),
-        HOME_TRACK_ROW_MAX_ITEMS,
-      );
+      state.items = compactPersonalCandidates([...state.items, ...page], {
+        source,
+        sourceTargetCount: this.targets(source).length,
+        neededRows: state.neededRows,
+        selectedTrackIds: this.selectedTrackIds,
+        userRange: this.userRange,
+      });
     }
     this.sources.set(source, state);
     return state.items;
   }
 
   needsMore(rows: HomeRow[]): boolean {
+    this.selectedTrackIds = new Set(rows.flatMap(trackIdsOfRow));
     let requested = false;
     for (const [source, state] of this.sources) {
       if (state.exhausted) continue;
       const targets = this.targets(source);
-      if (!targets.some((id) => this.needsRow(rows, id))) continue;
+      state.neededRows = new Set(
+        targets.filter((id) => this.needsRow(rows, id)),
+      );
+      if (state.neededRows.size === 0) continue;
       state.requested = true;
       requested = true;
     }

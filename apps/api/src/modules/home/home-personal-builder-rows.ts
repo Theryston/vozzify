@@ -136,6 +136,7 @@ export const buildPersonalRows = async (
 ) => {
   const session = new PersonalCandidateSession(
     new Set(options.publicRows.map(({ id }) => id)),
+    options.userRange,
   );
   const context = await personalBuildContext(deps, options);
   let result = await buildPersonalRowsPass(deps, options, session, context);

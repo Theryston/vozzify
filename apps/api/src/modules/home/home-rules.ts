@@ -32,6 +32,9 @@ export const HOME_TRACK_PAGE_SIZE = 12;
 /** The complete stored recommendation Row may span four item pages. */
 export const HOME_TRACK_ROW_MAX_ITEMS = 48;
 
+/** Bounded source reads used by personal background composition. */
+export const PERSONAL_CANDIDATE_BATCH_SIZE = 60;
+
 /** Maximum useful candidates per Artist across four recommendation batches. */
 export const HOME_EXPANDED_ROW_ARTIST_CANDIDATE_LIMIT =
   (MAX_TRACKS_PER_ARTIST_PER_ROW * HOME_TRACK_ROW_MAX_ITEMS) /

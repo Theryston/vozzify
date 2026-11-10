@@ -26,7 +26,12 @@ cutoff without changing source order or filling an empty source from another. A
 600-Track HTTP fixture proves every retained standard Row fills to48 while
 personal queries stop before source exhaustion; each source page is bounded to60
 and no offset is queried twice. Background composition caches candidate pages,
-metadata and collective scores across its demand-driven passes.
+metadata and collective scores across its demand-driven passes. A separate
+1,260-Track regression puts1,200 fit Tracks before60 lower-ranked challenge
+Tracks. Both voice Rows reach48, source reads stop atoffset1,200, the retained
+pool remains at most1,152, and fewer than600 Track IDs enter composition/scoring
+thanks to releasing surplus candidates of filled targets. This is also verified
+through the real Home HTTP builder without increasing test timeouts.
 
 The HTTP tests use real Postgres, real repositories, the real personal builder
 and the existing cache test boundary. They cover no-history public fallback,

@@ -10,9 +10,9 @@ import { PersonalHomeTasteRepository } from './home-personal-taste.repository.js
 import {
   HOME_COMPOSITION_CANDIDATE_POOL_MAX_ITEMS,
   HOME_TRACK_ROW_MAX_ITEMS,
+  PERSONAL_CANDIDATE_BATCH_SIZE,
 } from './home-rules.js';
 
-const PERSONAL_CANDIDATE_BATCH_SIZE = 60;
 const PERSONAL_CANDIDATE_BATCHES = 4;
 
 const loadPersonalCandidateBatches = async <T extends PersonalTrackCandidate>(

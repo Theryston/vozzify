@@ -151,7 +151,11 @@ per applicable source, composes the entire feed, and advances only sources whose
 retained or still-eligible Rows need more contents. It stops when those Rows fill
 or their sources are exhausted, caching pages, Track metadata and collective
 scores across passes. The useful retained-candidate budget remains24 ×48; it is
-not treated as proof of source exhaustion. No full-catalog popularity aggregation
+not treated as proof of source exhaustion. Compaction protects selected Tracks
+and prioritizes still-missing semantic targets; filled voice targets retain a
+bounded replacement reserve rather than crowding out later fit or challenge
+candidates. Both semantics keep the existing voice eligibility functions and
+source ordering. No full-catalog popularity aggregation
 is introduced in a User refresh or HTTP item request. Final progressive ordering
 and exploration preserve the two-per-credited-Artist rule within each logical
 12-item batch. Exploration swaps stay within a logical batch and substitutions
