@@ -5,12 +5,15 @@ import type {
   HomeTrack,
   HomeVocalRangeTrack,
 } from '@vozzify/contracts';
+import { genreOverlayItems } from './home-genre-overlay.js';
+import { isGenreRow } from './home-genre-rows.js';
 import { explorationSlotCount } from './home-personal-recommendations.js';
 import { placeRowsWithQualityCategory } from './home-pin-overlay-placement.js';
 import {
   HOME_MAX_ROWS,
   HOME_RECOMMENDATION_ROW_MIN_ITEMS,
   HOME_ROW_RULES,
+  HOME_TRACK_PAGE_SIZE,
   isHomeRecommendationRow,
   PERSONAL_DISCOVERY_ROW_MIN_ITEMS,
   PERSONAL_RESUME_ROW_MIN_ITEMS,
@@ -26,6 +29,7 @@ const minimumTrackCount = (
   row: HomeRow,
   audience: 'public' | 'personal',
 ): number => {
+  if (isGenreRow(row)) return HOME_TRACK_PAGE_SIZE;
   if (row.id === 'continue-singing' || row.id === 'sing-again') {
     return PERSONAL_RESUME_ROW_MIN_ITEMS;
   }
@@ -109,6 +113,7 @@ const algorithmicRows = (
   rows: readonly HomeRow[],
   pinnedIds: ReadonlySet<string>,
   audience: 'public' | 'personal',
+  genreArtists?: ReadonlyMap<string, readonly string[]>,
 ): HomeRow[] =>
   rows.flatMap((row): HomeRow[] => {
     if (row.layout === 'hero') {
@@ -128,7 +133,11 @@ const algorithmicRows = (
     if (row.layout !== 'standard') {
       return [row];
     }
-    const items = row.items.filter((item) => !pinnedIds.has(item.id));
+    const available = row.items.filter((item) => !pinnedIds.has(item.id));
+    const items =
+      isGenreRow(row) && available.length !== row.items.length
+        ? genreOverlayItems(available, genreArtists)
+        : available;
     return items.length >= minimumTrackCount(row, audience)
       ? [{ ...row, items }]
       : [];
@@ -209,6 +218,7 @@ export const applyEditorialPins = (
   rows: readonly HomeRow[],
   pins: readonly OverlayPin[],
   audience: 'public' | 'personal' = 'public',
+  genreArtists?: ReadonlyMap<string, readonly string[]>,
 ): HomeRow[] => {
   // A pin with no Track left is skipped. So is a hero pin with no Track that
   // has a cover: a hero cannot show it, and it is not shown as a row either.
@@ -235,7 +245,12 @@ export const applyEditorialPins = (
   const withoutDailyTarget = dailyTarget
     ? rows.filter((row) => row !== dailyTarget)
     : rows;
-  const algorithmic = algorithmicRows(withoutDailyTarget, pinnedIds, audience);
+  const algorithmic = algorithmicRows(
+    withoutDailyTarget,
+    pinnedIds,
+    audience,
+    genreArtists,
+  );
   const mandatorySlots = new Set(
     [hero ? 0 : -1, dailyTarget ? (hero ? 1 : 0) : -1].filter(
       (slot) => slot >= 0,

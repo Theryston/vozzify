@@ -1,6 +1,9 @@
 import { localeSchema } from '@vozzify/contracts';
 import { z } from 'zod';
-import { homeCompositionCandidatesSchema } from './home-composition-candidates.js';
+import {
+  homeCompositionCandidatesSchema,
+  homeGenreCandidatesSchema,
+} from './home-composition-candidates.js';
 import { HOME_ALGORITHM_VERSION } from './home-rules.js';
 import { homeStoredRowSchema } from './home-stored-row.js';
 
@@ -38,6 +41,9 @@ export const storedHomeFeedSchema = z.object({
   // Bounded internal candidates let visit composition release Rows excluded
   // later by live Pins or the 24-Row capacity.
   compositionCandidates: homeCompositionCandidatesSchema.optional(),
+  // The entire collective top-quarter pool per genre, before visit exclusions.
+  // Kept separate from bounded source pools for compatible rolling readers.
+  genreCandidates: homeGenreCandidatesSchema.optional(),
 });
 
 export type StoredHomeFeed = z.infer<typeof storedHomeFeedSchema>;

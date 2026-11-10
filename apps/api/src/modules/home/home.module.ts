@@ -17,6 +17,7 @@ import { HomeFeedProcessor } from './home-feed.processor.js';
 import { HomeFeedService } from './home-feed.service.js';
 import { HomeFeedStore } from './home-feed.store.js';
 import { HomeFeedBuilder } from './home-feed-builder.service.js';
+import { HomeGenreRepository } from './home-genre.repository.js';
 import { PersonalHomeProcessor } from './home-personal.processor.js';
 import { PersonalHomeRepository } from './home-personal.repository.js';
 import { PersonalHomeStore } from './home-personal.store.js';
@@ -56,6 +57,7 @@ import { createVoiceRowSources } from './home-voice-row-sources.js';
   controllers: [HomeController, HomeAdminController],
   providers: [
     HomePopularityRepository,
+    HomeGenreRepository,
     HomeRepository,
     {
       provide: HOME_ROW_SOURCES,

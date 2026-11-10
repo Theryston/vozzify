@@ -1,4 +1,9 @@
-import type { HomeFeed, HomeRow, Locale } from '@vozzify/contracts';
+import type {
+  HomeFeed,
+  HomePinPreviewResponse,
+  HomeRow,
+  Locale,
+} from '@vozzify/contracts';
 import { encodeHomeCursor } from './home-cursor.js';
 import { pageHomeRowItems } from './home-row-page.js';
 import {
@@ -67,3 +72,25 @@ export const answerHomePage = async ({
     cacheControl: cacheControlOf(cacheable, signedIn),
   };
 };
+
+export type HomePreviewPage = {
+  page: HomePinPreviewResponse;
+  cacheable: false;
+  cacheControl: string;
+};
+
+export const answerHomePreview = (
+  feed: Pick<ServedFeed, 'version' | 'algorithmVersion'>,
+  rows: HomeRow[],
+  signedIn: boolean,
+): HomePreviewPage => ({
+  page: {
+    audience: signedIn ? 'personal' : 'public',
+    version: feed.version,
+    algorithmVersion: feed.algorithmVersion,
+    rows,
+    nextCursor: null,
+  },
+  cacheable: false,
+  cacheControl: UNCACHED_HOME_CACHE_CONTROL,
+});

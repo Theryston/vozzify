@@ -3,8 +3,10 @@ import type { EditorialPin, HomeRow, HomeTrack } from '@vozzify/contracts';
 import { EditorialPinsService } from '../editorial-pins/editorial-pins.service.js';
 import { HomeRepository } from './home.repository.js';
 import { HomeService } from './home.service.js';
+import { homeGenreCandidatesSchema } from './home-composition-candidates.js';
 import { encodeHomeCursor } from './home-cursor.js';
 import { HomeFeedService } from './home-feed.service.js';
+import { genreRowId } from './home-genre-rows.js';
 import { PersonalHomeStore } from './home-personal.store.js';
 import { HomePinOverlayService } from './home-pin-overlay.service.js';
 import { HomePublicOverlayCache } from './home-public-overlay-cache.js';
@@ -65,16 +67,61 @@ const assertFullRow = (composed: HomeRow[]) => {
   }
 };
 
+const assertGenreRow = (
+  composed: HomeRow[],
+  genreCandidate: { id: string; items: { id: string }[] },
+) => {
+  const genreRow = composed.find(({ id }) => id === genreCandidate.id);
+  expect(genreRow?.layout).toBe('standard');
+  if (genreRow?.layout !== 'standard') throw new Error('Expected genre Row');
+  expect(genreRow.items).toHaveLength(24);
+  expect(genreRow.items.map(({ id }) => id)).toEqual(
+    genreCandidate.items.slice(1).map(({ id }) => id),
+  );
+  for (const item of genreRow.items) {
+    expect(item).not.toHaveProperty('artistKey');
+    expect(item).not.toHaveProperty('artistKeys');
+    expect(item).not.toHaveProperty('collectiveScore');
+    expect(item).not.toHaveProperty('personalTasteScore');
+  }
+};
+
 describe('private visits inheriting public composition', () => {
   it.each(['cold', 'retained'] as const)(
     'recomposes %s fallback after Pin exclusions without using shared overlay caches',
     async (mode) => {
+      const genreCandidate = {
+        id: genreRowId('integration'),
+        genre: 'integration',
+        layout: 'standard' as const,
+        title: {
+          key: 'home.rows.popularGenre' as const,
+          params: { genre: 'integration' },
+        },
+        personalExplorationSeed: 'integration-seed',
+        items: Array.from({ length: 25 }, (_, index) => ({
+          ...track(index),
+          id: index === 0 ? 'track-2' : `genre-${index}`,
+          artistCredit: [{ name: 'Homonymous Artist', joinPhrase: '' }],
+          artistKey: `canonical-${index}`,
+          artistKeys: [`canonical-${index}`],
+          hasCover: false,
+          isCompleted: true,
+          collectiveScore: 100 - index,
+          personalTasteScore: index,
+        })),
+      };
+      // Both independently introduced metadata fields survive snapshot parsing.
+      expect(homeGenreCandidatesSchema.parse([genreCandidate])).toEqual([
+        genreCandidate,
+      ]);
       const feed = {
         audience: 'public',
         version,
         locale: 'en',
         algorithmVersion: 7,
         rows: [publicRow],
+        genreCandidates: [genreCandidate],
         compositionCandidates: [
           {
             ...publicRow,
@@ -183,6 +230,7 @@ describe('private visits inheriting public composition', () => {
           const composed = (await overlay.mock.results.at(-1)
             ?.value) as HomeRow[];
           assertFullRow(composed);
+          assertGenreRow(composed, genreCandidate);
           if (mode === 'cold') {
             expect(visits.create).toHaveBeenLastCalledWith(
               expect.objectContaining({ audience: 'personal' }),

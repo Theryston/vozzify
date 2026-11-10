@@ -18,6 +18,7 @@
       "trendingToday": "Em alta hoje",
       "newTracks": "Músicas novas",
       "genres": "Navegar por gênero",
+      "popularGenre": "Popular em {genre}",
       "featuredArtists": "Artistas em destaque",
       "featuredAlbums": "Álbuns em destaque",
       "pinned": "{title}",

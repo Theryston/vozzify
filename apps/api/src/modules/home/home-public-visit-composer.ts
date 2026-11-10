@@ -8,6 +8,8 @@ import {
   type HomeCompositionCandidateTrack,
 } from './home-composition-candidates.js';
 import { composeHomeRows } from './home-feed-composer.js';
+import { genreArtistKeys } from './home-genre-overlay.js';
+import { genreRowsLast } from './home-genre-rows.js';
 import { applyEditorialPins, type OverlayPin } from './home-pin-overlay.js';
 
 const trackForComposer = (track: HomeCompositionCandidateTrack): HomeTrack => {
@@ -19,6 +21,7 @@ const trackForComposer = (track: HomeCompositionCandidateTrack): HomeTrack => {
     isCompleted: _isCompleted,
     sourcePosition: _sourcePosition,
     personalTasteScore: _personalTasteScore,
+    collectiveScore: _collectiveScore,
     ...homeTrack
   } = track;
   return homeTrack;
@@ -75,6 +78,24 @@ type CandidateCompositionInput = {
   expandRecommendationRows?: boolean;
 };
 
+const publicRowsFromCandidates = (
+  candidates: HomeCompositionCandidateRow[],
+  expandRecommendationRows: boolean,
+): HomeRow[] =>
+  composeHomeRows(candidates, { expandRecommendationRows }).flatMap((row) => {
+    const publicRow = toComposedHomeRow(row);
+    return publicRow ? [publicRow] : [];
+  });
+
+const overlayForCandidates = (
+  candidates: HomeCompositionCandidateRow[],
+  audience: 'public' | 'personal',
+) => {
+  const artists = genreArtistKeys(candidates);
+  return (rows: HomeRow[], pins: readonly OverlayPin[]) =>
+    applyEditorialPins(rows, pins, audience, artists);
+};
+
 const rowsWithCompositionCandidates = ({
   rows,
   candidates,
@@ -82,7 +103,8 @@ const rowsWithCompositionCandidates = ({
   audience,
   expandRecommendationRows = true,
 }: CandidateCompositionInput): HomeRow[] => {
-  const initiallyPlaced = applyEditorialPins(rows, pins, audience);
+  const overlay = overlayForCandidates(candidates, audience);
+  const initiallyPlaced = overlay(rows, pins);
   const candidateSourceIds = new Set(candidates.map(({ id }) => id));
   const retainedPinRows = new Set(
     initiallyPlaced
@@ -99,19 +121,16 @@ const rowsWithCompositionCandidates = ({
     ...candidate,
     items: candidate.items.filter((item) => !retainedPinIds.has(item.id)),
   }));
-  const previewRows = composeHomeRows(eligibleCandidates, {
+  const previewRows = publicRowsFromCandidates(
+    eligibleCandidates,
     expandRecommendationRows,
-  }).flatMap((row) => {
-    const publicRow = toComposedHomeRow(row);
-    return publicRow ? [publicRow] : [];
-  });
+  );
   const nonCandidateRows = initiallyPlaced.filter(
     (row) => !row.id.startsWith('pin-') && !candidateSourceIds.has(row.id),
   );
-  const capacityRows = applyEditorialPins(
-    [...previewRows, ...nonCandidateRows],
+  const capacityRows = overlay(
+    genreRowsLast([...previewRows, ...nonCandidateRows]),
     activePins,
-    audience,
   );
   const retainedIds = new Set(
     capacityRows
@@ -125,18 +144,15 @@ const rowsWithCompositionCandidates = ({
       .filter(({ id }) => !candidateSourceIds.has(id))
       .map(({ id }) => id),
   );
-  const recomposed = composeHomeRows(
+  const recomposed = publicRowsFromCandidates(
     eligibleCandidates.filter(({ id }) => retainedIds.has(id)),
-    { expandRecommendationRows },
-  ).flatMap((row) => {
-    const publicRow = toComposedHomeRow(row);
-    return publicRow ? [publicRow] : [];
-  });
+    expandRecommendationRows,
+  );
   const finalBaseRows = [
     ...recomposed,
     ...nonCandidateRows.filter(({ id }) => retainedNonCandidateIds.has(id)),
   ];
-  return applyEditorialPins(finalBaseRows, activePins, audience);
+  return overlay(genreRowsLast(finalBaseRows), activePins);
 };
 
 /** Rebuilds only visit-retained Rows from their bounded source candidate pools. */

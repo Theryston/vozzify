@@ -10,9 +10,15 @@ import type {
   Locale,
 } from '@vozzify/contracts';
 import type { HomeAlbumCandidateSnapshot } from './home-album-candidates.js';
-import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
+import {
+  type HomeCompositionCandidateRow,
+  storedHomeCandidates,
+} from './home-composition-candidates.js';
 import { type StoredHomeFeed } from './home-feed.js';
 import { composeEntityRows } from './home-feed-composer.js';
+import { HomeGenreRepository } from './home-genre.repository.js';
+import { genreRowsLast } from './home-genre-rows.js';
+import { createGenreRowSources } from './home-genre-sources.js';
 import { composePublicRows } from './home-row-composition.js';
 import {
   HOME_ENTITY_ROW_SOURCES,
@@ -193,10 +199,17 @@ export class HomeFeedBuilder {
     @Optional()
     @Inject(HOME_ENTITY_ROW_SOURCES)
     private readonly entitySources?: HomeEntityRowSource[],
+    @Optional() private readonly genres?: HomeGenreRepository,
   ) {}
 
   async build(locale: Locale = DEFAULT_HOME_LOCALE): Promise<StoredHomeFeed> {
-    const composed = await composePublicRows(this.sources, locale);
+    const genreSources = this.genres
+      ? await createGenreRowSources(this.genres)
+      : [];
+    const composed = await composePublicRows(
+      [...this.sources, ...genreSources],
+      locale,
+    );
     const rows = composed.rows
       .map(toHomeRow)
       .filter((row): row is HomeRow => row !== undefined);
@@ -239,12 +252,12 @@ export class HomeFeedBuilder {
       locale,
       version: feedVersion(
         locale,
-        [...rows, ...entityRows],
+        genreRowsLast([...rows, ...entityRows]),
         composed.compositionCandidates,
       ),
       algorithmVersion: HOME_ALGORITHM_VERSION,
-      rows: [...rows, ...entityRows],
-      compositionCandidates: composed.compositionCandidates,
+      rows: genreRowsLast([...rows, ...entityRows]),
+      ...storedHomeCandidates(composed.compositionCandidates),
       ...(albumCandidates.length > 0 ? { albumCandidates } : {}),
     };
   }

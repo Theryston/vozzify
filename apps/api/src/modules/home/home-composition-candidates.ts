@@ -14,22 +14,34 @@ const homeCompositionCandidateTrackSchema = homeTrackSchema.extend({
   isCompleted: z.boolean(),
   hasVocalRange: z.boolean().optional(),
   personalTasteScore: z.number().finite().optional(),
+  collectiveScore: z.number().positive().optional(),
 });
 
 const homeCompositionCandidateRowSchema = z.object({
   id: z.string(),
+  genre: z.string().optional(),
   layout: z.enum(['hero', 'standard', 'vocal-range', 'ranked']),
   title: homeRowTitleSchema.optional(),
   nextOffset: z.number().int().nonnegative().optional(),
   hasMore: z.boolean().optional(),
   personalExplorationSeed: z.string().optional(),
-  items: z
-    .array(homeCompositionCandidateTrackSchema)
-    .max(HOME_COMPOSITION_CANDIDATE_POOL_MAX_ITEMS),
+  items: z.array(homeCompositionCandidateTrackSchema),
 });
 
 export const homeCompositionCandidatesSchema = z.array(
-  homeCompositionCandidateRowSchema,
+  homeCompositionCandidateRowSchema.extend({
+    items: z
+      .array(homeCompositionCandidateTrackSchema)
+      .max(HOME_COMPOSITION_CANDIDATE_POOL_MAX_ITEMS),
+  }),
+);
+
+/** Complete collective pools are separate so older bounded readers remain valid. */
+export const homeGenreCandidatesSchema = z.array(
+  homeCompositionCandidateRowSchema.extend({
+    genre: z.string(),
+    layout: z.literal('standard'),
+  }),
 );
 
 export type HomeCompositionCandidateTrack = z.infer<
@@ -38,6 +50,28 @@ export type HomeCompositionCandidateTrack = z.infer<
 export type HomeCompositionCandidateRow = z.infer<
   typeof homeCompositionCandidateRowSchema
 >;
+
+export const allHomeCompositionCandidates = (feed: {
+  compositionCandidates?: HomeCompositionCandidateRow[];
+  genreCandidates?: HomeCompositionCandidateRow[];
+}): HomeCompositionCandidateRow[] | undefined =>
+  feed.genreCandidates?.length
+    ? [...(feed.compositionCandidates ?? []), ...feed.genreCandidates]
+    : feed.compositionCandidates;
+
+export const storedHomeCandidates = (
+  candidates: HomeCompositionCandidateRow[],
+) => {
+  const genreCandidates = candidates.flatMap((row) =>
+    row.genre === undefined
+      ? []
+      : [{ ...row, genre: row.genre, layout: 'standard' as const }],
+  );
+  return {
+    compositionCandidates: candidates.filter((row) => row.genre === undefined),
+    ...(genreCandidates.length > 0 ? { genreCandidates } : {}),
+  };
+};
 
 export const retainUsefulCompositionCandidates = <
   T extends { id: string; artistKey: string; artistKeys?: string[] },
@@ -81,4 +115,7 @@ export const toHomeCompositionCandidateTrack = (
   ...(candidate.hasVocalRange === undefined
     ? {}
     : { hasVocalRange: candidate.hasVocalRange }),
+  ...(candidate.collectiveScore === undefined
+    ? {}
+    : { collectiveScore: candidate.collectiveScore }),
 });

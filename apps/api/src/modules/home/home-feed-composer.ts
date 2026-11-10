@@ -1,5 +1,7 @@
 import type { ComposableTrack } from './home-composable-track.js';
+import { allocateGenreRows } from './home-genre-rows.js';
 import {
+  HOME_MAX_ROWS,
   HOME_RECOMMENDATION_ROW_MIN_ITEMS,
   HOME_ROW_RULES,
   HOME_TRACK_PAGE_SIZE,
@@ -14,6 +16,7 @@ export type { ComposableTrack } from './home-composable-track.js';
 
 type HomeTrackRowCandidate<T extends ComposableTrack> = {
   id: string;
+  genre?: string;
   layout: HomeLayout;
   /** Best first: the composer keeps the first eligible ones. */
   items: readonly T[];
@@ -152,7 +155,7 @@ export const composeHomeRows = <
     exposures: Map<string, number>;
     preserveOrder?: boolean;
   }[] = [];
-  for (const candidate of candidates) {
+  for (const candidate of candidates.filter((row) => row.genre === undefined)) {
     const composed = composeInitialRow<T, R>({
       candidate,
       exposures: artistExposures,
@@ -177,6 +180,18 @@ export const composeHomeRows = <
         preserveOrder: options.preserveOrder,
       });
     }
+  }
+  const genreCandidates = candidates.filter((row) => row.genre !== undefined);
+  const genreRows = allocateGenreRows<T, R>(
+    genreCandidates,
+    used,
+    rankedTrackIds,
+    Math.max(0, HOME_MAX_ROWS - rows.length),
+  );
+  rows.push(...genreRows);
+  for (const row of genreRows) {
+    const candidate = genreCandidates.find((entry) => entry.id === row.id);
+    if (candidate) expansionContexts.push({ candidate, exposures: new Map() });
   }
   if (options.expandRecommendationRows) {
     expandRows(rows, expansionContexts, used, rankedTrackIds);
@@ -238,6 +253,22 @@ const composeInitialRow = <
   return { row: { ...candidate, items }, priorExposures };
 };
 
+const expansionExposures = (
+  genre: string | undefined,
+  exposures: ReadonlyMap<string, number>,
+  priorExpansionExposures: ReadonlyMap<string, number>,
+): Map<string, number> => {
+  const currentExposures = new Map(exposures);
+  for (const [artistKey, count] of priorExpansionExposures) {
+    currentExposures.set(
+      artistKey,
+      (currentExposures.get(artistKey) ?? 0) + count,
+    );
+  }
+  if (genre !== undefined) currentExposures.clear();
+  return currentExposures;
+};
+
 const expandRows = <T extends ComposableTrack, R extends RowCandidate<T>>(
   rows: (R & { items: T[] })[],
   contexts: {
@@ -261,13 +292,11 @@ const expandRows = <T extends ComposableTrack, R extends RowCandidate<T>>(
     }
     const ownIds = new Set(row.items.map((item) => item.id));
     const otherUsed = new Set([...used].filter((id) => !ownIds.has(id)));
-    const currentExposures = new Map(exposures);
-    for (const [artistKey, count] of priorExpansionExposures) {
-      currentExposures.set(
-        artistKey,
-        (currentExposures.get(artistKey) ?? 0) + count,
-      );
-    }
+    const currentExposures = expansionExposures(
+      candidate.genre,
+      exposures,
+      priorExpansionExposures,
+    );
     const additions = pickRowItems({
       candidates:
         bypassesArtistCap(candidate) || preserveOrder

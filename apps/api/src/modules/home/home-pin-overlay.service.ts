@@ -12,6 +12,7 @@ import { EditorialPinsService } from '../editorial-pins/editorial-pins.service.j
 import { HomeRepository } from './home.repository.js';
 import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import { toHomeTrack } from './home-feed-builder.service.js';
+import { genreArtistKeys } from './home-genre-overlay.js';
 import { composePersonalVisitRows } from './home-personal-visit-composer.js';
 import { applyEditorialPins, type OverlayPin } from './home-pin-overlay.js';
 import { HomePublicOverlayCache } from './home-public-overlay-cache.js';
@@ -37,6 +38,7 @@ type Viewer = {
   sourceVersion?: string;
   compositionAudience?: 'public' | 'personal';
   allowSourceRefill?: boolean;
+  genreArtists?: ReadonlyMap<string, readonly string[]>;
 };
 
 export type HomePinOverlayOptions = Viewer & {
@@ -113,7 +115,12 @@ export class HomePinOverlayService {
       rows.length <= HOME_MAX_ROWS &&
       (viewer.audience ?? 'public') === 'public'
     ) {
-      const placed = applyEditorialPins(rows, []);
+      const placed = applyEditorialPins(
+        rows,
+        [],
+        'public',
+        viewer.genreArtists ?? genreArtistKeys(candidates),
+      );
       return placed.length === rows.length &&
         placed.every((row, index) => row === rows[index])
         ? rows
@@ -122,11 +129,24 @@ export class HomePinOverlayService {
     const overlayPins =
       live.length === 0 ? [] : await this.resolvePins(live, viewer);
     if (viewer.audience === 'personal') {
-      // A cold private visit inherits public ranking, but may contain per-User
-      // social Rows. Compose locally rather than sharing a public overlay.
-      return viewer.compositionAudience === 'public'
-        ? composePublicVisitRows(rows, candidates, overlayPins, 'personal')
-        : composePersonalVisitRows(rows, candidates, overlayPins);
+      // Public-derived private visits keep public ranking and User-specific
+      // social Rows, so they must never use the shared public overlay cache.
+      if (viewer.compositionAudience === 'public' && candidates) {
+        return composePublicVisitRows(
+          rows,
+          candidates,
+          overlayPins,
+          'personal',
+        );
+      }
+      return candidates
+        ? composePersonalVisitRows(rows, candidates, overlayPins)
+        : applyEditorialPins(
+            rows,
+            overlayPins,
+            'personal',
+            viewer.genreArtists,
+          );
     }
     return this.publicRows(rows, viewer, overlayPins, candidates);
   }
@@ -137,6 +157,9 @@ export class HomePinOverlayService {
     pins: OverlayPin[],
     candidates?: HomeCompositionCandidateRow[],
   ): Promise<HomeRow[]> {
+    if (candidates === undefined) {
+      return applyEditorialPins(rows, pins, 'public', viewer.genreArtists);
+    }
     const input = {
       rows,
       candidates,
