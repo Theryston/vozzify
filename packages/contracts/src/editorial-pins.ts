@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import { homeFeedSchema } from './home.js';
+import {
+  HOME_FEED_MAX_ROWS,
+  HOME_PREVIEW_MAX_CAROUSEL_ITEMS,
+  homeCarouselRowSchema,
+  homeFeedSchema,
+  homeRowSchema,
+  homeTrackSchema,
+  homeVocalRangeRowSchema,
+  homeVocalRangeTrackSchema,
+} from './home.js';
 import { LOCALES, type Locale, localeSchema } from './locales.js';
 import { cursorPageSchema } from './pagination.js';
 import { trackArtistCreditEntrySchema, trackCoverUrlSchema } from './tracks.js';
@@ -259,8 +268,23 @@ export const homePinPreviewRequestSchema = z.object({
 
 export type HomePinPreviewRequest = z.infer<typeof homePinPreviewRequestSchema>;
 
+/** Preview rows keep a complete Pin while public Home stays paged. */
+const homePinPreviewRowSchema = z.union([
+  homeCarouselRowSchema.extend({
+    items: z.array(homeTrackSchema).min(1).max(HOME_PREVIEW_MAX_CAROUSEL_ITEMS),
+  }),
+  homeVocalRangeRowSchema.extend({
+    items: z
+      .array(homeVocalRangeTrackSchema)
+      .min(1)
+      .max(HOME_PREVIEW_MAX_CAROUSEL_ITEMS),
+  }),
+  homeRowSchema,
+]);
+
 /** A complete bounded feed returned for preview, without public-feed paging. */
 export const homePinPreviewResponseSchema = homeFeedSchema.extend({
+  rows: z.array(homePinPreviewRowSchema).max(HOME_FEED_MAX_ROWS),
   nextCursor: z.null(),
 });
 

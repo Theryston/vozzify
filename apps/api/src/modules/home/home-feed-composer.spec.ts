@@ -142,11 +142,83 @@ describe('composeHomeRows', () => {
     ).toHaveLength(1);
   });
 
-  it('caps a standard carousel at 12 items', () => {
+  it('expands a standard carousel to 48 items when enabled', () => {
+    const [row] = composeHomeRows(
+      [{ id: 'row', layout: 'standard' as const, items: tracks(55) }],
+      { expandRecommendationRows: true },
+    );
+    expect(row?.items).toHaveLength(48);
+    expect(new Set(row?.items.map((item) => item.id)).size).toBe(48);
+  });
+
+  it('keeps personal composition at 12 items by default', () => {
     const [row] = composeHomeRows([
-      { id: 'row', layout: 'standard' as const, items: tracks(20) },
+      { id: 'personal', layout: 'standard' as const, items: tracks(48) },
     ]);
     expect(row?.items).toHaveLength(12);
+  });
+
+  it('preserves each retained Row initial page before expanding an earlier Row', () => {
+    const first = tracks(30, 'first-');
+    const second = tracks(12, 'second-');
+    const rows = composeHomeRows(
+      [
+        { id: 'first', layout: 'standard' as const, items: first },
+        { id: 'second', layout: 'standard' as const, items: second },
+      ],
+      { expandRecommendationRows: true },
+    );
+
+    expect(
+      rows.map((row) => row.items.slice(0, 12).map(({ id }) => id)),
+    ).toEqual([
+      first.slice(0, 12).map(({ id }) => id),
+      second.map(({ id }) => id),
+    ]);
+    expect(rows[0]?.items).toHaveLength(30);
+  });
+
+  it('resets the credited Artist cap at every logical 12-Track batch', () => {
+    const items = Array.from({ length: 48 }, (_, index) =>
+      track(`batch-${index}`, { artistKey: `artist-${Math.floor(index / 2)}` }),
+    );
+    const [row] = composeHomeRows(
+      [{ id: 'row', layout: 'standard' as const, items }],
+      { expandRecommendationRows: true },
+    );
+
+    expect(row?.items).toHaveLength(48);
+    for (let offset = 0; offset < 48; offset += 12) {
+      const artistCounts = new Map<string, number>();
+      for (const item of row?.items.slice(offset, offset + 12) ?? []) {
+        artistCounts.set(
+          item.artistKey,
+          (artistCounts.get(item.artistKey) ?? 0) + 1,
+        );
+      }
+      expect(Math.max(...artistCounts.values())).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it('reconsiders rejected candidates after the Artist cap resets', () => {
+    const items = Array.from({ length: 120 }, (_, index) =>
+      track(`grouped-${index}`, {
+        artistKey: `artist-${Math.floor(index / 20)}`,
+      }),
+    );
+    const [row] = composeHomeRows(
+      [{ id: 'row', layout: 'standard' as const, items }],
+      { expandRecommendationRows: true },
+    );
+
+    expect(row?.items).toHaveLength(48);
+    for (let offset = 0; offset < 48; offset += 12) {
+      const counts = new Map<string, number>();
+      for (const item of row?.items.slice(offset, offset + 12) ?? []) {
+        counts.set(item.artistKey, (counts.get(item.artistKey) ?? 0) + 1);
+      }
+      expect(Math.max(...counts.values())).toBeLessThanOrEqual(2);
+    }
   });
 
   it('keeps a Track out of a later hero once the first row used it', () => {

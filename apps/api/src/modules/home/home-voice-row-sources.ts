@@ -1,4 +1,4 @@
-import type { HomeRowTitle } from '@vozzify/contracts';
+import type { HomeRowTitle, Locale } from '@vozzify/contracts';
 import type { HomeRepository } from './home.repository.js';
 import {
   type HomeCandidate,
@@ -38,13 +38,25 @@ const withVocalRange = (
 export const createVoiceRowSources = (
   repository: VoiceRecords,
 ): HomeRowSource[] =>
-  VOICE_ROW_KINDS.map((kind) => ({
-    id: `by-voice-${kind}`,
-    layout: 'vocal-range' as const,
-    title: VOICE_ROW_TITLES[kind],
-    load: async () =>
-      (await repository.findTracksWithVocalRange(VOICE_CANDIDATE_LIMIT))
-        .map(toHomeCandidate)
-        .filter(withVocalRange)
-        .filter((candidate) => voiceRowMatches(kind, candidate.vocalRange)),
-  }));
+  VOICE_ROW_KINDS.map((kind) => {
+    const loadPage = async (_locale?: Locale, offset = 0) => {
+      const records = await (offset === 0
+        ? repository.findTracksWithVocalRange(VOICE_CANDIDATE_LIMIT)
+        : repository.findTracksWithVocalRange(VOICE_CANDIDATE_LIMIT, offset));
+      return {
+        items: records
+          .map(toHomeCandidate)
+          .filter(withVocalRange)
+          .filter((candidate) => voiceRowMatches(kind, candidate.vocalRange)),
+        hasMore: records.length === VOICE_CANDIDATE_LIMIT,
+      };
+    };
+    return {
+      id: `by-voice-${kind}`,
+      layout: 'vocal-range' as const,
+      title: VOICE_ROW_TITLES[kind],
+      candidatePageSize: VOICE_CANDIDATE_LIMIT,
+      loadPage,
+      load: async (locale, offset) => (await loadPage(locale, offset)).items,
+    };
+  });

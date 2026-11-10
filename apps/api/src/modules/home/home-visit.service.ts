@@ -126,7 +126,16 @@ export class HomeVisitService {
       });
       if (!cacheable) continue;
       const rows = this.pins
-        ? await this.pins.apply(feed.rows, { locale, signedIn: false })
+        ? await this.pins.apply(
+            feed.rows,
+            {
+              locale,
+              signedIn: false,
+              sourceVersion: feed.version,
+              allowSourceRefill: false,
+            },
+            feed.compositionCandidates,
+          )
         : feed.rows;
       const visit = await this.store.create({ ...feed, rows, locale });
       if (visit?.version === version) return visit;

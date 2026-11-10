@@ -71,7 +71,7 @@ export class HomeRepository {
   ) {}
 
   /** Completed Tracks with a trending score, hottest first. */
-  findTrendingTracks(limit: number): Promise<HomeTrackRecord[]> {
+  findTrendingTracks(limit: number, offset = 0): Promise<HomeTrackRecord[]> {
     return this.txHost.tx
       .select(candidateColumns)
       .from(tracks)
@@ -79,7 +79,8 @@ export class HomeRepository {
         and(hasCompletedProcessing(tracks.id), gt(tracks.trendingScore, 0)),
       )
       .orderBy(desc(tracks.trendingScore), asc(tracks.id))
-      .limit(limit);
+      .limit(limit)
+      .offset(offset);
   }
 
   /** The completed Tracks among `ids`, in no particular order. */
@@ -111,7 +112,10 @@ export class HomeRepository {
   }
 
   /** Completed Tracks with a stored Vocal range, hottest first. */
-  findTracksWithVocalRange(limit: number): Promise<HomeTrackRecord[]> {
+  findTracksWithVocalRange(
+    limit: number,
+    offset = 0,
+  ): Promise<HomeTrackRecord[]> {
     return this.txHost.tx
       .select(candidateColumns)
       .from(tracks)
@@ -123,17 +127,19 @@ export class HomeRepository {
         ),
       )
       .orderBy(desc(tracks.trendingScore), asc(tracks.id))
-      .limit(limit);
+      .limit(limit)
+      .offset(offset);
   }
 
   /** Completed Tracks, newest first. */
-  findNewestTracks(limit: number): Promise<HomeTrackRecord[]> {
+  findNewestTracks(limit: number, offset = 0): Promise<HomeTrackRecord[]> {
     return this.txHost.tx
       .select(candidateColumns)
       .from(tracks)
       .where(hasCompletedProcessing(tracks.id))
       .orderBy(desc(tracks.createdAt), desc(tracks.id))
-      .limit(limit);
+      .limit(limit)
+      .offset(offset);
   }
 
   /**
@@ -144,8 +150,9 @@ export class HomeRepository {
     limit: number,
     since: Date,
     locale?: 'en' | 'pt-BR',
+    offset = 0,
   ): Promise<TrackSignalCount[]> {
-    return this.popularity.findMostSungTrackIds(limit, since, locale);
+    return this.popularity.findMostSungTrackIds(limit, since, locale, offset);
   }
 
   async localePracticeEvidence(
@@ -192,8 +199,9 @@ export class HomeRepository {
   findMostFavoritedTrackIds(
     limit: number,
     since: Date,
+    offset = 0,
   ): Promise<TrackSignalCount[]> {
-    return this.popularity.findMostFavoritedTrackIds(limit, since);
+    return this.popularity.findMostFavoritedTrackIds(limit, since, offset);
   }
 
   /** Valid Attempts since `since` of the given Tracks, one row per Track. */

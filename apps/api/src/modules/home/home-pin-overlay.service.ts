@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
   type CreateEditorialPinBody,
   EDITORIAL_PIN_MAX_TRACKS,
@@ -10,9 +10,18 @@ import {
 } from '@vozzify/contracts';
 import { EditorialPinsService } from '../editorial-pins/editorial-pins.service.js';
 import { HomeRepository } from './home.repository.js';
+import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import { toHomeTrack } from './home-feed-builder.service.js';
 import { applyEditorialPins, type OverlayPin } from './home-pin-overlay.js';
-import { toHomeCandidate } from './home-row-sources.js';
+import { HomePublicOverlayCache } from './home-public-overlay-cache.js';
+import { composePublicVisitRows } from './home-public-visit-composer.js';
+import { composePublicVisitRowsWithRefill } from './home-public-visit-refill.js';
+import {
+  HOME_ROW_SOURCES,
+  type HomeRowSource,
+  toHomeCandidate,
+} from './home-row-sources.js';
+import { HOME_MAX_ROWS } from './home-rules.js';
 
 /**
  * The title key of a pinned row. Its text is the admin's, in the locale of the
@@ -24,6 +33,12 @@ type Viewer = {
   locale: Locale;
   signedIn: boolean;
   audience?: 'public' | 'personal';
+  sourceVersion?: string;
+  allowSourceRefill?: boolean;
+};
+
+export type HomePinOverlayOptions = Viewer & {
+  candidates?: HomeCompositionCandidateRow[];
 };
 
 /**
@@ -36,11 +51,19 @@ export class HomePinOverlayService {
   constructor(
     private readonly pins: EditorialPinsService,
     private readonly homeRepository: HomeRepository,
+    @Optional()
+    @Inject(HOME_ROW_SOURCES)
+    private readonly sources?: HomeRowSource[],
+    @Optional() private readonly publicOverlays?: HomePublicOverlayCache,
   ) {}
 
-  async apply(rows: HomeRow[], viewer: Viewer): Promise<HomeRow[]> {
+  async apply(
+    rows: HomeRow[],
+    viewer: Viewer,
+    candidates?: HomeCompositionCandidateRow[],
+  ): Promise<HomeRow[]> {
     const live = await this.pins.findLivePins(viewer);
-    return this.applyPins(rows, viewer, live);
+    return this.applyPins(rows, viewer, live, candidates);
   }
 
   /** Refreshes only Pins already occupying frozen visit slots. */
@@ -81,13 +104,63 @@ export class HomePinOverlayService {
     rows: HomeRow[],
     viewer: Viewer,
     live: EditorialPin[],
+    candidates?: HomeCompositionCandidateRow[],
   ): Promise<HomeRow[]> {
-    if (live.length === 0 && (viewer.audience ?? 'public') === 'public') {
-      return rows;
+    if (
+      live.length === 0 &&
+      rows.length <= HOME_MAX_ROWS &&
+      (viewer.audience ?? 'public') === 'public'
+    ) {
+      const placed = applyEditorialPins(rows, []);
+      return placed.length === rows.length &&
+        placed.every((row, index) => row === rows[index])
+        ? rows
+        : placed;
     }
-    if (live.length === 0) {
-      return applyEditorialPins(rows, [], viewer.audience ?? 'public');
+    const overlayPins =
+      live.length === 0 ? [] : await this.resolvePins(live, viewer);
+    if (viewer.audience === 'personal') {
+      return applyEditorialPins(rows, overlayPins, 'personal');
     }
+    return this.publicRows(rows, viewer, overlayPins, candidates);
+  }
+
+  private async publicRows(
+    rows: HomeRow[],
+    viewer: Viewer,
+    pins: OverlayPin[],
+    candidates?: HomeCompositionCandidateRow[],
+  ): Promise<HomeRow[]> {
+    const input = {
+      rows,
+      candidates,
+      pins,
+      locale: viewer.locale,
+      sourceVersion: viewer.sourceVersion,
+    };
+    if (viewer.allowSourceRefill === false) {
+      return (
+        (await this.publicOverlays?.read(input)) ??
+        composePublicVisitRows(rows, candidates, pins)
+      );
+    }
+    const compose = () =>
+      composePublicVisitRowsWithRefill({
+        rows,
+        candidateRows: candidates,
+        pins,
+        sources: this.sources ?? [],
+        locale: viewer.locale,
+      });
+    return this.publicOverlays && candidates
+      ? this.publicOverlays.resolve(input, compose)
+      : compose();
+  }
+
+  private async resolvePins(
+    live: EditorialPin[],
+    viewer: Viewer,
+  ): Promise<OverlayPin[]> {
     // A genre, artist or album pin names no Tracks of its own: its Tracks are
     // read here, so a newly processed Track shows without an edit of the pin.
     const resolved = new Map<string, string[]>();
@@ -118,7 +191,7 @@ export class HomePinOverlayService {
         toHomeTrack(toHomeCandidate(record)),
       ]),
     );
-    const pins = live.flatMap((pin) => {
+    return live.flatMap((pin) => {
       const overlayPin = toOverlayPin(
         pin,
         viewer.locale,
@@ -127,7 +200,6 @@ export class HomePinOverlayService {
       );
       return overlayPin ? [overlayPin] : [];
     });
-    return applyEditorialPins(rows, pins, viewer.audience ?? 'public');
   }
 }
 

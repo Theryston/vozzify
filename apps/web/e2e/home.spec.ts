@@ -179,6 +179,40 @@ test.describe('home feed', () => {
     ).toBeVisible();
   });
 
+  test('loads every Track in a 48-item public carousel page by page', async ({
+    page,
+  }) => {
+    const cards = Array.from({ length: 48 }, (_, index) =>
+      card(`public-48-${index}`, `Public 48 song ${index}`),
+    );
+    await installFeed({
+      en: [
+        hero(uniqueId('en-hero')),
+        carousel('trending-today', trendingKey, cards),
+      ],
+    });
+
+    await page.goto('/en');
+    const row = page.getByRole('region', {
+      name: messages.en.home.rows.trendingToday,
+    });
+    const items = row.locator('[data-home-item-id]');
+    const track = row.locator('ul');
+    await expect(items).toHaveCount(12);
+    for (const expected of [24, 36, 48]) {
+      await track.evaluate((element) => {
+        element.scrollLeft = element.scrollWidth;
+        element.dispatchEvent(new Event('scroll'));
+      });
+      await expect(items).toHaveCount(expected);
+    }
+    const ids = await items.evaluateAll((elements) =>
+      elements.map((element) => element.getAttribute('data-home-item-id')),
+    );
+    expect(new Set(ids).size).toBe(48);
+    expect(ids).toEqual(cards.map(({ id }) => id));
+  });
+
   test('a card is a real link to its Track, and middle-click opens it in a new tab', async ({
     page,
     context,

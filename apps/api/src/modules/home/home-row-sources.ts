@@ -14,7 +14,6 @@ import {
   CANDIDATE_LIMIT,
   type HomeRecords,
   localeTrending,
-  rankedBySignal,
   rankedHomeRecords,
   type TrendingRanking,
   weeklyTop10,
@@ -47,11 +46,17 @@ export type HomeRowSource = {
   layout: HomeLayout;
   /** Standard rows show it; a hero has no title. */
   title?: HomeRowTitle;
+  /** Bounded source query size used when replenishing candidate pages. */
+  candidatePageSize?: number;
+  loadPage?: (
+    locale?: Locale,
+    offset?: number,
+  ) => Promise<{ items: HomeCandidate[]; hasMore: boolean }>;
   /**
    * Loads the candidates of one feed locale, best first. Without a locale, the
    * default one.
    */
-  load: (locale?: Locale) => Promise<HomeCandidate[]>;
+  load: (locale?: Locale, offset?: number) => Promise<HomeCandidate[]>;
 };
 
 export const toHomeCandidate = (record: HomeTrackRecord): HomeCandidate => {
@@ -85,82 +90,148 @@ export const inRankOrder = (
   ids: readonly string[],
 ): HomeTrackRecord[] => rankedHomeRecords(records, ids);
 
-const mostSungCounts = async (repository: HomeRecords, locale: Locale) => {
+const mostSungCounts = async (
+  repository: HomeRecords,
+  locale: Locale,
+  offset: number,
+) => {
   const since = windowSince(SINGING_SIGNAL_WINDOW_DAYS);
   const evidence = await repository.localePracticeEvidence(locale, since);
   const useLocale =
     evidence !== undefined &&
     hasSufficientLocaleEvidence(evidence.distinctUsers, evidence.activeDays);
-  return repository.findMostSungTrackIds(
-    CANDIDATE_LIMIT,
-    since,
-    useLocale ? locale : undefined,
-  );
+  return offset === 0
+    ? repository.findMostSungTrackIds(
+        CANDIDATE_LIMIT,
+        since,
+        useLocale ? locale : undefined,
+      )
+    : repository.findMostSungTrackIds(
+        CANDIDATE_LIMIT,
+        since,
+        useLocale ? locale : undefined,
+        offset,
+      );
 };
 
-/**
- * The feed's rows, in order: the hero, popularity (trending today, the weekly
- * Top 10, most sung, most favorited) and newly added Tracks. The hero is the
- * hottest Track with a cover, so it draws from the same trending list as its
- * row.
- */
-export const createHomeRowSources = (
+const mostFavoritedCounts = (repository: HomeRecords, offset: number) => {
+  const since = windowSince(SINGING_SIGNAL_WINDOW_DAYS);
+  return offset === 0
+    ? repository.findMostFavoritedTrackIds(CANDIDATE_LIMIT, since)
+    : repository.findMostFavoritedTrackIds(CANDIDATE_LIMIT, since, offset);
+};
+
+const candidatePage = (
+  records: HomeTrackRecord[],
+  hasMore: boolean,
+): HomeRowCandidatePage => ({
+  items: records.map(toHomeCandidate),
+  hasMore,
+});
+
+type HomeRowCandidatePage = {
+  items: HomeCandidate[];
+  hasMore: boolean;
+};
+
+const pagedRecommendationRow = (
+  id: string,
+  titleKey: string,
+  loadPage: NonNullable<HomeRowSource['loadPage']>,
+): HomeRowSource => ({
+  id,
+  layout: 'standard',
+  title: title(titleKey),
+  candidatePageSize: CANDIDATE_LIMIT,
+  loadPage,
+  load: async (locale, offset) => (await loadPage(locale, offset)).items,
+});
+
+const createTrendingSources = (
   repository: HomeRecords,
   ranking: TrendingRanking,
 ): HomeRowSource[] => {
-  const trending = async (locale: Locale = DEFAULT_HOME_LOCALE) =>
-    (await localeTrending(repository, ranking, locale)).map(toHomeCandidate);
-  const newest = async () =>
-    (await repository.findNewestTracks(CANDIDATE_LIMIT)).map(toHomeCandidate);
-  const mostSung = async (locale: Locale = DEFAULT_HOME_LOCALE) =>
-    (
-      await rankedBySignal(repository, () => mostSungCounts(repository, locale))
-    ).map(toHomeCandidate);
-  const mostFavorited = async () =>
-    (
-      await rankedBySignal(repository, () =>
-        repository.findMostFavoritedTrackIds(
-          CANDIDATE_LIMIT,
-          windowSince(SINGING_SIGNAL_WINDOW_DAYS),
-        ),
-      )
-    ).map(toHomeCandidate);
-  const top10 = async (locale: Locale = DEFAULT_HOME_LOCALE) =>
-    (await weeklyTop10(repository, ranking, locale)).map(toHomeCandidate);
+  const loadPage = async (locale = DEFAULT_HOME_LOCALE, offset = 0) => {
+    const page = await localeTrending(repository, ranking, locale, { offset });
+    return candidatePage(page.items, page.hasMore);
+  };
+  const load = async (locale?: Locale, offset?: number) =>
+    (await loadPage(locale, offset)).items;
   return [
-    { id: 'hero', layout: 'hero', load: trending },
-    {
-      id: 'trending-today',
-      layout: 'standard',
-      title: title('home.rows.trendingToday'),
-      load: trending,
-    },
-    {
-      id: 'most-sung',
-      layout: 'standard',
-      title: title('home.rows.mostSung'),
-      load: mostSung,
-    },
-    {
-      id: 'most-favorited',
-      layout: 'standard',
-      title: title('home.rows.mostFavorited'),
-      load: mostFavorited,
-    },
-    {
-      id: 'top-10-week',
-      layout: 'ranked',
-      title: title('home.rows.top10Week'),
-      load: top10,
-    },
-    {
-      id: 'new-tracks',
-      layout: 'standard',
-      title: title('home.rows.newTracks'),
-      load: newest,
-    },
+    { id: 'hero', layout: 'hero', load },
+    pagedRecommendationRow(
+      'trending-today',
+      'home.rows.trendingToday',
+      loadPage,
+    ),
   ];
 };
+
+const createMostSungRow = (repository: HomeRecords): HomeRowSource =>
+  pagedRecommendationRow(
+    'most-sung',
+    'home.rows.mostSung',
+    async (locale = DEFAULT_HOME_LOCALE, offset = 0) => {
+      const counts = await mostSungCounts(repository, locale, offset);
+      const ids = counts.map(({ trackId }) => trackId);
+      const records = inRankOrder(
+        await repository.findCompletedTracksByIds(ids),
+        ids,
+      );
+      return candidatePage(records, counts.length === CANDIDATE_LIMIT);
+    },
+  );
+
+const createMostFavoritedRow = (repository: HomeRecords): HomeRowSource =>
+  pagedRecommendationRow(
+    'most-favorited',
+    'home.rows.mostFavorited',
+    async (_locale, offset = 0) => {
+      const counts = await mostFavoritedCounts(repository, offset);
+      const ids = counts.map(({ trackId }) => trackId);
+      const records = inRankOrder(
+        await repository.findCompletedTracksByIds(ids),
+        ids,
+      );
+      return candidatePage(records, counts.length === CANDIDATE_LIMIT);
+    },
+  );
+
+const createTop10Row = (
+  repository: HomeRecords,
+  ranking: TrendingRanking,
+): HomeRowSource => ({
+  id: 'top-10-week',
+  layout: 'ranked',
+  title: title('home.rows.top10Week'),
+  load: async (locale = DEFAULT_HOME_LOCALE) =>
+    (await weeklyTop10(repository, ranking, locale)).map(toHomeCandidate),
+});
+
+const createNewestRow = (repository: HomeRecords): HomeRowSource =>
+  pagedRecommendationRow(
+    'new-tracks',
+    'home.rows.newTracks',
+    async (_locale, offset = 0) => {
+      const records = await repository.findNewestTracks(
+        CANDIDATE_LIMIT,
+        offset,
+      );
+      return candidatePage(records, records.length === CANDIDATE_LIMIT);
+    },
+  );
+
+/** Keeps the established public category order. */
+export const createHomeRowSources = (
+  repository: HomeRecords,
+  ranking: TrendingRanking,
+): HomeRowSource[] => [
+  ...createTrendingSources(repository, ranking),
+  createMostSungRow(repository),
+  createMostFavoritedRow(repository),
+  createTop10Row(repository, ranking),
+  createNewestRow(repository),
+];
 
 /** A genre as the composer places it: its name is its stable id. */
 export type HomeGenreCandidate = ComposableEntity & { name: string };

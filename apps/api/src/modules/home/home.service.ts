@@ -7,17 +7,19 @@ import type {
 } from '@vozzify/contracts';
 import { AppException } from '../../common/errors/app-exception.js';
 import { decodeHomeCursor } from './home-cursor.js';
-import type { StoredPersonalHomeFeed } from './home-feed.js';
 import { HomeFeedService } from './home-feed.service.js';
 import { answerHomePage, type HomePage, type ServedFeed } from './home-page.js';
 import { personalSnapshotStale } from './home-personal.js';
 import { PersonalHomeStore } from './home-personal.store.js';
+import { capPersonalTrackRows } from './home-personal-public-capacity.js';
 import { PersonalHomeQueueService } from './home-personal-queue.service.js';
+import { queuePersonalHomeRefresh } from './home-personal-refresh.js';
+import { findPersonalSnapshotVersion } from './home-personal-snapshot-lookup.js';
+import { personalHomeVersion } from './home-personal-version.js';
 import {
-  personalHomeVersion,
-  personalHomeVersionFromStoredRows,
-} from './home-personal-version.js';
-import { HomePinOverlayService } from './home-pin-overlay.service.js';
+  type HomePinOverlayOptions,
+  HomePinOverlayService,
+} from './home-pin-overlay.service.js';
 import { needsFrozenVisit } from './home-row-page.js';
 import {
   DEFAULT_HOME_LOCALE,
@@ -74,14 +76,15 @@ export class HomeService {
   }> {
     const feed = await this.feeds.storedPublicForPreview(request.locale);
     const signedIn = request.audience === 'signed-in';
+    const previewRows = signedIn ? capPersonalTrackRows(feed.rows) : feed.rows;
     const rows = this.pinOverlay
       ? await this.pinOverlay.applyPreview(
-          feed.rows,
+          previewRows,
           { locale: request.locale, signedIn },
           request.pin,
           request.pinId,
         )
-      : feed.rows;
+      : previewRows;
     return {
       page: {
         audience: signedIn ? 'personal' : 'public',
@@ -98,7 +101,12 @@ export class HomeService {
   private async anonymousFirstPage(locale: Locale): Promise<HomePage> {
     const { feed, cacheable } = await this.feeds.currentPublic(locale);
     const shown = cacheable
-      ? await this.withPins(feed.rows, locale, false)
+      ? await this.withPins(feed.rows, {
+          locale,
+          signedIn: false,
+          candidates: feed.compositionCandidates,
+          sourceVersion: feed.version,
+        })
       : feed.rows;
     const visit = needsFrozenVisit(shown)
       ? await this.visits?.create(feed, shown, locale)
@@ -134,10 +142,14 @@ export class HomeService {
         PERSONAL_SNAPSHOT_STALE_AFTER_SECONDS,
       )
     ) {
-      await this.requestRefresh(userId, locale);
+      await queuePersonalHomeRefresh(this.refresh, this.logger, userId, locale);
     }
     const currentRows = await this.withSocialRows(snapshot.rows, userId);
-    const shown = await this.withPins(currentRows, locale, true, 'personal');
+    const shown = await this.withPins(currentRows, {
+      locale,
+      signedIn: true,
+      audience: 'personal',
+    });
     const visit = needsFrozenVisit(shown)
       ? await this.visits?.create(snapshot, shown, locale, userId)
       : undefined;
@@ -157,11 +169,15 @@ export class HomeService {
     userId: string,
     locale: Locale,
   ): Promise<HomePage> {
-    await this.requestRefresh(userId, locale);
+    await queuePersonalHomeRefresh(this.refresh, this.logger, userId, locale);
     const { feed, cacheable } = await this.feeds.currentPublic(locale);
     const currentRows = await this.withSocialRows(feed.rows, userId);
     const shown = cacheable
-      ? await this.withPins(currentRows, locale, true)
+      ? await this.withPins(currentRows, {
+          locale,
+          signedIn: true,
+          audience: 'personal',
+        })
       : currentRows;
     const personalFeed = { ...feed, audience: 'personal' as const };
     const visit =
@@ -197,7 +213,13 @@ export class HomeService {
       );
     }
     const feedLocale = feed.locale ?? DEFAULT_HOME_LOCALE;
-    const shown = await this.withPins(feed.rows, feedLocale, signedIn);
+    const shown = await this.withPins(feed.rows, {
+      locale: feedLocale,
+      signedIn,
+      ...(signedIn ? { audience: 'personal' as const } : {}),
+      ...(signedIn ? {} : { candidates: feed.compositionCandidates }),
+      sourceVersion: feed.version,
+    });
     return this.answer({ ...feed, rows: shown }, position, true, signedIn);
   }
 
@@ -207,7 +229,12 @@ export class HomeService {
     locale: Locale,
   ): Promise<HomePage> {
     const { version, position } = decodeHomeCursor(cursor);
-    const snapshot = await this.snapshotVersion(userId, locale, version);
+    const snapshot = await findPersonalSnapshotVersion(
+      this.snapshots,
+      userId,
+      locale,
+      version,
+    );
     if (snapshot) {
       const visit = await this.visits?.personalVersion(
         version,
@@ -218,12 +245,11 @@ export class HomeService {
         return this.answer(visit, position, true, true);
       }
       const currentRows = await this.withSocialRows(snapshot.rows, userId);
-      const shown = await this.withPins(
-        currentRows,
-        snapshot.locale,
-        true,
-        'personal',
-      );
+      const shown = await this.withPins(currentRows, {
+        locale: snapshot.locale,
+        signedIn: true,
+        audience: 'personal',
+      });
       return this.answer({ ...snapshot, rows: shown }, position, true, true);
     }
     const visit = await this.visits?.personalVersion(version, userId, locale);
@@ -238,47 +264,26 @@ export class HomeService {
     };
   }
 
-  private async snapshotVersion(
-    userId: string,
-    locale: Locale,
-    version: string,
-  ): Promise<StoredPersonalHomeFeed | undefined> {
-    const current = await this.snapshots?.readCurrent(userId, locale);
-    if (current?.version === version) {
-      return current;
-    }
-    const retired = await this.snapshots?.readRetired(version);
-    if (!retired) return undefined;
-    return personalHomeVersionFromStoredRows(
-      userId,
-      retired.locale,
-      retired.algorithmVersion,
-      retired.rows,
-    ) === version
-      ? retired
-      : undefined;
-  }
-
-  private async requestRefresh(userId: string, locale: Locale): Promise<void> {
-    try {
-      await this.refresh?.requestRefresh(userId, locale);
-    } catch (error) {
-      this.logger.warn(
-        `Could not queue the personal home refresh: ${messageOf(error)}`,
-      );
-    }
-  }
-
   private async withPins(
     rows: HomeRow[],
-    locale: Locale,
-    signedIn: boolean,
-    audience: 'public' | 'personal' = 'public',
+    options: HomePinOverlayOptions,
   ): Promise<HomeRow[]> {
+    const audience = options.audience ?? 'public';
+    const visibleRows =
+      audience === 'personal' ? capPersonalTrackRows(rows) : rows;
     if (!this.pinOverlay) {
-      return rows;
+      return visibleRows;
     }
-    return this.pinOverlay.apply(rows, { locale, signedIn, audience });
+    return this.pinOverlay.apply(
+      visibleRows,
+      {
+        locale: options.locale,
+        signedIn: options.signedIn,
+        audience,
+        sourceVersion: options.sourceVersion,
+      },
+      options.candidates,
+    );
   }
 
   private async withSocialRows(
@@ -310,6 +315,3 @@ export class HomeService {
     return linker === undefined ? rows : linker.call(this.feeds, rows);
   }
 }
-
-const messageOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);

@@ -15,7 +15,7 @@ import {
   SINGING_SIGNAL_WINDOW_DAYS,
   type TrackSignalCount,
 } from './home-popularity.js';
-import { HOME_STAGE2_PARAMETERS } from './home-stage2-scoring.js';
+import { weightedRecentAttempts } from './home-recent-attempts.repository.js';
 
 export type HomeAlbumTrackSignal = {
   albumId: string;
@@ -33,8 +33,15 @@ export class HomePopularityRepository {
     limit: number,
     since: Date,
     locale?: Locale,
+    offset = 0,
   ): Promise<TrackSignalCount[]> {
-    return this.weightedRecentAttempts(undefined, limit, since, locale);
+    return weightedRecentAttempts(this.txHost.tx, {
+      trackIds: undefined,
+      limit,
+      since,
+      locale,
+      offset,
+    });
   }
 
   async popularityScoresForTracks(
@@ -49,7 +56,12 @@ export class HomePopularityRepository {
         .select({ id: tracks.id, trendingScore: tracks.trendingScore })
         .from(tracks)
         .where(inArray(tracks.id, trackIds)),
-      this.weightedRecentAttempts(trackIds, trackIds.length, since, locale),
+      weightedRecentAttempts(this.txHost.tx, {
+        trackIds,
+        limit: trackIds.length,
+        since,
+        locale,
+      }),
       this.txHost.tx
         .select({
           trackId: trackFavorites.trackId,
@@ -114,6 +126,7 @@ export class HomePopularityRepository {
   findMostFavoritedTrackIds(
     limit: number,
     since: Date,
+    offset = 0,
   ): Promise<TrackSignalCount[]> {
     return this.txHost.tx
       .select({
@@ -130,7 +143,8 @@ export class HomePopularityRepository {
       )
       .groupBy(trackFavorites.trackId)
       .orderBy(desc(sql`count(*)`), asc(trackFavorites.trackId))
-      .limit(limit);
+      .limit(limit)
+      .offset(offset);
   }
 
   countRecentAttempts(
@@ -139,12 +153,12 @@ export class HomePopularityRepository {
     locale?: Locale,
   ): Promise<TrackSignalCount[]> {
     if (trackIds.length === 0) return Promise.resolve([]);
-    return this.weightedRecentAttempts(
+    return weightedRecentAttempts(this.txHost.tx, {
       trackIds,
-      trackIds.length,
+      limit: trackIds.length,
       since,
       locale,
-    );
+    });
   }
 
   countRecentFavorites(
@@ -274,45 +288,5 @@ export class HomePopularityRepository {
     locale?: Locale,
   ) {
     return albumSingerContributions(this.txHost.tx, albumIds, since, locale);
-  }
-
-  private weightedRecentAttempts(
-    trackIds: string[] | undefined,
-    limit: number,
-    since: Date,
-    locale?: Locale,
-  ): Promise<TrackSignalCount[]> {
-    const filters = [
-      hasCompletedProcessing(tracks.id),
-      eq(practiceAttempts.forwardSkip, false),
-      eq(practiceAttempts.bleedSuspected, false),
-      gte(practiceAttempts.createdAt, since),
-    ];
-    if (trackIds) filters.push(inArray(practiceAttempts.trackId, trackIds));
-    if (locale) filters.push(eq(trackViews.locale, locale));
-    const perSinger = this.txHost.tx
-      .select({
-        trackId: practiceAttempts.trackId,
-        userId: practiceAttempts.userId,
-        attempts: sql<number>`count(*)::int`.mapWith(Number).as('attempts'),
-      })
-      .from(practiceAttempts)
-      .innerJoin(tracks, eq(practiceAttempts.trackId, tracks.id))
-      .leftJoin(trackViews, eq(trackViews.id, practiceAttempts.viewId))
-      .where(and(...filters))
-      .groupBy(practiceAttempts.trackId, practiceAttempts.userId)
-      .as('home_recent_per_singer');
-    const contribution = sql`sum(1 + ${HOME_STAGE2_PARAMETERS.repeatWeight}::numeric * least(${perSinger.attempts} - 1, ${HOME_STAGE2_PARAMETERS.repeatCap}))`;
-    const volume = sql`sum(${perSinger.attempts})`;
-    return this.txHost.tx
-      .select({
-        trackId: perSinger.trackId,
-        count: sql<number>`${contribution}`.mapWith(Number),
-        rawCount: sql<number>`${volume}`.mapWith(Number),
-      })
-      .from(perSinger)
-      .groupBy(perSinger.trackId)
-      .orderBy(desc(contribution), desc(volume), asc(perSinger.trackId))
-      .limit(limit);
   }
 }

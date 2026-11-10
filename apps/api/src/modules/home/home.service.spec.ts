@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import type { HomeRow } from '@vozzify/contracts';
+import type { HomeRow, HomeTrack } from '@vozzify/contracts';
 import { AppException } from '../../common/errors/app-exception.js';
 import { HomeService } from './home.service.js';
 import { encodeHomeCursor } from './home-cursor.js';
@@ -236,6 +236,37 @@ describe('HomeService for a signed-in visitor', () => {
     ]);
     expect(cacheControl).toBe(PRIVATE_HOME_CACHE_CONTROL);
     expect(refresh.requestRefresh).toHaveBeenCalledWith('user-1', 'en');
+  });
+
+  it('keeps public 48-Track rows at 12 in the personal fallback', async () => {
+    const feed = feedOf(VERSION, 1);
+    const items: HomeTrack[] = Array.from({ length: 48 }, (_, index) => ({
+      id: `track-${index}`,
+      title: `Track ${index}`,
+      coverUrl: null,
+      artistCredit: [],
+      durationMs: null,
+      vocalRange: null,
+    }));
+    feed.rows = [
+      {
+        id: 'row-0',
+        layout: 'standard',
+        title: { key: 'home.rows.newTracks', params: {} },
+        items,
+      },
+    ];
+    snapshots.readCurrent.mockResolvedValue(undefined);
+    feeds.currentPublic.mockResolvedValue({ feed, cacheable: true });
+
+    const { page } = await service.getPage(undefined, 'en', 'user-1');
+
+    expect(page.audience).toBe('personal');
+    expect(page.rows[0]?.layout).toBe('standard');
+    if (page.rows[0]?.layout !== 'standard') {
+      throw new Error('expected a standard row');
+    }
+    expect(page.rows[0].items).toHaveLength(12);
   });
 
   it('resumes the snapshot version with a personal page', async () => {

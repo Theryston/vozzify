@@ -8,6 +8,7 @@ import { PersonalHomeRepository } from '../../src/modules/home/home-personal.rep
 import { PersonalHomeBuilder } from '../../src/modules/home/home-personal-builder.service.js';
 import { createAuthClient } from './auth.js';
 import type { TestApp } from './create-test-app.js';
+import { homeInitialRowContents } from './home-initial-row-contents.js';
 import {
   attemptValue,
   createHomeDiscoveryFixture,
@@ -93,7 +94,26 @@ const assertSparseRows = async (
   expect(rowsOf(sparsePages).map((row) => row.id)).toEqual(
     rowsOf(publicPages).map((row) => row.id),
   );
-  expect(rowsOf(sparsePages)).toEqual(rowsOf(publicPages));
+  expect(rowsOf(sparsePages).map(homeInitialRowContents)).toEqual(
+    rowsOf(publicPages).map(homeInitialRowContents),
+  );
+  const publicExpanded = rowsOf(publicPages).filter((row) =>
+    ['trending-today', 'new-tracks'].includes(row.id),
+  );
+  expect(publicExpanded).toHaveLength(2);
+  for (const row of publicExpanded) {
+    expect(row.layout).toBe('standard');
+    if (row.layout === 'standard') {
+      expect(row.items).toHaveLength(12);
+      expect(row.nextItemsCursor).toEqual(expect.any(String));
+    }
+  }
+  for (const row of rowsOf(sparsePages)) {
+    if (row.layout === 'standard' || row.layout === 'vocal-range') {
+      expect(row.items.length).toBeLessThanOrEqual(12);
+      expect(row.nextItemsCursor).toBeUndefined();
+    }
+  }
   const required = ['genres', 'artists', 'albums', 'ranked', 'vocal-range'];
   expect(layoutsOf(publicPages)).toEqual(expect.arrayContaining(required));
   await refreshUser(userId);
@@ -104,7 +124,9 @@ const assertSparseRows = async (
   expect(new Set(ids).size).toBe(ids.length);
   const voiceRows = (pages: HomeFeedPage[]) =>
     rowsOf(pages).filter((row) => row.layout === 'vocal-range');
-  expect(voiceRows(rebuilt)).toEqual(voiceRows(publicPages));
+  expect(voiceRows(rebuilt).map(homeInitialRowContents)).toEqual(
+    voiceRows(publicPages).map(homeInitialRowContents),
+  );
   expect(layoutsOf(rebuilt)).toEqual(expect.arrayContaining(required));
   return new Set(itemIdsOf(rowsOf(publicPages), 'trending-today'));
 };

@@ -80,9 +80,14 @@ For odd quotas, choose the first source from a stable User/UTC-day seed so the
 feed stays deterministic while the extra slot balances across Users and days.
 Use bounded popularity and taste candidate batches; apply mastered, chart,
 resume, deduplication and completed-processing eligibility before filling.
-Every credited Artist counts toward the per-Row cap of two. Apply the
+Every credited Artist counts toward a cap of two per logical 12-Track
+recommendation batch. Reset the counts at each batch boundary; later batches
+may reuse an Artist but a Track appears only once in its Row. Apply the
 progressive factor `1/(1+0.25×priorExposures)` to Artist and people exposure;
-chart and resume Rows keep their exceptions.
+chart and resume Rows keep their exceptions. Initial recommendation batches
+are allocated to every retained Row before any Row expands, preserving useful
+contents lower in the feed. Editorial Pins keep their explicit selection and
+order outside this algorithmic rule.
 
 People ranking uses visible Track sets only:
 `0.5×S/(S+3) + 0.5×S/sqrt(M×N)`, requiring at least three shared visible
@@ -91,14 +96,35 @@ Keep voice-distance ranking in the similar-voices Row.
 
 ## Cache versions and rollback
 
-The inspected base `main` had `HOME_ALGORITHM_VERSION = 4`; this decision
-increments it to 5. The version remains part of public and personal feed
-hashes. Public refresh retires replaced versions for active cursors. A personal
-snapshot marked with an older algorithm is served while its rebuild is queued;
-retired snapshots remain addressable by their content hash for existing
-cursors. The bounded community batch stores both normalized score and the
-original integer singer count. Old rows with a default score of zero use raw
-count ordering until the next batch completes.
+Issue #506 increments the composition marker from 5 to 6. Public standard and
+vocal-range Rows store up to 48 Tracks, selected in four logical batches of
+twelve. The HTTP Row and item-page response still exposes at most twelve. The
+composer allocates initial batches before expansion and replenishes each source
+in bounded pages (60 candidates for ranked sources and 200 for voice sources)
+until retained Rows are full or their sources are exhausted, preserving each
+source's order and eligibility rules.
+
+The 48-item reader and visit snapshot support shipped with #505 precede this
+writer change. Roll out by deploying that reader everywhere first, then deploy
+the v6 composer. To roll back composition, stop v6 writers and restore v5; v5
+readers accept 48-item snapshots, while newly generated feeds return to the
+12-item composition. Expire only incompatible active visits through the
+existing cache maintenance path if a rollback also changes the horizontal
+protocol. The v6 hash distinguishes new composition snapshots from v5.
+
+The calibrated-ranking rollout previously incremented the marker from 4 to 5;
+issue #506 increments it from 5 to 6. The version remains part of public and
+personal feed hashes. Public refresh retires replaced versions for active
+cursors. A personal snapshot marked with an older algorithm is served while
+its rebuild is queued; retired snapshots remain addressable by their content
+hash for existing cursors. The bounded community batch stores both normalized
+score and the original integer singer count. Old rows with a default score of
+zero use raw count ordering until the next batch completes.
+
+For rollback from v6 to v5, deploy v5 after stopping v6 writers; the #505
+reader already accepts complete Rows through 48, and v5 composition generates
+its prior 12-item Rows. Keep the `recommended-for-you` web title key during API
+rollback so clients can render active v6 cursors.
 
 For rollback from v5 to v4, deploy v4 and run its co-occurrence refresh before
 refreshing personal feeds; this rebuilds the legacy raw top-12 pair set because
