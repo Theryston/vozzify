@@ -17,25 +17,30 @@ const trackIds = Array.from(
 );
 const firstTrackId = trackIds[0];
 const lastTrackId = trackIds[trackIds.length - 1];
+let feedSequence = 0;
 
 async function installTouchFeed(count = 12): Promise<void> {
-  await installHomeMock({
-    feeds: {
-      en: [
-        circularHero(`circular-touch-hero-${suffix}`, 'Circular touch hero'),
-        {
-          id: rowId,
-          layout: 'standard',
-          title: { key: 'home.rows.trendingToday', params: {} },
-          items: trackIds
-            .slice(0, count)
-            .map((id, index) =>
-              circularTrack(id, `Touch song ${index}`, 'Touch fixture'),
-            ),
-        },
-      ],
+  const lead = `circular-touch-hero-${suffix}-${feedSequence++}`;
+  await installHomeMock(
+    {
+      feeds: {
+        en: [
+          circularHero(lead, 'Circular touch hero'),
+          {
+            id: rowId,
+            layout: 'standard',
+            title: { key: 'home.rows.trendingToday', params: {} },
+            items: trackIds
+              .slice(0, count)
+              .map((id, index) =>
+                circularTrack(id, `Touch song ${index}`, 'Touch fixture'),
+              ),
+          },
+        ],
+      },
     },
-  });
+    lead,
+  );
 }
 
 test('native touch swipes cross both circular Home Track boundaries', async ({

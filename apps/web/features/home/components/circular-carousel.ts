@@ -222,7 +222,10 @@ export function useCircularCarousel(
   children: ReactNode,
   exhausted: boolean,
 ) {
-  const { looping, centered } = useLooping(trackRef, exhausted);
+  const { looping, centered, transitionFocus } = useLooping(
+    trackRef,
+    exhausted,
+  );
   const [center, setCenter] = useState(1);
   const pendingFocus = useRef<PendingFocus | null>(null);
   const copyFocus = useCopyFocus(center, setCenter, pendingFocus);
@@ -235,7 +238,7 @@ export function useCircularCarousel(
     pendingFocus.current = null;
   }, [looping]);
 
-  useLogicalFocus(trackRef, center, pendingFocus, looping);
+  useLogicalFocus({ trackRef, center, pendingFocus, looping, transitionFocus });
 
   const onKeyDown = (event: KeyboardEvent<HTMLUListElement>) => {
     const track = trackRef.current;

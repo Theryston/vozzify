@@ -10,7 +10,7 @@ import {
 import { messages } from './messages';
 
 const baseURL = 'http://localhost:3000';
-const lead = `circular-hero-${Date.now()}`;
+let feedSequence = 0;
 const rowId = `circular-row-${Date.now()}`;
 type CircularLayout = 'standard' | 'vocal-range';
 
@@ -23,6 +23,7 @@ async function installCircularFeed(
     itemPrefix?: string;
   } = {},
 ): Promise<void> {
+  const lead = `circular-hero-${Date.now()}-${feedSequence++}`;
   const items = Array.from({ length: itemCount }, (_, index) =>
     circularTrack(
       `${options.itemPrefix ?? 'circular-track'}-${index}`,
@@ -394,6 +395,7 @@ test.describe('exhausted Home carousels', () => {
       const card = row.locator('[data-home-item-id="circular-track-2"] a');
       await expect(row.locator('[data-carousel-copy]')).toHaveCount(0);
       await card.focus();
+      await expect(card).toBeFocused();
       release();
       await expect(row.locator('[data-carousel-copy="middle"]')).toHaveCount(
         24,

@@ -6,8 +6,11 @@ import {
   type SetStateAction,
   useEffect,
   useLayoutEffect,
+  useRef,
   useState,
 } from 'react';
+
+import { focusedTrackId } from './circular-carousel-focus';
 
 const EDGE_TOLERANCE = 2;
 type LoopingUpdate = {
@@ -16,6 +19,7 @@ type LoopingUpdate = {
   exhausted: boolean;
   setLooping: (looping: boolean) => void;
   setCentered: (centered: boolean) => void;
+  transitionFocus: MutableRefObject<string | undefined>;
 };
 
 export function segmentWidth(track: HTMLUListElement): number | undefined {
@@ -54,6 +58,7 @@ function updateLooping({
   exhausted,
   setLooping,
   setCentered,
+  transitionFocus,
 }: LoopingUpdate): void {
   const width = segmentWidth(track);
   const contentWidth = looping ? width : track.scrollWidth;
@@ -62,6 +67,8 @@ function updateLooping({
     contentWidth - track.clientWidth > EDGE_TOLERANCE;
   const shouldLoop = exhausted && overflow;
   if (shouldLoop === looping) return;
+  // Read focus before switching keys can remove the focused DOM link.
+  transitionFocus.current = focusedTrackId(track, document.activeElement);
   setLooping(shouldLoop);
   setCentered(false);
 }
@@ -78,23 +85,28 @@ function centerOnMiddleCopy(track: HTMLUListElement): void {
   track.scrollLeft += middleOffset - firstOffset;
 }
 
-export function useLooping(
+function useLoopingObservation(
   trackRef: MutableRefObject<HTMLUListElement | null>,
-  exhausted: boolean,
-): { looping: boolean; centered: boolean } {
-  const [looping, setLooping] = useState(false);
-  const [centered, setCentered] = useState(false);
-  useLayoutEffect(() => {
-    const track = trackRef.current;
-    if (!track || !looping) return;
-    centerOnMiddleCopy(track);
-    setCentered(true);
-  }, [looping, trackRef]);
+  {
+    looping,
+    exhausted,
+    setLooping,
+    setCentered,
+    transitionFocus,
+  }: Omit<LoopingUpdate, 'track'>,
+): void {
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
     const update = () =>
-      updateLooping({ track, looping, exhausted, setLooping, setCentered });
+      updateLooping({
+        track,
+        looping,
+        exhausted,
+        setLooping,
+        setCentered,
+        transitionFocus,
+      });
     update();
     const resizeObserver =
       typeof ResizeObserver === 'undefined'
@@ -107,8 +119,34 @@ export function useLooping(
       resizeObserver?.disconnect();
       contents.disconnect();
     };
-  }, [exhausted, looping, trackRef]);
-  return { looping, centered };
+  }, [exhausted, looping, setCentered, setLooping, trackRef, transitionFocus]);
+}
+
+export function useLooping(
+  trackRef: MutableRefObject<HTMLUListElement | null>,
+  exhausted: boolean,
+): {
+  looping: boolean;
+  centered: boolean;
+  transitionFocus: MutableRefObject<string | undefined>;
+} {
+  const [looping, setLooping] = useState(false);
+  const [centered, setCentered] = useState(false);
+  const transitionFocus = useRef<string | undefined>(undefined);
+  useLayoutEffect(() => {
+    const track = trackRef.current;
+    if (!track || !looping) return;
+    centerOnMiddleCopy(track);
+    setCentered(true);
+  }, [looping, trackRef]);
+  useLoopingObservation(trackRef, {
+    looping,
+    exhausted,
+    setLooping,
+    setCentered,
+    transitionFocus,
+  });
+  return { looping, centered, transitionFocus };
 }
 
 export function useRecenterOnScroll(

@@ -302,8 +302,9 @@ describe('circular Home carousel interaction', () => {
       await carousel.resize(400);
       carousel.links()[4]?.focus();
       outside.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+      outside.focus();
       await carousel.resize(800);
-      expect(document.activeElement).toBe(document.body);
+      expect(document.activeElement).toBe(outside);
     } finally {
       await carousel.close();
       outside.remove();

@@ -1,6 +1,6 @@
 'use client';
 
-import { type MutableRefObject, useLayoutEffect, useRef } from 'react';
+import { type MutableRefObject, useLayoutEffect } from 'react';
 
 export type PendingFocus = {
   id: string;
@@ -25,54 +25,13 @@ function focusVisibleItem(
   });
 }
 
-function focusedTrackId(
+export function focusedTrackId(
   track: HTMLUListElement | null,
   element: EventTarget | null,
 ): string | undefined {
   return element instanceof Element && track?.contains(element)
     ? element.closest<HTMLElement>('li[data-home-item-id]')?.dataset.homeItemId
     : undefined;
-}
-
-function useRememberedFocus(
-  trackRef: MutableRefObject<HTMLUListElement | null>,
-) {
-  const focusedId = useRef<string | undefined>(undefined);
-  useLayoutEffect(() => {
-    focusedId.current = focusedTrackId(
-      trackRef.current,
-      document.activeElement,
-    );
-    const remember = (event: FocusEvent) => {
-      focusedId.current = focusedTrackId(trackRef.current, event.target);
-    };
-    const clearOutside = (event: PointerEvent) => {
-      if (
-        !(event.target instanceof Node) ||
-        !trackRef.current?.contains(event.target)
-      ) {
-        focusedId.current = undefined;
-      }
-    };
-    const clearBlur = (event: FocusEvent) => {
-      if (
-        event.relatedTarget === null &&
-        event.target instanceof Node &&
-        event.target.isConnected
-      ) {
-        focusedId.current = undefined;
-      }
-    };
-    document.addEventListener('focusin', remember);
-    document.addEventListener('focusout', clearBlur);
-    document.addEventListener('pointerdown', clearOutside);
-    return () => {
-      document.removeEventListener('focusin', remember);
-      document.removeEventListener('focusout', clearBlur);
-      document.removeEventListener('pointerdown', clearOutside);
-    };
-  }, [trackRef]);
-  return focusedId;
 }
 
 function logicalFocusId(
@@ -86,20 +45,27 @@ function logicalFocusId(
   );
 }
 
-export function useLogicalFocus(
-  trackRef: MutableRefObject<HTMLUListElement | null>,
-  center: number,
-  pendingFocus: MutableRefObject<PendingFocus | null>,
-  looping: boolean,
-): void {
-  const remembered = useRememberedFocus(trackRef);
+type LogicalFocusOptions = {
+  trackRef: MutableRefObject<HTMLUListElement | null>;
+  center: number;
+  pendingFocus: MutableRefObject<PendingFocus | null>;
+  looping: boolean;
+  transitionFocus: MutableRefObject<string | undefined>;
+};
+
+export function useLogicalFocus({
+  trackRef,
+  center,
+  pendingFocus,
+  looping,
+  transitionFocus,
+}: LogicalFocusOptions): void {
   useLayoutEffect(() => {
     const pending = pendingFocus.current;
     const track = trackRef.current;
     if (!track || (pending && pending.center !== center)) return;
-    // Changing the presentation remounts links; remember their identity before
-    // the browser moves focus to body when the old focused link is removed.
-    const id = pending?.id ?? logicalFocusId(track, remembered.current);
+    const id = pending?.id ?? logicalFocusId(track, transitionFocus.current);
+    transitionFocus.current = undefined;
     if (!id) return;
     pendingFocus.current = null;
     if (pending) track.scrollLeft += pending.shift;
@@ -115,5 +81,5 @@ export function useLogicalFocus(
       destination?.querySelector<HTMLAnchorElement>('a[href]')?.focus({
         preventScroll: true,
       });
-  }, [center, looping, pendingFocus, remembered, trackRef]);
+  }, [center, looping, pendingFocus, trackRef, transitionFocus]);
 }
