@@ -157,7 +157,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: API e2e tests
-        run: nub run test:e2e --filter=api --log-order=stream
+        run: nub run test:e2e --filter=api
 
   e2e-catalog:
     runs-on: ubuntu-latest
