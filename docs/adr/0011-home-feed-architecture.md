@@ -159,7 +159,7 @@ cacheable and personal answers are `private, no-store`.
 The visit reader accepts standard and vocal-range Rows up to 48 Tracks, while
 each public Home Row and item page remains bounded to twelve. The #505 reader
 rollout precedes writers that store larger Rows. Public algorithmic writers
-now retain up to 48 Tracks; editorial Pins have their own 48-Track limit. On
+now retain up to 48 Tracks; editorial Pins retain their separate capacity. On
 rollback to a v5 composer, stop expanded writers before deploying it: v5
 composition returns to its prior 12-item Rows, while the compatible reader can
 continue to serve retained snapshots. If a rollback also changes the paging
@@ -171,3 +171,24 @@ Horizontal and vertical cursors share the frozen visit version. If that visit
 expires, the client restarts both axes from a fresh first page. An item request
 failure by itself retains loaded cards and remains retryable; only the explicit
 `FEED_VERSION_EXPIRED` reason triggers the coordinated restart.
+
+Ordinary first-page reads with no live Pins reuse the background-composed
+Track selections, applying only the existing pure layout placement and
+without reloading recommendation sources. A live-Pin overlay
+can require additional source-specific pages after its exclusions and actual
+24-Row capacity are known. This cold overlay is shared in Redis by public
+feed version, locale and the complete resolved Pin signature (membership,
+order, layout, titles, precedence and sponsored state). A process-local
+single flight and the existing 30-second NX lease coalesce concurrent cold
+reads across instances; the result lives for the two-hour retained-feed
+lifetime. Redis failures retain the cache's existing fail-open behavior.
+Waiters on another instance's NX lease back off for at most two seconds and
+receive `SERVICE_UNAVAILABLE` if that builder has not published. Callers
+sharing a local in-flight promise await that builder's outcome. An error
+never becomes exhaustion.
+Live Pins and eligibility are resolved before looking up that signature, so
+edits, schedules, audience changes and changed source membership select a
+different overlay. Only a new cold signature performs bounded source reads;
+normal visits share its frozen result, and horizontal item pages never reload
+recommendation candidates. This extends the existing read-time Pin overlay
+rather than moving ordinary public generation onto each visitor's request.

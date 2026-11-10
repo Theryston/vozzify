@@ -6,7 +6,6 @@ import type {
   Locale,
 } from '@vozzify/contracts';
 import { AppException } from '../../common/errors/app-exception.js';
-import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import { decodeHomeCursor } from './home-cursor.js';
 import { HomeFeedService } from './home-feed.service.js';
 import { answerHomePage, type HomePage, type ServedFeed } from './home-page.js';
@@ -17,7 +16,10 @@ import { PersonalHomeQueueService } from './home-personal-queue.service.js';
 import { queuePersonalHomeRefresh } from './home-personal-refresh.js';
 import { findPersonalSnapshotVersion } from './home-personal-snapshot-lookup.js';
 import { personalHomeVersion } from './home-personal-version.js';
-import { HomePinOverlayService } from './home-pin-overlay.service.js';
+import {
+  type HomePinOverlayOptions,
+  HomePinOverlayService,
+} from './home-pin-overlay.service.js';
 import { needsFrozenVisit } from './home-row-page.js';
 import {
   DEFAULT_HOME_LOCALE,
@@ -103,6 +105,7 @@ export class HomeService {
           locale,
           signedIn: false,
           candidates: feed.compositionCandidates,
+          sourceVersion: feed.version,
         })
       : feed.rows;
     const visit = needsFrozenVisit(shown)
@@ -215,6 +218,7 @@ export class HomeService {
       signedIn,
       ...(signedIn ? { audience: 'personal' as const } : {}),
       ...(signedIn ? {} : { candidates: feed.compositionCandidates }),
+      sourceVersion: feed.version,
     });
     return this.answer({ ...feed, rows: shown }, position, true, signedIn);
   }
@@ -262,12 +266,7 @@ export class HomeService {
 
   private async withPins(
     rows: HomeRow[],
-    options: {
-      locale: Locale;
-      signedIn: boolean;
-      audience?: 'public' | 'personal';
-      candidates?: HomeCompositionCandidateRow[];
-    },
+    options: HomePinOverlayOptions,
   ): Promise<HomeRow[]> {
     const audience = options.audience ?? 'public';
     const visibleRows =
@@ -281,6 +280,7 @@ export class HomeService {
         locale: options.locale,
         signedIn: options.signedIn,
         audience,
+        sourceVersion: options.sourceVersion,
       },
       options.candidates,
     );

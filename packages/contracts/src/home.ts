@@ -245,28 +245,6 @@ export const homeRowSchema = z.discriminatedUnion('layout', [
 
 export type HomeRow = z.infer<typeof homeRowSchema>;
 
-/** Admin previews carry complete algorithmic carousel contents. */
-export const homePreviewRowSchema = z.discriminatedUnion('layout', [
-  homeHeroSchema,
-  homeCarouselRowSchema.extend({
-    items: z.array(homeTrackSchema).min(1).max(HOME_PREVIEW_MAX_CAROUSEL_ITEMS),
-  }),
-  homeVocalRangeRowSchema.extend({
-    items: z
-      .array(homeVocalRangeTrackSchema)
-      .min(1)
-      .max(HOME_PREVIEW_MAX_CAROUSEL_ITEMS),
-  }),
-  homeDailyTargetRowSchema,
-  homeRankedRowSchema,
-  homeGenresRowSchema,
-  homeArtistsRowSchema,
-  homeAlbumsRowSchema,
-  homePeopleRowSchema,
-]);
-
-export type HomePreviewRow = z.infer<typeof homePreviewRowSchema>;
-
 export const HOME_FEED_MAX_ROWS = 24;
 
 /**

@@ -26,6 +26,7 @@ import { PersonalHomeTasteRepository } from './home-personal-taste.repository.js
 import { PersonalHomeTasteRowsService } from './home-personal-taste-rows.service.js';
 import { HomePinOverlayService } from './home-pin-overlay.service.js';
 import { HomePopularityRepository } from './home-popularity.repository.js';
+import { HomePublicOverlayCache } from './home-public-overlay-cache.js';
 import { HomeRowItemsService } from './home-row-items.service.js';
 import {
   createHomeEntityRowSources,
@@ -80,6 +81,7 @@ import { createVoiceRowSources } from './home-voice-row-sources.js';
     HomeFeedService,
     HomeService,
     HomePinOverlayService,
+    HomePublicOverlayCache,
     HomeFeedProcessor,
     PersonalHomeRepository,
     HomeSocialRepository,

@@ -12,13 +12,15 @@ import { EditorialPinsService } from '../editorial-pins/editorial-pins.service.j
 import { HomeRepository } from './home.repository.js';
 import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import { toHomeTrack } from './home-feed-builder.service.js';
-import type { OverlayPin } from './home-pin-overlay.js';
+import { applyEditorialPins, type OverlayPin } from './home-pin-overlay.js';
+import { HomePublicOverlayCache } from './home-public-overlay-cache.js';
 import { composePublicVisitRowsWithRefill } from './home-public-visit-refill.js';
 import {
   HOME_ROW_SOURCES,
   type HomeRowSource,
   toHomeCandidate,
 } from './home-row-sources.js';
+import { HOME_MAX_ROWS } from './home-rules.js';
 
 /**
  * The title key of a pinned row. Its text is the admin's, in the locale of the
@@ -30,6 +32,11 @@ type Viewer = {
   locale: Locale;
   signedIn: boolean;
   audience?: 'public' | 'personal';
+  sourceVersion?: string;
+};
+
+export type HomePinOverlayOptions = Viewer & {
+  candidates?: HomeCompositionCandidateRow[];
 };
 
 /**
@@ -45,6 +52,7 @@ export class HomePinOverlayService {
     @Optional()
     @Inject(HOME_ROW_SOURCES)
     private readonly sources?: HomeRowSource[],
+    @Optional() private readonly publicOverlays?: HomePublicOverlayCache,
   ) {}
 
   async apply(
@@ -98,28 +106,40 @@ export class HomePinOverlayService {
   ): Promise<HomeRow[]> {
     if (
       live.length === 0 &&
-      candidates === undefined &&
+      rows.length <= HOME_MAX_ROWS &&
       (viewer.audience ?? 'public') === 'public'
     ) {
-      return rows;
+      const placed = applyEditorialPins(rows, []);
+      return placed.length === rows.length &&
+        placed.every((row, index) => row === rows[index])
+        ? rows
+        : placed;
     }
-    if (live.length === 0) {
-      return composePublicVisitRowsWithRefill({
+    const overlayPins =
+      live.length === 0 ? [] : await this.resolvePins(live, viewer);
+    if (viewer.audience === 'personal') {
+      return applyEditorialPins(rows, overlayPins, 'personal');
+    }
+    const compose = () =>
+      composePublicVisitRowsWithRefill({
         rows,
         candidateRows: candidates,
-        pins: [],
+        pins: overlayPins,
         sources: this.sources ?? [],
         locale: viewer.locale,
       });
-    }
-    const overlayPins = await this.resolvePins(live, viewer);
-    return composePublicVisitRowsWithRefill({
-      rows,
-      candidateRows: candidates,
-      pins: overlayPins,
-      sources: this.sources ?? [],
-      locale: viewer.locale,
-    });
+    return this.publicOverlays && candidates
+      ? this.publicOverlays.resolve(
+          {
+            rows,
+            candidates,
+            pins: overlayPins,
+            locale: viewer.locale,
+            sourceVersion: viewer.sourceVersion,
+          },
+          compose,
+        )
+      : compose();
   }
 
   private async resolvePins(

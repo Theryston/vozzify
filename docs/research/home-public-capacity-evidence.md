@@ -88,7 +88,7 @@ truncated pool as source exhaustion.
 | Final Row retained / source candidates omitted | 26 / 1,204 | 26 / 1,204 |
 | Artist concentration | 6 crowded + 20 diverse | 6 crowded + 20 diverse |
 | Serialized feed snapshot | 388,577 bytes | unchanged |
-| Serialized visit Rows | — | 15,369 bytes |
+| Serialized visit Rows | — | 14,739 bytes |
 | Builder / visit refill sample | 19.8 ms | 10.7 ms |
 
 The timings are one local in-memory sample and exclude service setup, database
@@ -106,7 +106,7 @@ arrangements.
 | Retained / capacity-dropped algorithmic Rows | 1 / 1 | 2 / 0 | 1 / 1 |
 | Tracks in first algorithmic Row | 12 | 18 | 30 |
 | Visit Rows | 24 | 25 before visit clipping | 24 |
-| Serialized visit Rows | 9,654 bytes | — | 13,807 bytes |
+| Serialized visit Rows | 9,654 bytes | — | 13,198 bytes |
 | Serialized feed snapshot | 5,654 bytes | — | 26,677 bytes |
 
 The capacity regression verifies that the 12 Tracks assigned to the second

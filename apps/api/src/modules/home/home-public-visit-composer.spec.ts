@@ -79,7 +79,7 @@ describe('public visit composition', () => {
     );
     const retained = visited.find((row) => row.id === 'trending-today');
     expect(visited).toHaveLength(24);
-    expect(Buffer.byteLength(JSON.stringify(visited))).toBe(13_807);
+    expect(Buffer.byteLength(JSON.stringify(visited))).toBe(13_198);
     expect(retained?.layout).toBe('standard');
     if (retained?.layout !== 'standard') {
       throw new Error('expected retained trending Row');

@@ -17,6 +17,7 @@ const trackForComposer = (track: HomeCompositionCandidateTrack): HomeTrack => {
     hasCover: _hasCover,
     hasVocalRange: _hasVocalRange,
     isCompleted: _isCompleted,
+    sourcePosition: _sourcePosition,
     ...homeTrack
   } = track;
   return homeTrack;
