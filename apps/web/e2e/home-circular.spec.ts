@@ -228,10 +228,10 @@ test.describe('exhausted Home carousels', () => {
     await page.reload();
     const reloadedRow = page.locator(`[data-home-row-id="${rowId}"]`);
     const reloadedTrack = reloadedRow.locator('ul');
-    await reloadedRow.scrollIntoViewIfNeeded();
     await expect(
       reloadedRow.locator('[data-carousel-copy="middle"]'),
     ).toHaveCount(12);
+    await reloadedRow.scrollIntoViewIfNeeded();
     await expect
       .poll(() => reloadedTrack.evaluate((element) => element.scrollLeft))
       .toBeGreaterThan(0);
