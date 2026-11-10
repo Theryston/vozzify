@@ -1,4 +1,5 @@
 import type { ComposableTrack } from './home-composable-track.js';
+import { allocateGenreRows } from './home-genre-rows.js';
 import {
   HOME_RECOMMENDATION_ROW_MIN_ITEMS,
   HOME_ROW_RULES,
@@ -14,6 +15,7 @@ export type { ComposableTrack } from './home-composable-track.js';
 
 type HomeTrackRowCandidate<T extends ComposableTrack> = {
   id: string;
+  genre?: string;
   layout: HomeLayout;
   /** Best first: the composer keeps the first eligible ones. */
   items: readonly T[];
@@ -149,7 +151,7 @@ export const composeHomeRows = <
     candidate: R;
     exposures: Map<string, number>;
   }[] = [];
-  for (const candidate of candidates) {
+  for (const candidate of candidates.filter((row) => row.genre === undefined)) {
     const composed = composeInitialRow<T, R>({
       candidate,
       exposures: artistExposures,
@@ -173,6 +175,17 @@ export const composeHomeRows = <
         exposures: priorExposures,
       });
     }
+  }
+  const genreCandidates = candidates.filter((row) => row.genre !== undefined);
+  const genreRows = allocateGenreRows<T, R>(
+    genreCandidates,
+    used,
+    rankedTrackIds,
+  );
+  rows.push(...genreRows);
+  for (const row of genreRows) {
+    const candidate = genreCandidates.find((entry) => entry.id === row.id);
+    if (candidate) expansionContexts.push({ candidate, exposures: new Map() });
   }
   if (options.expandRecommendationRows) {
     expandRows(rows, expansionContexts, used, rankedTrackIds);
@@ -249,10 +262,13 @@ const expandRows = <T extends ComposableTrack, R extends RowCandidate<T>>(
       );
     }
     const additions = pickRowItems({
-      candidates: reweightByExposure(
-        candidate.items.filter((item) => !ownIds.has(item.id)),
-        currentExposures,
-      ),
+      candidates:
+        candidate.genre === undefined
+          ? reweightByExposure(
+              candidate.items.filter((item) => !ownIds.has(item.id)),
+              currentExposures,
+            )
+          : candidate.items.filter((item) => !ownIds.has(item.id)),
       rule: HOME_ROW_RULES[candidate.layout],
       used: otherUsed,
       reserved,

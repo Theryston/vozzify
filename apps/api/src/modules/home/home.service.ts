@@ -6,6 +6,7 @@ import type {
   Locale,
 } from '@vozzify/contracts';
 import { AppException } from '../../common/errors/app-exception.js';
+import { allHomeCompositionCandidates } from './home-composition-candidates.js';
 import { decodeHomeCursor } from './home-cursor.js';
 import { HomeFeedService } from './home-feed.service.js';
 import { answerHomePage, type HomePage, type ServedFeed } from './home-page.js';
@@ -104,7 +105,7 @@ export class HomeService {
       ? await this.withPins(feed.rows, {
           locale,
           signedIn: false,
-          candidates: feed.compositionCandidates,
+          candidates: allHomeCompositionCandidates(feed),
           sourceVersion: feed.version,
         })
       : feed.rows;
@@ -217,7 +218,7 @@ export class HomeService {
       locale: feedLocale,
       signedIn,
       ...(signedIn ? { audience: 'personal' as const } : {}),
-      ...(signedIn ? {} : { candidates: feed.compositionCandidates }),
+      ...(signedIn ? {} : { candidates: allHomeCompositionCandidates(feed) }),
       sourceVersion: feed.version,
     });
     return this.answer({ ...feed, rows: shown }, position, true, signedIn);

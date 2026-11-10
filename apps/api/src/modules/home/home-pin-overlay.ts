@@ -5,12 +5,15 @@ import type {
   HomeTrack,
   HomeVocalRangeTrack,
 } from '@vozzify/contracts';
+import { genreOverlayItems } from './home-genre-overlay.js';
+import { isGenreRow } from './home-genre-rows.js';
 import { explorationSlotCount } from './home-personal-recommendations.js';
 import { placeRowsWithQualityCategory } from './home-pin-overlay-placement.js';
 import {
   HOME_MAX_ROWS,
   HOME_RECOMMENDATION_ROW_MIN_ITEMS,
   HOME_ROW_RULES,
+  HOME_TRACK_PAGE_SIZE,
   isHomeRecommendationRow,
   PERSONAL_DISCOVERY_ROW_MIN_ITEMS,
   PERSONAL_RESUME_ROW_MIN_ITEMS,
@@ -25,6 +28,7 @@ const minimumTrackCount = (
   row: HomeRow,
   audience: 'public' | 'personal',
 ): number => {
+  if (isGenreRow(row)) return HOME_TRACK_PAGE_SIZE;
   if (row.id === 'continue-singing' || row.id === 'sing-again') {
     return PERSONAL_RESUME_ROW_MIN_ITEMS;
   }
@@ -127,7 +131,8 @@ const algorithmicRows = (
     if (row.layout !== 'standard') {
       return [row];
     }
-    const items = row.items.filter((item) => !pinnedIds.has(item.id));
+    const available = row.items.filter((item) => !pinnedIds.has(item.id));
+    const items = isGenreRow(row) ? genreOverlayItems(available) : available;
     return items.length >= minimumTrackCount(row, audience)
       ? [{ ...row, items }]
       : [];

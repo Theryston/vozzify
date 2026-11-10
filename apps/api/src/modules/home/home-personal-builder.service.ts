@@ -8,6 +8,7 @@ import { UsersService } from '../users/users.service.js';
 import { HomeRepository } from './home.repository.js';
 import type { StoredPersonalHomeFeed } from './home-feed.js';
 import { HomeFeedService } from './home-feed.service.js';
+import { isGenreRow } from './home-genre-rows.js';
 import { PersonalHomeRepository } from './home-personal.repository.js';
 import { buildPersonalRows } from './home-personal-builder-rows.js';
 import { requirePersonalTasteRows } from './home-personal-composition.js';
@@ -78,7 +79,7 @@ export class PersonalHomeBuilder {
       {
         userId,
         locale,
-        publicRows: feed.rows,
+        publicRows: feed.rows.filter((row) => !isGenreRow(row)),
         albumCandidates: feed.albumCandidates,
         signals,
         favorites,

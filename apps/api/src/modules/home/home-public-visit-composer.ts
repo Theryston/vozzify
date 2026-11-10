@@ -8,6 +8,7 @@ import {
   type HomeCompositionCandidateTrack,
 } from './home-composition-candidates.js';
 import { composeHomeRows } from './home-feed-composer.js';
+import { genreRowsLast } from './home-genre-rows.js';
 import { applyEditorialPins, type OverlayPin } from './home-pin-overlay.js';
 
 const trackForComposer = (track: HomeCompositionCandidateTrack): HomeTrack => {
@@ -18,6 +19,7 @@ const trackForComposer = (track: HomeCompositionCandidateTrack): HomeTrack => {
     hasVocalRange: _hasVocalRange,
     isCompleted: _isCompleted,
     sourcePosition: _sourcePosition,
+    collectiveScore: _collectiveScore,
     ...homeTrack
   } = track;
   return homeTrack;
@@ -108,7 +110,7 @@ const rowsWithCompositionCandidates = ({
     (row) => !row.id.startsWith('pin-') && !candidateSourceIds.has(row.id),
   );
   const capacityRows = applyEditorialPins(
-    [...previewRows, ...nonCandidateRows],
+    genreRowsLast([...previewRows, ...nonCandidateRows]),
     activePins,
     audience,
   );
@@ -135,7 +137,7 @@ const rowsWithCompositionCandidates = ({
     ...recomposed,
     ...nonCandidateRows.filter(({ id }) => retainedNonCandidateIds.has(id)),
   ];
-  return applyEditorialPins(finalBaseRows, activePins, audience);
+  return applyEditorialPins(genreRowsLast(finalBaseRows), activePins, audience);
 };
 
 /** Rebuilds only visit-retained Rows from their bounded source candidate pools. */

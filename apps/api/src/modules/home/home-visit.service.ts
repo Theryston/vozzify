@@ -6,6 +6,7 @@ import {
   type Locale,
 } from '@vozzify/contracts';
 import { AppException } from '../../common/errors/app-exception.js';
+import { allHomeCompositionCandidates } from './home-composition-candidates.js';
 import { HomeFeedService } from './home-feed.service.js';
 import { HomePinOverlayService } from './home-pin-overlay.service.js';
 import { HomeSocialService } from './home-social.service.js';
@@ -134,7 +135,7 @@ export class HomeVisitService {
               sourceVersion: feed.version,
               allowSourceRefill: false,
             },
-            feed.compositionCandidates,
+            allHomeCompositionCandidates(feed),
           )
         : feed.rows;
       const visit = await this.store.create({ ...feed, rows, locale });
