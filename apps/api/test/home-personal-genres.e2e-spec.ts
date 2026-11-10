@@ -1,7 +1,9 @@
 import { type HomeRow, homeFeedPageSchema } from '@vozzify/contracts';
+import { inArray } from 'drizzle-orm';
 import request from 'supertest';
 import { practiceAttempts } from '../src/database/schema/practice-attempts.js';
 import { trackFavorites } from '../src/database/schema/track-favorites.js';
+import { tracks } from '../src/database/schema/tracks.js';
 import { HomeGenreRepository } from '../src/modules/home/home-genre.repository.js';
 import { PersonalHomeStore } from '../src/modules/home/home-personal.store.js';
 import { PersonalHomeBuilder } from '../src/modules/home/home-personal-builder.service.js';
@@ -231,5 +233,77 @@ describe('personal dynamic genre Rows (e2e)', () => {
       response.body.rows.some((row: HomeRow) => row.id.startsWith('pin-')),
     ).toBe(true);
     expect(response.headers['cache-control']).toBe('private, no-store');
+  });
+  it('uses established voice evidence to prioritize strong fitting genres through the personal HTTP feed', async () => {
+    const records = await seedGenreTracks(
+      testApp.db,
+      Array.from({ length: 640 }, (_, index) => ({
+        score: index < 80 ? 100 : index < 160 ? 90 : 1,
+        genres:
+          index < 80 ? ['outside'] : index < 160 ? ['within'] : ['history'],
+      })),
+    );
+    await testApp.db
+      .update(tracks)
+      .set({ vocalRangeLowest: 30, vocalRangeHighest: 90 })
+      .where(
+        inArray(
+          tracks.id,
+          records.slice(0, 80).map((record) => record.id),
+        ),
+      );
+    await testApp.db
+      .update(tracks)
+      .set({ vocalRangeLowest: 60, vocalRangeHighest: 72 })
+      .where(
+        inArray(
+          tracks.id,
+          records.slice(80).map((record) => record.id),
+        ),
+      );
+    const client = createAuthClient(testApp);
+    const user = await signInPinsAdmin(testApp.db, client);
+    await testApp.db
+      .insert(practiceAttempts)
+      .values(
+        records
+          .slice(300, 312)
+          .map((record, index) =>
+            attemptValue(
+              user.id,
+              record.id,
+              0.95,
+              new Date(Date.now() - index * 86400000),
+            ),
+          ),
+      );
+    const snapshot = await refresh(user.id);
+    const selected = genres(snapshot.rows);
+    expect(selected).toHaveLength(2);
+    expect(selected[0]).toMatchObject({
+      title: { params: { genre: 'within' } },
+    });
+    const allowed = new Set(records.slice(0, 160).map((record) => record.id));
+    for (const row of selected) {
+      if (row.layout !== 'standard') throw new Error('Missing standard genre');
+      expect(row.items.every((item) => allowed.has(item.id))).toBe(true);
+    }
+    const response = await client.get('/v1/home').expect(200);
+    expect(response.headers['cache-control']).toBe('private, no-store');
+    let page = homeFeedPageSchema.parse(response.body);
+    const visible = [...page.rows];
+    while (page.nextCursor) {
+      page = homeFeedPageSchema.parse(
+        (
+          await client
+            .get(`/v1/home?cursor=${encodeURIComponent(page.nextCursor)}`)
+            .expect(200)
+        ).body,
+      );
+      visible.push(...page.rows);
+    }
+    expect(genres(visible)[0]).toMatchObject({
+      title: { params: { genre: 'within' } },
+    });
   });
 });

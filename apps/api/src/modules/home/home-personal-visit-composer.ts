@@ -103,6 +103,20 @@ const unchangedSelection = (rows: HomeRow[], placed: HomeRow[]): boolean => {
   );
 };
 
+const pinsAffectGenrePool = (
+  candidates: HomeCompositionCandidateRow[],
+  pins: readonly OverlayPin[],
+): boolean => {
+  const pinned = new Set(
+    pins.flatMap((pin) => pin.tracks.map((track) => track.id)),
+  );
+  return candidates.some(
+    (row) =>
+      row.genre !== undefined &&
+      row.items.some((track) => pinned.has(track.id)),
+  );
+};
+
 export const composePersonalVisitRows = (
   rows: HomeRow[],
   candidates: HomeCompositionCandidateRow[] | undefined,
@@ -110,7 +124,11 @@ export const composePersonalVisitRows = (
 ): HomeRow[] => {
   const artists = genreArtistKeys(candidates);
   const placed = applyEditorialPins(rows, pins, 'personal', artists);
-  if (!candidates || pins.length === 0 || unchangedSelection(rows, placed))
+  if (
+    !candidates ||
+    pins.length === 0 ||
+    (unchangedSelection(rows, placed) && !pinsAffectGenrePool(candidates, pins))
+  )
     return placed;
   const excludedRows = new Set<string>();
   for (;;) {

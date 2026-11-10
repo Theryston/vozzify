@@ -199,10 +199,11 @@ describe('personal collective genre composition', () => {
     expect(
       compose(rank([pool('thin', shared)], { mastered })).filter(isGenreRow),
     ).toEqual([]);
-    const chart = {
-      ...rowOf(pool('chart', shared.slice(0, 3))),
+    const chart: HomeRow = {
       id: 'top-10-this-week',
-      layout: 'ranked' as const,
+      layout: 'ranked',
+      title: { key: 'home.rows.top10ThisWeek', params: {} },
+      items: shared.slice(0, 3),
     };
     expect(
       compose(rank([pool('chart-overlap', shared)]), {
@@ -327,5 +328,37 @@ describe('personal collective genre composition', () => {
           .flatMap((item) => item.artistCredit.map((credit) => credit.name)),
       ).size,
     ).toBeGreaterThanOrEqual(6);
+  });
+  it('reevaluates rejected genre pools when a Pin removes an unused blocking collaboration', () => {
+    const collaboration = {
+      ...track(0),
+      artistKeys: ['A', 'B'],
+      artistCredit: [
+        { name: 'A', joinPhrase: ' & ' },
+        { name: 'B', joinPhrase: '' },
+      ],
+    };
+    const others = sequence(12, 1).map((item, index) => ({
+      ...item,
+      artistKey: String.fromCharCode(65 + Math.floor(index / 2)),
+      artistKeys: [String.fromCharCode(65 + Math.floor(index / 2))],
+      artistCredit: [
+        {
+          name: String.fromCharCode(65 + Math.floor(index / 2)),
+          joinPhrase: '',
+        },
+      ],
+    }));
+    const candidates = [pool('blocked', [collaboration, ...others])];
+    const baseline = compose(candidates);
+    expect(baseline.filter(isGenreRow)).toEqual([]);
+    const editorial = pin([collaboration, ...sequence(5, 999)]);
+    const shown = composePersonalVisitRows(baseline, candidates, [editorial]);
+    const genre = shown.find(isGenreRow);
+    if (genre?.layout !== 'standard')
+      throw new Error('Pin must release the valid genre initial');
+    expect(genre.items.map((item) => item.id)).toEqual(
+      others.map((item) => item.id),
+    );
   });
 });
