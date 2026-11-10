@@ -159,17 +159,23 @@ test.describe('home discovery rows', () => {
       .getByRole('button', { name: messages.en.home.carousel.retryItems })
       .click();
     await expect(
-      row.locator('[data-home-item-id="long-row-12"]'),
+      row.locator(
+        '[data-home-item-id="long-row-12"]:not([aria-hidden="true"])',
+      ),
     ).toBeAttached();
     await expect(
-      row.locator('[data-home-item-id="long-row-23"]'),
+      row.locator(
+        '[data-home-item-id="long-row-23"]:not([aria-hidden="true"])',
+      ),
     ).toBeAttached();
     expect(requests).toEqual([503, 200]);
     await expect(
       row.getByRole('button', { name: messages.en.home.carousel.scrollRight }),
     ).toBeEnabled();
     await expect(
-      row.locator('[data-home-item-id="long-row-12"]'),
+      row.locator(
+        '[data-home-item-id="long-row-12"]:not([aria-hidden="true"])',
+      ),
     ).toHaveAttribute('data-home-item-position', '12');
   });
 
@@ -230,12 +236,16 @@ test.describe('home discovery rows', () => {
 
     await setHomeMock({ feeds: { en: buildFeed('new') } });
     await revalidateHome();
-    const scrollRight = row.getByRole('button', {
-      name: messages.en.home.carousel.scrollRight,
+    const expiredItems = page.waitForResponse(
+      (response) =>
+        response.url().includes('/v1/home/rows/rolling-carousel/items') &&
+        response.status() === 404,
+    );
+    await row.locator('ul').evaluate((element) => {
+      element.scrollLeft = element.scrollWidth;
+      element.dispatchEvent(new Event('scroll'));
     });
-    await scrollRight.click();
-    await scrollRight.click();
-    await scrollRight.click();
+    await expiredItems;
     await expect.poll(() => itemResponses).toContain(404);
     const refreshedRow = page.locator('[data-home-row-id="rolling-carousel"]');
     await expect(

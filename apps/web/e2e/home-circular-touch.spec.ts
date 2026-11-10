@@ -1,0 +1,253 @@
+import { expect, type Page, test } from '@playwright/test';
+
+import {
+  circularHero,
+  circularTrack,
+  installHomeMock,
+  restoreHomeMocks,
+  visibleTrackIds,
+} from './home-circular-fixtures';
+
+const baseURL = 'http://localhost:3000';
+const suffix = Date.now();
+const rowId = `circular-touch-row-${suffix}`;
+const trackIds = Array.from(
+  { length: 12 },
+  (_, index) => `circular-touch-track-${suffix}-${index}`,
+);
+const firstTrackId = trackIds[0];
+const lastTrackId = trackIds[trackIds.length - 1];
+let feedSequence = 0;
+
+function entityRows() {
+  return ['artists', 'albums', 'genres', 'people'].map((layout) => ({
+    id: `${rowId}-${layout}`,
+    layout,
+    title: { key: 'home.rows.trendingToday', params: {} },
+    items: Array.from({ length: 12 }, (_, index) => ({
+      id: `${layout}-${index}`,
+      name: `${layout} ${index}`,
+      title: `Album ${index}`,
+      coverArtUrl: null,
+      year: null,
+      username: `person-${index}`,
+      image: null,
+      commonTracks: 3,
+    })),
+  }));
+}
+
+async function installTouchFeed(count = 12, entities = false): Promise<void> {
+  const lead = `circular-touch-hero-${suffix}-${feedSequence++}`;
+  await installHomeMock(
+    {
+      feeds: {
+        en: [
+          circularHero(lead, 'Circular touch hero'),
+          {
+            id: rowId,
+            layout: 'standard',
+            title: { key: 'home.rows.trendingToday', params: {} },
+            items: trackIds
+              .slice(0, count)
+              .map((id, index) =>
+                circularTrack(id, `Touch song ${index}`, 'Touch fixture'),
+              ),
+          },
+          ...(entities ? entityRows() : []),
+        ],
+      },
+    },
+    lead,
+  );
+}
+
+test('native touch swipes cross both circular Home Track boundaries', async ({
+  browser,
+}) => {
+  await installTouchFeed();
+  const context = await browser.newContext({
+    baseURL,
+    hasTouch: true,
+    isMobile: true,
+    reducedMotion: 'reduce',
+    viewport: { width: 390, height: 844 },
+  });
+  const page = await context.newPage();
+  await page.goto('/en');
+  const row = page.locator(`[data-home-row-id="${rowId}"]`);
+  const track = row.locator('ul');
+  await expect(row.locator('[data-home-item-id]')).toHaveCount(36);
+  await row.scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => window.innerWidth)).toBe(390);
+  await expect(row.getByRole('button', { name: /Scroll row/ })).toHaveCount(0);
+  await expect(track).toHaveCSS('scroll-snap-type', 'none');
+  const cdp = await context.newCDPSession(page);
+
+  const swipe = async (direction: 'left' | 'right') => {
+    const previous = await visibleTrackIds(track);
+    const bounds = await track.boundingBox();
+    if (!bounds) throw new Error('Carousel track is not visible');
+    const y = bounds.y + bounds.height / 2;
+    const startX =
+      bounds.x + bounds.width * (direction === 'right' ? 0.7 : 0.3);
+    const endX = startX + (direction === 'right' ? -140 : 140);
+    const touchPoint = (x: number) => ({
+      x,
+      y,
+      id: 1,
+      radiusX: 1,
+      radiusY: 1,
+      force: 1,
+    });
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [touchPoint(startX)],
+    });
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [touchPoint(endX)],
+    });
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchEnd',
+      touchPoints: [],
+    });
+    await page.waitForTimeout(80);
+    await expect.poll(() => visibleTrackIds(track)).not.toEqual(previous);
+    const visible = await visibleTrackIds(track);
+    expect(new Set(visible).size).toBe(visible.length);
+    return visible;
+  };
+
+  const crossBoundary = async (direction: 'left' | 'right') => {
+    if (!firstTrackId || !lastTrackId) {
+      throw new Error('Touch fixture Track IDs are missing');
+    }
+    for (let swipeCount = 0; swipeCount < 20; swipeCount += 1) {
+      const visible = await swipe(direction);
+      if (visible.includes(firstTrackId) && visible.includes(lastTrackId)) {
+        return visible;
+      }
+    }
+    return visibleTrackIds(track);
+  };
+
+  for (let revolution = 0; revolution < 24; revolution += 1) {
+    await swipe('right');
+  }
+  const rightSeam = await crossBoundary('right');
+  expect(rightSeam).toContain(firstTrackId);
+  expect(rightSeam).toContain(lastTrackId);
+
+  const leftSeam = await crossBoundary('left');
+  expect(leftSeam).toContain(firstTrackId);
+  expect(leftSeam).toContain(lastTrackId);
+  expect(new Set(leftSeam).size).toBe(leftSeam.length);
+  await expect(row.locator('[aria-hidden="true"] a')).toHaveCount(24);
+  const hiddenTabIndexes = await row.evaluate((element) =>
+    Array.from(
+      element.querySelectorAll<HTMLAnchorElement>('[aria-hidden="true"] a'),
+      (link) => link.tabIndex,
+    ),
+  );
+  expect(hiddenTabIndexes).toEqual(Array.from({ length: 24 }, () => -1));
+  await context.close();
+});
+
+test.afterAll(async () => {
+  await restoreHomeMocks();
+});
+
+test('keeps keyboard focus on the logical Track after scroll recentering', async ({
+  page,
+}) => {
+  await installTouchFeed();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/en');
+  const row = page.locator(`[data-home-row-id="${rowId}"]`);
+  const track = row.locator('ul');
+  const middle = row.locator('[data-carousel-copy="middle"]');
+  await expect(middle).toHaveCount(12);
+  await middle.nth(2).locator('a').focus();
+  await track.evaluate((element) => {
+    const first = element.children[0];
+    const next = element.children[element.children.length / 3];
+    if (!first || !next) throw new Error('Carousel segments are missing');
+    const width =
+      next.getBoundingClientRect().left - first.getBoundingClientRect().left;
+    element.scrollLeft = width * 2 + 100;
+    element.dispatchEvent(new Event('scroll'));
+  });
+  await expect(middle.nth(2).locator('a')).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(middle.nth(3).locator('a')).toBeFocused();
+  await middle.last().locator('a').focus();
+  await page.keyboard.press('Tab');
+  await expect
+    .poll(() =>
+      row.evaluate((element) => !element.contains(document.activeElement)),
+    )
+    .toBe(true);
+  await expect(row.locator('[data-home-item-id]')).toHaveCount(36);
+});
+
+test('keeps focus while resizing a circular row to fit and back', async ({
+  page,
+}) => {
+  await installTouchFeed(4);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/en');
+  const row = page.locator(`[data-home-row-id="${rowId}"]`);
+  const middle = row.locator('[data-carousel-copy="middle"]');
+  await expect(middle).toHaveCount(4);
+  await middle.first().locator('a').focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect(middle.last().locator('a')).toBeFocused();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(row.locator('[data-carousel-copy]')).toHaveCount(0);
+  await expect(row.locator('li').last().locator('a')).toBeFocused();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(middle).toHaveCount(4);
+  await expect(middle.last().locator('a')).toBeFocused();
+});
+
+async function expectSharedScrolling(page: Page, desktop: boolean) {
+  const tracks = page.locator('[data-home-row-id] ul');
+  await expect(tracks).toHaveCount(5);
+  for (const track of await tracks.all()) {
+    await expect(track).toHaveCSS(
+      'scroll-snap-type',
+      desktop ? 'x mandatory' : 'none',
+    );
+  }
+  await expect(page.getByRole('button', { name: /Scroll row/ })).toHaveCount(
+    desktop ? 10 : 0,
+  );
+}
+
+for (const touch of [false, true]) {
+  test(`uses free scrolling on narrow ${touch ? 'touch' : 'mouse'} screens and desktop snapping only with a mouse`, async ({
+    browser,
+  }) => {
+    await installTouchFeed(12, true);
+    const context = await browser.newContext({
+      baseURL,
+      hasTouch: touch,
+      isMobile: touch,
+      reducedMotion: 'reduce',
+      viewport: { width: 390, height: 844 },
+    });
+    const page = await context.newPage();
+    await page.goto('/en');
+    const row = page.locator(`[data-home-row-id="${rowId}"]`);
+    await expect(row.locator('[data-carousel-copy="middle"]')).toHaveCount(12);
+    await row.scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => window.innerWidth)).toBe(390);
+    await expectSharedScrolling(page, false);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await expectSharedScrolling(page, !touch);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectSharedScrolling(page, false);
+    await context.close();
+  });
+}
