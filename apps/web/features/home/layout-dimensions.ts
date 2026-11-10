@@ -16,7 +16,7 @@ export const CAROUSEL_TITLE_SKELETON_CLASS = 'h-7 w-56 rounded-md';
 export const CAROUSEL_ITEM_CLASS = 'w-40 shrink-0 snap-start sm:w-44 md:w-48';
 
 export const CAROUSEL_TRACK_CLASS =
-  '-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
+  '-mx-4 flex snap-none scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 data-[carousel-desktop=true]:snap-x data-[carousel-desktop=true]:snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
 /** Sizes hint for a carousel cover: its rendered width at each breakpoint. */
 export const CAROUSEL_COVER_SIZES =

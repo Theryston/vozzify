@@ -86,10 +86,12 @@ function updateTrackState({
   }
 }
 
-function useHoverablePointer(): boolean {
+function useDesktopPointer(): boolean {
   const [hoverable, setHoverable] = useState(false);
   useEffect(() => {
-    const query = window.matchMedia('(hover: hover) and (pointer: fine)');
+    const query = window.matchMedia(
+      '(min-width: 768px) and (hover: hover) and (pointer: fine)',
+    );
     const update = () => setHoverable(query.matches);
     update();
     query.addEventListener('change', update);
@@ -151,10 +153,11 @@ function ArrowControls({
 
 /**
  * A horizontal row track with its title and edge arrows: on devices with a
- * fine pointer, a pair of arrows sits top-right, justified against the title,
+ * fine pointer and a desktop viewport, arrows sit top-right against the title,
  * and clicking one pages the row by its own width in that direction. Each
  * arrow disables when its side has no content left to scroll to. Touch
- * devices never see the arrows, and rows that fit show none.
+ * devices and narrow viewports scroll freely without arrows or snapping.
+ * Rows that fit show no arrows.
  */
 export function CarouselScroller({
   header,
@@ -169,7 +172,7 @@ export function CarouselScroller({
 }) {
   const trackRef = useRef<HTMLUListElement>(null);
   const onNearEndRef = useRef(onNearEnd);
-  const hoverable = useHoverablePointer();
+  const hoverable = useDesktopPointer();
   const [directions, setDirections] = useState({ left: false, right: false });
   const circular = useCircularCarousel(trackRef, children, exhausted);
 
@@ -198,6 +201,7 @@ export function CarouselScroller({
       <ul
         ref={trackRef}
         className={CAROUSEL_TRACK_CLASS}
+        data-carousel-desktop={hoverable || undefined}
         onAuxClickCapture={circular.onAuxClickCapture}
         onClickCapture={circular.onClickCapture}
         onFocusCapture={circular.onFocusCapture}

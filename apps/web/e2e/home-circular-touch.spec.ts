@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 
 import {
   circularHero,
@@ -19,7 +19,25 @@ const firstTrackId = trackIds[0];
 const lastTrackId = trackIds[trackIds.length - 1];
 let feedSequence = 0;
 
-async function installTouchFeed(count = 12): Promise<void> {
+function entityRows() {
+  return ['artists', 'albums', 'genres', 'people'].map((layout) => ({
+    id: `${rowId}-${layout}`,
+    layout,
+    title: { key: 'home.rows.trendingToday', params: {} },
+    items: Array.from({ length: 12 }, (_, index) => ({
+      id: `${layout}-${index}`,
+      name: `${layout} ${index}`,
+      title: `Album ${index}`,
+      coverArtUrl: null,
+      year: null,
+      username: `person-${index}`,
+      image: null,
+      commonTracks: 3,
+    })),
+  }));
+}
+
+async function installTouchFeed(count = 12, entities = false): Promise<void> {
   const lead = `circular-touch-hero-${suffix}-${feedSequence++}`;
   await installHomeMock(
     {
@@ -36,6 +54,7 @@ async function installTouchFeed(count = 12): Promise<void> {
                 circularTrack(id, `Touch song ${index}`, 'Touch fixture'),
               ),
           },
+          ...(entities ? entityRows() : []),
         ],
       },
     },
@@ -60,6 +79,9 @@ test('native touch swipes cross both circular Home Track boundaries', async ({
   const track = row.locator('ul');
   await expect(row.locator('[data-home-item-id]')).toHaveCount(36);
   await row.scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => window.innerWidth)).toBe(390);
+  await expect(row.getByRole('button', { name: /Scroll row/ })).toHaveCount(0);
+  await expect(track).toHaveCSS('scroll-snap-type', 'none');
   const cdp = await context.newCDPSession(page);
 
   const swipe = async (direction: 'left' | 'right') => {
@@ -122,11 +144,12 @@ test('native touch swipes cross both circular Home Track boundaries', async ({
   expect(leftSeam).toContain(lastTrackId);
   expect(new Set(leftSeam).size).toBe(leftSeam.length);
   await expect(row.locator('[aria-hidden="true"] a')).toHaveCount(24);
-  const hiddenTabIndexes = await row
-    .locator('[aria-hidden="true"] a')
-    .evaluateAll((links) =>
-      links.map((link) => (link as HTMLAnchorElement).tabIndex),
-    );
+  const hiddenTabIndexes = await row.evaluate((element) =>
+    Array.from(
+      element.querySelectorAll<HTMLAnchorElement>('[aria-hidden="true"] a'),
+      (link) => link.tabIndex,
+    ),
+  );
   expect(hiddenTabIndexes).toEqual(Array.from({ length: 24 }, () => -1));
   await context.close();
 });
@@ -187,3 +210,44 @@ test('keeps focus while resizing a circular row to fit and back', async ({
   await expect(middle).toHaveCount(4);
   await expect(middle.last().locator('a')).toBeFocused();
 });
+
+async function expectSharedScrolling(page: Page, desktop: boolean) {
+  const tracks = page.locator('[data-home-row-id] ul');
+  await expect(tracks).toHaveCount(5);
+  for (const track of await tracks.all()) {
+    await expect(track).toHaveCSS(
+      'scroll-snap-type',
+      desktop ? 'x mandatory' : 'none',
+    );
+  }
+  await expect(page.getByRole('button', { name: /Scroll row/ })).toHaveCount(
+    desktop ? 10 : 0,
+  );
+}
+
+for (const touch of [false, true]) {
+  test(`uses free scrolling on narrow ${touch ? 'touch' : 'mouse'} screens and desktop snapping only with a mouse`, async ({
+    browser,
+  }) => {
+    await installTouchFeed(12, true);
+    const context = await browser.newContext({
+      baseURL,
+      hasTouch: touch,
+      isMobile: touch,
+      reducedMotion: 'reduce',
+      viewport: { width: 390, height: 844 },
+    });
+    const page = await context.newPage();
+    await page.goto('/en');
+    const row = page.locator(`[data-home-row-id="${rowId}"]`);
+    await expect(row.locator('[data-carousel-copy="middle"]')).toHaveCount(12);
+    await row.scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => window.innerWidth)).toBe(390);
+    await expectSharedScrolling(page, false);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await expectSharedScrolling(page, !touch);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectSharedScrolling(page, false);
+    await context.close();
+  });
+}

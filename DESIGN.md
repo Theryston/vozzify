@@ -329,15 +329,20 @@ section heading) with its items `gap-2` below it; rows are spaced `gap-8`.
   `px-5 py-2.5`) opens the Track. Text on the orange is `text-primary-foreground`
   and follows the featured blocks rule (bold or large); the artist credit
   is `font-semibold`, as on the artist and album headers.
-- **Carousel** (standard row): a horizontal track of cards with CSS scroll
-  snapping (`snap-x snap-mandatory`, `scroll-px-4`), a 16px side gutter that
-  bleeds to the screen edge, and a scrollbar hidden on the track only. Each
+- **Carousel** (standard row): a horizontal track of cards with a 16px side
+  gutter (`scroll-px-4`) that bleeds to the screen edge, and a scrollbar hidden
+  on the track only. Each
   card is the Track card above at a fixed width (`w-40 sm:w-44 md:w-48`), so
   the touch target is large and the cards keep their own square cover. On
-  devices with a fine pointer, a pair of arrows sits top-right, justified
-  against the title; clicking one pages the row by its own width, like the TV
+  desktop viewports (from `md`, 768px) with a fine, hoverable pointer, CSS
+  scroll snapping (`snap-x snap-mandatory`) is enabled and a pair of arrows
+  sits top-right, justified against the title; clicking one pages the row by
+  its own width, like the TV
   rails. Each arrow disables when its side has nothing left to scroll to.
-  Touch devices never see the arrows, and rows that fit show none.
+  Narrow viewports and touch devices use free horizontal dragging in both
+  directions, with no snapping and no arrows, including touch devices with
+  a wide viewport. This policy applies to all Home carousel layouts, including
+  Tracks, Artists, Albums, Genres and People. Rows that fit show no arrows.
   Once every horizontal page is loaded, an overflowing Track row wraps in both
   directions. The repeated edge cards are visual copies only: they are hidden
   from assistive technology. Their logical Track IDs and positions stay the
