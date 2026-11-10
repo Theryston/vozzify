@@ -249,6 +249,11 @@ const expandRows = <T extends ComposableTrack, R extends RowCandidate<T>>(
   reserved: Set<string>,
 ): void => {
   const priorExpansionExposures = new Map<string, number>();
+  const protectedInitial = new Set(
+    rows
+      .filter((row) => row.layout !== 'ranked')
+      .flatMap((row) => row.items.map(({ id }) => id)),
+  );
   for (const { candidate, exposures, preserveOrder } of contexts) {
     const row = rows.find((entry) => entry.id === candidate.id);
     if (!row || row.items.length >= HOME_ROW_RULES[candidate.layout].maxItems) {
@@ -272,7 +277,13 @@ const expandRows = <T extends ComposableTrack, R extends RowCandidate<T>>(
               currentExposures,
             ),
       rule: HOME_ROW_RULES[candidate.layout],
-      used: otherUsed,
+      used: bypassesArtistCap(candidate)
+        ? new Set(
+            [...otherUsed].filter(
+              (id) => !reserved.has(id) || protectedInitial.has(id),
+            ),
+          )
+        : otherUsed,
       reserved,
       bypassArtistCap: bypassesArtistCap(candidate),
       overlapsExisting: false,

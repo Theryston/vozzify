@@ -113,7 +113,7 @@ export class PersonalHomeTasteRowsService {
       return [];
     }
     const rows: HomeRow[] = [];
-    const cooccurrence = await this.becauseYouSangRow(options);
+    const cooccurrence = await this.cachedCooccurrenceRow(options);
     if (cooccurrence) rows.push(cooccurrence);
     this.reserveRows([cooccurrence], options.usedTrackIds);
 
@@ -121,9 +121,29 @@ export class PersonalHomeTasteRowsService {
     if (genres) rows.push(genres);
     this.reserveRows([genres], options.usedTrackIds);
 
-    const artists = await mostSungArtistsRow(this.attempts, options.userId);
+    const artistRows =
+      options.candidateSession?.mostSungArtistsRow ??
+      mostSungArtistsRow(this.attempts, options.userId);
+    if (options.candidateSession)
+      options.candidateSession.mostSungArtistsRow = artistRows;
+    const artists = await artistRows;
     if (artists) rows.push(artists);
     return rows;
+  }
+
+  private async cachedCooccurrenceRow(
+    options: Parameters<PersonalHomeTasteRowsService['build']>[0],
+  ): Promise<HomeRow | undefined> {
+    const session = options.candidateSession;
+    if (!session) return this.becauseYouSangRow(options);
+    if (!session.cooccurrenceRow) {
+      session.cooccurrenceRow = this.becauseYouSangRow(options);
+      await session.cooccurrenceRow;
+      session.cooccurrencePool = options.sourcePoolsByRow?.['because-you-sang'];
+    } else if (options.sourcePoolsByRow && session.cooccurrencePool) {
+      options.sourcePoolsByRow['because-you-sang'] = session.cooccurrencePool;
+    }
+    return session.cooccurrenceRow;
   }
 
   private reserveRows(

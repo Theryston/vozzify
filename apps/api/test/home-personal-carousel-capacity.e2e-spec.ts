@@ -159,19 +159,19 @@ describe('personal carousel capacity (e2e)', () => {
           attemptValue(
             user.id,
             track.id,
-            0.7,
+            0.95,
             new Date(Date.now() - index * 86_400_000),
           ),
         ),
       );
     const feed = await refresh(user.id);
-    expect(feed.rows.find(({ id }) => id === 'continue-singing')).toMatchObject(
-      { items: expect.any(Array) },
-    );
+    expect(feed.rows.find(({ id }) => id === 'sing-again')).toMatchObject({
+      items: expect.any(Array),
+    });
     const first = homeFeedPageSchema.parse(
       (await client.get('/v1/home?locale=en').expect(200)).body,
     );
-    const resume = first.rows.find(({ id }) => id === 'continue-singing');
+    const resume = first.rows.find(({ id }) => id === 'sing-again');
     if (resume?.layout !== 'standard') throw new Error('Missing resume');
     await refresh(user.id);
     const observed = await collectItems(client, resume);
@@ -290,5 +290,65 @@ describe('personal carousel capacity (e2e)', () => {
           item.vocalRange.highest === 69,
       ),
     ).toBe(true);
+  });
+  it('protects ordinary initial contents before expanding resume history', async () => {
+    const { records, user } = await seed();
+    await testApp.db.update(tracks).set({ genres: [] });
+    const history = records.slice(0, 60);
+    await testApp.db
+      .update(tracks)
+      .set({ trendingScore: 0 })
+      .where(
+        inArray(
+          tracks.id,
+          history.map(({ id }) => id),
+        ),
+      );
+    await testApp.db
+      .insert(practiceAttempts)
+      .values(
+        history.map((track, index) =>
+          attemptValue(
+            user.id,
+            track.id,
+            index < 30 ? 0.7 : 0.95,
+            new Date(Date.now() - index * 1000),
+          ),
+        ),
+      );
+    const feed = await refresh(user.id);
+    const mostSung = feed.rows.find(({ id }) => id === 'most-sung');
+    const resume = feed.rows.find(({ id }) => id === 'continue-singing');
+    const singAgain = feed.rows.find(({ id }) => id === 'sing-again');
+    if (
+      mostSung?.layout !== 'standard' ||
+      resume?.layout !== 'standard' ||
+      singAgain?.layout !== 'standard'
+    )
+      throw new Error('A useful initial Row was starved by resume expansion');
+    expect(mostSung.items.length).toBeGreaterThanOrEqual(3);
+    expect(resume.items.slice(0, 12).map(({ id }) => id)).toEqual(
+      history.slice(0, 12).map(({ id }) => id),
+    );
+    const resumeIds = new Set(resume.items.map(({ id }) => id));
+    expect(mostSung.items.some(({ id }) => resumeIds.has(id))).toBe(false);
+    const unfinished = new Set(history.slice(0, 30).map(({ id }) => id));
+    expect(resume.items.every(({ id }) => unfinished.has(id))).toBe(true);
+    const expectedHistory = history
+      .filter(({ id }) => resumeIds.has(id))
+      .map(({ id }) => id);
+    expect(resume.items.map(({ id }) => id)).toEqual(expectedHistory);
+    expect(singAgain.items).toHaveLength(30);
+    const mastered = new Set(history.slice(30).map(({ id }) => id));
+    const discoveryIds = feed.rows
+      .filter(({ id, layout }) => layout !== 'ranked' && id !== 'sing-again')
+      .flatMap((row) =>
+        row.layout === 'hero'
+          ? [row.track.id]
+          : row.layout === 'standard' || row.layout === 'vocal-range'
+            ? row.items.map(({ id }) => id)
+            : [],
+      );
+    expect(discoveryIds.some((id) => mastered.has(id))).toBe(false);
   });
 });

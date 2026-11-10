@@ -1,4 +1,4 @@
-import type { HomeRow, TrackVocalRange } from '@vozzify/contracts';
+import type { HomeRow, HomeTrack, TrackVocalRange } from '@vozzify/contracts';
 import type { PersonalHomeRepository } from './home-personal.repository.js';
 import type { PersonalTrackCandidate } from './home-personal.repository.types.js';
 import { compactPersonalCandidates } from './home-personal-candidate-compaction.js';
@@ -36,6 +36,9 @@ type SourceState = {
 
 /** One background build: cached pages advance only after composition needs more. */
 export class PersonalCandidateSession {
+  cooccurrenceRow?: Promise<HomeRow | undefined>;
+  cooccurrencePool?: HomeTrack[];
+  mostSungArtistsRow?: Promise<HomeRow | undefined>;
   private readonly sources = new Map<string, SourceState>();
   private readonly extraTargets = new Map<string, Set<string>>();
   private readonly metadata = new Map<string, DiscoveryTrack>();

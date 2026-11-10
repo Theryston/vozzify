@@ -17,6 +17,7 @@ type ExpansionOptions = {
 type ExpansionState = ExpansionOptions & {
   used: Set<string>;
   exposures: Map<string, number>;
+  nonRankedInitialIds: ReadonlySet<string>;
 };
 const isResume = (row: HomeRow) =>
   row.id === 'continue-singing' || row.id === 'sing-again';
@@ -55,7 +56,15 @@ const expandedRow = (
   const additions = pickRowItems({
     candidates: candidates.map((track) => candidateOf(track, state)),
     rule: HOME_ROW_RULES[row.layout],
-    used: state.used,
+    used: resume
+      ? new Set(
+          [...state.used].filter(
+            (id) =>
+              !state.reservedTrackIds.has(id) ||
+              state.nonRankedInitialIds.has(id),
+          ),
+        )
+      : state.used,
     reserved: state.reservedTrackIds,
     bypassArtistCap: resume,
     overlapsExisting: false,
@@ -83,6 +92,11 @@ export const expandPersonalRows = (options: ExpansionOptions): HomeRow[] => {
     ...options,
     used: new Set(options.rows.flatMap(trackIdsOfRow)),
     exposures: new Map(),
+    nonRankedInitialIds: new Set(
+      options.rows
+        .filter((row) => row.layout !== 'ranked')
+        .flatMap(trackIdsOfRow),
+    ),
   };
   const rows = options.rows.map((row) => {
     if (row.layout === 'hero') addExposures([row.track], state);

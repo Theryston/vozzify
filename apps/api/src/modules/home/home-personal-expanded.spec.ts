@@ -216,3 +216,37 @@ describe('personal expansion after capacity and live Pins', () => {
     expectDiverse(selected);
   });
 });
+
+describe('resume expansion chart exceptions', () => {
+  it('can overlap the ranked chart while preserving a Hero initial Track shared with that chart', () => {
+    const history = Array.from({ length: 15 }, (_, index) =>
+      track(`history-${index}`),
+    );
+    const chartOnly = history[12];
+    const heroTrack = history[13];
+    if (!chartOnly || !heroTrack) throw new Error('Missing chart fixture');
+    const hero: HomeRow = { id: 'hero', layout: 'hero', track: heroTrack };
+    const ranked: HomeRow = {
+      id: 'top-10-week',
+      layout: 'ranked',
+      title: { key: 'home.rows.top10Week', params: {} },
+      items: [chartOnly, heroTrack, track('chart-extra')],
+    };
+    const rows = composePersonalHomeRows({
+      hero,
+      dailyTarget,
+      resumes: [row('continue-singing', history.slice(0, 12))],
+      socialRows: [],
+      publicRows: [ranked],
+      recommendations: [hero],
+      explorationPoolsByRow: new Map([['continue-singing', history]]),
+      expandRecommendationRows: true,
+    });
+    const resumed = itemsOf(rows, 'continue-singing');
+    expect(resumed.map(({ id }) => id)).toContain(chartOnly.id);
+    expect(resumed.map(({ id }) => id)).not.toContain(heroTrack.id);
+    expect(resumed.map(({ id }) => id)).toEqual(
+      history.filter(({ id }) => id !== heroTrack.id).map(({ id }) => id),
+    );
+  });
+});

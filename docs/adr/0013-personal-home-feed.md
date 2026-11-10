@@ -140,7 +140,10 @@ by the existing owner-scoped visit in pages of at most twelve. Earlier expansion
 cannot consume a later retained Row's initial contents. The Daily target and
 quality-category placement remain unchanged. Continue singing and Sing again
 retain their disjoint history/mastery membership, order and Artist-cap exception;
-their retained history is reserved against ordinary discovery. Charts retain
+each resume Row protects its initial12 before ordinary selection, then expands
+from the remaining ordered history after all retained initials are allocated.
+All mastered Tracks remain excluded from discovery regardless of Sing again
+allocation. Charts retain
 their collective order and overlap exceptions.
 
 Source pools retain their own semantic eligibility and ordering. Personal
@@ -155,7 +158,9 @@ not treated as proof of source exhaustion. Compaction protects selected Tracks
 and prioritizes still-missing semantic targets; filled voice targets retain a
 bounded replacement reserve rather than crowding out later fit or challenge
 candidates. Both semantics keep the existing voice eligibility functions and
-source ordering. No full-catalog popularity aggregation
+source ordering. Stable community/Artist queries are also memoized strictly within that build
+(and therefore within one User and locale), never shared across refreshes.
+No full-catalog popularity aggregation
 is introduced in a User refresh or HTTP item request. Final progressive ordering
 and exploration preserve the two-per-credited-Artist rule within each logical
 12-item batch. Exploration swaps stay within a logical batch and substitutions
@@ -166,7 +171,11 @@ the compatible internal candidate schema, including optional saved taste scores
 and the daily exploration seed. Unrelated Pins preserve exact personal contents
 and order. Relevant exclusions preview source eligibility before Row admission,
 then restore final batch diversity and exploration from the saved personal
-ordering. Capacity-excluded Rows release their claims,
+ordering. Private candidate pools reserve resume initials, rather than expansion tails,
+so a new Pin composition can reclaim a tail Track for another useful initial
+batch. Chart-only overlap remains available to resumes, while every ordinary
+initial Track, including a Hero also in the chart, remains protected.
+Capacity-excluded Rows release their claims,
 while retained initial contents precede expansion. Older snapshots without this
 optional field continue through their existing overlay path. No-history public
 fallback keeps expanded contents and the established private, owner-scoped visit

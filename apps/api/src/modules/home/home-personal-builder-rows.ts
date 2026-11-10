@@ -22,13 +22,14 @@ const leadingRows = async (
       .filter((signal) => isMasteredTrack(signal.bestAccuracy))
       .map((signal) => signal.trackId),
   );
-  const resumes = resumeRows(options.signals, mastered, true);
+  const resumes = resumeRows(options.signals, mastered);
+  const resumeCandidates = resumeRows(options.signals, mastered, true);
   const dailyTarget = await dailyTargetRow(
     deps.streaks,
     options.userId,
     options.timeZone,
   );
-  return { mastered, resumes, dailyTarget };
+  return { mastered, resumes, resumeCandidates, dailyTarget };
 };
 
 const buildPersonalRowsPass = async (
@@ -44,6 +45,14 @@ const buildPersonalRowsPass = async (
     candidateSession,
     leadingRows: [...resumes, ...options.socialRows],
   });
+  Object.assign(
+    recommendation.sourcePoolsByRow,
+    Object.fromEntries(
+      context.resumeCandidates.flatMap((row) =>
+        row.layout === 'standard' ? [[row.id, row.items]] : [],
+      ),
+    ),
+  );
   const { artistKeys, tasteByTrack } = await personalCompositionScores(
     deps.personal,
     {
@@ -117,7 +126,8 @@ const personalBuildContext = async (
     lambda,
     voiceConfidence,
   });
-  const { mastered, resumes, dailyTarget } = await leadingRows(deps, options);
+  const { mastered, resumes, resumeCandidates, dailyTarget } =
+    await leadingRows(deps, options);
   return {
     tasteSignals,
     taste,
@@ -126,6 +136,7 @@ const personalBuildContext = async (
     publicRows,
     mastered,
     resumes,
+    resumeCandidates,
     dailyTarget,
   };
 };

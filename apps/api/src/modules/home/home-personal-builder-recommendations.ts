@@ -158,7 +158,9 @@ const usedRecommendationTrackIds = (options: RecommendationOptions) => {
   const inheritedVoiceTrackIds = options.userRange
     ? []
     : options.publicRows.flatMap((row) =>
-        row.layout === 'vocal-range' ? row.items.map((track) => track.id) : [],
+        row.layout === 'vocal-range'
+          ? row.items.slice(0, 12).map((track) => track.id)
+          : [],
       );
   return new Set([
     ...options.leadingRows.flatMap(trackIdsOfRow),

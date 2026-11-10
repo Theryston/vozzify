@@ -141,4 +141,33 @@ describe('personal live Pin refill', () => {
     ).toHaveLength(6);
     expect(restored.items.some(({ id }) => id === pinned.id)).toBe(false);
   });
+  it('releases resume expansion tails for another retained initial batch after Pins', () => {
+    const history = Array.from({ length: 30 }, (_, index) =>
+      track(`history-${index}`),
+    );
+    const rows = [
+      daily,
+      row('continue-singing', [...history.slice(0, 12), ...history.slice(24)]),
+      row('most-sung', history.slice(12, 24)),
+    ];
+    const candidates = personalCompositionCandidates({
+      rows,
+      sourcePoolsByRow: { 'continue-singing': history, 'most-sung': history },
+      artistKeysByTrack: new Map(),
+      mastered: new Set(),
+    });
+    const shown = composePersonalVisitRows(rows, candidates, [
+      pin(history.slice(12, 24)),
+    ]);
+    const resumed = shown.find(({ id }) => id === 'continue-singing');
+    const singing = shown.find(({ id }) => id === 'most-sung');
+    if (resumed?.layout !== 'standard' || singing?.layout !== 'standard')
+      throw new Error('Resume expansion hid a useful ordinary initial batch');
+    expect(resumed.items.map(({ id }) => id)).toEqual(
+      history.slice(0, 12).map(({ id }) => id),
+    );
+    expect(singing.items.map(({ id }) => id)).toEqual(
+      history.slice(24).map(({ id }) => id),
+    );
+  });
 });

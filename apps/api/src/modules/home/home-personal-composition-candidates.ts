@@ -2,7 +2,10 @@ import type { HomeRow, HomeTrack } from '@vozzify/contracts';
 import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
 import { personalTrackCandidate } from './home-personal-track-candidate.js';
-import { HOME_COMPOSITION_CANDIDATE_POOL_MAX_ITEMS } from './home-rules.js';
+import {
+  HOME_COMPOSITION_CANDIDATE_POOL_MAX_ITEMS,
+  HOME_TRACK_PAGE_SIZE,
+} from './home-rules.js';
 
 type CandidateOptions = {
   rows: HomeRow[];
@@ -18,11 +21,12 @@ export const personalCompositionCandidates = (
   options: CandidateOptions,
 ): HomeCompositionCandidateRow[] => {
   const reserved = new Set(
-    options.rows
-      .filter((row) =>
-        ['continue-singing', 'sing-again', 'top-10-week'].includes(row.id),
-      )
-      .flatMap(trackIdsOfRow),
+    options.rows.flatMap((row) => {
+      if (row.layout === 'ranked') return trackIdsOfRow(row);
+      return row.id === 'continue-singing' || row.id === 'sing-again'
+        ? trackIdsOfRow(row).slice(0, HOME_TRACK_PAGE_SIZE)
+        : [];
+    }),
   );
   return options.rows.flatMap((row): HomeCompositionCandidateRow[] => {
     if (
