@@ -134,6 +134,56 @@ composition while keeping Album selection requires restoring version 3 and
 allowing version-4 cached feeds to expire or rebuilding them through the
 regular refresh jobs.
 
+## Dynamic public genre Track Rows
+
+Algorithm version 7 adds quality-gated public genre carousels after the existing
+algorithmic Track and entity Rows. Background generation computes one global
+collective reference from all completed Tracks with positive existing popularity:
+stored trending score plus the approved 28-day weighted singer and favorite
+signals. The reference contains exactly `ceil(N / 4)` Tracks, ordered by score
+descending and stable Track ID ascending. Genre-less Tracks count in `N` too.
+This gate applies only to the new genre Rows.
+
+Existing initial allocations precede genre selection. Every stored genre is
+considered; an initial selection requires twelve distinct strong Tracks and at
+least six actually credited Artists, counting every collaborator against the
+two-per-Artist batch limit. Uncredited fallback Track identities do not count as
+Artists. Provisional mean-of-twelve scores determine genre priority, with genre
+identity breaking ties. Selection is iterative: each accepted genre changes the
+remaining candidates and their means. Rejected genres claim no Tracks. Only
+after all retained initial allocations may carousels expand, to at most 48.
+Every additional genre Track remains inside the collective reference.
+
+The optional internal `genreCandidates` field retains each genre's complete
+pre-exclusion collective pool and its scores. It is separate from bounded
+ordinary `compositionCandidates`, so readers from before this change can strip
+the unknown field without rejecting a larger candidate array. New readers merge
+the pools for live Pin/capacity composition. No per-genre database query or
+per-User collective aggregate is introduced. Frozen visits retain selected Rows;
+item-page requests never recompute the reference. Pins requalify new visits;
+legacy/public-fallback overlays also recheck the minimum and batch diversity.
+
+The recognized title is `home.rows.popularGenre` with a `genre` parameter and
+English/Brazilian Portuguese messages. Genre Rows are algorithmic and never
+sponsored. Established personal generation excludes public-selected genre Rows
+until #510 implements independent personal selection from the collective pool;
+signed-in public fallback may display the public selection under private headers.
+
+Deploy the web title reader before enabling the API build. Existing shorter
+snapshots remain readable and retained visits keep their original contents.
+Current public snapshots regenerate through the normal boot/hourly lifecycle.
+Rollback does not cause old readers to delete new snapshots: all selected Rows
+still satisfy the existing stored contracts, bounded candidate fields retain
+their old limits, and the additional pool is ignored. Before serving older API
+composition to a newer web, rebuild current public snapshots with that API's
+normal refresh path so it does not recompute new genre Rows with old rules.
+Retained visits expire normally. Parallel #507 also starts from marker 6: the
+second merged/deployed composition change must use a fresh marker (8 if 7 was
+already deployed), ensuring personal snapshots rebuild after both changes.
+
+Controlled composition and storage evidence is in
+[`docs/research/home-public-genre-evidence.md`](../research/home-public-genre-evidence.md).
+
 ## Alternatives considered
 
 - **Compute in the request, cache the response.** Rejected: a cold cache under a

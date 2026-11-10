@@ -10,4 +10,6 @@ export type ComposableTrack = {
   isCompleted: boolean;
   /** Absent means no stored Vocal range: only the by-voice rows ask for one. */
   hasVocalRange?: boolean;
+  /** Global collective score, present only in the strong genre pool. */
+  collectiveScore?: number;
 };

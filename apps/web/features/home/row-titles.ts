@@ -11,6 +11,7 @@ export const HOME_ROW_TITLE_KEYS = [
   'home.rows.mostFavorited',
   'home.rows.top10Week',
   'home.rows.genres',
+  'home.rows.popularGenre',
   'home.rows.featuredArtists',
   'home.rows.featuredAlbums',
   'home.rows.pinned',

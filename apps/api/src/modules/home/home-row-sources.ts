@@ -43,6 +43,8 @@ export type HomeCandidate = ComposableTrack &
 /** A candidate row: where its Tracks come from and how the row is titled. */
 export type HomeRowSource = {
   id: string;
+  /** A dynamic genre source already belongs to the collective top quarter. */
+  genre?: string;
   layout: HomeLayout;
   /** Standard rows show it; a hero has no title. */
   title?: HomeRowTitle;

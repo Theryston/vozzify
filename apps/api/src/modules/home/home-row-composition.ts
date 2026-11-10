@@ -101,6 +101,15 @@ const boundedCandidatePool = (
 ): HomeCompositionCandidateRow | undefined => {
   const layout = loaded.source.layout;
   if (!isCompositionCandidateLayout(layout)) return undefined;
+  if (loaded.source.genre !== undefined) {
+    return {
+      id: loaded.source.id,
+      layout,
+      genre: loaded.source.genre,
+      title: loaded.source.title,
+      items: loaded.items.map(toHomeCompositionCandidateTrack),
+    };
+  }
   const [composed] = composeHomeRows(
     [{ ...loaded.source, items: loaded.items }],
     { expandRecommendationRows: true },

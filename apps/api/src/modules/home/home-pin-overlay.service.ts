@@ -12,6 +12,7 @@ import { EditorialPinsService } from '../editorial-pins/editorial-pins.service.j
 import { HomeRepository } from './home.repository.js';
 import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import { toHomeTrack } from './home-feed-builder.service.js';
+import { genreArtistKeys } from './home-genre-overlay.js';
 import { applyEditorialPins, type OverlayPin } from './home-pin-overlay.js';
 import { HomePublicOverlayCache } from './home-public-overlay-cache.js';
 import { composePublicVisitRows } from './home-public-visit-composer.js';
@@ -35,6 +36,7 @@ type Viewer = {
   audience?: 'public' | 'personal';
   sourceVersion?: string;
   allowSourceRefill?: boolean;
+  genreArtists?: ReadonlyMap<string, readonly string[]>;
 };
 
 export type HomePinOverlayOptions = Viewer & {
@@ -111,7 +113,12 @@ export class HomePinOverlayService {
       rows.length <= HOME_MAX_ROWS &&
       (viewer.audience ?? 'public') === 'public'
     ) {
-      const placed = applyEditorialPins(rows, []);
+      const placed = applyEditorialPins(
+        rows,
+        [],
+        'public',
+        viewer.genreArtists ?? genreArtistKeys(candidates),
+      );
       return placed.length === rows.length &&
         placed.every((row, index) => row === rows[index])
         ? rows
@@ -120,7 +127,12 @@ export class HomePinOverlayService {
     const overlayPins =
       live.length === 0 ? [] : await this.resolvePins(live, viewer);
     if (viewer.audience === 'personal') {
-      return applyEditorialPins(rows, overlayPins, 'personal');
+      return applyEditorialPins(
+        rows,
+        overlayPins,
+        'personal',
+        viewer.genreArtists,
+      );
     }
     return this.publicRows(rows, viewer, overlayPins, candidates);
   }
@@ -131,6 +143,9 @@ export class HomePinOverlayService {
     pins: OverlayPin[],
     candidates?: HomeCompositionCandidateRow[],
   ): Promise<HomeRow[]> {
+    if (candidates === undefined) {
+      return applyEditorialPins(rows, pins, 'public', viewer.genreArtists);
+    }
     const input = {
       rows,
       candidates,
