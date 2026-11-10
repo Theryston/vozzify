@@ -43,6 +43,40 @@ strong Tracks and no genre Row; forty-five positives give twelve and a Row,
 with stable Track identity resolving the cutoff. Zero/incomplete records do not
 increase the positive count. Favorite-only popularity also qualifies correctly.
 
+## Real backend comparison on 1,000 Tracks
+
+An independent parent run compared `origin/main` at `91e2acc` with code head
+`0d04dd4` using the same controlled 1,000-Track catalog, actual Postgres/Redis
+and the production public/personal builders. Covers used local fixture artwork;
+the catalog and practice signals were held constant. Each build was sampled
+three times. Existing public Row membership and order remained present, and
+established personal composition remained unchanged.
+
+| Measure | Main | Public genre candidate |
+| --- | ---: | ---: |
+| Public retained Rows | 8 | 12 |
+| Existing public Rows dropped | 0 | 0 |
+| Qualified genre Rows | 0 | 4 |
+| Genre carousel sizes | — | 37, 29, 29, 12 |
+| Public distinct Tracks / placements | 202 / 203 | 309 / 310 |
+| Public catalog coverage | 20.2% | 30.9% |
+| Ordinary cross-Row duplicate Tracks | 0 | 0 |
+| Public snapshot bytes | 234,957 | 436,129 |
+| Personal distinct Tracks / placements | 104 / 107 | 104 / 107 |
+| Personal snapshot bytes | 26,850 | 26,850 |
+| Public generation, median of three | 195.79 ms | 654.02 ms |
+| Unchanged personal generation, median of three | 231.18 ms | 553.31 ms |
+
+The additional public placement beyond the distinct count is the existing
+hero/chart overlap exception; it does not reflect ordinary discovery duplication.
+The candidate adds 107 distinct public Tracks and 201,172 snapshot bytes. The
+new raw candidate pool accounts for storage beyond the 107 visible additions.
+Timing is indicative: both measurements ran on a shared executor while other
+tests and builds competed for resources. The large increase in the unchanged
+personal builder's time demonstrates that this comparison does not isolate a
+causal public-query regression. It must not be treated as production latency or
+as evidence of improved practice/retention.
+
 ## Query and snapshot cost
 
 One additional SQL statement per background public build aggregates collective
@@ -72,6 +106,9 @@ protection, all-credited-Artist diversity, missing credits, per-batch resets,
 fallback requalification and all 24 available Row slots. The browser scenario
 `home-genres.spec.ts` exercises localized card rendering, real horizontal scroll
 geometry and both paging axes on desktop/light and phone/dark viewports.
+Same-name canonical Artist regressions also preserve both frozen paging axes
+through public regeneration and Pin expiry while keeping canonical identities
+and collective scores out of public Track payloads.
 
 No existing tests or quality configurations are changed. The Playwright serial
 Home project recognizes the new scenario so it shares the existing fixture
