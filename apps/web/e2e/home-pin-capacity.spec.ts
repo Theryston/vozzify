@@ -62,6 +62,9 @@ test('renders and loads all 48 items of a Home editorial carousel', async ({
 
   const row = page.locator(`[data-home-row-id="${visitId}-pin-48"]`);
   const list = row.locator('ul');
+  const logicalItems = row.locator(
+    '[data-home-item-id]:not([aria-hidden="true"])',
+  );
   for (const lastIndex of [23, 35, 47]) {
     await list.evaluate((element) => {
       element.scrollLeft = element.scrollWidth;
@@ -70,14 +73,14 @@ test('renders and loads all 48 items of a Home editorial carousel', async ({
       element.dispatchEvent(new Event('scroll'));
     });
     await expect(
-      row.locator(`[data-home-item-id="editorial-track-${lastIndex}"]`),
+      row.locator(
+        `[data-home-item-id="editorial-track-${lastIndex}"]:not([aria-hidden="true"])`,
+      ),
     ).toBeAttached();
   }
 
-  const renderedIds = await row
-    .locator('[data-home-item-id]')
-    .evaluateAll((elements) =>
-      elements.map((element) => element.getAttribute('data-home-item-id')),
-    );
+  const renderedIds = await logicalItems.evaluateAll((elements) =>
+    elements.map((element) => element.getAttribute('data-home-item-id')),
+  );
   expect(renderedIds).toEqual(items.map((item) => item.id));
 });
