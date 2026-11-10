@@ -23,6 +23,7 @@ const personalShortTrackRows = new Set([
   'because-you-sang',
   'more-of-your-genres',
   'explore',
+  'recommended-for-you',
 ]);
 const minimumTrackCount = (
   row: HomeRow,

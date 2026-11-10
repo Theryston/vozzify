@@ -6,7 +6,7 @@
 
 import type { Locale } from '@vozzify/contracts';
 
-export const HOME_ALGORITHM_VERSION = 7;
+export const HOME_ALGORITHM_VERSION = 8;
 
 /**
  * The feed a request gets when it names no locale. An unsupported locale is
@@ -31,6 +31,9 @@ export const HOME_TRACK_PAGE_SIZE = 12;
 
 /** The complete stored recommendation Row may span four item pages. */
 export const HOME_TRACK_ROW_MAX_ITEMS = 48;
+
+/** Bounded source reads used by personal background composition. */
+export const PERSONAL_CANDIDATE_BATCH_SIZE = 60;
 
 /** Maximum useful candidates per Artist across four recommendation batches. */
 export const HOME_EXPANDED_ROW_ARTIST_CANDIDATE_LIMIT =

@@ -1,11 +1,13 @@
 import type { HomeRow, HomeTrack, Locale } from '@vozzify/contracts';
 import type { AttemptsService } from '../attempts/attempts.service.js';
+import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import type { UserTrackSignal } from './home-personal.repository.js';
 import type {
   PersonalBuilderDependencies,
   PersonalRecommendation,
 } from './home-personal-builder-support.js';
 import { buildPersonalVoiceAndDiscoveryRows } from './home-personal-candidate-rows.js';
+import type { PersonalCandidateSession } from './home-personal-candidate-session.js';
 import {
   buildPersonalExplorationRow,
   requirePersonalTasteRows,
@@ -17,10 +19,16 @@ import type {
 } from './home-personal-recommendations.js';
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
 import { SINGING_SIGNAL_WINDOW_DAYS } from './home-popularity.js';
+import {
+  toComposedHomeRow,
+  tracksInHomeRow,
+} from './home-public-visit-composer.js';
 import { hasSufficientLocaleEvidence } from './home-stage2-scoring.js';
 
 type VoiceAndDiscoveryOptions = {
   publicRows: HomeRow[];
+  compositionCandidates?: HomeCompositionCandidateRow[];
+  candidateSession?: PersonalCandidateSession;
   locale: Locale;
   taste: ReturnType<typeof decayedTaste>;
   lambda: number;
@@ -33,6 +41,8 @@ type VoiceAndDiscoveryOptions = {
 type RecommendationOptions = {
   userId: string;
   publicRows: HomeRow[];
+  compositionCandidates?: HomeCompositionCandidateRow[];
+  candidateSession?: PersonalCandidateSession;
   locale: Locale;
   signals: UserTrackSignal[];
   tasteSignals: TasteSignal[];
@@ -51,7 +61,12 @@ const discoveryCollectiveScores = async (
   deps: PersonalBuilderDependencies,
   locale: Locale,
   candidateIds: string[],
-) => {
+  session?: PersonalCandidateSession,
+): Promise<Map<string, number>> => {
+  if (session)
+    return session.discoveryScores(candidateIds, (ids) =>
+      discoveryCollectiveScores(deps, locale, ids),
+    );
   const since = new Date(
     Date.now() - SINGING_SIGNAL_WINDOW_DAYS * 24 * 60 * 60 * 1000,
   );
@@ -90,19 +105,34 @@ const voiceAndDiscoveryRows = async (
   const candidates = await requirePersonalTasteRows(
     deps.tasteRows,
   ).findDiscoveryCandidates(options.taste, {
-    excludedTrackIds: new Set([...options.mastered, ...options.usedTrackIds]),
+    excludedTrackIds: options.mastered,
     userRange: options.userRange,
+    expandRecommendationRows: true,
+    candidateSession: options.candidateSession,
   });
-  const discovery = await deps.personal.findDiscoveryTracks([
+  const sourcePools = mergePersonalSourcePools(
+    candidates.byRow,
+    options.compositionCandidates,
+    !options.userRange,
+  );
+  const sourceTracks = Object.values(sourcePools).flat();
+  const ids = [
     ...new Set([
       ...options.publicRows.flatMap(trackIdsOfRow),
       ...candidates.tracks.map((track) => track.id),
+      ...sourceTracks.map((track) => track.id),
     ]),
-  ]);
+  ];
+  const discovery = await (options.candidateSession
+    ? options.candidateSession.discoveryMetadata(ids, (ids) =>
+        deps.personal.findDiscoveryTracks(ids),
+      )
+    : deps.personal.findDiscoveryTracks(ids));
   const collectiveByTrack = await discoveryCollectiveScores(
     deps,
     options.locale,
     [...discovery.keys()],
+    options.candidateSession,
   );
   const rankedDiscovery = new Map(
     [...discovery].map(([id, item]) => [
@@ -115,8 +145,8 @@ const voiceAndDiscoveryRows = async (
   );
   return buildPersonalVoiceAndDiscoveryRows({
     publicRows: options.publicRows,
-    candidateTracks: candidates.tracks,
-    candidatesByRow: candidates.byRow,
+    candidateTracks: [...candidates.tracks, ...sourceTracks],
+    candidatesByRow: sourcePools,
     discovery: rankedDiscovery,
     taste: options.taste,
     lambda: options.lambda,
@@ -133,7 +163,9 @@ const usedRecommendationTrackIds = (options: RecommendationOptions) => {
   const inheritedVoiceTrackIds = options.userRange
     ? []
     : options.publicRows.flatMap((row) =>
-        row.layout === 'vocal-range' ? row.items.map((track) => track.id) : [],
+        row.layout === 'vocal-range'
+          ? row.items.slice(0, 12).map((track) => track.id)
+          : [],
       );
   return new Set([
     ...options.leadingRows.flatMap(trackIdsOfRow),
@@ -164,6 +196,7 @@ export const recommendationRows = async (
 ): Promise<PersonalRecommendation> => {
   const { tasteRows } = deps;
   const usedTrackIds = usedRecommendationTrackIds(options);
+  const tasteSourcePools: Record<string, HomeTrack[]> = {};
   const personalTasteRows = await requirePersonalTasteRows(tasteRows).build({
     userId: options.userId,
     signals: options.signals,
@@ -172,10 +205,14 @@ export const recommendationRows = async (
     mastered: options.mastered,
     usedTrackIds,
     publicRows: options.publicRows,
+    sourcePoolsByRow: tasteSourcePools,
+    candidateSession: options.candidateSession,
   });
   const { voiceRows, discoveryRows, sourcePoolsByRow } =
     await voiceAndDiscoveryRows(deps, {
       publicRows: options.publicRows,
+      compositionCandidates: options.compositionCandidates,
+      candidateSession: options.candidateSession,
       locale: options.locale,
       taste: options.taste,
       lambda: options.lambda,
@@ -190,6 +227,8 @@ export const recommendationRows = async (
     tasteSignals: options.tasteSignals,
     mastered: options.mastered,
     usedTrackIds: finalUsedTrackIds,
+    sourcePoolsByRow: tasteSourcePools,
+    candidateSession: options.candidateSession,
     visibleTrackSlots: [
       ...options.leadingRows,
       ...personalTasteRows,
@@ -203,8 +242,57 @@ export const recommendationRows = async (
     ...(exploration ? [exploration] : []),
     ...discoveryRows,
   ];
-  return {
-    rows,
-    sourcePoolsByRow: recommendationSourcePools(rows, sourcePoolsByRow),
-  };
+  const pools = recommendationSourcePools(rows, {
+    ...sourcePoolsByRow,
+    ...tasteSourcePools,
+  });
+  Object.assign(pools, inheritedVoiceSourcePools(options, voiceRows));
+  return { rows, sourcePoolsByRow: pools };
+};
+
+const mergePersonalSourcePools = (
+  pools: Record<string, HomeTrack[]>,
+  publicCandidates: HomeCompositionCandidateRow[] = [],
+  includePublicVoice = true,
+): Record<string, HomeTrack[]> => {
+  const merged = { ...pools };
+  for (const row of publicCandidates) {
+    if (!includePublicVoice && row.layout === 'vocal-range') continue;
+    merged[row.id] = [
+      ...new Map(
+        [...(merged[row.id] ?? []), ...compositionSourceTracks(row)].map(
+          (track) => [track.id, track],
+        ),
+      ).values(),
+    ];
+  }
+  return merged;
+};
+
+const compositionSourceTracks = (
+  candidate: HomeCompositionCandidateRow,
+): HomeTrack[] => {
+  const row = toComposedHomeRow({
+    ...candidate,
+    items: candidate.items.filter((track) => track.isCompleted),
+  });
+  return row ? tracksInHomeRow(row) : [];
+};
+
+const inheritedVoiceSourcePools = (
+  options: RecommendationOptions,
+  personalVoiceRows: HomeRow[],
+): Record<string, HomeTrack[]> => {
+  if (personalVoiceRows.some((row) => row.layout === 'vocal-range')) return {};
+  return Object.fromEntries(
+    options.publicRows.flatMap((row) => {
+      if (row.layout !== 'vocal-range') return [];
+      const candidate = options.compositionCandidates?.find(
+        ({ id }) => id === row.id,
+      );
+      return [
+        [row.id, candidate ? compositionSourceTracks(candidate) : row.items],
+      ];
+    }),
+  );
 };

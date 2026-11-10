@@ -32,6 +32,7 @@ export const composeTasteTrackRow = (options: {
   taste?: PersonalTaste;
   mastered: ReadonlySet<string>;
   used: ReadonlySet<string>;
+  sourcePoolsByRow?: Record<string, HomeTrack[]>;
 }): HomeRow | undefined => {
   const candidates = options.cards
     .filter(
@@ -48,13 +49,16 @@ export const composeTasteTrackRow = (options: {
         ? tasteMatch(card.genres, artistKeyOf(card), options.taste)
         : 0,
     }));
+  candidates.sort((a, b) => b.score - a.score);
+  if (options.sourcePoolsByRow)
+    options.sourcePoolsByRow[options.id] = candidates.map(({ track }) => track);
   const [composed] = composeHomeRows(
     [
       {
         id: options.id,
         layout: 'standard' as const,
         title: options.title,
-        items: candidates.sort((a, b) => b.score - a.score),
+        items: candidates,
       },
     ],
     { minimumItems: { standard: PERSONAL_DISCOVERY_ROW_MIN_ITEMS } },

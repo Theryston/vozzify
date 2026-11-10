@@ -1,4 +1,3 @@
-import type { HomeRow } from '@vozzify/contracts';
 import { isMasteredTrack } from './home-personal.js';
 import { personalizeAlbumRows } from './home-personal-builder-albums.js';
 import { recommendationRows } from './home-personal-builder-recommendations.js';
@@ -8,9 +7,11 @@ import {
   personalBuilderScores,
   personalCompositionScores,
 } from './home-personal-builder-support.js';
+import { PersonalCandidateSession } from './home-personal-candidate-session.js';
 import { composePersonalHomeRows } from './home-personal-composition.js';
+import { personalCompositionCandidates } from './home-personal-composition-candidates.js';
 import { dailyTargetRow } from './home-personal-daily-target.js';
-import { resumeRows } from './home-personal-resume-rows.js';
+import { resumeRows, resumeTrackPools } from './home-personal-resume-rows.js';
 
 const leadingRows = async (
   deps: PersonalBuilderDependencies,
@@ -22,44 +23,29 @@ const leadingRows = async (
       .map((signal) => signal.trackId),
   );
   const resumes = resumeRows(options.signals, mastered);
+  const resumePools = resumeTrackPools(options.signals, mastered);
   const dailyTarget = await dailyTargetRow(
     deps.streaks,
     options.userId,
     options.timeZone,
   );
-  return { mastered, resumes, dailyTarget };
+  return { mastered, resumes, resumePools, dailyTarget };
 };
 
-export const buildPersonalRows = async (
+const buildPersonalRowsPass = async (
   deps: PersonalBuilderDependencies,
   options: PersonalBuilderOptions,
-): Promise<HomeRow[]> => {
-  const { tasteSignals, taste, lambda, voiceConfidence } =
-    personalBuilderScores(deps, options);
-  const publicRows = await personalizeAlbumRows({
-    publicRows: options.publicRows,
-    locale: options.locale,
-    taste,
-    lambda,
-    userRange: options.userRange,
-    voiceConfidence,
-    albumCandidates: options.albumCandidates,
-    personal: deps.personal,
-  });
-  const { mastered, resumes, dailyTarget } = await leadingRows(deps, options);
+  candidateSession: PersonalCandidateSession,
+  context: Awaited<ReturnType<typeof personalBuildContext>>,
+) => {
+  const { publicRows, mastered, resumes, dailyTarget } = context;
   const recommendation = await recommendationRows(deps, {
-    userId: options.userId,
-    publicRows,
-    locale: options.locale,
-    signals: options.signals,
-    tasteSignals,
-    taste,
-    lambda,
-    mastered,
+    ...options,
+    ...context,
+    candidateSession,
     leadingRows: [...resumes, ...options.socialRows],
-    userRange: options.userRange,
-    voiceConfidence,
   });
+  Object.assign(recommendation.sourcePoolsByRow, context.resumePools);
   const { artistKeys, tasteByTrack } = await personalCompositionScores(
     deps.personal,
     {
@@ -70,10 +56,12 @@ export const buildPersonalRows = async (
         ...recommendation.rows,
       ],
       recommendation,
-      taste,
+      candidateSession,
+      taste: context.taste,
     },
   );
-  return composePersonalHomeRows({
+  const rows = composePersonalHomeRows({
+    expandRecommendationRows: true,
     hero: recommendation.rows.find((row) => row.layout === 'hero'),
     dailyTarget,
     resumes,
@@ -88,4 +76,77 @@ export const buildPersonalRows = async (
     ),
     explorationSeed: `${options.userId}:${new Date().toISOString().slice(0, 10)}`,
   });
+  return {
+    rows,
+    compositionCandidates: personalCompositionCandidates({
+      rows,
+      sourcePoolsByRow: recommendation.sourcePoolsByRow,
+      artistKeysByTrack: artistKeys,
+      mastered,
+      tasteByTrack,
+      explorationSeed: `${options.userId}:${new Date().toISOString().slice(0, 10)}`,
+    }),
+  };
+};
+
+const personalPublicRows = (
+  deps: PersonalBuilderDependencies,
+  options: PersonalBuilderOptions,
+  scores: Pick<
+    ReturnType<typeof personalBuilderScores>,
+    'taste' | 'lambda' | 'voiceConfidence'
+  >,
+) =>
+  personalizeAlbumRows({
+    publicRows: options.publicRows,
+    locale: options.locale,
+    taste: scores.taste,
+    lambda: scores.lambda,
+    userRange: options.userRange,
+    voiceConfidence: scores.voiceConfidence,
+    albumCandidates: options.albumCandidates,
+    personal: deps.personal,
+  });
+
+const personalBuildContext = async (
+  deps: PersonalBuilderDependencies,
+  options: PersonalBuilderOptions,
+) => {
+  const { tasteSignals, taste, lambda, voiceConfidence } =
+    personalBuilderScores(deps, options);
+  const publicRows = await personalPublicRows(deps, options, {
+    taste,
+    lambda,
+    voiceConfidence,
+  });
+  const { mastered, resumes, resumePools, dailyTarget } = await leadingRows(
+    deps,
+    options,
+  );
+  return {
+    tasteSignals,
+    taste,
+    lambda,
+    voiceConfidence,
+    publicRows,
+    mastered,
+    resumes,
+    resumePools,
+    dailyTarget,
+  };
+};
+
+export const buildPersonalRows = async (
+  deps: PersonalBuilderDependencies,
+  options: PersonalBuilderOptions,
+) => {
+  const session = new PersonalCandidateSession(
+    new Set(options.publicRows.map(({ id }) => id)),
+    options.userRange,
+  );
+  const context = await personalBuildContext(deps, options);
+  let result = await buildPersonalRowsPass(deps, options, session, context);
+  while (session.needsMore(result.rows))
+    result = await buildPersonalRowsPass(deps, options, session, context);
+  return result;
 };

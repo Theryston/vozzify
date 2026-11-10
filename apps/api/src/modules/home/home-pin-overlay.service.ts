@@ -13,6 +13,7 @@ import { HomeRepository } from './home.repository.js';
 import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import { toHomeTrack } from './home-feed-builder.service.js';
 import { genreArtistKeys } from './home-genre-overlay.js';
+import { composePersonalVisitRows } from './home-personal-visit-composer.js';
 import { applyEditorialPins, type OverlayPin } from './home-pin-overlay.js';
 import { HomePublicOverlayCache } from './home-public-overlay-cache.js';
 import { composePublicVisitRows } from './home-public-visit-composer.js';
@@ -35,6 +36,7 @@ type Viewer = {
   signedIn: boolean;
   audience?: 'public' | 'personal';
   sourceVersion?: string;
+  compositionAudience?: 'public' | 'personal';
   allowSourceRefill?: boolean;
   genreArtists?: ReadonlyMap<string, readonly string[]>;
 };
@@ -127,12 +129,24 @@ export class HomePinOverlayService {
     const overlayPins =
       live.length === 0 ? [] : await this.resolvePins(live, viewer);
     if (viewer.audience === 'personal') {
-      return applyEditorialPins(
-        rows,
-        overlayPins,
-        'personal',
-        viewer.genreArtists,
-      );
+      // Public-derived private visits keep public ranking and User-specific
+      // social Rows, so they must never use the shared public overlay cache.
+      if (viewer.compositionAudience === 'public' && candidates) {
+        return composePublicVisitRows(
+          rows,
+          candidates,
+          overlayPins,
+          'personal',
+        );
+      }
+      return candidates
+        ? composePersonalVisitRows(rows, candidates, overlayPins)
+        : applyEditorialPins(
+            rows,
+            overlayPins,
+            'personal',
+            viewer.genreArtists,
+          );
     }
     return this.publicRows(rows, viewer, overlayPins, candidates);
   }

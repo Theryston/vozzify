@@ -20,13 +20,14 @@ const trackForComposer = (track: HomeCompositionCandidateTrack): HomeTrack => {
     hasVocalRange: _hasVocalRange,
     isCompleted: _isCompleted,
     sourcePosition: _sourcePosition,
+    personalTasteScore: _personalTasteScore,
     collectiveScore: _collectiveScore,
     ...homeTrack
   } = track;
   return homeTrack;
 };
 
-const toPublicRow = (
+export const toComposedHomeRow = (
   row: ReturnType<
     typeof composeHomeRows<
       HomeCompositionCandidateTrack,
@@ -82,7 +83,7 @@ const publicRowsFromCandidates = (
   expandRecommendationRows: boolean,
 ): HomeRow[] =>
   composeHomeRows(candidates, { expandRecommendationRows }).flatMap((row) => {
-    const publicRow = toPublicRow(row);
+    const publicRow = toComposedHomeRow(row);
     return publicRow ? [publicRow] : [];
   });
 

@@ -13,6 +13,7 @@ const homeCompositionCandidateTrackSchema = homeTrackSchema.extend({
   hasCover: z.boolean(),
   isCompleted: z.boolean(),
   hasVocalRange: z.boolean().optional(),
+  personalTasteScore: z.number().finite().optional(),
   collectiveScore: z.number().positive().optional(),
 });
 
@@ -23,6 +24,7 @@ const homeCompositionCandidateRowSchema = z.object({
   title: homeRowTitleSchema.optional(),
   nextOffset: z.number().int().nonnegative().optional(),
   hasMore: z.boolean().optional(),
+  personalExplorationSeed: z.string().optional(),
   items: z.array(homeCompositionCandidateTrackSchema),
 });
 

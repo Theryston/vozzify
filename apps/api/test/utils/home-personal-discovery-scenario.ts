@@ -13,6 +13,7 @@ import {
   attemptValue,
   createHomeDiscoveryFixture,
 } from './home-personal-discovery-fixtures.js';
+import { verifyPersonalFallbackItems } from './home-personal-fallback-items.js';
 
 type SignInAs = (
   username: string,
@@ -108,12 +109,12 @@ const assertSparseRows = async (
       expect(row.nextItemsCursor).toEqual(expect.any(String));
     }
   }
-  for (const row of rowsOf(sparsePages)) {
-    if (row.layout === 'standard' || row.layout === 'vocal-range') {
-      expect(row.items.length).toBeLessThanOrEqual(12);
-      expect(row.nextItemsCursor).toBeUndefined();
-    }
-  }
+  await verifyPersonalFallbackItems(
+    testApp,
+    client,
+    rowsOf(sparsePages),
+    rowsOf(publicPages),
+  );
   const required = ['genres', 'artists', 'albums', 'ranked', 'vocal-range'];
   expect(layoutsOf(publicPages)).toEqual(expect.arrayContaining(required));
   await refreshUser(userId);

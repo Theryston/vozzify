@@ -18,7 +18,6 @@ import {
 } from './home-page.js';
 import { personalSnapshotStale } from './home-personal.js';
 import { PersonalHomeStore } from './home-personal.store.js';
-import { capPersonalTrackRows } from './home-personal-public-capacity.js';
 import { PersonalHomeQueueService } from './home-personal-queue.service.js';
 import { queuePersonalHomeRefresh } from './home-personal-refresh.js';
 import { findPersonalSnapshotVersion } from './home-personal-snapshot-lookup.js';
@@ -75,7 +74,7 @@ export class HomeService {
   async preview(request: HomePinPreviewRequest): Promise<HomePreviewPage> {
     const feed = await this.feeds.storedPublicForPreview(request.locale);
     const signedIn = request.audience === 'signed-in';
-    const previewRows = signedIn ? capPersonalTrackRows(feed.rows) : feed.rows;
+    const previewRows = feed.rows;
     const rows = this.pinOverlay
       ? await this.pinOverlay.applyPreview(
           previewRows,
@@ -142,6 +141,7 @@ export class HomeService {
       locale,
       signedIn: true,
       audience: 'personal',
+      candidates: snapshot.compositionCandidates,
     });
     const visit = needsFrozenVisit(shown)
       ? await this.visits?.create(snapshot, shown, locale, userId)
@@ -170,6 +170,8 @@ export class HomeService {
           locale,
           signedIn: true,
           audience: 'personal',
+          compositionAudience: 'public',
+          candidates: allHomeCompositionCandidates(feed),
           genreArtists: genreArtistKeys(feed.genreCandidates),
         })
       : currentRows;
@@ -211,7 +213,8 @@ export class HomeService {
       locale: feedLocale,
       signedIn,
       ...(signedIn ? { audience: 'personal' as const } : {}),
-      ...(signedIn ? {} : { candidates: allHomeCompositionCandidates(feed) }),
+      ...(signedIn ? { compositionAudience: 'public' as const } : {}),
+      candidates: allHomeCompositionCandidates(feed),
       sourceVersion: feed.version,
       genreArtists: genreArtistKeys(feed.genreCandidates),
     });
@@ -244,6 +247,7 @@ export class HomeService {
         locale: snapshot.locale,
         signedIn: true,
         audience: 'personal',
+        candidates: snapshot.compositionCandidates,
       });
       return this.answer({ ...snapshot, rows: shown }, position, true, true);
     }
@@ -263,23 +267,14 @@ export class HomeService {
     rows: HomeRow[],
     options: HomePinOverlayOptions,
   ): Promise<HomeRow[]> {
-    const audience = options.audience ?? 'public';
-    const visibleRows =
-      audience === 'personal' ? capPersonalTrackRows(rows) : rows;
-    if (!this.pinOverlay) {
-      return visibleRows;
-    }
-    return this.pinOverlay.apply(
-      visibleRows,
-      {
-        locale: options.locale,
-        signedIn: options.signedIn,
-        audience,
-        sourceVersion: options.sourceVersion,
-        genreArtists: options.genreArtists,
-      },
-      options.candidates,
-    );
+    const { candidates, ...viewer } = options;
+    return this.pinOverlay
+      ? this.pinOverlay.apply(
+          rows,
+          { ...viewer, audience: options.audience ?? 'public' },
+          candidates,
+        )
+      : rows;
   }
 
   private async withSocialRows(

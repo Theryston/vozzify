@@ -1,9 +1,19 @@
-import type { HomeRow, HomeTrack } from '@vozzify/contracts';
+import type {
+  HomeRow,
+  HomeTrack,
+  HomeVocalRangeTrack,
+} from '@vozzify/contracts';
 import { homeArtistKeys } from './home-artist-keys.js';
-import { progressiveOrderItems } from './home-feed-composer.js';
+import {
+  composeHomeRows,
+  progressiveOrderItems,
+} from './home-feed-composer.js';
+import { expandPersonalRows } from './home-personal-expansion.js';
 import { spreadPersonalExploration } from './home-personal-exploration.js';
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
 import type { PersonalHomeTasteRowsService } from './home-personal-taste-rows.service.js';
+import { personalTrackCandidate } from './home-personal-track-candidate.js';
+import { HOME_MAX_ROWS } from './home-rules.js';
 
 type PersonalComposition = {
   hero: HomeRow | undefined;
@@ -17,6 +27,7 @@ type PersonalComposition = {
   tasteByTrack?: ReadonlyMap<string, number>;
   explorationPoolsByRow?: ReadonlyMap<string, readonly HomeTrack[]>;
   explorationSeed?: string;
+  expandRecommendationRows?: boolean;
 };
 
 const progressiveRows = (
@@ -69,12 +80,21 @@ const publicCategory = (row: HomeRow): boolean =>
   row.layout === 'genres' ||
   row.layout === 'ranked';
 
-const fallbackVoiceRows = (
-  publicRows: HomeRow[],
-  resumes: HomeRow[],
-  recommendations: HomeRow[],
-  masteredTrackIds: ReadonlySet<string>,
-): HomeRow[] => {
+const fallbackVoiceRows = ({
+  publicRows,
+  resumes,
+  recommendations,
+  masteredTrackIds,
+  sourcePoolsByRow,
+  artistKeysByTrack,
+}: {
+  publicRows: HomeRow[];
+  resumes: HomeRow[];
+  recommendations: HomeRow[];
+  masteredTrackIds: ReadonlySet<string>;
+  sourcePoolsByRow: ReadonlyMap<string, readonly HomeTrack[]>;
+  artistKeysByTrack: ReadonlyMap<string, string[]>;
+}): HomeRow[] => {
   if (recommendations.some((row) => row.layout === 'vocal-range')) return [];
   const usedTrackIds = new Set([
     ...resumes.flatMap(trackIdsOfRow),
@@ -82,10 +102,33 @@ const fallbackVoiceRows = (
   ]);
   return publicRows.flatMap((row) => {
     if (row.layout !== 'vocal-range') return [];
-    const items = row.items.filter(
-      (item) => !usedTrackIds.has(item.id) && !masteredTrackIds.has(item.id),
+    const candidates = [
+      ...new Map(
+        [...row.items, ...(sourcePoolsByRow.get(row.id) ?? [])].map((track) => [
+          track.id,
+          track,
+        ]),
+      ).values(),
+    ];
+    const items = candidates.filter(
+      (item): item is HomeVocalRangeTrack =>
+        item.vocalRange !== null &&
+        !usedTrackIds.has(item.id) &&
+        !masteredTrackIds.has(item.id),
     );
-    return items.length >= 6 ? [{ ...row, items }] : [];
+    const [initial] = composeHomeRows([
+      {
+        id: row.id,
+        layout: 'vocal-range' as const,
+        items: items.map((track) => ({
+          ...personalTrackCandidate(track, artistKeysByTrack),
+          track,
+        })),
+      },
+    ]);
+    return initial
+      ? [{ ...row, items: initial.items.map(({ track }) => track) }]
+      : [];
   });
 };
 
@@ -123,14 +166,26 @@ export const composePersonalHomeRows = ({
   tasteByTrack = new Map<string, number>(),
   explorationPoolsByRow = new Map<string, readonly HomeTrack[]>(),
   explorationSeed,
+  expandRecommendationRows = false,
 }: PersonalComposition): HomeRow[] => {
+  const sourcePools = new Map(explorationPoolsByRow);
+  for (const row of publicRows)
+    if (row.layout === 'vocal-range' && !sourcePools.has(row.id))
+      sourcePools.set(row.id, row.items);
+  const fallbackVoice = fallbackVoiceRows({
+    publicRows,
+    resumes,
+    recommendations,
+    masteredTrackIds,
+    sourcePoolsByRow: sourcePools,
+    artistKeysByTrack,
+  });
   const categories = [
     ...publicRows.filter(publicCategory),
-    ...fallbackVoiceRows(
-      publicRows,
-      resumes,
-      recommendations,
-      masteredTrackIds,
+    ...fallbackVoice.map((row) =>
+      expandRecommendationRows && row.layout === 'vocal-range'
+        ? { ...row, items: row.items.slice(0, 12) }
+        : row,
     ),
   ];
   const remainder = [
@@ -144,13 +199,23 @@ export const composePersonalHomeRows = ({
     [...socialRows, ...categories],
     Math.max(0, 5 - prefixLength),
   );
+  const initial = progressiveRows(
+    [...(hero ? [hero] : []), dailyTarget, ...resumes, ...prioritized],
+    artistKeysByTrack,
+  );
+  const expanded = expandRecommendationRows
+    ? expandPersonalRows({
+        rows: initial.slice(0, HOME_MAX_ROWS),
+        sourcePoolsByRow: sourcePools,
+        artistKeysByTrack,
+        masteredTrackIds,
+        reservedTrackIds: reservedChartTrackIds(publicRows),
+      })
+    : initial;
   return spreadPersonalExploration({
-    rows: progressiveRows(
-      [...(hero ? [hero] : []), dailyTarget, ...resumes, ...prioritized],
-      artistKeysByTrack,
-    ),
+    rows: expanded,
     tasteByTrack,
-    sourcePoolsByRow: explorationPoolsByRow,
+    sourcePoolsByRow: sourcePools,
     masteredTrackIds,
     reservedTrackIds: reservedChartTrackIds(publicRows),
     artistKeysByTrack,

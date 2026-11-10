@@ -197,12 +197,16 @@ export class PersonalHomeTasteRepository {
   async findTracksOutsideGenres(
     genres: string[],
     limit: number,
+    offset = 0,
+    excludedTrackIds: string[] = [],
   ): Promise<PersonalTrackCandidate[]> {
     if (genres.length === 0) return [];
     return this.trackCandidates({
       filter: not(arrayOverlaps(tracks.genres, genres)),
       order: 'popular',
       limit,
+      offset,
+      excludedTrackIds,
     });
   }
 

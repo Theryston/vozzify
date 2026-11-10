@@ -51,6 +51,7 @@ export const buildPersonalVoiceAndDiscoveryRows = (options: {
     userRange,
     voiceConfidence,
   });
+  const sourcePoolsByRow: Record<string, HomeTrack[]> = {};
   const voiceRows = userRange
     ? buildPersonalVoiceRows({
         rows: publicRows,
@@ -59,6 +60,7 @@ export const buildPersonalVoiceAndDiscoveryRows = (options: {
         discovery,
         masteredTrackIds: mastered,
         alreadyUsedTrackIds: usedTrackIds,
+        sourcePoolsByRow,
       })
     : [];
   for (const id of personalVoiceRowTrackIds(voiceRows)) {
@@ -73,12 +75,27 @@ export const buildPersonalVoiceAndDiscoveryRows = (options: {
     alreadyUsedTrackIds: usedTrackIds,
     reservedTrackIds,
   });
-  const sourcePoolsByRow: Record<string, HomeTrack[]> = {};
-  for (const [rowId, tracks] of Object.entries(candidatesByRow ?? {})) {
-    if (tracks) sourcePoolsByRow[rowId] = tracks;
-  }
+  addDiscoverySourcePools(sourcePoolsByRow, candidatesByRow ?? {}, sorted);
   sourcePoolsByRow['recommended-for-you'] = sorted.map(
     (candidate) => candidate.track,
   );
   return { voiceRows, discoveryRows, sourcePoolsByRow };
+};
+
+const addDiscoverySourcePools = (
+  sourcePoolsByRow: Record<string, HomeTrack[]>,
+  candidatesByRow: Record<string, HomeTrack[]>,
+  sorted: ReturnType<typeof blendedDiscoveryPool>,
+) => {
+  const rankByTrack = new Map(
+    sorted.map((candidate, index) => [candidate.track.id, index]),
+  );
+  for (const [rowId, tracks] of Object.entries(candidatesByRow)) {
+    if (tracks && !sourcePoolsByRow[rowId])
+      sourcePoolsByRow[rowId] = [...tracks].sort(
+        (a, b) =>
+          (rankByTrack.get(a.id) ?? Infinity) -
+          (rankByTrack.get(b.id) ?? Infinity),
+      );
+  }
 };

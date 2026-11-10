@@ -141,7 +141,9 @@ export const composeHomeRows = <
   candidates: readonly R[],
   options: {
     minimumItems?: Partial<Record<HomeLayout, number>>;
+    minimumItemsByRow?: Readonly<Record<string, number>>;
     expandRecommendationRows?: boolean;
+    preserveOrder?: boolean;
   } = {},
 ): (R & { items: T[] })[] => {
   const rankedTrackIds = reserveRankedTracks(candidates);
@@ -151,6 +153,7 @@ export const composeHomeRows = <
   const expansionContexts: {
     candidate: R;
     exposures: Map<string, number>;
+    preserveOrder?: boolean;
   }[] = [];
   for (const candidate of candidates.filter((row) => row.genre === undefined)) {
     const composed = composeInitialRow<T, R>({
@@ -174,6 +177,7 @@ export const composeHomeRows = <
       expansionContexts.push({
         candidate,
         exposures: priorExposures,
+        preserveOrder: options.preserveOrder,
       });
     }
   }
@@ -208,7 +212,9 @@ const composeInitialRow = <
   reserved: ReadonlySet<string>;
   options: {
     minimumItems?: Partial<Record<HomeLayout, number>>;
+    minimumItemsByRow?: Readonly<Record<string, number>>;
     expandRecommendationRows?: boolean;
+    preserveOrder?: boolean;
   };
 }):
   | { row: R & { items: T[] }; priorExposures: Map<string, number> }
@@ -217,9 +223,10 @@ const composeInitialRow = <
   const rule = HOME_ROW_RULES[candidate.layout];
   const exception = bypassesArtistCap(candidate);
   const priorExposures = new Map(exposures);
-  const rankedCandidates = exception
-    ? candidate.items
-    : reweightByExposure(candidate.items, exposures);
+  const rankedCandidates =
+    exception || options.preserveOrder
+      ? candidate.items
+      : reweightByExposure(candidate.items, exposures);
   const limit =
     options.expandRecommendationRows && isTrackCarousel(candidate.layout)
       ? HOME_TRACK_PAGE_SIZE
@@ -232,49 +239,84 @@ const composeInitialRow = <
     bypassArtistCap: exception,
     overlapsExisting: candidate.layout === 'ranked',
     overlapsReserved:
-      candidate.layout === 'ranked' || candidate.layout === 'hero',
+      bypassesArtistCap(candidate) || candidate.layout === 'hero',
     limit,
     batchOffset: 0,
   });
-  if (items.length < minimumRowItems(candidate, options.minimumItems)) {
+  if (
+    items.length <
+    (options.minimumItemsByRow?.[candidate.id] ??
+      minimumRowItems(candidate, options.minimumItems))
+  ) {
     return undefined;
   }
   return { row: { ...candidate, items }, priorExposures };
 };
 
+const expansionExposures = (
+  genre: string | undefined,
+  exposures: ReadonlyMap<string, number>,
+  priorExpansionExposures: ReadonlyMap<string, number>,
+): Map<string, number> => {
+  const currentExposures = new Map(exposures);
+  for (const [artistKey, count] of priorExpansionExposures) {
+    currentExposures.set(
+      artistKey,
+      (currentExposures.get(artistKey) ?? 0) + count,
+    );
+  }
+  if (genre !== undefined) currentExposures.clear();
+  return currentExposures;
+};
+
 const expandRows = <T extends ComposableTrack, R extends RowCandidate<T>>(
   rows: (R & { items: T[] })[],
-  contexts: { candidate: R; exposures: Map<string, number> }[],
+  contexts: {
+    candidate: R;
+    exposures: Map<string, number>;
+    preserveOrder?: boolean;
+  }[],
   used: Set<string>,
   reserved: Set<string>,
 ): void => {
   const priorExpansionExposures = new Map<string, number>();
-  for (const { candidate, exposures } of contexts) {
+  const protectedInitial = new Set(
+    rows
+      .filter((row) => row.layout !== 'ranked')
+      .flatMap((row) => row.items.map(({ id }) => id)),
+  );
+  for (const { candidate, exposures, preserveOrder } of contexts) {
     const row = rows.find((entry) => entry.id === candidate.id);
     if (!row || row.items.length >= HOME_ROW_RULES[candidate.layout].maxItems) {
       continue;
     }
     const ownIds = new Set(row.items.map((item) => item.id));
     const otherUsed = new Set([...used].filter((id) => !ownIds.has(id)));
-    const currentExposures = new Map(exposures);
-    for (const [artistKey, count] of priorExpansionExposures) {
-      currentExposures.set(
-        artistKey,
-        (currentExposures.get(artistKey) ?? 0) + count,
-      );
-    }
-    if (candidate.genre !== undefined) currentExposures.clear();
+    const currentExposures = expansionExposures(
+      candidate.genre,
+      exposures,
+      priorExpansionExposures,
+    );
     const additions = pickRowItems({
-      candidates: reweightByExposure(
-        candidate.items.filter((item) => !ownIds.has(item.id)),
-        currentExposures,
-      ),
+      candidates:
+        bypassesArtistCap(candidate) || preserveOrder
+          ? candidate.items.filter((item) => !ownIds.has(item.id))
+          : reweightByExposure(
+              candidate.items.filter((item) => !ownIds.has(item.id)),
+              currentExposures,
+            ),
       rule: HOME_ROW_RULES[candidate.layout],
-      used: otherUsed,
+      used: bypassesArtistCap(candidate)
+        ? new Set(
+            [...otherUsed].filter(
+              (id) => !reserved.has(id) || protectedInitial.has(id),
+            ),
+          )
+        : otherUsed,
       reserved,
-      bypassArtistCap: false,
+      bypassArtistCap: bypassesArtistCap(candidate),
       overlapsExisting: false,
-      overlapsReserved: false,
+      overlapsReserved: bypassesArtistCap(candidate),
       limit: HOME_ROW_RULES[candidate.layout].maxItems - row.items.length,
       batchOffset: row.items.length,
       startingItems: row.items,

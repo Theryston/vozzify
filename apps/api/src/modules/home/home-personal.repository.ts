@@ -243,9 +243,15 @@ export class PersonalHomeRepository {
   async findTracksOutsideGenres(
     genres: string[],
     limit: number,
+    offset = 0,
+    excludedTrackIds: string[] = [],
   ): Promise<PersonalTrackCandidate[]> {
-    if (genres.length === 0) return [];
-    return this.tasteRepository.findTracksOutsideGenres(genres, limit);
+    return this.tasteRepository.findTracksOutsideGenres(
+      genres,
+      limit,
+      offset,
+      excludedTrackIds,
+    );
   }
 
   findPopularTasteCandidates(
