@@ -236,12 +236,16 @@ test.describe('home discovery rows', () => {
 
     await setHomeMock({ feeds: { en: buildFeed('new') } });
     await revalidateHome();
-    const scrollRight = row.getByRole('button', {
-      name: messages.en.home.carousel.scrollRight,
+    const expiredItems = page.waitForResponse(
+      (response) =>
+        response.url().includes('/v1/home/rows/rolling-carousel/items') &&
+        response.status() === 404,
+    );
+    await row.locator('ul').evaluate((element) => {
+      element.scrollLeft = element.scrollWidth;
+      element.dispatchEvent(new Event('scroll'));
     });
-    await scrollRight.click();
-    await scrollRight.click();
-    await scrollRight.click();
+    await expiredItems;
     await expect.poll(() => itemResponses).toContain(404);
     const refreshedRow = page.locator('[data-home-row-id="rolling-carousel"]');
     await expect(
