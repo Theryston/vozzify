@@ -35,6 +35,7 @@ type Viewer = {
   signedIn: boolean;
   audience?: 'public' | 'personal';
   sourceVersion?: string;
+  compositionAudience?: 'public' | 'personal';
   allowSourceRefill?: boolean;
 };
 
@@ -121,7 +122,11 @@ export class HomePinOverlayService {
     const overlayPins =
       live.length === 0 ? [] : await this.resolvePins(live, viewer);
     if (viewer.audience === 'personal') {
-      return composePersonalVisitRows(rows, candidates, overlayPins);
+      // A cold private visit inherits public ranking, but may contain per-User
+      // social Rows. Compose locally rather than sharing a public overlay.
+      return viewer.compositionAudience === 'public'
+        ? composePublicVisitRows(rows, candidates, overlayPins, 'personal')
+        : composePersonalVisitRows(rows, candidates, overlayPins);
     }
     return this.publicRows(rows, viewer, overlayPins, candidates);
   }

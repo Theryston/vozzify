@@ -177,6 +177,8 @@ export class HomeService {
           locale,
           signedIn: true,
           audience: 'personal',
+          compositionAudience: 'public',
+          candidates: feed.compositionCandidates,
         })
       : currentRows;
     const personalFeed = { ...feed, audience: 'personal' as const };
@@ -217,7 +219,8 @@ export class HomeService {
       locale: feedLocale,
       signedIn,
       ...(signedIn ? { audience: 'personal' as const } : {}),
-      ...(signedIn ? {} : { candidates: feed.compositionCandidates }),
+      ...(signedIn ? { compositionAudience: 'public' as const } : {}),
+      candidates: feed.compositionCandidates,
       sourceVersion: feed.version,
     });
     return this.answer({ ...feed, rows: shown }, position, true, signedIn);
@@ -269,21 +272,14 @@ export class HomeService {
     rows: HomeRow[],
     options: HomePinOverlayOptions,
   ): Promise<HomeRow[]> {
-    const audience = options.audience ?? 'public';
-    const visibleRows = rows;
-    if (!this.pinOverlay) {
-      return visibleRows;
-    }
-    return this.pinOverlay.apply(
-      visibleRows,
-      {
-        locale: options.locale,
-        signedIn: options.signedIn,
-        audience,
-        sourceVersion: options.sourceVersion,
-      },
-      options.candidates,
-    );
+    const { candidates, ...viewer } = options;
+    return this.pinOverlay
+      ? this.pinOverlay.apply(
+          rows,
+          { ...viewer, audience: options.audience ?? 'public' },
+          candidates,
+        )
+      : rows;
   }
 
   private async withSocialRows(
