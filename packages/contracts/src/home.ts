@@ -73,8 +73,7 @@ export const homeHeroSchema = z.object({
 export type HomeHero = z.infer<typeof homeHeroSchema>;
 
 export const HOME_CAROUSEL_MAX_ITEMS = 24;
-
-/** Complete carousel size in the admin preview, independent of pin limits. */
+/** Private Home previews retain complete Rows before public item paging. */
 export const HOME_PREVIEW_MAX_CAROUSEL_ITEMS = 48;
 
 /** A weekly Top 10: at most ten Tracks, shown with big rank numbers. */

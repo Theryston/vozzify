@@ -128,7 +128,12 @@ export class HomeVisitService {
       const rows = this.pins
         ? await this.pins.apply(
             feed.rows,
-            { locale, signedIn: false, sourceVersion: feed.version },
+            {
+              locale,
+              signedIn: false,
+              sourceVersion: feed.version,
+              allowSourceRefill: false,
+            },
             feed.compositionCandidates,
           )
         : feed.rows;

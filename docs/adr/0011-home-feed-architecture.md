@@ -192,3 +192,10 @@ different overlay. Only a new cold signature performs bounded source reads;
 normal visits share its frozen result, and horizontal item pages never reload
 recommendation candidates. This extends the existing read-time Pin overlay
 rather than moving ordinary public generation onto each visitor's request.
+
+Cursor recovery is read-only for recommendation sources in both axes. If a
+visit entry has disappeared, recovery may reuse its warm shared overlay or
+recompose only the stored candidate pool. It never refills sources or writes
+that partial reconstruction into the shared overlay cache. Recovery succeeds
+only when the reconstructed visit hash exactly matches the cursor; otherwise
+the existing `FEED_VERSION_EXPIRED` response asks the client to restart.

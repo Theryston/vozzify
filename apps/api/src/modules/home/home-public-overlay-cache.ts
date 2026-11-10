@@ -49,6 +49,10 @@ export class HomePublicOverlayCache {
 
   constructor(private readonly cache: CacheService) {}
 
+  read(input: PublicOverlayInput): Promise<HomeRow[] | undefined> {
+    return this.cache.get(overlayKey(input), rowsSchema);
+  }
+
   async resolve(
     input: PublicOverlayInput,
     build: () => Promise<HomeRow[]>,

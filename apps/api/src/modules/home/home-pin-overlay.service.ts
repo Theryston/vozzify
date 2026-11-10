@@ -14,6 +14,7 @@ import type { HomeCompositionCandidateRow } from './home-composition-candidates.
 import { toHomeTrack } from './home-feed-builder.service.js';
 import { applyEditorialPins, type OverlayPin } from './home-pin-overlay.js';
 import { HomePublicOverlayCache } from './home-public-overlay-cache.js';
+import { composePublicVisitRows } from './home-public-visit-composer.js';
 import { composePublicVisitRowsWithRefill } from './home-public-visit-refill.js';
 import {
   HOME_ROW_SOURCES,
@@ -33,6 +34,7 @@ type Viewer = {
   signedIn: boolean;
   audience?: 'public' | 'personal';
   sourceVersion?: string;
+  allowSourceRefill?: boolean;
 };
 
 export type HomePinOverlayOptions = Viewer & {
@@ -120,25 +122,38 @@ export class HomePinOverlayService {
     if (viewer.audience === 'personal') {
       return applyEditorialPins(rows, overlayPins, 'personal');
     }
+    return this.publicRows(rows, viewer, overlayPins, candidates);
+  }
+
+  private async publicRows(
+    rows: HomeRow[],
+    viewer: Viewer,
+    pins: OverlayPin[],
+    candidates?: HomeCompositionCandidateRow[],
+  ): Promise<HomeRow[]> {
+    const input = {
+      rows,
+      candidates,
+      pins,
+      locale: viewer.locale,
+      sourceVersion: viewer.sourceVersion,
+    };
+    if (viewer.allowSourceRefill === false) {
+      return (
+        (await this.publicOverlays?.read(input)) ??
+        composePublicVisitRows(rows, candidates, pins)
+      );
+    }
     const compose = () =>
       composePublicVisitRowsWithRefill({
         rows,
         candidateRows: candidates,
-        pins: overlayPins,
+        pins,
         sources: this.sources ?? [],
         locale: viewer.locale,
       });
     return this.publicOverlays && candidates
-      ? this.publicOverlays.resolve(
-          {
-            rows,
-            candidates,
-            pins: overlayPins,
-            locale: viewer.locale,
-            sourceVersion: viewer.sourceVersion,
-          },
-          compose,
-        )
+      ? this.publicOverlays.resolve(input, compose)
       : compose();
   }
 
