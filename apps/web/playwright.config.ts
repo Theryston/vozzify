@@ -10,7 +10,7 @@ const isCI = Boolean(process.env.CI);
 // The streak specs sing into the fake microphone too, so they run there.
 const micSpec = /(track-mic|track-streak|streak-toast-clearance)\.spec\.ts$/;
 const sharedHomeSpecs =
-  /home(?:-discovery|-ranked|-hero|-composition|-circular(?:-touch)?)?\.spec\.ts$/;
+  /home(?:-discovery|-ranked|-hero|-composition)?\.spec\.ts$/;
 const realSearchSpecs = /[/\\]real-search[/\\]/;
 // Escape hatch for machines with a preinstalled Chromium that doesn't match
 // this Playwright version (and can't download one). CI leaves it unset and
@@ -21,6 +21,7 @@ const launchOptions = {
 const fakeVoice = fileURLToPath(
   new URL('./e2e/fixtures/a4-440hz.wav', import.meta.url),
 );
+const circularHomeSpecs = /home-circular(?:-touch)?\.spec\.ts$/;
 
 /**
  * E2E tests run against a production build (`next start`), so they see the
@@ -48,12 +49,17 @@ export default defineConfig({
       name: 'chromium',
       // The mic specs get their own project below: a fake microphone that is
       // granted without a prompt must not reach any other spec.
-      testIgnore: [micSpec, sharedHomeSpecs, realSearchSpecs],
+      testIgnore: [
+        micSpec,
+        sharedHomeSpecs,
+        circularHomeSpecs,
+        realSearchSpecs,
+      ],
       use: { ...devices['Desktop Chrome'], launchOptions },
     },
     {
       name: 'chromium-home',
-      testMatch: sharedHomeSpecs,
+      testMatch: [sharedHomeSpecs, circularHomeSpecs],
       // These files mutate the same fake feed and Next cache tags across files.
       workers: 1,
       use: { ...devices['Desktop Chrome'], launchOptions },

@@ -144,6 +144,21 @@ regular refresh jobs.
   not part of this slice. The 404 with a reason keeps the envelope and the
   translations as they are. Adding the code later is additive.
 
+## Circular Track presentation
+
+The web enables circular presentation only when the horizontal query reports
+no next page. While pages remain or a request has failed, the row stays finite;
+near-end loading and its retry state continue to control progression. An
+exhausted row that overflows renders three fixed copies of its loaded items,
+starts in the middle copy and recenters by one copy-width at either edge. The
+copies before and after the middle are `aria-hidden` and removed from the tab
+order. They keep the original Track IDs and positions, so clicks and the
+currently visible card impressions retain the same logical attribution while
+only one copy is visible for each item at a time. This keeps the DOM bounded
+through repeated revolutions and reuses the already loaded visit contents. A
+row with no overflow keeps its existing single rendering and has no loop. See
+`DESIGN.md` for the visual behavior.
+
 ## Horizontal Track Row pages
 
 The visit snapshot retains the complete membership of each standard and
@@ -174,18 +189,3 @@ Horizontal and vertical cursors share the frozen visit version. If that visit
 expires, the client restarts both axes from a fresh first page. An item request
 failure by itself retains loaded cards and remains retryable; only the explicit
 `FEED_VERSION_EXPIRED` reason triggers the coordinated restart.
-
-## Circular Track presentation
-
-The web enables circular presentation only when the horizontal query reports
-no next page. While pages remain or a request has failed, the row stays finite;
-near-end loading and its retry state continue to control progression. An
-exhausted row that overflows renders three fixed copies of its loaded items,
-starts in the middle copy and recenters by one copy-width at either edge. The
-copies before and after the middle are `aria-hidden` and removed from the tab
-order. They keep the original Track IDs and positions, so clicks and the
-currently visible card impressions retain the same logical attribution while
-only one copy is visible for each item at a time. This keeps the DOM bounded
-through repeated revolutions and reuses the already loaded visit contents. A
-row with no overflow keeps its existing single rendering and has no loop. See
-`DESIGN.md` for the visual behavior.
