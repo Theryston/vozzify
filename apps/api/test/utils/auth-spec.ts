@@ -28,7 +28,7 @@ const ready = <T>(value: T | undefined, name: string): T => {
  * merged over the app's env (e.g. to enable Google sign-in).
  */
 export const useAuthSpec = (
-  options: Pick<CreateTestAppOptions, 'env'> = {},
+  options: Pick<CreateTestAppOptions, 'env' | 'override'> = {},
 ): AuthSpec => {
   let testApp: TestApp | undefined;
   let client: AuthClient | undefined;

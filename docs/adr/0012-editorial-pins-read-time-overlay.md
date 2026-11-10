@@ -50,9 +50,14 @@ retention covers that bound.
 - A pin is a `hero` (the hero slot) or a `row` (a standard row). Its source
   is an ordered list of Tracks, or a genre, artist or album reference: a
   genre or artist pin fills itself with the best Tracks by trending score, an
-  album pin follows the album order. The dynamic sources are resolved when the
-  feed is read (with the same eligibility rules), so a newly processed Track
-  shows without an edit of the pin.
+  album pin follows the album order. A Track Row source can contain up to 48
+  Tracks; dynamic sources resolve up to the same capacity when the feed is read
+  (with the same eligibility rules), so a newly processed Track shows without
+  an edit of the pin.
+- This capacity is persisted in `editorial_pin_tracks` and in history states.
+  A rollback after a 48-Track Pin is saved must retain a reader that accepts 48
+  Track IDs, even if the admin writer is rolled back to a lower limit. Deploying
+  a pre-capacity reader against those records is not compatible.
 - It has a position (row 0 is the hero slot), a priority, an audience
   (`everyone`, or `visitors` for visitors who are not signed in), an optional
   locale, an optional start and end (no start: live at once; no end:
@@ -115,9 +120,9 @@ anything, because the stored feed holds no pin. A stale job (for a time since
 changed) only revalidates, which is harmless, so no job is removed on an edit.
 
 **Horizontal continuations retain the Pin's visible promise.** A long pinned
-Row is stored in the visit snapshot and exposed twelve Tracks at a time. Every
-item continuation rechecks that Pin's live eligibility, ordered membership
-and sponsored state. If any of those change, it returns
+Row can hold up to 48 Tracks in its visit snapshot and is exposed twelve Tracks
+at a time. Every item continuation rechecks that Pin's live eligibility,
+ordered membership and sponsored state. If any of those change, it returns
 `FEED_VERSION_EXPIRED`; the client restarts the full Home visit so the first
 page can show the current Pin and its sponsorship notice. This is necessary
 because an item page carries Tracks, not a replacement row header. See ADR

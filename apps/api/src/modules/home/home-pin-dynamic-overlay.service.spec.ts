@@ -105,7 +105,7 @@ describe('HomePinOverlayService dynamic sources', () => {
 
     expect(pins.findSourceTrackIds).toHaveBeenCalledWith(
       { type: 'genre', genre: 'rock' },
-      { requireCover: false, limit: 24 },
+      { requireCover: false, limit: 48 },
     );
     expect(repository.findCompletedTracksByIds).toHaveBeenCalledWith([
       'g1',
@@ -178,12 +178,31 @@ describe('HomePinOverlayService dynamic sources', () => {
 
     expect(pins.findSourceTrackIds).toHaveBeenCalledWith(
       { type: 'genre', genre: 'rock' },
-      { requireCover: true, limit: 24 },
+      { requireCover: true, limit: 48 },
     );
     expect(rows[0]).toMatchObject({
       id: 'pin-pin-1',
       layout: 'hero',
       track: expect.objectContaining({ id: 'g1' }),
     });
+  });
+
+  it('resolves a dynamic row pin with up to 48 eligible Tracks', async () => {
+    const trackIds = Array.from({ length: 48 }, (_, index) => `track-${index}`);
+    pins.findLivePins.mockResolvedValue([livePin()]);
+    pins.findSourceTrackIds.mockResolvedValue(trackIds);
+    repository.findCompletedTracksByIds.mockResolvedValue(trackIds.map(record));
+
+    const rows = await service.apply(feedRows(), {
+      locale: 'en',
+      signedIn: false,
+    });
+
+    expect(rows[1]?.layout).toBe('standard');
+    if (rows[1]?.layout !== 'standard') {
+      throw new Error('The dynamic Pin did not produce a standard Row');
+    }
+    expect(rows[1].items).toHaveLength(48);
+    expect(rows[1].items.map(({ id }) => id)).toEqual(trackIds);
   });
 });

@@ -48,7 +48,7 @@ export type EditorialPinHistoryAction = z.infer<
 /** The position of the hero slot: row 0 of the feed. */
 export const HERO_POSITION = 0;
 
-export const EDITORIAL_PIN_MAX_TRACKS = 24;
+export const EDITORIAL_PIN_MAX_TRACKS = 48;
 /** The last row position: a feed holds at most 24 rows (0 is the hero slot). */
 export const EDITORIAL_PIN_MAX_POSITION = 23;
 export const EDITORIAL_PIN_MAX_PRIORITY = 1000;
@@ -375,7 +375,7 @@ export type PinTrackIssueReason = z.infer<typeof pinTrackIssueReasonSchema>;
 export const pinTrackSearchQuerySchema = z
   .object({
     q: z.string().trim().min(1).max(100).optional(),
-    ids: z.string().max(2000).optional(),
+    ids: z.string().max(6400).optional(),
     kind: editorialPinKindSchema.optional(),
     limit: z.coerce
       .number()
@@ -391,6 +391,16 @@ export const pinTrackSearchQuerySchema = z
       ctx.addIssue({
         code: 'custom',
         message: 'Provide either q or ids',
+      });
+    }
+    if (
+      hasIds &&
+      (query.ids ?? '').split(',').filter((id) => id.trim().length > 0).length >
+        EDITORIAL_PIN_MAX_TRACKS
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `At most ${EDITORIAL_PIN_MAX_TRACKS} Track IDs can be summarized`,
       });
     }
   });
