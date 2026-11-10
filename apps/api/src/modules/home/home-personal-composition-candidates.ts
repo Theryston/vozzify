@@ -1,7 +1,7 @@
 import type { HomeRow, HomeTrack } from '@vozzify/contracts';
-import { homeArtistKeys } from './home-artist-keys.js';
 import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
+import { personalTrackCandidate } from './home-personal-track-candidate.js';
 import { HOME_COMPOSITION_CANDIDATE_POOL_MAX_ITEMS } from './home-rules.js';
 
 type CandidateOptions = {
@@ -9,6 +9,8 @@ type CandidateOptions = {
   sourcePoolsByRow: Record<string, HomeTrack[]>;
   artistKeysByTrack: ReadonlyMap<string, string[]>;
   mastered: ReadonlySet<string>;
+  tasteByTrack?: ReadonlyMap<string, number>;
+  explorationSeed?: string;
 };
 
 /** Retain private source order so live Pins can release displaced allocations. */
@@ -51,19 +53,19 @@ export const personalCompositionCandidates = (
       {
         id: row.id,
         layout: row.layout,
+        ...(options.explorationSeed
+          ? { personalExplorationSeed: options.explorationSeed }
+          : {}),
         ...(row.layout === 'hero' ? {} : { title: row.title }),
         items: tracks
           .slice(0, HOME_COMPOSITION_CANDIDATE_POOL_MAX_ITEMS)
-          .map((track) => ({
-            ...track,
-            artistKey: options.artistKeysByTrack.get(track.id)?.[0] ?? track.id,
-            artistKeys:
-              options.artistKeysByTrack.get(track.id) ??
-              homeArtistKeys(track.artistCredit, track.id),
-            hasCover: track.coverUrl !== null,
-            hasVocalRange: track.vocalRange !== null,
-            isCompleted: true,
-          })),
+          .map((track) =>
+            personalTrackCandidate(
+              track,
+              options.artistKeysByTrack,
+              options.tasteByTrack?.get(track.id),
+            ),
+          ),
       },
     ];
   });

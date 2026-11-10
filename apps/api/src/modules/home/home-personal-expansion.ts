@@ -3,6 +3,7 @@ import { homeArtistKeys } from './home-artist-keys.js';
 import { progressiveOrderItems } from './home-feed-composer.js';
 import { explorationSlotCount } from './home-personal-recommendations.js';
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
+import { personalTrackCandidate } from './home-personal-track-candidate.js';
 import { HOME_ROW_RULES, HOME_TRACK_ROW_MAX_ITEMS } from './home-rules.js';
 import { pickRowItems } from './home-track-row-picker.js';
 
@@ -23,12 +24,7 @@ const keysOf = (track: HomeTrack, state: ExpansionState) =>
   state.artistKeysByTrack.get(track.id) ??
   homeArtistKeys(track.artistCredit, track.id);
 const candidateOf = (track: HomeTrack, state: ExpansionState) => ({
-  id: track.id,
-  artistKey: keysOf(track, state)[0] ?? track.id,
-  artistKeys: keysOf(track, state),
-  hasCover: track.coverUrl !== null,
-  hasVocalRange: track.vocalRange !== null,
-  isCompleted: true,
+  ...personalTrackCandidate(track, state.artistKeysByTrack),
   track,
 });
 const addExposures = (tracks: readonly HomeTrack[], state: ExpansionState) => {

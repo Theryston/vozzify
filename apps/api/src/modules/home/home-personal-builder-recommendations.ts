@@ -7,6 +7,7 @@ import type {
   PersonalRecommendation,
 } from './home-personal-builder-support.js';
 import { buildPersonalVoiceAndDiscoveryRows } from './home-personal-candidate-rows.js';
+import type { PersonalCandidateSession } from './home-personal-candidate-session.js';
 import {
   buildPersonalExplorationRow,
   requirePersonalTasteRows,
@@ -23,6 +24,7 @@ import { hasSufficientLocaleEvidence } from './home-stage2-scoring.js';
 type VoiceAndDiscoveryOptions = {
   publicRows: HomeRow[];
   compositionCandidates?: HomeCompositionCandidateRow[];
+  candidateSession?: PersonalCandidateSession;
   locale: Locale;
   taste: ReturnType<typeof decayedTaste>;
   lambda: number;
@@ -36,6 +38,7 @@ type RecommendationOptions = {
   userId: string;
   publicRows: HomeRow[];
   compositionCandidates?: HomeCompositionCandidateRow[];
+  candidateSession?: PersonalCandidateSession;
   locale: Locale;
   signals: UserTrackSignal[];
   tasteSignals: TasteSignal[];
@@ -54,7 +57,12 @@ const discoveryCollectiveScores = async (
   deps: PersonalBuilderDependencies,
   locale: Locale,
   candidateIds: string[],
-) => {
+  session?: PersonalCandidateSession,
+): Promise<Map<string, number>> => {
+  if (session)
+    return session.discoveryScores(candidateIds, (ids) =>
+      discoveryCollectiveScores(deps, locale, ids),
+    );
   const since = new Date(
     Date.now() - SINGING_SIGNAL_WINDOW_DAYS * 24 * 60 * 60 * 1000,
   );
@@ -96,23 +104,30 @@ const voiceAndDiscoveryRows = async (
     excludedTrackIds: options.mastered,
     userRange: options.userRange,
     expandRecommendationRows: true,
+    candidateSession: options.candidateSession,
   });
   const sourcePools = mergePersonalSourcePools(
     candidates.byRow,
     options.compositionCandidates,
   );
   const sourceTracks = Object.values(sourcePools).flat();
-  const discovery = await deps.personal.findDiscoveryTracks([
+  const ids = [
     ...new Set([
       ...options.publicRows.flatMap(trackIdsOfRow),
       ...candidates.tracks.map((track) => track.id),
       ...sourceTracks.map((track) => track.id),
     ]),
-  ]);
+  ];
+  const discovery = await (options.candidateSession
+    ? options.candidateSession.discoveryMetadata(ids, (ids) =>
+        deps.personal.findDiscoveryTracks(ids),
+      )
+    : deps.personal.findDiscoveryTracks(ids));
   const collectiveByTrack = await discoveryCollectiveScores(
     deps,
     options.locale,
     [...discovery.keys()],
+    options.candidateSession,
   );
   const rankedDiscovery = new Map(
     [...discovery].map(([id, item]) => [
@@ -184,11 +199,13 @@ export const recommendationRows = async (
     usedTrackIds,
     publicRows: options.publicRows,
     sourcePoolsByRow: tasteSourcePools,
+    candidateSession: options.candidateSession,
   });
   const { voiceRows, discoveryRows, sourcePoolsByRow } =
     await voiceAndDiscoveryRows(deps, {
       publicRows: options.publicRows,
       compositionCandidates: options.compositionCandidates,
+      candidateSession: options.candidateSession,
       locale: options.locale,
       taste: options.taste,
       lambda: options.lambda,
@@ -204,6 +221,7 @@ export const recommendationRows = async (
     mastered: options.mastered,
     usedTrackIds: finalUsedTrackIds,
     sourcePoolsByRow: tasteSourcePools,
+    candidateSession: options.candidateSession,
     visibleTrackSlots: [
       ...options.leadingRows,
       ...personalTasteRows,

@@ -1,20 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import type {
-  HomeArtist,
-  HomeArtistsRow,
   HomeRow,
   HomeRowTitle,
   HomeTrack,
   TrackVocalRange,
 } from '@vozzify/contracts';
 import { AttemptsService } from '../attempts/attempts.service.js';
-import type { MostSungArtistActivity } from '../attempts/profile-chips-ranking.js';
 import type { PersonalTaste } from './home-personal.js';
 import {
   PersonalHomeRepository,
   type UserTrackSignal,
 } from './home-personal.repository.js';
 import type { UserTasteActivity } from './home-personal.repository.types.js';
+import type { PersonalCandidateSession } from './home-personal-candidate-session.js';
 import {
   loadExplorationCandidates,
   loadGenreTasteCandidates,
@@ -23,13 +21,13 @@ import {
 import {
   decayedSignalCount,
   explorationSlotCount,
-  rankTasteArtists,
   type TasteSignal,
   tasteMatch,
   topGenres,
 } from './home-personal-recommendations.js';
 import { trackIdsOfRow } from './home-personal-resume-rows.js';
 import { PersonalHomeTasteRepository } from './home-personal-taste.repository.js';
+import { mostSungArtistsRow } from './home-personal-taste-artists.js';
 import {
   artistKeyOf,
   composeTasteTrackRow,
@@ -37,7 +35,6 @@ import {
 } from './home-personal-taste-track-rows.js';
 import {
   HOME_RECOMMENDATION_ROW_MIN_ITEMS,
-  HOME_ROW_RULES,
   HOME_TRACK_PAGE_SIZE,
 } from './home-rules.js';
 
@@ -64,6 +61,7 @@ export class PersonalHomeTasteRowsService {
       excludedTrackIds: ReadonlySet<string>;
       userRange?: TrackVocalRange | null;
       expandRecommendationRows?: boolean;
+      candidateSession?: PersonalCandidateSession;
     } = {
       excludedTrackIds: new Set(),
     },
@@ -79,6 +77,7 @@ export class PersonalHomeTasteRowsService {
         excludedTrackIds: [...options.excludedTrackIds],
         userRange: options.userRange,
         expanded: options.expandRecommendationRows,
+        candidateSession: options.candidateSession,
       });
     const byRow = {
       'trending-today': popular.map(homeTrackOf),
@@ -108,6 +107,7 @@ export class PersonalHomeTasteRowsService {
     usedTrackIds: Set<string>;
     publicRows: HomeRow[];
     sourcePoolsByRow?: Record<string, HomeTrack[]>;
+    candidateSession?: PersonalCandidateSession;
   }): Promise<HomeRow[]> {
     if (decayedSignalCount(options.tasteSignals) < MIN_TASTE_SIGNALS) {
       return [];
@@ -121,7 +121,7 @@ export class PersonalHomeTasteRowsService {
     if (genres) rows.push(genres);
     this.reserveRows([genres], options.usedTrackIds);
 
-    const artists = await this.mostSungArtistsRow(options.userId);
+    const artists = await mostSungArtistsRow(this.attempts, options.userId);
     if (artists) rows.push(artists);
     return rows;
   }
@@ -142,6 +142,7 @@ export class PersonalHomeTasteRowsService {
     mastered: ReadonlySet<string>;
     usedTrackIds: ReadonlySet<string>;
     sourcePoolsByRow?: Record<string, HomeTrack[]>;
+    candidateSession?: PersonalCandidateSession;
     visibleTrackSlots: number;
   }): Promise<HomeRow | undefined> {
     if (decayedSignalCount(options.tasteSignals) < MIN_TASTE_SIGNALS) {
@@ -156,6 +157,7 @@ export class PersonalHomeTasteRowsService {
     mastered: ReadonlySet<string>;
     usedTrackIds: ReadonlySet<string>;
     sourcePoolsByRow?: Record<string, HomeTrack[]>;
+    candidateSession?: PersonalCandidateSession;
   }): Promise<HomeRow | undefined> {
     const sources = await this.personal.findUserSungTrackSources(
       options.userId,
@@ -214,16 +216,20 @@ export class PersonalHomeTasteRowsService {
     mastered: ReadonlySet<string>;
     usedTrackIds: ReadonlySet<string>;
     sourcePoolsByRow?: Record<string, HomeTrack[]>;
+    candidateSession?: PersonalCandidateSession;
   }): Promise<HomeRow | undefined> {
     const genres = topGenres(options.taste);
     const excludedTrackIds = [
-      ...new Set([...options.mastered, ...options.usedTrackIds]),
+      ...new Set([
+        ...options.mastered,
+        ...(options.candidateSession ? [] : options.usedTrackIds),
+      ]),
     ];
     const cards = await loadGenreTasteCandidates(
       this.tasteRepository,
       genres,
       excludedTrackIds,
-      options.sourcePoolsByRow !== undefined,
+      options.candidateSession ?? options.sourcePoolsByRow !== undefined,
     );
     return composeTasteTrackRow({
       id: 'more-of-your-genres',
@@ -242,38 +248,12 @@ export class PersonalHomeTasteRowsService {
     });
   }
 
-  private async mostSungArtistsRow(
-    userId: string,
-  ): Promise<HomeRow | undefined> {
-    const activities: MostSungArtistActivity[] =
-      await this.attempts.mostSungArtistActivities(userId);
-    const artists = rankTasteArtists(
-      activities.map((activity) => ({
-        artistId: activity.artist.id,
-        name: activity.artist.name,
-        attempts: 1,
-        lastAttemptAt: activity.lastAttemptAt,
-      })),
-    ).slice(0, HOME_ROW_RULES.artists.maxItems);
-    if (artists.length < HOME_ROW_RULES.artists.minItems) return undefined;
-    return {
-      id: 'your-most-sung-artists',
-      layout: 'artists',
-      title: title('home.rows.yourMostSungArtists'),
-      items: artists.map(
-        (artist): HomeArtist => ({
-          id: artist.artistId,
-          name: artist.name,
-        }),
-      ),
-    } satisfies HomeArtistsRow;
-  }
-
   private async buildExplorationRow(options: {
     taste: PersonalTaste;
     mastered: ReadonlySet<string>;
     usedTrackIds: ReadonlySet<string>;
     sourcePoolsByRow?: Record<string, HomeTrack[]>;
+    candidateSession?: PersonalCandidateSession;
     visibleTrackSlots: number;
   }): Promise<HomeRow | undefined> {
     const slots = Math.min(
@@ -283,8 +263,12 @@ export class PersonalHomeTasteRowsService {
     if (slots < HOME_RECOMMENDATION_ROW_MIN_ITEMS) return undefined;
     const candidates = await loadExplorationCandidates(this.personal, {
       taste: options.taste,
-      excludedTrackIds: [...options.mastered, ...options.usedTrackIds],
+      excludedTrackIds: [
+        ...options.mastered,
+        ...(options.candidateSession ? [] : options.usedTrackIds),
+      ],
       expanded: options.sourcePoolsByRow !== undefined,
+      candidateSession: options.candidateSession,
     });
     const unfamiliar = candidates.filter(
       (candidate) =>

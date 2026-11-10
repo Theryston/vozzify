@@ -1,6 +1,8 @@
-import type { HomeRow } from '@vozzify/contracts';
+import type { HomeRow, HomeTrack } from '@vozzify/contracts';
 import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import { composeHomeRows } from './home-feed-composer.js';
+import { spreadPersonalExploration } from './home-personal-exploration.js';
+import { trackIdsOfRow } from './home-personal-resume-rows.js';
 import { applyEditorialPins, type OverlayPin } from './home-pin-overlay.js';
 import {
   toComposedHomeRow,
@@ -24,6 +26,7 @@ const compose = (
       minimumItems: { standard: 3 },
       minimumItemsByRow: { 'continue-singing': 1, 'sing-again': 1 },
       expandRecommendationRows: true,
+      preserveOrder: true,
     },
   ).flatMap((row) => {
     const composed = toComposedHomeRow(row);
@@ -37,24 +40,94 @@ const compose = (
   });
 };
 
+const sourcePreview = (
+  rows: HomeRow[],
+  candidates: HomeCompositionCandidateRow[],
+): HomeRow[] => {
+  const byId = new Map(
+    candidates.map((candidate) => [candidate.id, candidate]),
+  );
+  return rows.map((row) => {
+    const candidate = byId.get(row.id);
+    return candidate ? (toComposedHomeRow(candidate) ?? row) : row;
+  });
+};
+
+const personalExploration = (
+  rows: HomeRow[],
+  candidates: HomeCompositionCandidateRow[],
+  pinned: ReadonlySet<string>,
+): HomeRow[] => {
+  const pool = candidates.flatMap(({ items }) => items);
+  return spreadPersonalExploration({
+    rows,
+    tasteByTrack: new Map(
+      pool.map((track) => [track.id, track.personalTasteScore ?? 0]),
+    ),
+    sourcePoolsByRow: new Map(
+      candidates.map((row) => [
+        row.id,
+        row.items.filter((track) => !pinned.has(track.id)) as HomeTrack[],
+      ]),
+    ),
+    artistKeysByTrack: new Map(
+      pool.map((track) => [track.id, track.artistKeys ?? [track.artistKey]]),
+    ),
+    reservedTrackIds: new Set(
+      rows.filter((row) => row.layout === 'ranked').flatMap(trackIdsOfRow),
+    ),
+    masteredTrackIds: new Set(),
+    seed: candidates.find((row) => row.personalExplorationSeed)
+      ?.personalExplorationSeed,
+  });
+};
+
+const unchangedSelection = (rows: HomeRow[], placed: HomeRow[]): boolean => {
+  const algorithmic = placed.filter(({ id }) => !id.startsWith('pin-'));
+  return (
+    rows.length === algorithmic.length &&
+    rows.every(
+      (row, index) =>
+        row.id === algorithmic[index]?.id &&
+        JSON.stringify(trackIdsOfRow(row)) ===
+          JSON.stringify(trackIdsOfRow(algorithmic[index] ?? row)),
+    )
+  );
+};
+
 export const composePersonalVisitRows = (
   rows: HomeRow[],
   candidates: HomeCompositionCandidateRow[] | undefined,
   pins: readonly OverlayPin[],
 ): HomeRow[] => {
-  if (!candidates || pins.length === 0)
-    return applyEditorialPins(rows, pins, 'personal');
   const placed = applyEditorialPins(rows, pins, 'personal');
-  const pinned = new Set(
-    placed
-      .filter(({ id }) => id.startsWith('pin-'))
-      .flatMap(tracksInHomeRow)
-      .map(({ id }) => id),
-  );
-  const recomposed = compose(
-    placed.filter(({ id }) => !id.startsWith('pin-')),
-    candidates,
-    pinned,
-  );
-  return applyEditorialPins(recomposed, pins, 'personal');
+  if (!candidates || pins.length === 0 || unchangedSelection(rows, placed))
+    return placed;
+  const excludedRows = new Set<string>();
+  for (;;) {
+    const preview = applyEditorialPins(
+      sourcePreview(rows, candidates).filter(({ id }) => !excludedRows.has(id)),
+      pins,
+      'personal',
+    );
+    const pinned = new Set(
+      preview
+        .filter(({ id }) => id.startsWith('pin-'))
+        .flatMap(tracksInHomeRow)
+        .map(({ id }) => id),
+    );
+    const initialRows = preview.filter(({ id }) => !id.startsWith('pin-'));
+    const recomposed = compose(initialRows, candidates, pinned);
+    const retained = new Set(recomposed.map(({ id }) => id));
+    const rejected = initialRows.filter(({ id }) => !retained.has(id));
+    if (rejected.length > 0) {
+      for (const row of rejected) excludedRows.add(row.id);
+      continue;
+    }
+    return applyEditorialPins(
+      personalExploration(recomposed, candidates, pinned),
+      pins,
+      'personal',
+    );
+  }
 };

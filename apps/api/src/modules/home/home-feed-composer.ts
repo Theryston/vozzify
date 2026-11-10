@@ -140,6 +140,7 @@ export const composeHomeRows = <
     minimumItems?: Partial<Record<HomeLayout, number>>;
     minimumItemsByRow?: Readonly<Record<string, number>>;
     expandRecommendationRows?: boolean;
+    preserveOrder?: boolean;
   } = {},
 ): (R & { items: T[] })[] => {
   const rankedTrackIds = reserveRankedTracks(candidates);
@@ -149,6 +150,7 @@ export const composeHomeRows = <
   const expansionContexts: {
     candidate: R;
     exposures: Map<string, number>;
+    preserveOrder?: boolean;
   }[] = [];
   for (const candidate of candidates) {
     const composed = composeInitialRow<T, R>({
@@ -172,6 +174,7 @@ export const composeHomeRows = <
       expansionContexts.push({
         candidate,
         exposures: priorExposures,
+        preserveOrder: options.preserveOrder,
       });
     }
   }
@@ -196,6 +199,7 @@ const composeInitialRow = <
     minimumItems?: Partial<Record<HomeLayout, number>>;
     minimumItemsByRow?: Readonly<Record<string, number>>;
     expandRecommendationRows?: boolean;
+    preserveOrder?: boolean;
   };
 }):
   | { row: R & { items: T[] }; priorExposures: Map<string, number> }
@@ -204,9 +208,10 @@ const composeInitialRow = <
   const rule = HOME_ROW_RULES[candidate.layout];
   const exception = bypassesArtistCap(candidate);
   const priorExposures = new Map(exposures);
-  const rankedCandidates = exception
-    ? candidate.items
-    : reweightByExposure(candidate.items, exposures);
+  const rankedCandidates =
+    exception || options.preserveOrder
+      ? candidate.items
+      : reweightByExposure(candidate.items, exposures);
   const limit =
     options.expandRecommendationRows && isTrackCarousel(candidate.layout)
       ? HOME_TRACK_PAGE_SIZE
@@ -235,12 +240,16 @@ const composeInitialRow = <
 
 const expandRows = <T extends ComposableTrack, R extends RowCandidate<T>>(
   rows: (R & { items: T[] })[],
-  contexts: { candidate: R; exposures: Map<string, number> }[],
+  contexts: {
+    candidate: R;
+    exposures: Map<string, number>;
+    preserveOrder?: boolean;
+  }[],
   used: Set<string>,
   reserved: Set<string>,
 ): void => {
   const priorExpansionExposures = new Map<string, number>();
-  for (const { candidate, exposures } of contexts) {
+  for (const { candidate, exposures, preserveOrder } of contexts) {
     const row = rows.find((entry) => entry.id === candidate.id);
     if (!row || row.items.length >= HOME_ROW_RULES[candidate.layout].maxItems) {
       continue;
@@ -255,12 +264,13 @@ const expandRows = <T extends ComposableTrack, R extends RowCandidate<T>>(
       );
     }
     const additions = pickRowItems({
-      candidates: bypassesArtistCap(candidate)
-        ? candidate.items.filter((item) => !ownIds.has(item.id))
-        : reweightByExposure(
-            candidate.items.filter((item) => !ownIds.has(item.id)),
-            currentExposures,
-          ),
+      candidates:
+        bypassesArtistCap(candidate) || preserveOrder
+          ? candidate.items.filter((item) => !ownIds.has(item.id))
+          : reweightByExposure(
+              candidate.items.filter((item) => !ownIds.has(item.id)),
+              currentExposures,
+            ),
       rule: HOME_ROW_RULES[candidate.layout],
       used: otherUsed,
       reserved,

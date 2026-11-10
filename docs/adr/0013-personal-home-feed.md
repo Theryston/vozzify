@@ -146,16 +146,23 @@ their collective order and overlap exceptions.
 Source pools retain their own semantic eligibility and ordering. Personal
 refreshes reuse public background source candidates, including source-specific
 favorite candidates, and replenish taste, voice, newest, singing and exploration
-sources in 60-item queries. A source stops on exhaustion or the existing bounded
-useful-candidate budget (24 × 48); no full-catalog popularity aggregation is
-introduced in a User refresh or HTTP item request. Final progressive ordering
+sources in 60-item queries. A per-build candidate session first reads one page
+per applicable source, composes the entire feed, and advances only sources whose
+retained or still-eligible Rows need more contents. It stops when those Rows fill
+or their sources are exhausted, caching pages, Track metadata and collective
+scores across passes. The useful retained-candidate budget remains24 ×48; it is
+not treated as proof of source exhaustion. No full-catalog popularity aggregation
+is introduced in a User refresh or HTTP item request. Final progressive ordering
 and exploration preserve the two-per-credited-Artist rule within each logical
 12-item batch. Exploration swaps stay within a logical batch and substitutions
 count the target batch, rather than the complete expanded Row.
 
 New personal snapshots optionally retain ordered composition candidates using
-the existing compatible internal candidate schema. Live Pins recompose retained
-Rows against those private pools; capacity-excluded Rows release their claims,
+the compatible internal candidate schema, including optional saved taste scores
+and the daily exploration seed. Unrelated Pins preserve exact personal contents
+and order. Relevant exclusions preview source eligibility before Row admission,
+then restore final batch diversity and exploration from the saved personal
+ordering. Capacity-excluded Rows release their claims,
 while retained initial contents precede expansion. Older snapshots without this
 optional field continue through their existing overlay path. No-history public
 fallback keeps expanded contents and the established private, owner-scoped visit

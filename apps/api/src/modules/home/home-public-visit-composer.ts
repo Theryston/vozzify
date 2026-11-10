@@ -18,6 +18,7 @@ const trackForComposer = (track: HomeCompositionCandidateTrack): HomeTrack => {
     hasVocalRange: _hasVocalRange,
     isCompleted: _isCompleted,
     sourcePosition: _sourcePosition,
+    personalTasteScore: _personalTasteScore,
     ...homeTrack
   } = track;
   return homeTrack;

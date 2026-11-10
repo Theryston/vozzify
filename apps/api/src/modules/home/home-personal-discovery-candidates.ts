@@ -4,6 +4,7 @@ import { retainUsefulCompositionCandidates } from './home-composition-candidates
 import type { PersonalTaste } from './home-personal.js';
 import type { PersonalHomeRepository } from './home-personal.repository.js';
 import type { PersonalTrackCandidate } from './home-personal.repository.types.js';
+import type { PersonalCandidateSession } from './home-personal-candidate-session.js';
 import { topGenres } from './home-personal-recommendations.js';
 import { PersonalHomeTasteRepository } from './home-personal-taste.repository.js';
 import {
@@ -49,9 +50,20 @@ export const loadGenreTasteCandidates = (
   repository: PersonalHomeTasteRepository,
   genres: string[],
   excludedTrackIds: string[],
-  expanded = false,
-): Promise<PersonalTrackCandidate[]> =>
-  loadPersonalCandidateBatches(
+  expanded: boolean | PersonalCandidateSession = false,
+): Promise<PersonalTrackCandidate[]> => {
+  if (typeof expanded !== 'boolean') {
+    expanded.target('genres', 'more-of-your-genres');
+    return expanded.load('genres', (offset) =>
+      repository.findTracksForGenres(
+        genres,
+        PERSONAL_CANDIDATE_BATCH_SIZE,
+        offset,
+        excludedTrackIds,
+      ),
+    );
+  }
+  return loadPersonalCandidateBatches(
     (offset) =>
       repository.findTracksForGenres(
         genres,
@@ -61,6 +73,7 @@ export const loadGenreTasteCandidates = (
       ),
     expanded,
   );
+};
 
 type DiscoveryCandidateOptions = {
   personal: PersonalHomeRepository;
@@ -69,6 +82,7 @@ type DiscoveryCandidateOptions = {
   excludedTrackIds: string[];
   userRange?: TrackVocalRange | null;
   expanded?: boolean;
+  candidateSession?: PersonalCandidateSession;
 };
 type DiscoveryCandidatePools = {
   popular: PersonalTrackCandidate[];
@@ -84,45 +98,44 @@ export const loadPersonalDiscoveryCandidates = async (
   const { personal, tasteRepository, taste, excludedTrackIds, expanded } =
     options;
   const voice = loadVoiceCandidates(options);
+  const load = (
+    source: string,
+    read: (offset: number) => Promise<PersonalTrackCandidate[]>,
+  ) =>
+    options.candidateSession
+      ? options.candidateSession.load(source, read)
+      : loadPersonalCandidateBatches(read, expanded);
   const [popular, matched, newest, mostSung, voiceCandidates] =
     await Promise.all([
-      loadPersonalCandidateBatches(
-        (offset) =>
-          personal.findPopularTasteCandidates(
-            PERSONAL_CANDIDATE_BATCH_SIZE,
-            offset,
-            excludedTrackIds,
-          ),
-        expanded,
+      load('popular', (offset) =>
+        personal.findPopularTasteCandidates(
+          PERSONAL_CANDIDATE_BATCH_SIZE,
+          offset,
+          excludedTrackIds,
+        ),
       ),
-      loadPersonalCandidateBatches(
-        (offset) =>
-          tasteRepository.findTracksForGenres(
-            topGenres(taste),
-            PERSONAL_CANDIDATE_BATCH_SIZE,
-            offset,
-            excludedTrackIds,
-          ),
-        expanded,
+      load('genres', (offset) =>
+        tasteRepository.findTracksForGenres(
+          topGenres(taste),
+          PERSONAL_CANDIDATE_BATCH_SIZE,
+          offset,
+          excludedTrackIds,
+        ),
       ),
-      loadPersonalCandidateBatches(
-        (offset) =>
-          tasteRepository.findNewestTracks(
-            PERSONAL_CANDIDATE_BATCH_SIZE,
-            offset,
-            excludedTrackIds,
-          ),
-        expanded,
+      load('newest', (offset) =>
+        tasteRepository.findNewestTracks(
+          PERSONAL_CANDIDATE_BATCH_SIZE,
+          offset,
+          excludedTrackIds,
+        ),
       ),
-      loadPersonalCandidateBatches(
-        (offset) =>
-          tasteRepository.findMostSungTracks(
-            PERSONAL_CANDIDATE_BATCH_SIZE,
-            new Date(Date.now() - 28 * 24 * 60 * 60 * 1000),
-            offset,
-            excludedTrackIds,
-          ),
-        expanded,
+      load('singing', (offset) =>
+        tasteRepository.findMostSungTracks(
+          PERSONAL_CANDIDATE_BATCH_SIZE,
+          new Date(Date.now() - 28 * 24 * 60 * 60 * 1000),
+          offset,
+          excludedTrackIds,
+        ),
       ),
       voice,
     ]);
@@ -131,16 +144,18 @@ export const loadPersonalDiscoveryCandidates = async (
 
 const loadVoiceCandidates = (options: DiscoveryCandidateOptions) => {
   const { userRange, tasteRepository, excludedTrackIds, expanded } = options;
+  const load = (read: (offset: number) => Promise<PersonalTrackCandidate[]>) =>
+    options.candidateSession
+      ? options.candidateSession.load('voice', read)
+      : loadPersonalCandidateBatches(read, expanded);
   const voice = userRange
-    ? loadPersonalCandidateBatches(
-        (offset) =>
-          tasteRepository.findVoiceCandidates(
-            userRange,
-            PERSONAL_CANDIDATE_BATCH_SIZE,
-            offset,
-            excludedTrackIds,
-          ),
-        expanded,
+    ? load((offset) =>
+        tasteRepository.findVoiceCandidates(
+          userRange,
+          PERSONAL_CANDIDATE_BATCH_SIZE,
+          offset,
+          excludedTrackIds,
+        ),
       )
     : Promise.resolve([]);
   return voice;
@@ -152,20 +167,30 @@ export const loadExplorationCandidates = (
     taste: PersonalTaste;
     excludedTrackIds: string[];
     expanded: boolean;
+    candidateSession?: PersonalCandidateSession;
   },
 ) =>
-  options.expanded
-    ? loadPersonalCandidateBatches(
-        (offset) =>
-          personal.findTracksOutsideGenres(
-            topGenres(options.taste),
-            PERSONAL_CANDIDATE_BATCH_SIZE,
-            offset,
-            options.excludedTrackIds,
-          ),
-        true,
+  options.candidateSession
+    ? options.candidateSession.load('exploration', (offset) =>
+        personal.findTracksOutsideGenres(
+          topGenres(options.taste),
+          PERSONAL_CANDIDATE_BATCH_SIZE,
+          offset,
+          options.excludedTrackIds,
+        ),
       )
-    : personal.findTracksOutsideGenres(
-        topGenres(options.taste),
-        PERSONAL_CANDIDATE_BATCH_SIZE * PERSONAL_CANDIDATE_BATCHES,
-      );
+    : options.expanded
+      ? loadPersonalCandidateBatches(
+          (offset) =>
+            personal.findTracksOutsideGenres(
+              topGenres(options.taste),
+              PERSONAL_CANDIDATE_BATCH_SIZE,
+              offset,
+              options.excludedTrackIds,
+            ),
+          true,
+        )
+      : personal.findTracksOutsideGenres(
+          topGenres(options.taste),
+          PERSONAL_CANDIDATE_BATCH_SIZE * PERSONAL_CANDIDATE_BATCHES,
+        );

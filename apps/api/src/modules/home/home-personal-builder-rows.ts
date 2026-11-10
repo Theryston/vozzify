@@ -7,6 +7,7 @@ import {
   personalBuilderScores,
   personalCompositionScores,
 } from './home-personal-builder-support.js';
+import { PersonalCandidateSession } from './home-personal-candidate-session.js';
 import { composePersonalHomeRows } from './home-personal-composition.js';
 import { personalCompositionCandidates } from './home-personal-composition-candidates.js';
 import { dailyTargetRow } from './home-personal-daily-target.js';
@@ -30,26 +31,17 @@ const leadingRows = async (
   return { mastered, resumes, dailyTarget };
 };
 
-export const buildPersonalRows = async (
+const buildPersonalRowsPass = async (
   deps: PersonalBuilderDependencies,
   options: PersonalBuilderOptions,
+  candidateSession: PersonalCandidateSession,
+  context: Awaited<ReturnType<typeof personalBuildContext>>,
 ) => {
-  const { tasteSignals, taste, lambda, voiceConfidence } =
-    personalBuilderScores(deps, options);
-  const publicRows = await personalPublicRows(deps, options, {
-    taste,
-    lambda,
-    voiceConfidence,
-  });
-  const { mastered, resumes, dailyTarget } = await leadingRows(deps, options);
+  const { publicRows, mastered, resumes, dailyTarget } = context;
   const recommendation = await recommendationRows(deps, {
     ...options,
-    publicRows,
-    tasteSignals,
-    taste,
-    lambda,
-    mastered,
-    voiceConfidence,
+    ...context,
+    candidateSession,
     leadingRows: [...resumes, ...options.socialRows],
   });
   const { artistKeys, tasteByTrack } = await personalCompositionScores(
@@ -62,7 +54,8 @@ export const buildPersonalRows = async (
         ...recommendation.rows,
       ],
       recommendation,
-      taste,
+      candidateSession,
+      taste: context.taste,
     },
   );
   const rows = composePersonalHomeRows({
@@ -88,6 +81,8 @@ export const buildPersonalRows = async (
       sourcePoolsByRow: recommendation.sourcePoolsByRow,
       artistKeysByTrack: artistKeys,
       mastered,
+      tasteByTrack,
+      explorationSeed: `${options.userId}:${new Date().toISOString().slice(0, 10)}`,
     }),
   };
 };
@@ -110,3 +105,41 @@ const personalPublicRows = (
     albumCandidates: options.albumCandidates,
     personal: deps.personal,
   });
+
+const personalBuildContext = async (
+  deps: PersonalBuilderDependencies,
+  options: PersonalBuilderOptions,
+) => {
+  const { tasteSignals, taste, lambda, voiceConfidence } =
+    personalBuilderScores(deps, options);
+  const publicRows = await personalPublicRows(deps, options, {
+    taste,
+    lambda,
+    voiceConfidence,
+  });
+  const { mastered, resumes, dailyTarget } = await leadingRows(deps, options);
+  return {
+    tasteSignals,
+    taste,
+    lambda,
+    voiceConfidence,
+    publicRows,
+    mastered,
+    resumes,
+    dailyTarget,
+  };
+};
+
+export const buildPersonalRows = async (
+  deps: PersonalBuilderDependencies,
+  options: PersonalBuilderOptions,
+) => {
+  const session = new PersonalCandidateSession(
+    new Set(options.publicRows.map(({ id }) => id)),
+  );
+  const context = await personalBuildContext(deps, options);
+  let result = await buildPersonalRowsPass(deps, options, session, context);
+  while (session.needsMore(result.rows))
+    result = await buildPersonalRowsPass(deps, options, session, context);
+  return result;
+};

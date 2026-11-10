@@ -21,9 +21,12 @@ The earliest source overlaps the later sources heavily. Initial protection
 preserves both later Rows while each source expands to 48. The new behavior tests
 also cover a partial initial batch, collaboration credits after exploration,
 capacity-excluded Rows releasing Tracks, and live Pins removing selected Tracks
-before source-specific replenishment. A 301-Track source needs six 60-item reads,
-rather than incorrectly declaring exhaustion at the old four-page cutoff;
-source ordering is unchanged and another source cannot fill its empty pool.
+before source-specific replenishment. A301-Track source regression proves replenishment can cross the old four-page
+cutoff without changing source order or filling an empty source from another. A
+600-Track HTTP fixture proves every retained standard Row fills to48 while
+personal queries stop before source exhaustion; each source page is bounded to60
+and no offset is queried twice. Background composition caches candidate pages,
+metadata and collective scores across its demand-driven passes.
 
 The HTTP tests use real Postgres, real repositories, the real personal builder
 and the existing cache test boundary. They cover no-history public fallback,
@@ -34,8 +37,8 @@ mastery, stale-snapshot and retained-version suites remain the regression net.
 
 Additional real-application before/after measurements on a fixed 1,000-Track
 fixture accompany parent browser QA and the PR review. Baseline median over
-three background builds: public 440.68 ms / 235,965 bytes, personal 600.64 ms /
-27,354 bytes. Baseline public composition has 202 distinct Tracks in 203
+three background builds with deterministic local artwork: public195.79ms /
+234,957bytes, personal231.18ms /26,850bytes. Baseline public composition has 202 distinct Tracks in 203
 placements; personal has 104 distinct Tracks in 107 placements. These include
 permitted chart overlaps and entity layouts, unlike the pure ordinary-discovery
 comparison above. Candidate generation and serialized snapshot costs must be

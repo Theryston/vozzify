@@ -4,6 +4,7 @@ import { practiceAttempts } from '../src/database/schema/practice-attempts.js';
 import { trackFavorites } from '../src/database/schema/track-favorites.js';
 import { trackProcessings } from '../src/database/schema/track-processings.js';
 import { tracks } from '../src/database/schema/tracks.js';
+import { PersonalHomeRepository } from '../src/modules/home/home-personal.repository.js';
 import { PersonalHomeStore } from '../src/modules/home/home-personal.store.js';
 import { PersonalHomeBuilder } from '../src/modules/home/home-personal-builder.service.js';
 import { createAuthClient, signIn } from './utils/auth.js';
@@ -54,11 +55,11 @@ describe('personal carousel capacity (e2e)', () => {
     await resetDatabase(testApp.db);
   });
 
-  const seed = async () => {
+  const seed = async (count = 180) => {
     const records = await testApp.db
       .insert(tracks)
       .values(
-        Array.from({ length: 180 }, (_, index) => ({
+        Array.from({ length: count }, (_, index) => ({
           recordingMbid: testMbid(90_000 + index),
           title: `Capacity ${index}`,
           artistCredit: [{ name: `Artist ${index % 30}`, joinPhrase: '' }],
@@ -216,5 +217,33 @@ describe('personal carousel capacity (e2e)', () => {
     if (within?.layout !== 'vocal-range') throw new Error('Missing voice page');
     expect(within.items.every((track) => track.fitsVoice === true)).toBe(true);
     expect((await collectItems(client, within)).ids).toHaveLength(48);
+  });
+  it('stops bounded personal source reads when retained Rows fill before source exhaustion', async () => {
+    const { user } = await seed(600);
+    const popular = vi.spyOn(
+      testApp.app.get(PersonalHomeRepository),
+      'findPopularTasteCandidates',
+    );
+    try {
+      const feed = await refresh(user.id);
+      const discovery = feed.rows.filter((row) => row.layout === 'standard');
+      expect(discovery.length).toBeGreaterThanOrEqual(2);
+      expect(
+        discovery.every(
+          (row) => row.layout === 'standard' && row.items.length === 48,
+        ),
+      ).toBe(true);
+      expect(popular.mock.calls.length).toBeGreaterThan(0);
+      expect(
+        popular.mock.calls.every(
+          ([limit, offset = 0]) => limit === 60 && offset < 540,
+        ),
+      ).toBe(true);
+      expect(new Set(popular.mock.calls.map(([, offset]) => offset)).size).toBe(
+        popular.mock.calls.length,
+      );
+    } finally {
+      popular.mockRestore();
+    }
   });
 });
