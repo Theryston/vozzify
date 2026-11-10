@@ -1,7 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type {
   HomePinPreviewRequest,
-  HomePinPreviewResponse,
   HomeRow,
   Locale,
 } from '@vozzify/contracts';
@@ -9,7 +8,14 @@ import { AppException } from '../../common/errors/app-exception.js';
 import { allHomeCompositionCandidates } from './home-composition-candidates.js';
 import { decodeHomeCursor } from './home-cursor.js';
 import { HomeFeedService } from './home-feed.service.js';
-import { answerHomePage, type HomePage, type ServedFeed } from './home-page.js';
+import { genreArtistKeys } from './home-genre-overlay.js';
+import {
+  answerHomePage,
+  answerHomePreview,
+  type HomePage,
+  type HomePreviewPage,
+  type ServedFeed,
+} from './home-page.js';
 import { personalSnapshotStale } from './home-personal.js';
 import { PersonalHomeStore } from './home-personal.store.js';
 import { capPersonalTrackRows } from './home-personal-public-capacity.js';
@@ -28,7 +34,6 @@ import {
   HOME_PAGE_SIZE,
   PERSONAL_SNAPSHOT_STALE_AFTER_SECONDS,
   PRIVATE_HOME_CACHE_CONTROL,
-  UNCACHED_HOME_CACHE_CONTROL,
 } from './home-rules.js';
 import { HomeSocialService } from './home-social.service.js';
 import { HomeVisitService } from './home-visit.service.js';
@@ -39,10 +44,7 @@ export class HomeService {
 
   constructor(
     private readonly feeds: HomeFeedService,
-    // Optional only so the feed can be served without the pin overlay (the feed
-    // specs provide the feed service alone). HomeModule always provides it.
     @Optional() private readonly pinOverlay?: HomePinOverlayService,
-    // Optional for the same reason: only HomeModule wires the snapshots.
     @Optional() private readonly snapshots?: PersonalHomeStore,
     @Optional() private readonly refresh?: PersonalHomeQueueService,
   ) {}
@@ -70,33 +72,23 @@ export class HomeService {
       : this.personalVersionPage(userId, cursor, locale);
   }
 
-  async preview(request: HomePinPreviewRequest): Promise<{
-    page: HomePinPreviewResponse;
-    cacheable: false;
-    cacheControl: string;
-  }> {
+  async preview(request: HomePinPreviewRequest): Promise<HomePreviewPage> {
     const feed = await this.feeds.storedPublicForPreview(request.locale);
     const signedIn = request.audience === 'signed-in';
     const previewRows = signedIn ? capPersonalTrackRows(feed.rows) : feed.rows;
     const rows = this.pinOverlay
       ? await this.pinOverlay.applyPreview(
           previewRows,
-          { locale: request.locale, signedIn },
+          {
+            locale: request.locale,
+            signedIn,
+            genreArtists: genreArtistKeys(feed.genreCandidates),
+          },
           request.pin,
           request.pinId,
         )
       : previewRows;
-    return {
-      page: {
-        audience: signedIn ? 'personal' : 'public',
-        version: feed.version,
-        algorithmVersion: feed.algorithmVersion,
-        rows: await this.linkRows(rows),
-        nextCursor: null,
-      },
-      cacheable: false,
-      cacheControl: UNCACHED_HOME_CACHE_CONTROL,
-    };
+    return answerHomePreview(feed, await this.linkRows(rows), signedIn);
   }
 
   private async anonymousFirstPage(locale: Locale): Promise<HomePage> {
@@ -178,6 +170,7 @@ export class HomeService {
           locale,
           signedIn: true,
           audience: 'personal',
+          genreArtists: genreArtistKeys(feed.genreCandidates),
         })
       : currentRows;
     const personalFeed = { ...feed, audience: 'personal' as const };
@@ -220,6 +213,7 @@ export class HomeService {
       ...(signedIn ? { audience: 'personal' as const } : {}),
       ...(signedIn ? {} : { candidates: allHomeCompositionCandidates(feed) }),
       sourceVersion: feed.version,
+      genreArtists: genreArtistKeys(feed.genreCandidates),
     });
     return this.answer({ ...feed, rows: shown }, position, true, signedIn);
   }
@@ -282,6 +276,7 @@ export class HomeService {
         signedIn: options.signedIn,
         audience,
         sourceVersion: options.sourceVersion,
+        genreArtists: options.genreArtists,
       },
       options.candidates,
     );
@@ -312,7 +307,6 @@ export class HomeService {
   }
 
   private async linkRows(rows: HomeRow[]): Promise<HomeRow[]> {
-    const linker = this.feeds.withArtistLinks;
-    return linker === undefined ? rows : linker.call(this.feeds, rows);
+    return this.feeds.withArtistLinks?.(rows) ?? Promise.resolve(rows);
   }
 }

@@ -1,12 +1,15 @@
 import type { HomeRow } from '@vozzify/contracts';
+import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { trackFavorites } from '../src/database/schema/track-favorites.js';
+import { tracks } from '../src/database/schema/tracks.js';
 import { HomeFeedService } from '../src/modules/home/home-feed.service.js';
 import { PersonalHomeStore } from '../src/modules/home/home-personal.store.js';
 import { PersonalHomeBuilder } from '../src/modules/home/home-personal-builder.service.js';
 import {
   HOME_ROW_SOURCES,
   type HomeCandidate,
+  type HomeRowSource,
   toHomeCandidate,
 } from '../src/modules/home/home-row-sources.js';
 import { createAuthClient } from './utils/auth.js';
@@ -16,6 +19,7 @@ import {
   rowPinBody,
   signInPinsAdmin,
 } from './utils/editorial-pin-factories.js';
+import { testMbid } from './utils/factories.js';
 import { seedGenreTracks } from './utils/home-genre-fixtures.js';
 import {
   sharedInMemoryCache,
@@ -24,6 +28,15 @@ import {
 import { createCompletedTrack } from './utils/track-processing-factories.js';
 
 let existingCandidates: HomeCandidate[] = [];
+const existingSources: HomeRowSource[] = [
+  {
+    id: 'trending-today',
+    layout: 'standard',
+    title: { key: 'home.rows.trendingToday', params: {} },
+    loadPage: async () => ({ items: existingCandidates, hasMore: false }),
+    load: async () => existingCandidates,
+  },
+];
 
 const genreRows = (rows: HomeRow[]) =>
   rows.filter(
@@ -39,24 +52,14 @@ describe('public dynamic genre Rows (e2e)', () => {
       override: (builder) =>
         withInMemoryCache(builder)
           .overrideProvider(HOME_ROW_SOURCES)
-          .useValue([
-            {
-              id: 'trending-today',
-              layout: 'standard',
-              title: { key: 'home.rows.trendingToday', params: {} },
-              loadPage: async () => ({
-                items: existingCandidates,
-                hasMore: false,
-              }),
-              load: async () => existingCandidates,
-            },
-          ]),
+          .useValue(existingSources),
     });
   });
   afterAll(async () => testApp.close());
   beforeEach(async () => {
     sharedInMemoryCache.clear();
     existingCandidates = [];
+    existingSources.splice(1);
     await resetDatabase(testApp.db);
   });
 
@@ -266,5 +269,80 @@ describe('public dynamic genre Rows (e2e)', () => {
     expect(personal.body.audience).toBe('personal');
     expect(personal.headers['cache-control']).toBe('private, no-store');
     expect(genreRows(personal.body.rows as HomeRow[])).toEqual([]);
+  });
+
+  it('retains canonical same-name Artists across both frozen axes, regeneration and ended Pins', async () => {
+    const inserted = await seedGenreTracks(
+      testApp.db,
+      Array.from({ length: 100 }, (_, index) => ({
+        score: index < 25 ? 100 : 1,
+        artist: 'Same public name',
+        artistMbid: testMbid(index + 1000),
+      })),
+    );
+    for (let rowIndex = 0; rowIndex < 5; rowIndex += 1) {
+      existingSources.push({
+        id: `retained-source-${rowIndex}`,
+        layout: 'standard',
+        title: { key: 'home.rows.newTracks', params: {} },
+        load: async () =>
+          inserted
+            .slice(30 + rowIndex * 6, 36 + rowIndex * 6)
+            .map(toHomeCandidate),
+        loadPage: async () => ({
+          items: inserted
+            .slice(30 + rowIndex * 6, 36 + rowIndex * 6)
+            .map(toHomeCandidate),
+          hasMore: false,
+        }),
+      });
+    }
+    const client = createAuthClient(testApp);
+    await signInPinsAdmin(testApp.db, client);
+    const firstTrack = inserted[0];
+    const changedTrack = inserted[1];
+    if (!firstTrack || !changedTrack)
+      throw new Error('Missing canonical fixture');
+    const pin = await client
+      .post('/v1/admin/home-pins')
+      .send(rowPinBody([firstTrack.id]))
+      .expect(201);
+    const first = await request(testApp.app.getHttpServer())
+      .get('/v1/home')
+      .expect(200);
+    expect(first.body.nextCursor).toBeTypeOf('string');
+    const second = await request(testApp.app.getHttpServer())
+      .get(`/v1/home?cursor=${encodeURIComponent(first.body.nextCursor)}`)
+      .expect(200);
+    const [genre] = genreRows(second.body.rows as HomeRow[]);
+    if (genre?.layout !== 'standard' || !genre.nextItemsCursor)
+      throw new Error('Expected paged canonical-Artist genre');
+    expect(genre.items).toHaveLength(12);
+    expect(genre.items.map(({ id }) => id)).toEqual(
+      inserted.slice(1, 13).map(({ id }) => id),
+    );
+    await testApp.db
+      .update(tracks)
+      .set({ trendingScore: 0 })
+      .where(eq(tracks.id, changedTrack.id));
+    await testApp.app.get(HomeFeedService).refreshPublic('en');
+    await client.delete(`/v1/admin/home-pins/${pin.body.id}`).expect(204);
+    const retainedVertical = await request(testApp.app.getHttpServer())
+      .get(`/v1/home?cursor=${encodeURIComponent(first.body.nextCursor)}`)
+      .expect(200);
+    expect(genreRows(retainedVertical.body.rows as HomeRow[])).toEqual([genre]);
+    const retainedHorizontal = await request(testApp.app.getHttpServer())
+      .get(
+        `/v1/home/rows/${genre.id}/items?cursor=${encodeURIComponent(genre.nextItemsCursor)}`,
+      )
+      .expect(200);
+    expect(
+      retainedHorizontal.body.items.map((track: { id: string }) => track.id),
+    ).toEqual(inserted.slice(13, 25).map(({ id }) => id));
+    for (const track of [...genre.items, ...retainedHorizontal.body.items]) {
+      expect(track).not.toHaveProperty('artistKeys');
+      expect(track).not.toHaveProperty('collectiveScore');
+      expect(track.artistCredit[0]).not.toHaveProperty('mbid');
+    }
   });
 });

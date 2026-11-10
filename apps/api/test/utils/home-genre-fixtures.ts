@@ -7,6 +7,7 @@ type GenreSeed = {
   score: number;
   genres?: string[];
   artist?: string;
+  artistMbid?: string;
   completed?: boolean;
 };
 
@@ -22,7 +23,11 @@ export const seedGenreTracks = async (db: Database, seeds: GenreSeed[]) => {
         trendingScore: seed.score,
         genres: seed.genres ?? ['pop'],
         artistCredit: [
-          { name: seed.artist ?? `Artist ${index}`, joinPhrase: '' },
+          {
+            name: seed.artist ?? `Artist ${index}`,
+            joinPhrase: '',
+            ...(seed.artistMbid ? { mbid: seed.artistMbid } : {}),
+          },
         ],
         coverUrl: `https://cdn.example/genre-${index}.webp`,
         vocalRangeLowest: 48,

@@ -1,6 +1,7 @@
 import type { ComposableTrack } from './home-composable-track.js';
 import { allocateGenreRows } from './home-genre-rows.js';
 import {
+  HOME_MAX_ROWS,
   HOME_RECOMMENDATION_ROW_MIN_ITEMS,
   HOME_ROW_RULES,
   HOME_TRACK_PAGE_SIZE,
@@ -181,6 +182,7 @@ export const composeHomeRows = <
     genreCandidates,
     used,
     rankedTrackIds,
+    Math.max(0, HOME_MAX_ROWS - rows.length),
   );
   rows.push(...genreRows);
   for (const row of genreRows) {
@@ -261,14 +263,12 @@ const expandRows = <T extends ComposableTrack, R extends RowCandidate<T>>(
         (currentExposures.get(artistKey) ?? 0) + count,
       );
     }
+    if (candidate.genre !== undefined) currentExposures.clear();
     const additions = pickRowItems({
-      candidates:
-        candidate.genre === undefined
-          ? reweightByExposure(
-              candidate.items.filter((item) => !ownIds.has(item.id)),
-              currentExposures,
-            )
-          : candidate.items.filter((item) => !ownIds.has(item.id)),
+      candidates: reweightByExposure(
+        candidate.items.filter((item) => !ownIds.has(item.id)),
+        currentExposures,
+      ),
       rule: HOME_ROW_RULES[candidate.layout],
       used: otherUsed,
       reserved,

@@ -1,5 +1,6 @@
 import type { HomeTrack } from '@vozzify/contracts';
 import { homeArtistKeys } from './home-artist-keys.js';
+import type { HomeCompositionCandidateRow } from './home-composition-candidates.js';
 import {
   HOME_ROW_RULES,
   HOME_TRACK_PAGE_SIZE,
@@ -8,14 +9,44 @@ import {
 import { pickRowItems } from './home-track-row-picker.js';
 
 /** Legacy snapshots and public fallback also requalify after live exclusions. */
-export const genreOverlayItems = (tracks: HomeTrack[]): HomeTrack[] => {
+export const genreArtistKeys = (
+  candidates: readonly HomeCompositionCandidateRow[] | undefined,
+): ReadonlyMap<string, readonly string[]> =>
+  new Map(
+    (candidates ?? [])
+      .filter((row) => row.genre !== undefined)
+      .flatMap((row) =>
+        row.items.map(
+          (track) =>
+            [
+              track.id,
+              track.artistCredit.length === 0
+                ? []
+                : (track.artistKeys ?? [track.artistKey]),
+            ] as const,
+        ),
+      ),
+  );
+
+export const genreOverlayItems = (
+  tracks: HomeTrack[],
+  artistKeysByTrack?: ReadonlyMap<string, readonly string[]>,
+): HomeTrack[] => {
   const candidates = tracks.map((track) => ({
     ...track,
     artistKey: track.artistCredit[0]?.name ?? track.id,
-    artistKeys:
-      track.artistCredit.length === 0
-        ? []
-        : homeArtistKeys(track.artistCredit, track.id),
+    artistKeys: [
+      ...(artistKeysByTrack?.get(track.id) ??
+        (track.artistCredit.length === 0
+          ? []
+          : homeArtistKeys(
+              track.artistCredit.map((credit) => ({
+                ...credit,
+                mbid: credit.artistId ?? undefined,
+              })),
+              track.id,
+            ))),
+    ],
     hasCover: track.coverUrl !== null,
     isCompleted: true,
   }));

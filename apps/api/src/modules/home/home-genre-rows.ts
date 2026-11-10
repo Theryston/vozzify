@@ -63,10 +63,11 @@ export const allocateGenreRows = <
   candidates: readonly R[],
   used: Set<string>,
   reserved: ReadonlySet<string>,
+  availableRows: number,
 ): (R & { items: T[] })[] => {
   const remaining = [...candidates];
   const rows: (R & { items: T[] })[] = [];
-  while (remaining.length > 0) {
+  while (remaining.length > 0 && rows.length < availableRows) {
     const qualified = remaining
       .flatMap((candidate) => {
         const items = provisionalGenreItems(candidate, used, reserved);

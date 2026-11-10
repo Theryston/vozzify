@@ -37,6 +37,44 @@ const genre = (
 });
 
 describe('genre composition through the Home composer', () => {
+  it('keeps canonically distinct Artists with identical public names through overlay qualification', () => {
+    const pool = tracks('homonyms', 25).map((track, index) => ({
+      ...track,
+      artistCredit: [{ name: 'Same public name', joinPhrase: '' }],
+      artistKey: `canonical-${index}`,
+      artistKeys: [`canonical-${index}`],
+    }));
+    const candidate = genre('homonyms', pool);
+    const withoutPins = composePublicVisitRows([], [candidate], []);
+    const first = withoutPins[0];
+    expect(first?.layout).toBe('standard');
+    if (first?.layout !== 'standard')
+      throw new Error('Expected genre with distinct canonical Artists');
+    expect(first.items).toHaveLength(25);
+    const pinned = pool[0];
+    if (!pinned) throw new Error('Missing homonym fixture');
+    const withPin = composePublicVisitRows(
+      withoutPins,
+      [candidate],
+      [
+        {
+          id: 'homonym',
+          kind: 'row',
+          position: 0,
+          priority: 0,
+          createdAt: 0,
+          sponsored: false,
+          title: { key: 'home.rows.pinned', params: { title: 'Pin' } },
+          tracks: [pinned],
+        },
+      ],
+    );
+    const retained = withPin.find(({ id }) => id === candidate.id);
+    if (retained?.layout !== 'standard')
+      throw new Error('Expected retained canonical-Artist genre');
+    expect(retained.items).toHaveLength(24);
+    expect(retained.items.some(({ id }) => id === pinned.id)).toBe(false);
+  });
   it('requalifies public fallback after Pins shift logical batch boundaries', () => {
     const items = tracks('shift', 25).map((track, index) => ({
       ...track,
