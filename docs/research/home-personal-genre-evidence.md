@@ -64,12 +64,12 @@ not claim that every catalog will qualify genres.
 The measurement pair resets fixture covers to null to isolate external artwork
 fetching, rebuilds both snapshots and samples five warm production-builder
 generations after boot. Baseline generation took 168.708, 98.196, 125.150, 71.741
-and 84.943 ms (median 98.196 ms). Candidate generation took 90.229, 63.532, 60.505,
-42.360 and 62.972 ms (median 62.972 ms). The table uses these rebuilt snapshots;
+and 84.943 ms (median 98.196 ms). Final candidate generation took 157.754,
+132.485, 93.284, 91.593 and 50.852 ms (median 93.284 ms). The table uses these rebuilt snapshots;
 an earlier Redis capture with external cover metadata is not mixed into this
 storage comparison. The snapshot increase is 19.38%.
 
-The five-sample ranges are 71.741–168.708 ms and 42.360–90.229 ms, respectively.
+The five-sample ranges are 71.741–168.708 ms and 50.852–157.754 ms, respectively.
 Other validation ran concurrently, so these timings are noisy regression evidence,
 not evidence of a performance improvement.
 Database/cache initialization and HTTP rendering are outside these timings;
