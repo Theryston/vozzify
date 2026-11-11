@@ -14,11 +14,13 @@ import { useEffect } from 'react';
 import { StatusBar, useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useTranslations } from 'use-intl';
+import { getMobileEnv } from '../src/lib/api/mobile-env';
 import { FontAvailabilityProvider } from '../src/lib/design/font-availability';
 import {
   MobileIntlProvider,
   type MobileLocale,
 } from '../src/lib/i18n/mobile-intl-provider';
+import { MobileQueryProvider } from '../src/lib/query/mobile-query-provider';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -46,6 +48,7 @@ type RootLayoutContentProps = {
 };
 
 export function RootLayoutContent({ locale = 'en' }: RootLayoutContentProps) {
+  getMobileEnv();
   const colorScheme = useColorScheme();
 
   return (
@@ -54,8 +57,10 @@ export function RootLayoutContent({ locale = 'en' }: RootLayoutContentProps) {
         <StatusBar
           barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
         />
-        <NavigationStack />
-        <PortalHost />
+        <MobileQueryProvider>
+          <NavigationStack />
+          <PortalHost />
+        </MobileQueryProvider>
       </MobileIntlProvider>
     </SafeAreaProvider>
   );
