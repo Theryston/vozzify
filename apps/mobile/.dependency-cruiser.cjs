@@ -5,6 +5,7 @@ module.exports = {
       severity: 'error',
       from: {},
       to: { circular: true },
+      comment: 'Circular imports are not allowed.',
     },
     {
       name: 'routes-are-leaves',
@@ -45,6 +46,5 @@ module.exports = {
     exclude: { path: '^(coverage|dist)/' },
     tsConfig: { fileName: 'tsconfig.json' },
     tsPreCompilationDeps: true,
-    enhancedResolveOptions: { exportsFields: ['exports'] },
   },
 };
