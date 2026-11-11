@@ -16,18 +16,22 @@
     "test:cov": "jest --coverage"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.107.1",
+    "@vozzify/contracts": "workspace:*",
     "expo": "~58.0.19",
-    "expo-dev-client": "~58.0.15",
-    "expo-router": "~58.0.30",
     "expo-constants": "^58.0.15",
+    "expo-dev-client": "~58.0.15",
     "expo-linking": "^58.0.16",
     "expo-modules-core": "~58.0.30",
+    "expo-network": "^58.0.4",
+    "expo-router": "~58.0.30",
     "expo-system-ui": "~58.0.6",
     "react": "19.3.0",
     "react-native": "0.88.1",
     "react-native-safe-area-context": "~5.11.1",
     "react-native-screens": "^4.30.1",
-    "use-intl": "^4.14.7"
+    "use-intl": "^4.14.7",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@babel/core": "7.29.7",
