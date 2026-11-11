@@ -1,11 +1,12 @@
 # Vozzify design system
 
-The visual language of Vozzify. It applies to the web app today and to the
-mobile app later. Tokens live in `apps/web/app/globals.css`: when you change a
-value, change this file in the same PR.
+The visual language of Vozzify. It applies to the web and native apps. Shared
+values live in `packages/design-tokens/src/tokens.json`; its web CSS and native
+theme adapters are generated from that source. Web-only tokens and DOM styling
+stay in `apps/web/app/globals.css`.
 
-This file is the source of truth: every rule needed to build UI is written
-here, with no external reference to look up.
+This file is the source of truth for visual rules. Shared values are defined
+once in the token source and projected into each platform's styling system.
 
 ## Direction
 
@@ -44,9 +45,11 @@ invert one theme to get the other: use the tokens.
 
 ## Color
 
-All values are OKLCH tokens in `globals.css`; use them through Tailwind
-(`bg-primary`, `text-muted-foreground`, …). Raw hex values in components are
-not allowed.
+Shared color values are OKLCH tokens in
+`packages/design-tokens/src/tokens.json`; use them through each platform's
+theme adapter (`bg-primary`, `text-muted-foreground`, …). The web stylesheet
+keeps web-only colors such as the note timeline and glass surfaces. Raw color
+values in components are not allowed.
 
 ### Brand
 
@@ -103,9 +106,10 @@ keep the rest quiet.
 
 ## Typography
 
-**Figtree** for everything (headings and UI), loaded with `next/font`
-(`--font-sans`). **Geist Mono** (`--font-mono`) for note names (`C#4`),
-times, vocal ranges and other data that must line up. Use
+**Figtree** for everything (headings and UI), loaded with `next/font` on web
+and Expo's font loader on native. **Geist Mono** for note names (`C#4`),
+times, vocal ranges and other data that must line up. The family intent lives
+in the shared token source; each platform registers its own font assets. Use
 `tabular-nums` on every number that changes in place (timers, counters).
 
 | Role | Tailwind | Size / line | Weight | Tracking |
@@ -171,6 +175,9 @@ Nested corners: inner radius = outer radius − padding.
 - Dialogs use the shared `DialogContent` glass surface with `text-foreground`
   over a dimmed backdrop (`bg-black/40`, `backdrop-blur-sm`). Sheets stay
   solid (`bg-popover` / `bg-card`) with `shadow-xl`.
+- The native adapter uses a translucent semantic popover fill, a token border,
+  and platform elevation for floating layers. It does not simulate web
+  `backdrop-filter` blur; native blur requires a platform-specific surface.
 - Page backgrounds are **plain** (`bg-background`). No glows, meshes, noise or
   dot grids behind content. Color comes from covers and featured blocks.
 
@@ -183,7 +190,8 @@ Shadow scale: `shadow-xs` (inputs, pressed), `shadow-sm` (cards),
 **Spacious.** Vozzify is used with one hand while singing, often on a
 phone, so targets are large and lists breathe.
 
-- 4px base grid (Tailwind's default scale). Prefer `gap-*` on flex/grid
+- 4px base grid. The shared scale and page rhythm values live in the design
+  token source. Prefer `gap-*` on flex/grid
   parents over margins.
 - Minimum touch target 40px (`h-10`); list rows are at least 56px tall with
   48px covers.

@@ -1,4 +1,4 @@
-import type { ExpoConfig } from 'expo/config';
+import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 function getApiBaseUrl(): string {
   const value = process.env.EXPO_PUBLIC_API_URL;
@@ -24,21 +24,10 @@ function getApiBaseUrl(): string {
   return url.toString().replace(/\/$/, '');
 }
 
-const apiBaseUrl = getApiBaseUrl();
-
-const config: ExpoConfig = {
-  name: 'Vozzify',
-  slug: 'vozzify',
-  scheme: 'vozzify',
-  version: '1.0.0',
-  orientation: 'portrait',
-  userInterfaceStyle: 'automatic',
-  platforms: ['ios', 'android'],
-  updates: { enabled: false },
-  ios: { bundleIdentifier: 'com.vozzify.app' },
-  android: { package: 'com.vozzify.app' },
-  plugins: ['expo-router', 'expo-system-ui'],
-  extra: { apiBaseUrl },
-};
-
-export default config;
+export default ({ config }: ConfigContext): ExpoConfig => ({
+  ...config,
+  name: config.name ?? 'Vozzify',
+  slug: config.slug ?? 'vozzify',
+  updates: { ...config.updates, enabled: false },
+  extra: { ...config.extra, apiBaseUrl: getApiBaseUrl() },
+});

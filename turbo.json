@@ -18,6 +18,9 @@
         "public/ort/**"
       ]
     },
+    "@vozzify/design-tokens#build": {
+      "outputs": ["src/*.css"]
+    },
     "lint": {},
     "check-types": {
       "dependsOn": ["^build"]

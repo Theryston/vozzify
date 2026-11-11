@@ -1,0 +1,21 @@
+{
+  "name": "@vozzify/design-tokens",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "typescript": "^6.0.2"
+  },
+  "exports": {
+    "./native.css": "./src/native.css",
+    "./tokens.css": "./src/tokens.css",
+    "./native": "./src/native.ts"
+  },
+  "scripts": {
+    "build": "node scripts/generate.mjs",
+    "test": "node --test",
+    "test:cov": "node --test",
+    "lint": "biome check . && node scripts/generate.mjs --check",
+    "check-types": "tsc --noEmit"
+  }
+}
