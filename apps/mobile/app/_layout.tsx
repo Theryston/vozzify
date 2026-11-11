@@ -9,7 +9,7 @@ function NavigationStack() {
   const translate = useTranslations('navigation');
 
   return (
-    <Stack>
+    <Stack screenOptions={{ headerBackTitle: translate('back') }}>
       <Stack.Screen name="index" options={{ title: translate('home') }} />
       <Stack.Screen
         name="components"

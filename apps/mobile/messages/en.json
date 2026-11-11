@@ -1,5 +1,6 @@
 {
   "navigation": {
+    "back": "Back",
     "home": "Home",
     "components": "Components"
   },
