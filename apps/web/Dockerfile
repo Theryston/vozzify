@@ -28,7 +28,6 @@ ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
 ENV NEXT_PUBLIC_GTM_ENABLED=${NEXT_PUBLIC_GTM_ENABLED}
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN nub --cwd packages/contracts run build \
-    && nub --cwd packages/design-tokens run build \
     && nub --cwd apps/web run build \
     && rm -rf apps/web/.next/cache
 
