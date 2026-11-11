@@ -175,6 +175,9 @@ Nested corners: inner radius = outer radius − padding.
 - Dialogs use the shared `DialogContent` glass surface with `text-foreground`
   over a dimmed backdrop (`bg-black/40`, `backdrop-blur-sm`). Sheets stay
   solid (`bg-popover` / `bg-card`) with `shadow-xl`.
+- The native adapter uses a translucent semantic popover fill, a token border,
+  and platform elevation for floating layers. It does not simulate web
+  `backdrop-filter` blur; native blur requires a platform-specific surface.
 - Page backgrounds are **plain** (`bg-background`). No glows, meshes, noise or
   dot grids behind content. Color comes from covers and featured blocks.
 

@@ -13,6 +13,8 @@
   },
   "scripts": {
     "build": "node scripts/generate.mjs",
+    "test": "node --test",
+    "test:cov": "node --test",
     "lint": "biome check . && node scripts/generate.mjs --check",
     "check-types": "tsc --noEmit"
   }

@@ -14,6 +14,7 @@ import { useEffect } from 'react';
 import { StatusBar, useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useTranslations } from 'use-intl';
+import { FontAvailabilityProvider } from '../src/lib/design/font-availability';
 import {
   MobileIntlProvider,
   type MobileLocale,
@@ -61,7 +62,7 @@ export function RootLayoutContent({ locale = 'en' }: RootLayoutContentProps) {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Figtree: Figtree_400Regular,
     'Geist Mono': GeistMono_400Regular,
     Figtree_400Regular,
@@ -73,10 +74,18 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (fontsLoaded) {
+    if (fontsLoaded || fontError) {
       void SplashScreen.hideAsync();
     }
-  }, [fontsLoaded]);
+  }, [fontError, fontsLoaded]);
 
-  return fontsLoaded ? <RootLayoutContent /> : null;
+  if (!fontsLoaded && !fontError) {
+    return null;
+  }
+
+  return (
+    <FontAvailabilityProvider available={fontsLoaded}>
+      <RootLayoutContent />
+    </FontAvailabilityProvider>
+  );
 }

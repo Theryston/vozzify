@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Text as NativeText } from 'react-native';
+import { useCustomFontsAvailable } from '../lib/design/font-availability';
 import { nativeFontFamilies } from '../lib/design/native-fonts';
 
 type TextProps = {
@@ -20,12 +21,20 @@ export function Text({
   weight,
   className,
 }: TextProps) {
+  const customFontsAvailable = useCustomFontsAvailable();
   const font = weight ?? (variant === 'heading' ? 'extrabold' : 'regular');
+  const variantClassName = customFontsAvailable
+    ? variants[variant]
+    : variants[variant].replace('font-sans ', '');
 
   return (
     <NativeText
-      className={`${variants[variant]} ${className ?? ''}`}
-      style={{ fontFamily: nativeFontFamilies[font] }}
+      className={`${variantClassName} ${className ?? ''}`}
+      style={
+        customFontsAvailable
+          ? { fontFamily: nativeFontFamilies[font] }
+          : undefined
+      }
     >
       {children}
     </NativeText>

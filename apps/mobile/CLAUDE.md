@@ -27,6 +27,10 @@ tickets. Keep native dependencies free and do not enable paid services.
 Shared colors, typography intent, radii, spacing and motion values come from
 `@vozzify/design-tokens`. Use its native adapter or semantic Uniwind classes;
 keep font registration, native system bars, elevation and layout in this app.
+If custom fonts fail to load, render with system fonts and release the splash
+screen; never keep the launch screen waiting for an optional font asset. Native
+floating layers use translucent semantic surfaces and platform elevation; the
+web glass utility's backdrop blur is not part of the native adapter.
 The web consumes the same source through its generated CSS adapter. When adding
 a customized component, follow the small source-first patterns in
 `src/components/ui`: add only the React Native Reusables primitives used by
