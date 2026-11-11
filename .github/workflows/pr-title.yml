@@ -19,9 +19,9 @@ jobs:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
           # Same pattern as the commit-msg hook in lefthook.yml.
-          if ! printf '%s\n' "$TITLE" | grep -Eq '^(Revert )|^(feat|fix|refactor|perf|test|docs|build|ci|chore|style|revert)(\((web|api|music-catalog|contracts|repo|note-detector)\))?!?: .+'; then
+          if ! printf '%s\n' "$TITLE" | grep -Eq '^(Revert )|^(feat|fix|refactor|perf|test|docs|build|ci|chore|style|revert)(\((web|mobile|api|music-catalog|contracts|repo|note-detector)\))?!?: .+'; then
             echo "::error::PR title must follow Conventional Commits: <type>(<scope>): <subject>"
             echo 'Types: feat fix refactor perf test docs build ci chore style revert'
-            echo 'Scopes: web api music-catalog contracts repo note-detector'
+            echo 'Scopes: web mobile api music-catalog contracts repo note-detector'
             exit 1
           fi

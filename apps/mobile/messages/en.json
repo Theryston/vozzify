@@ -1,0 +1,16 @@
+{
+  "navigation": {
+    "home": "Home",
+    "components": "Components"
+  },
+  "home": {
+    "title": "Welcome to Vozzify",
+    "description": "Your voice, mapped to every note.",
+    "openComponents": "Open component gallery"
+  },
+  "components": {
+    "title": "Foundation components",
+    "description": "The mobile app foundation is ready.",
+    "returnHome": "Return home"
+  }
+}

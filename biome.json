@@ -239,6 +239,39 @@
           }
         }
       }
+    },
+    {
+      "includes": ["apps/mobile/**/*.tsx"],
+      "linter": {
+        "domains": { "react": "recommended" }
+      }
+    },
+    {
+      "includes": ["apps/mobile/app/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "style": { "noDefaultExport": "off" }
+        }
+      }
+    },
+    {
+      "includes": ["apps/mobile/tests/**/*.test.tsx"],
+      "linter": {
+        "domains": { "test": "recommended" },
+        "rules": {
+          "suspicious": {
+            "noSkippedTests": "error",
+            "noFocusedTests": "error"
+          },
+          "complexity": { "noExcessiveLinesPerFunction": "off" },
+          "style": {
+            "noExcessiveLinesPerFile": {
+              "level": "error",
+              "options": { "maxLines": 500, "skipBlankLines": true }
+            }
+          }
+        }
+      }
     }
   ]
 }

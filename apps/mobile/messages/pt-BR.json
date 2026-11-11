@@ -1,0 +1,16 @@
+{
+  "navigation": {
+    "home": "Início",
+    "components": "Componentes"
+  },
+  "home": {
+    "title": "Boas-vindas ao Vozzify",
+    "description": "Sua voz, mapeada para cada nota.",
+    "openComponents": "Abrir galeria de componentes"
+  },
+  "components": {
+    "title": "Componentes da base",
+    "description": "A base do app móvel está pronta.",
+    "returnHome": "Voltar ao início"
+  }
+}
