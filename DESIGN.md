@@ -176,10 +176,10 @@ Nested corners: inner radius = outer radius − padding.
   over a dimmed backdrop (`bg-black/40`, `backdrop-blur-sm`). Sheets stay
   solid (`bg-popover` / `bg-card`) with `shadow-xl`.
 - Native dialogs use Expo BlurView for the dimmed full-screen backdrop and the
-  translucent dialog surface. Android's `BlurTargetView` wraps only the active
-  navigation content; the portal host stays outside the target so a dialog
-  never captures itself. The dialog keeps its semantic popover tint, token
-  border and platform elevation so text remains readable over the blur.
+  translucent dialog surface. Android's `BlurTargetView` wraps the active
+  `Screen`; the portal host stays outside the target so a dialog never
+  captures itself. The dialog keeps its semantic popover tint, token border
+  and platform elevation so text remains readable over the blur.
 - Page backgrounds are **plain** (`bg-background`). No glows, meshes, noise or
   dot grids behind content. Color comes from covers and featured blocks.
 

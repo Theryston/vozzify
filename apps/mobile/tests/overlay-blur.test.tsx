@@ -1,13 +1,22 @@
 import { screen, userEvent } from '@testing-library/react-native';
 import { renderRouter } from 'expo-router/testing-library';
-import { Platform } from 'react-native';
+import * as ReactNative from 'react-native';
 import { RootLayoutContent } from '../app/_layout';
 import ComponentsScreen from '../app/components';
 import HomeScreen from '../app/index';
+import { nativeBlurTint } from '../src/lib/design/native-blur-tint';
 
 describe('native dialog backdrop', () => {
+  it.each([
+    ['light', 'systemMaterialLight'],
+    ['dark', 'systemMaterialDark'],
+    [null, 'systemMaterialLight'],
+  ] as const)('uses the %s material tint', (colorScheme, expectedTint) => {
+    expect(nativeBlurTint(colorScheme)).toBe(expectedTint);
+  });
+
   it('blurs the active screen behind the dialog and preserves dismissal', async () => {
-    const platformSelect = jest.spyOn(Platform, 'select');
+    const platformSelect = jest.spyOn(ReactNative.Platform, 'select');
     platformSelect.mockImplementation((specifics) => {
       if ('android' in specifics) {
         return specifics.android;
@@ -38,7 +47,9 @@ describe('native dialog backdrop', () => {
       const surface = screen.getByTestId('overlay-surface-blur', {
         includeHiddenElements: true,
       });
-      expect(backdrop.props.blurTarget?.current).not.toBeNull();
+      expect(backdrop.props.blurTarget).toEqual(
+        expect.objectContaining({ current: expect.anything() }),
+      );
       expect(surface.props.blurTarget).toBe(backdrop.props.blurTarget);
       expect(backdrop.props.blurMethod).toBe('dimezisBlurView');
       expect(

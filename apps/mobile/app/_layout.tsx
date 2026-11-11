@@ -7,16 +7,14 @@ import {
 } from '@expo-google-fonts/figtree';
 import { GeistMono_400Regular } from '@expo-google-fonts/geist-mono';
 import { PortalHost } from '@rn-primitives/portal';
-import { BlurTargetView } from 'expo-blur';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { type ComponentRef, useEffect, useRef } from 'react';
-import { StatusBar, useColorScheme, type View } from 'react-native';
+import { useEffect } from 'react';
+import { StatusBar, useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useTranslations } from 'use-intl';
 import { FontAvailabilityProvider } from '../src/lib/design/font-availability';
-import { NativeBlurTargetProvider } from '../src/lib/design/native-blur-target';
 import {
   MobileIntlProvider,
   type MobileLocale,
@@ -49,7 +47,6 @@ type RootLayoutContentProps = {
 
 export function RootLayoutContent({ locale = 'en' }: RootLayoutContentProps) {
   const colorScheme = useColorScheme();
-  const blurTargetRef = useRef<ComponentRef<typeof View> | null>(null);
 
   return (
     <SafeAreaProvider>
@@ -57,12 +54,8 @@ export function RootLayoutContent({ locale = 'en' }: RootLayoutContentProps) {
         <StatusBar
           barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
         />
-        <NativeBlurTargetProvider targetRef={blurTargetRef}>
-          <BlurTargetView ref={blurTargetRef} style={{ flex: 1 }}>
-            <NavigationStack />
-          </BlurTargetView>
-          <PortalHost />
-        </NativeBlurTargetProvider>
+        <NavigationStack />
+        <PortalHost />
       </MobileIntlProvider>
     </SafeAreaProvider>
   );
