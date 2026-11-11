@@ -1,6 +1,7 @@
 import * as Dialog from '@rn-primitives/dialog';
 import type { ReactNode } from 'react';
 import { Platform } from 'react-native';
+import { useCustomFontsAvailable } from '../../lib/design/font-availability';
 import { nativeFontFamilies } from '../../lib/design/native-fonts';
 import { Text } from '../text';
 import { Button } from './button';
@@ -30,6 +31,8 @@ export function Overlay({
   dismissLabel,
   children,
 }: OverlayProps) {
+  const customFontsAvailable = useCustomFontsAvailable();
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -39,8 +42,12 @@ export function Overlay({
           style={elevation}
         >
           <Dialog.Title
-            className="font-sans text-xl font-bold text-popover-foreground"
-            style={{ fontFamily: nativeFontFamilies.bold }}
+            className={`${customFontsAvailable ? 'font-sans' : ''} text-xl font-bold text-popover-foreground`}
+            style={
+              customFontsAvailable
+                ? { fontFamily: nativeFontFamilies.bold }
+                : undefined
+            }
           >
             {title}
           </Dialog.Title>
