@@ -219,9 +219,6 @@ importers:
       expo:
         specifier: ~58.0.19
         version: 58.0.23(@babel/core@7.29.7)(@expo/dom-webview@58.0.2)(@expo/metro-runtime@58.0.17)(react@19.3.0)(react-dom@19.2.8(react@19.3.0))(react-native@0.88.1(@types/react@19.3.0)(react@19.3.0))(typescript@6.0.3)(yargs@17.7.3)
-      expo-blur:
-        specifier: 58.0.5
-        version: 58.0.5(@babel/core@7.29.7)(expo@58.0.23(@expo/dom-webview@58.0.2)(@expo/metro-runtime@58.0.17)(react@19.3.0)(react-dom@19.2.8(react@19.3.0))(react-native@0.88.1(@types/react@19.3.0)(react@19.3.0)))(expo-modules-core@58.0.30(react@19.3.0)(react-native@0.88.1(@types/react@19.3.0)(react@19.3.0)))(react@19.3.0)(react-native@0.88.1(@types/react@19.3.0)(react@19.3.0))(typescript@6.0.3)(yargs@17.7.3)
       expo-constants:
         specifier: ^58.0.15
         version: 58.0.15(@babel/core@7.29.7)(expo@58.0.23(@expo/dom-webview@58.0.2)(@expo/metro-runtime@58.0.17)(react@19.3.0)(react-dom@19.2.8(react@19.3.0))(react-native@0.88.1(@types/react@19.3.0)(react@19.3.0)))(expo-modules-core@58.0.30(react@19.3.0)(react-native@0.88.1(@types/react@19.3.0)(react@19.3.0)))(react-native@0.88.1(@types/react@19.3.0)(react@19.3.0))(typescript@6.0.3)
@@ -249,6 +246,9 @@ importers:
       react:
         specifier: 19.3.0
         version: 19.3.0
+      expo-blur:
+        specifier: 58.0.5
+        version: 58.0.5(@babel/core@7.29.7)(expo@58.0.23(@expo/dom-webview@58.0.2)(@expo/metro-runtime@58.0.17)(react@19.3.0)(react-dom@19.2.8(react@19.3.0))(react-native@0.88.1(@types/react@19.3.0)(react@19.3.0)))(expo-modules-core@58.0.30(react@19.3.0)(react-native@0.88.1(@types/react@19.3.0)(react@19.3.0)))(react@19.3.0)(react-native@0.88.1(@types/react@19.3.0)(react@19.3.0))(typescript@6.0.3)(yargs@17.7.3)
       react-native:
         specifier: 0.88.1
         version: 0.88.1(@babel/core@7.29.7)(@types/react@19.3.0)(react@19.3.0)
