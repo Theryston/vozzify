@@ -78,6 +78,18 @@ describe('mobile API transport', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('reports malformed headers as invalid requests', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch');
+
+    await expect(
+      mobileApi('/tracks', {
+        schema: resultSchema,
+        headers: { 'bad header': 'value' },
+      }),
+    ).rejects.toMatchObject({ kind: 'invalid-request' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('surfaces structured API error codes without translating their message', async () => {
     const apiError = apiErrorSchema.parse({
       statusCode: 401,

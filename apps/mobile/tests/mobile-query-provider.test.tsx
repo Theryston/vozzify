@@ -9,16 +9,21 @@ import { mobileApi } from '../src/lib/api/mobile-api';
 import { MobileQueryProvider } from '../src/lib/query/mobile-query-provider';
 
 let mockNetworkIsOnline = true;
+let mockNetworkStatePromise:
+  | Promise<{ isConnected: boolean; isInternetReachable: boolean }>
+  | undefined;
 const mockNetworkListeners: Array<
   (state: { isConnected: boolean; isInternetReachable: boolean }) => void
 > = [];
 
 jest.mock('expo-network', () => ({
-  getNetworkStateAsync: jest.fn().mockImplementation(() =>
-    Promise.resolve({
-      isConnected: mockNetworkIsOnline,
-      isInternetReachable: mockNetworkIsOnline,
-    }),
+  getNetworkStateAsync: jest.fn().mockImplementation(
+    () =>
+      mockNetworkStatePromise ??
+      Promise.resolve({
+        isConnected: mockNetworkIsOnline,
+        isInternetReachable: mockNetworkIsOnline,
+      }),
   ),
   addNetworkStateListener: jest.fn((listener) => {
     mockNetworkListeners.push(listener);
@@ -46,6 +51,14 @@ function TestTree({ children }: { children: ReactNode }) {
   return <MobileQueryProvider>{children}</MobileQueryProvider>;
 }
 
+function createDeferred<T>() {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 const apiResponse = () =>
   new Response(JSON.stringify({ message: 'API data loaded' }), {
     headers: { 'content-type': 'application/json' },
@@ -55,6 +68,7 @@ describe('mobile query provider', () => {
   beforeEach(() => {
     mockNetworkListeners.length = 0;
     mockNetworkIsOnline = true;
+    mockNetworkStatePromise = undefined;
     onlineManager.setOnline(true);
     focusManager.setFocused(undefined);
   });
@@ -78,6 +92,7 @@ describe('mobile query provider', () => {
     );
 
     await waitFor(() => expect(mockNetworkListeners).toHaveLength(1));
+    focusManager.setFocused(true);
     expect(fetchMock).not.toHaveBeenCalled();
     mockNetworkIsOnline = true;
     mockNetworkListeners[0]?.({
@@ -85,6 +100,8 @@ describe('mobile query provider', () => {
       isInternetReachable: true,
     });
 
+    await waitFor(() => expect(onlineManager.isOnline()).toBe(true));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(await screen.findByText('API data loaded')).toBeOnTheScreen();
     expect(fetchMock).toHaveBeenCalledWith(
       new URL('http://10.0.2.2:3333/v1/query-test'),
@@ -95,6 +112,55 @@ describe('mobile query provider', () => {
       isInternetReachable: false,
     });
     await waitFor(() => expect(onlineManager.isOnline()).toBe(false));
+    await view.unmount();
+  });
+
+  it('keeps newer connectivity after an older offline snapshot resolves', async () => {
+    const initialNetworkState = createDeferred<{
+      isConnected: boolean;
+      isInternetReachable: boolean;
+    }>();
+    mockNetworkStatePromise = initialNetworkState.promise;
+    onlineManager.setOnline(false);
+    let onChange: ((state: AppStateStatus) => void) | undefined;
+    jest
+      .spyOn(AppState, 'addEventListener')
+      .mockImplementation((_, listener) => {
+        onChange = listener;
+        return { remove: jest.fn() };
+      });
+    const fetchMock = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(apiResponse());
+    const view = await render(
+      <TestTree>
+        <QueryConsumer />
+      </TestTree>,
+    );
+
+    await waitFor(() => expect(mockNetworkListeners).toHaveLength(1));
+    focusManager.setFocused(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+    mockNetworkListeners[0]?.({
+      isConnected: true,
+      isInternetReachable: true,
+    });
+    expect(await screen.findByText('API data loaded')).toBeOnTheScreen();
+    initialNetworkState.resolve({
+      isConnected: false,
+      isInternetReachable: false,
+    });
+    await waitFor(() => expect(onlineManager.isOnline()).toBe(true));
+    await waitFor(() => expect(onChange).toBeDefined());
+
+    const callsBeforeForeground = fetchMock.mock.calls.length;
+    onChange?.('background');
+    onChange?.('active');
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(
+        callsBeforeForeground,
+      ),
+    );
     await view.unmount();
   });
 

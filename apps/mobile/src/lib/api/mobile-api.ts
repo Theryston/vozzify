@@ -79,6 +79,7 @@ function prepareRequest<TSchema extends z.ZodType>(
   let body: unknown;
   let serializedBody: BodyInit | undefined;
   let bodyIsFormData = false;
+  let headers: Headers;
   try {
     if (options.body !== undefined && options.bodySchema === undefined) {
       throw new Error('A shared body schema is required when sending a body');
@@ -105,18 +106,17 @@ function prepareRequest<TSchema extends z.ZodType>(
       }
       serializedBody = json;
     }
+    headers = new Headers(options.headers);
+    headers.set('accept', 'application/json');
+    if (body !== undefined && !bodyIsFormData) {
+      headers.set('content-type', 'application/json');
+    }
   } catch (error) {
     throw new MobileApiError(
       'invalid-request',
       'Request does not match its contract or configuration',
       error,
     );
-  }
-
-  const headers = new Headers(options.headers);
-  headers.set('accept', 'application/json');
-  if (body !== undefined && !bodyIsFormData) {
-    headers.set('content-type', 'application/json');
   }
 
   return {

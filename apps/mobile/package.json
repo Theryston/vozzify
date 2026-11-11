@@ -16,7 +16,7 @@
     "test:cov": "jest --coverage"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.107.1",
+    "@tanstack/react-query": "5.104.0",
     "@vozzify/contracts": "workspace:*",
     "expo": "~58.0.19",
     "expo-constants": "^58.0.15",

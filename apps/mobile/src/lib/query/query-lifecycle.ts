@@ -13,14 +13,16 @@ export function connectQueryLifecycle(): () => void {
   );
   onlineManager.setEventListener((setOnline) => {
     let active = true;
+    let receivedNetworkEvent = false;
     void Network.getNetworkStateAsync()
       .then((state) => {
-        if (active) setOnline(isOnline(state));
+        if (active && !receivedNetworkEvent) setOnline(isOnline(state));
       })
       .catch(() => {
-        if (active) setOnline(false);
+        if (active && !receivedNetworkEvent) setOnline(false);
       });
     const networkSubscription = Network.addNetworkStateListener((state) => {
+      receivedNetworkEvent = true;
       setOnline(isOnline(state));
     });
     return () => {
