@@ -6,6 +6,7 @@
 !apps/*/package.json
 !packages/*/package.json
 !packages/contracts
+!packages/design-tokens
 !apps/web
 
 **/node_modules

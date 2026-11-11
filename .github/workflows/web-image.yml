@@ -5,6 +5,7 @@ on:
     paths:
       - apps/web/**
       - packages/contracts/**
+      - packages/design-tokens/**
       - apps/*/package.json
       - packages/*/package.json
       - package.json
@@ -19,6 +20,7 @@ on:
     paths:
       - apps/web/**
       - packages/contracts/**
+      - packages/design-tokens/**
       - apps/*/package.json
       - packages/*/package.json
       - package.json
