@@ -9,8 +9,7 @@ Goal: same features, split into a standalone API and a web client (a mobile app
 comes later and will consume the same API), with a better-looking web UI.
 When in doubt about a feature's behavior, check how the original does it.
 
-App-specific rules live in `apps/web/CLAUDE.md`, `apps/api/CLAUDE.md` and
-`apps/music-catalog/CLAUDE.md`.
+App-specific rules live in each app's `CLAUDE.md`.
 
 ## Monorepo layout
 
@@ -20,6 +19,7 @@ apps/
   api/          NestJS 12 REST API (Drizzle, Better Auth, BullMQ). Port 3333.
   music-catalog/  Private Music catalog service: Node + ws WebSocket server and worker,
                   no Nest (Drizzle). Port 3334. See apps/music-catalog/CLAUDE.md.
+  mobile/         Expo Router native client for Android and iOS.
   note-detector/  Python RunPod serverless worker (uv, not Node): replaces the
                   legacy worker with Mel-RoFormer, GAME Vocal notes and a Pitch
                   curve. No port. See
@@ -50,7 +50,7 @@ nub run test:cov            # unit tests + coverage thresholds (what CI runs)
 nub run test:mutation --filter=api   # optional local Stryker mutation tests (api | web | music-catalog)
 nub run test:e2e            # API + Music catalog e2e (Testcontainers Postgres, MinIO, Meilisearch) + web Playwright
 nub run build               # production build of everything
-nub run dev --filter=web    # scope any task to one package (web | api | music-catalog | note-detector | @vozzify/contracts)
+nub run dev --filter=web    # scope any task to one package (web | mobile | api | music-catalog | note-detector | @vozzify/contracts)
 ```
 
 Before considering a change done, run `lint`, `check-types` and `test:cov` for
@@ -313,7 +313,7 @@ the maintainer changes these files.
   (lint, check-types, test, build). Squash merge.
 - **Conventional Commits**, scoped by package:
   `<type>(<scope>): <subject>` with types `feat fix refactor perf test docs
-  build ci chore style revert` and scopes `web api music-catalog contracts
+  build ci chore style revert` and scopes `web mobile api music-catalog contracts
   repo note-detector` (e.g. `feat(api): add track search
   endpoint`). Enforced by lefthook on commits and by CI on the PR title (it
   becomes the squash commit).

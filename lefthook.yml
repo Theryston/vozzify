@@ -10,9 +10,9 @@ commit-msg:
   jobs:
     - name: conventional-commit
       run: |
-        head -n1 {1} | grep -Eq '^(Merge |Revert )|^(feat|fix|refactor|perf|test|docs|build|ci|chore|style|revert)(\((web|api|music-catalog|contracts|repo|note-detector)\))?!?: .+' || {
+        head -n1 {1} | grep -Eq '^(Merge |Revert )|^(feat|fix|refactor|perf|test|docs|build|ci|chore|style|revert)(\((web|mobile|api|music-catalog|contracts|repo|note-detector)\))?!?: .+' || {
           echo 'Commit message must follow Conventional Commits: <type>(<scope>): <subject>'
           echo 'Types: feat fix refactor perf test docs build ci chore style revert'
-          echo 'Scopes: web api music-catalog contracts repo note-detector'
+          echo 'Scopes: web mobile api music-catalog contracts repo note-detector'
           exit 1
         }

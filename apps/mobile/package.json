@@ -1,0 +1,43 @@
+{
+  "name": "mobile",
+  "version": "0.0.1",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "dev": "expo start --dev-client",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "build": "expo export --platform all --output-dir dist",
+    "lint": "biome check . && depcruise app src --config .dependency-cruiser.cjs",
+    "format": "biome check --write .",
+    "check-types": "tsc --noEmit",
+    "test": "jest",
+    "test:cov": "jest --coverage"
+  },
+  "dependencies": {
+    "expo": "~58.0.19",
+    "expo-dev-client": "~58.0.15",
+    "expo-router": "~58.0.30",
+    "expo-constants": "^58.0.15",
+    "expo-linking": "^58.0.16",
+    "expo-modules-core": "~58.0.30",
+    "expo-system-ui": "~58.0.6",
+    "react": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-safe-area-context": "~5.11.1",
+    "react-native-screens": "^4.30.1",
+    "use-intl": "^4.14.7"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@testing-library/react-native": "^14.0.0",
+    "@types/jest": "^30.0.0",
+    "@types/react": "~19.3.0",
+    "babel-preset-expo": "~58.0.24",
+    "dependency-cruiser": "^18.4.0",
+    "jest": "^30.0.0",
+    "jest-expo": "~58.0.14",
+    "typescript": "^6.0.2"
+  }
+}

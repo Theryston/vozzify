@@ -12,6 +12,7 @@ the renamed services.
 
 - `apps/web`: [Next.js](https://nextjs.org) frontend with
   [shadcn/ui](https://ui.shadcn.com). Port 3000.
+- `apps/mobile`: Expo Router native client for Android and iOS.
 - `apps/api`: [NestJS](https://nestjs.com) API. Port 3333 (`PORT`).
 - `apps/music-catalog`: private Music catalog service (Node + [`ws`](https://github.com/websockets/ws),
   no Nest), reached over an authenticated WebSocket. Port 3334 (`PORT`).
@@ -36,6 +37,9 @@ nub run test:cov     # unit tests + coverage thresholds (what CI runs)
 ```
 
 To run a single app: `nub run dev --filter=web` (or `api`, `music-catalog`).
+
+For local native runs, use `cd apps/mobile && nub run android` or
+`nub run ios`. See `apps/mobile/CLAUDE.md` for mobile setup and checks.
 
 Copy `apps/api/.env.example`, `apps/web/.env.example` and
 `apps/music-catalog/.env.example` to `.env` in each app.
