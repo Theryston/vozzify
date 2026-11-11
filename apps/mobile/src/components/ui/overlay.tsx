@@ -1,7 +1,10 @@
 import * as Dialog from '@rn-primitives/dialog';
+import { BlurView } from 'expo-blur';
 import type { ReactNode } from 'react';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { useCustomFontsAvailable } from '../../lib/design/font-availability';
+import { useNativeBlurTarget } from '../../lib/design/native-blur-target';
+import { nativeBlurTint } from '../../lib/design/native-blur-tint';
 import { nativeFontFamilies } from '../../lib/design/native-fonts';
 import { Text } from '../text';
 import { Button } from './button';
@@ -32,15 +35,50 @@ export function Overlay({
   children,
 }: OverlayProps) {
   const customFontsAvailable = useCustomFontsAvailable();
+  const blurTarget = useNativeBlurTarget();
+  const colorScheme = useColorScheme();
+  const blurTint = nativeBlurTint(colorScheme);
+  const androidBlurMethod = Platform.select({
+    android: 'dimezisBlurView' as const,
+  });
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="absolute inset-0 bg-black/40" />
+        <Dialog.Overlay className="absolute inset-0">
+          <BlurView
+            accessible={false}
+            blurMethod={androidBlurMethod}
+            blurTarget={blurTarget ?? undefined}
+            intensity={40}
+            pointerEvents="none"
+            style={StyleSheet.absoluteFill}
+            testID="overlay-backdrop-blur"
+            tint={blurTint}
+          />
+          <View
+            accessible={false}
+            className="absolute inset-0 bg-black/40"
+            pointerEvents="none"
+          />
+        </Dialog.Overlay>
         <Dialog.Content
-          className="absolute inset-x-6 top-1/3 gap-4 rounded-2xl border border-border/60 bg-popover/90 p-dialog-padding"
+          className="absolute inset-x-6 top-1/3 gap-4 rounded-2xl border border-border/60 bg-popover/70 p-dialog-padding"
           style={elevation}
         >
+          <BlurView
+            accessible={false}
+            blurMethod={androidBlurMethod}
+            blurTarget={blurTarget ?? undefined}
+            intensity={55}
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFill,
+              { borderRadius: 23, margin: 1, overflow: 'hidden' },
+            ]}
+            testID="overlay-surface-blur"
+            tint={blurTint}
+          />
           <Dialog.Title
             className={`${customFontsAvailable ? 'font-sans' : ''} text-xl font-bold text-popover-foreground`}
             style={
