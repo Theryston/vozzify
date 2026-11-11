@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "@vozzify/design-tokens/tokens.css";
 
 /* Design tokens. The rules behind every value live in DESIGN.md (repo root):
    change both together. */
@@ -11,6 +12,14 @@
   --font-heading: var(--font-sans);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
+  --spacing-unit: var(--token-space-unit);
+  --spacing-page-gutter-mobile: var(--token-space-page-gutter-mobile);
+  --spacing-page-gutter-desktop: var(--token-space-page-gutter-desktop);
+  --spacing-section-gap-mobile: var(--token-space-section-gap-mobile);
+  --spacing-section-gap: var(--token-space-section-gap);
+  --spacing-card-padding: var(--token-space-card-padding);
+  --spacing-dialog-padding: var(--token-space-dialog-padding);
+  --spacing-touch-target-min: var(--token-space-touch-target-min);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -60,14 +69,14 @@
 
   /* Fixed steps instead of multiples of --radius: controls are pills
      (rounded-full), so only surfaces use this scale. */
-  --radius-xs: 0.375rem;
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.25rem;
-  --radius-2xl: 1.5rem;
-  --radius-3xl: 2rem;
-  --radius-4xl: 2.5rem;
+  --radius-xs: var(--token-radius-xs);
+  --radius-sm: var(--token-radius-sm);
+  --radius-md: var(--token-radius-md);
+  --radius-lg: var(--token-radius-lg);
+  --radius-xl: var(--token-radius-xl);
+  --radius-2xl: var(--token-radius-2xl);
+  --radius-3xl: var(--token-radius-3xl);
+  --radius-4xl: var(--token-radius-4xl);
 
   --shadow-xs: var(--elevation-xs);
   --shadow-sm: var(--elevation-sm);
@@ -75,9 +84,9 @@
   --shadow-lg: var(--elevation-lg);
   --shadow-xl: var(--elevation-xl);
 
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
-  --animate-pop: pop 320ms var(--ease-spring);
+  --ease-spring: var(--token-motion-spring);
+  --ease-out-soft: var(--token-motion-out-soft);
+  --animate-pop: pop var(--token-motion-pop-duration) var(--ease-spring);
 
   @keyframes pop {
     0% {
@@ -91,45 +100,45 @@
 
 :root {
   /* Brand: #FA4900 in both themes. Never tint or replace it. */
-  --primary: oklch(0.655 0.222 36.5);
-  --primary-foreground: oklch(1 0 0);
+  --primary: var(--token-primary);
+  --primary-foreground: var(--token-primary-foreground);
   /* Darkens the orange hero behind its sponsored caption (DESIGN.md). */
-  --hero-scrim: oklch(0 0 0 / 25%);
+  --hero-scrim: var(--token-hero-scrim);
 
   /* Zinc neutrals (cool, hue ~286). */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.004 285.8);
-  --surface: oklch(0.985 0.001 286);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.004 285.8);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.004 285.8);
-  --secondary: oklch(0.965 0.003 286.3);
-  --secondary-foreground: oklch(0.141 0.004 285.8);
-  --muted: oklch(0.965 0.003 286.3);
-  --muted-foreground: oklch(0.552 0.014 285.9);
-  --accent: oklch(0.965 0.003 286.3);
-  --accent-foreground: oklch(0.141 0.004 285.8);
-  --border: oklch(0.92 0.005 286.3);
-  --input: oklch(0.92 0.005 286.3);
-  --ring: oklch(0.655 0.222 36.5);
+  --background: var(--token-background);
+  --foreground: var(--token-foreground);
+  --surface: var(--token-surface);
+  --card: var(--token-card);
+  --card-foreground: var(--token-card-foreground);
+  --popover: var(--token-popover);
+  --popover-foreground: var(--token-popover-foreground);
+  --secondary: var(--token-secondary);
+  --secondary-foreground: var(--token-secondary-foreground);
+  --muted: var(--token-muted);
+  --muted-foreground: var(--token-muted-foreground);
+  --accent: var(--token-accent);
+  --accent-foreground: var(--token-accent-foreground);
+  --border: var(--token-border);
+  --input: var(--token-input);
+  --ring: var(--token-ring);
 
-  --success: oklch(0.627 0.17 149.2);
-  --warning: oklch(0.666 0.157 58.3);
-  --destructive: oklch(0.577 0.215 27.3);
+  --success: var(--token-success);
+  --warning: var(--token-warning);
+  --destructive: var(--token-destructive);
 
-  --chart-1: oklch(0.655 0.222 36.5);
+  --chart-1: var(--token-primary);
   --chart-2: oklch(0.6 0.1 200);
   --chart-3: oklch(0.55 0.08 260);
   --chart-4: oklch(0.78 0.14 75);
-  --chart-5: oklch(0.552 0.014 285.9);
+  --chart-5: var(--token-muted-foreground);
 
-  --timeline-lane: oklch(1 0 0);
-  --timeline-key: oklch(1 0 0);
-  --timeline-key-sharp: oklch(0.92 0.005 286.3);
-  --timeline-note: oklch(0.655 0.222 36.5);
+  --timeline-lane: var(--token-background);
+  --timeline-key: var(--token-background);
+  --timeline-key-sharp: var(--token-border);
+  --timeline-note: var(--token-primary);
   --timeline-note-past: oklch(0.552 0.014 285.9 / 35%);
-  --timeline-pitch: oklch(0.141 0.004 285.8);
+  --timeline-pitch: var(--token-foreground);
 
   /* Soft, layered shadows: a hairline ring plus ambient blur. */
   --elevation-xs: 0 1px 2px oklch(0.2 0.01 286 / 6%);
@@ -151,54 +160,54 @@
   --glass-highlight: oklch(1 0 0 / 60%);
 
   --radius: 1rem;
-  --sidebar: oklch(0.985 0.001 286);
-  --sidebar-foreground: oklch(0.141 0.004 285.8);
-  --sidebar-primary: oklch(0.655 0.222 36.5);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.965 0.003 286.3);
-  --sidebar-accent-foreground: oklch(0.141 0.004 285.8);
-  --sidebar-border: oklch(0.92 0.005 286.3);
-  --sidebar-ring: oklch(0.655 0.222 36.5);
+  --sidebar: var(--token-surface);
+  --sidebar-foreground: var(--token-foreground);
+  --sidebar-primary: var(--token-primary);
+  --sidebar-primary-foreground: var(--token-primary-foreground);
+  --sidebar-accent: var(--token-accent);
+  --sidebar-accent-foreground: var(--token-accent-foreground);
+  --sidebar-border: var(--token-border);
+  --sidebar-ring: var(--token-ring);
 }
 
 .dark {
-  --primary: oklch(0.655 0.222 36.5);
-  --primary-foreground: oklch(1 0 0);
-  --hero-scrim: oklch(0 0 0 / 25%);
+  --primary: var(--token-primary);
+  --primary-foreground: var(--token-primary-foreground);
+  --hero-scrim: var(--token-hero-scrim);
 
-  --background: oklch(0.141 0.004 285.8);
-  --foreground: oklch(0.985 0 0);
-  --surface: oklch(0.188 0.006 285.8);
-  --card: oklch(0.188 0.006 285.8);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.229 0.01 285.6);
-  --popover-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.229 0.01 285.6);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.229 0.01 285.6);
-  --muted-foreground: oklch(0.712 0.013 286.1);
-  --accent: oklch(0.275 0.011 285.7);
-  --accent-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.655 0.222 36.5);
+  --background: var(--token-background);
+  --foreground: var(--token-foreground);
+  --surface: var(--token-surface);
+  --card: var(--token-card);
+  --card-foreground: var(--token-card-foreground);
+  --popover: var(--token-popover);
+  --popover-foreground: var(--token-popover-foreground);
+  --secondary: var(--token-secondary);
+  --secondary-foreground: var(--token-secondary-foreground);
+  --muted: var(--token-muted);
+  --muted-foreground: var(--token-muted-foreground);
+  --accent: var(--token-accent);
+  --accent-foreground: var(--token-accent-foreground);
+  --border: var(--token-border);
+  --input: var(--token-input);
+  --ring: var(--token-ring);
 
-  --success: oklch(0.723 0.192 149.6);
-  --warning: oklch(0.782 0.158 72.3);
-  --destructive: oklch(0.637 0.208 25.3);
+  --success: var(--token-success);
+  --warning: var(--token-warning);
+  --destructive: var(--token-destructive);
 
-  --chart-1: oklch(0.655 0.222 36.5);
+  --chart-1: var(--token-primary);
   --chart-2: oklch(0.7 0.1 200);
   --chart-3: oklch(0.65 0.08 260);
   --chart-4: oklch(0.82 0.14 75);
-  --chart-5: oklch(0.712 0.013 286.1);
+  --chart-5: var(--token-muted-foreground);
 
-  --timeline-lane: oklch(0.141 0.004 285.8);
-  --timeline-key: oklch(0.229 0.01 285.6);
-  --timeline-key-sharp: oklch(0.188 0.006 285.8);
-  --timeline-note: oklch(0.655 0.222 36.5);
+  --timeline-lane: var(--token-background);
+  --timeline-key: var(--token-popover);
+  --timeline-key-sharp: var(--token-surface);
+  --timeline-note: var(--token-primary);
   --timeline-note-past: oklch(0.712 0.013 286.1 / 30%);
-  --timeline-pitch: oklch(0.985 0 0);
+  --timeline-pitch: var(--token-foreground);
 
   /* Dark surfaces separate by tone; shadows only add depth to floating
      layers, so they are darker and the ring is a light hairline. */
@@ -220,14 +229,14 @@
   --glass-border: oklch(1 0 0 / 10%);
   --glass-highlight: oklch(1 0 0 / 7%);
 
-  --sidebar: oklch(0.188 0.006 285.8);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.655 0.222 36.5);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.275 0.011 285.7);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 9%);
-  --sidebar-ring: oklch(0.655 0.222 36.5);
+  --sidebar: var(--token-surface);
+  --sidebar-foreground: var(--token-foreground);
+  --sidebar-primary: var(--token-primary);
+  --sidebar-primary-foreground: var(--token-primary-foreground);
+  --sidebar-accent: var(--token-accent);
+  --sidebar-accent-foreground: var(--token-accent-foreground);
+  --sidebar-border: var(--token-border);
+  --sidebar-ring: var(--token-ring);
 }
 
 /* Scrollable lists that keep their scroll without a visible scrollbar. */

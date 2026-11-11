@@ -17,6 +17,7 @@ COPY --parents package.json nub.lock apps/*/package.json packages/*/package.json
 RUN nub install --frozen-lockfile --ignore-scripts --filter 'web...'
 COPY tsconfig.base.json ./
 COPY packages/contracts packages/contracts
+COPY packages/design-tokens packages/design-tokens
 COPY apps/web apps/web
 # Public values are baked into browser chunks and prerendered metadata.
 ARG NEXT_PUBLIC_API_URL=https://api.vozzify.com
@@ -26,7 +27,9 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
 ENV NEXT_PUBLIC_GTM_ENABLED=${NEXT_PUBLIC_GTM_ENABLED}
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN nub --cwd packages/contracts run build && nub --cwd apps/web run build \
+RUN nub --cwd packages/contracts run build \
+    && nub --cwd packages/design-tokens run build \
+    && nub --cwd apps/web run build \
     && rm -rf apps/web/.next/cache
 
 FROM ${NODE_IMAGE} AS runtime

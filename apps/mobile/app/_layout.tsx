@@ -1,15 +1,37 @@
+import {
+  Figtree_400Regular,
+  Figtree_500Medium,
+  Figtree_600SemiBold,
+  Figtree_700Bold,
+  Figtree_800ExtraBold,
+} from '@expo-google-fonts/figtree';
+import { GeistMono_400Regular } from '@expo-google-fonts/geist-mono';
+import { PortalHost } from '@rn-primitives/portal';
+import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { useEffect } from 'react';
+import { StatusBar, useColorScheme } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useTranslations } from 'use-intl';
+import { FontAvailabilityProvider } from '../src/lib/design/font-availability';
 import {
   MobileIntlProvider,
   type MobileLocale,
 } from '../src/lib/i18n/mobile-intl-provider';
 
+void SplashScreen.preventAutoHideAsync();
+
 function NavigationStack() {
   const translate = useTranslations('navigation');
 
   return (
-    <Stack screenOptions={{ headerBackTitle: translate('back') }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        headerBackTitle: translate('back'),
+      }}
+    >
       <Stack.Screen name="index" options={{ title: translate('home') }} />
       <Stack.Screen
         name="components"
@@ -24,13 +46,46 @@ type RootLayoutContentProps = {
 };
 
 export function RootLayoutContent({ locale = 'en' }: RootLayoutContentProps) {
+  const colorScheme = useColorScheme();
+
   return (
-    <MobileIntlProvider locale={locale}>
-      <NavigationStack />
-    </MobileIntlProvider>
+    <SafeAreaProvider>
+      <MobileIntlProvider locale={locale}>
+        <StatusBar
+          barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+        />
+        <NavigationStack />
+        <PortalHost />
+      </MobileIntlProvider>
+    </SafeAreaProvider>
   );
 }
 
 export default function RootLayout() {
-  return <RootLayoutContent />;
+  const [fontsLoaded, fontError] = useFonts({
+    Figtree: Figtree_400Regular,
+    'Geist Mono': GeistMono_400Regular,
+    Figtree_400Regular,
+    Figtree_500Medium,
+    Figtree_600SemiBold,
+    Figtree_700Bold,
+    Figtree_800ExtraBold,
+    GeistMono_400Regular,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded || fontError) {
+      void SplashScreen.hideAsync();
+    }
+  }, [fontError, fontsLoaded]);
+
+  if (!fontsLoaded && !fontError) {
+    return null;
+  }
+
+  return (
+    <FontAvailabilityProvider available={fontsLoaded}>
+      <RootLayoutContent />
+    </FontAvailabilityProvider>
+  );
 }

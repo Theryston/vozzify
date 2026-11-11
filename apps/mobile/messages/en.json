@@ -11,7 +11,15 @@
   },
   "components": {
     "title": "Foundation components",
-    "description": "The mobile app foundation is ready.",
+    "description": "A small native gallery for reviewing Vozzify styles and controls.",
+    "buttonLabel": "Example button",
+    "button": "Primary action",
+    "inputLabel": "Sample text input",
+    "inputPlaceholder": "Type something",
+    "openOverlay": "Open overlay",
+    "dismissOverlay": "Dismiss overlay",
+    "overlayTitle": "A native overlay",
+    "overlayDescription": "This surface uses the same palette and rounded shapes as the app.",
     "returnHome": "Return home"
   }
 }
