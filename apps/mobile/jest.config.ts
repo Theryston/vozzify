@@ -12,7 +12,7 @@ const config: Config = {
     '^expo-modules-core$': expoModulesCorePath,
   },
   transformIgnorePatterns: [
-    '/node_modules/(?!(.pnpm|\\.store|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|use-intl|intl-messageformat|@formatjs|@react-navigation|@sentry/react-native|native-base|standard-navigation))',
+    '/node_modules/(?!(.pnpm|\\.store|react-native|@react-native|@react-native-community|@rn-primitives|expo|@expo|@expo-google-fonts|react-navigation|use-intl|intl-messageformat|@formatjs|@react-navigation|@sentry/react-native|native-base|standard-navigation))',
     '/node_modules/react-native-reanimated/plugin/',
     '/node_modules/@react-native/babel-preset/',
   ],

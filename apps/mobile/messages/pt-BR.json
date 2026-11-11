@@ -11,7 +11,15 @@
   },
   "components": {
     "title": "Componentes da base",
-    "description": "A base do app móvel está pronta.",
+    "description": "Uma pequena galeria nativa para revisar estilos e controles do Vozzify.",
+    "buttonLabel": "Botão de exemplo",
+    "button": "Ação principal",
+    "inputLabel": "Campo de texto de exemplo",
+    "inputPlaceholder": "Digite algo",
+    "openOverlay": "Abrir sobreposição",
+    "dismissOverlay": "Fechar sobreposição",
+    "overlayTitle": "Uma sobreposição nativa",
+    "overlayDescription": "Este elemento usa a mesma paleta e os mesmos cantos arredondados do app.",
     "returnHome": "Voltar ao início"
   }
 }

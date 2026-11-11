@@ -16,12 +16,22 @@ native app. Android launch requires Android Studio/SDK and an emulator or device
 iOS launch requires macOS, Xcode, and an iOS simulator. Record native startup
 evidence separately from a JavaScript bundle export.
 
-The foundation uses Expo Router, React Native, `use-intl`, mobile-owned
+The foundation uses Expo Router, React Native, Uniwind with Tailwind CSS v4,
+React Native Reusables source components, `use-intl`, mobile-owned
 `messages/en.json` and `messages/pt-BR.json`, Jest with `jest-expo`, React Native
 Testing Library, and the repository's Biome/TypeScript conventions. `en` is
 the source of truth. Keep route files thin; generic UI and infrastructure live
 under `src/components` and `src/lib`. Add product features only in their later
 tickets. Keep native dependencies free and do not enable paid services.
+
+Shared colors, typography intent, radii, spacing and motion values come from
+`@vozzify/design-tokens`. Use its native adapter or semantic Uniwind classes;
+keep font registration, native system bars, elevation and layout in this app.
+The web consumes the same source through its generated CSS adapter. When adding
+a customized component, follow the small source-first patterns in
+`src/components/ui`: add only the React Native Reusables primitives used by
+the gallery or feature, use accessible native controls and translated labels,
+and place portalled content under the root `PortalHost`.
 
 Protected quality configuration requires explicit approval for each proposed
 change. Do not modify coverage thresholds, Biome, Knip, or architecture rules

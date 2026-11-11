@@ -1,0 +1,180 @@
+:root {
+  --token-color-primary-light: oklch(0.655 0.222 36.5);
+  --token-color-primary-foreground-light: oklch(1 0 0);
+  --token-color-background-light: oklch(1 0 0);
+  --token-color-foreground-light: oklch(0.141 0.004 285.8);
+  --token-color-surface-light: oklch(0.985 0.001 286);
+  --token-color-card-light: oklch(1 0 0);
+  --token-color-card-foreground-light: oklch(0.141 0.004 285.8);
+  --token-color-popover-light: oklch(1 0 0);
+  --token-color-popover-foreground-light: oklch(0.141 0.004 285.8);
+  --token-color-secondary-light: oklch(0.965 0.003 286.3);
+  --token-color-secondary-foreground-light: oklch(0.141 0.004 285.8);
+  --token-color-muted-light: oklch(0.965 0.003 286.3);
+  --token-color-muted-foreground-light: oklch(0.552 0.014 285.9);
+  --token-color-accent-light: oklch(0.965 0.003 286.3);
+  --token-color-accent-foreground-light: oklch(0.141 0.004 285.8);
+  --token-color-border-light: oklch(0.92 0.005 286.3);
+  --token-color-input-light: oklch(0.92 0.005 286.3);
+  --token-color-ring-light: oklch(0.655 0.222 36.5);
+  --token-color-success-light: oklch(0.627 0.17 149.2);
+  --token-color-warning-light: oklch(0.666 0.157 58.3);
+  --token-color-destructive-light: oklch(0.577 0.215 27.3);
+  --token-color-hero-scrim-light: oklch(0 0 0 / 25%);
+  --token-color-primary-dark: oklch(0.655 0.222 36.5);
+  --token-color-primary-foreground-dark: oklch(1 0 0);
+  --token-color-background-dark: oklch(0.141 0.004 285.8);
+  --token-color-foreground-dark: oklch(0.985 0 0);
+  --token-color-surface-dark: oklch(0.188 0.006 285.8);
+  --token-color-card-dark: oklch(0.188 0.006 285.8);
+  --token-color-card-foreground-dark: oklch(0.985 0 0);
+  --token-color-popover-dark: oklch(0.229 0.01 285.6);
+  --token-color-popover-foreground-dark: oklch(0.985 0 0);
+  --token-color-secondary-dark: oklch(0.229 0.01 285.6);
+  --token-color-secondary-foreground-dark: oklch(0.985 0 0);
+  --token-color-muted-dark: oklch(0.229 0.01 285.6);
+  --token-color-muted-foreground-dark: oklch(0.712 0.013 286.1);
+  --token-color-accent-dark: oklch(0.275 0.011 285.7);
+  --token-color-accent-foreground-dark: oklch(0.985 0 0);
+  --token-color-border-dark: oklch(1 0 0 / 9%);
+  --token-color-input-dark: oklch(1 0 0 / 12%);
+  --token-color-ring-dark: oklch(0.655 0.222 36.5);
+  --token-color-success-dark: oklch(0.723 0.192 149.6);
+  --token-color-warning-dark: oklch(0.782 0.158 72.3);
+  --token-color-destructive-dark: oklch(0.637 0.208 25.3);
+  --token-color-hero-scrim-dark: oklch(0 0 0 / 25%);
+  --token-font-sans: "Figtree";
+  --token-font-mono: "Geist Mono";
+  --token-radius-xs: 0.375rem;
+  --token-radius-sm: 0.5rem;
+  --token-radius-md: 0.75rem;
+  --token-radius-lg: 1rem;
+  --token-radius-xl: 1.25rem;
+  --token-radius-2xl: 1.5rem;
+  --token-radius-3xl: 2rem;
+  --token-radius-4xl: 2.5rem;
+  --token-radius-control: 9999px;
+  --token-space-unit: 4px;
+  --token-space-page-gutter-mobile: 16px;
+  --token-space-page-gutter-desktop: 24px;
+  --token-space-section-gap-mobile: 40px;
+  --token-space-section-gap: 48px;
+  --token-space-card-padding: 16px;
+  --token-space-dialog-padding: 24px;
+  --token-space-touch-target-min: 40px;
+  --token-motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --token-motion-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --token-motion-pop-duration: 320ms;
+}
+
+@theme inline {
+  --color-primary: light-dark(
+    var(--token-color-primary-light),
+    var(--token-color-primary-dark)
+  );
+  --color-primary-foreground: light-dark(
+    var(--token-color-primary-foreground-light),
+    var(--token-color-primary-foreground-dark)
+  );
+  --color-background: light-dark(
+    var(--token-color-background-light),
+    var(--token-color-background-dark)
+  );
+  --color-foreground: light-dark(
+    var(--token-color-foreground-light),
+    var(--token-color-foreground-dark)
+  );
+  --color-surface: light-dark(
+    var(--token-color-surface-light),
+    var(--token-color-surface-dark)
+  );
+  --color-card: light-dark(
+    var(--token-color-card-light),
+    var(--token-color-card-dark)
+  );
+  --color-card-foreground: light-dark(
+    var(--token-color-card-foreground-light),
+    var(--token-color-card-foreground-dark)
+  );
+  --color-popover: light-dark(
+    var(--token-color-popover-light),
+    var(--token-color-popover-dark)
+  );
+  --color-popover-foreground: light-dark(
+    var(--token-color-popover-foreground-light),
+    var(--token-color-popover-foreground-dark)
+  );
+  --color-secondary: light-dark(
+    var(--token-color-secondary-light),
+    var(--token-color-secondary-dark)
+  );
+  --color-secondary-foreground: light-dark(
+    var(--token-color-secondary-foreground-light),
+    var(--token-color-secondary-foreground-dark)
+  );
+  --color-muted: light-dark(
+    var(--token-color-muted-light),
+    var(--token-color-muted-dark)
+  );
+  --color-muted-foreground: light-dark(
+    var(--token-color-muted-foreground-light),
+    var(--token-color-muted-foreground-dark)
+  );
+  --color-accent: light-dark(
+    var(--token-color-accent-light),
+    var(--token-color-accent-dark)
+  );
+  --color-accent-foreground: light-dark(
+    var(--token-color-accent-foreground-light),
+    var(--token-color-accent-foreground-dark)
+  );
+  --color-border: light-dark(
+    var(--token-color-border-light),
+    var(--token-color-border-dark)
+  );
+  --color-input: light-dark(
+    var(--token-color-input-light),
+    var(--token-color-input-dark)
+  );
+  --color-ring: light-dark(
+    var(--token-color-ring-light),
+    var(--token-color-ring-dark)
+  );
+  --color-success: light-dark(
+    var(--token-color-success-light),
+    var(--token-color-success-dark)
+  );
+  --color-warning: light-dark(
+    var(--token-color-warning-light),
+    var(--token-color-warning-dark)
+  );
+  --color-destructive: light-dark(
+    var(--token-color-destructive-light),
+    var(--token-color-destructive-dark)
+  );
+  --color-hero-scrim: light-dark(
+    var(--token-color-hero-scrim-light),
+    var(--token-color-hero-scrim-dark)
+  );
+  --font-sans: var(--token-font-sans);
+  --font-mono: var(--token-font-mono);
+  --radius-xs: 0.375rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+  --radius-4xl: 2.5rem;
+  --radius-control: 9999px;
+  --spacing-unit: 4px;
+  --spacing-page-gutter-mobile: 16px;
+  --spacing-page-gutter-desktop: 24px;
+  --spacing-section-gap-mobile: 40px;
+  --spacing-section-gap: 48px;
+  --spacing-card-padding: 16px;
+  --spacing-dialog-padding: 24px;
+  --spacing-touch-target-min: 40px;
+  --ease-spring: var(--token-motion-spring);
+  --ease-out-soft: var(--token-motion-out-soft);
+}

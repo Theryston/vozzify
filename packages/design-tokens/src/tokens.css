@@ -1,0 +1,74 @@
+:root {
+  --token-primary: oklch(0.655 0.222 36.5);
+  --token-primary-foreground: oklch(1 0 0);
+  --token-background: oklch(1 0 0);
+  --token-foreground: oklch(0.141 0.004 285.8);
+  --token-surface: oklch(0.985 0.001 286);
+  --token-card: oklch(1 0 0);
+  --token-card-foreground: oklch(0.141 0.004 285.8);
+  --token-popover: oklch(1 0 0);
+  --token-popover-foreground: oklch(0.141 0.004 285.8);
+  --token-secondary: oklch(0.965 0.003 286.3);
+  --token-secondary-foreground: oklch(0.141 0.004 285.8);
+  --token-muted: oklch(0.965 0.003 286.3);
+  --token-muted-foreground: oklch(0.552 0.014 285.9);
+  --token-accent: oklch(0.965 0.003 286.3);
+  --token-accent-foreground: oklch(0.141 0.004 285.8);
+  --token-border: oklch(0.92 0.005 286.3);
+  --token-input: oklch(0.92 0.005 286.3);
+  --token-ring: oklch(0.655 0.222 36.5);
+  --token-success: oklch(0.627 0.17 149.2);
+  --token-warning: oklch(0.666 0.157 58.3);
+  --token-destructive: oklch(0.577 0.215 27.3);
+  --token-hero-scrim: oklch(0 0 0 / 25%);
+}
+
+.dark {
+  --token-primary: oklch(0.655 0.222 36.5);
+  --token-primary-foreground: oklch(1 0 0);
+  --token-background: oklch(0.141 0.004 285.8);
+  --token-foreground: oklch(0.985 0 0);
+  --token-surface: oklch(0.188 0.006 285.8);
+  --token-card: oklch(0.188 0.006 285.8);
+  --token-card-foreground: oklch(0.985 0 0);
+  --token-popover: oklch(0.229 0.01 285.6);
+  --token-popover-foreground: oklch(0.985 0 0);
+  --token-secondary: oklch(0.229 0.01 285.6);
+  --token-secondary-foreground: oklch(0.985 0 0);
+  --token-muted: oklch(0.229 0.01 285.6);
+  --token-muted-foreground: oklch(0.712 0.013 286.1);
+  --token-accent: oklch(0.275 0.011 285.7);
+  --token-accent-foreground: oklch(0.985 0 0);
+  --token-border: oklch(1 0 0 / 9%);
+  --token-input: oklch(1 0 0 / 12%);
+  --token-ring: oklch(0.655 0.222 36.5);
+  --token-success: oklch(0.723 0.192 149.6);
+  --token-warning: oklch(0.782 0.158 72.3);
+  --token-destructive: oklch(0.637 0.208 25.3);
+  --token-hero-scrim: oklch(0 0 0 / 25%);
+}
+
+:root {
+  --token-font-sans: "Figtree";
+  --token-font-mono: "Geist Mono";
+  --token-radius-xs: 0.375rem;
+  --token-radius-sm: 0.5rem;
+  --token-radius-md: 0.75rem;
+  --token-radius-lg: 1rem;
+  --token-radius-xl: 1.25rem;
+  --token-radius-2xl: 1.5rem;
+  --token-radius-3xl: 2rem;
+  --token-radius-4xl: 2.5rem;
+  --token-radius-control: 9999px;
+  --token-space-unit: 4px;
+  --token-space-page-gutter-mobile: 16px;
+  --token-space-page-gutter-desktop: 24px;
+  --token-space-section-gap-mobile: 40px;
+  --token-space-section-gap: 48px;
+  --token-space-card-padding: 16px;
+  --token-space-dialog-padding: 24px;
+  --token-space-touch-target-min: 40px;
+  --token-motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --token-motion-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --token-motion-pop-duration: 320ms;
+}
