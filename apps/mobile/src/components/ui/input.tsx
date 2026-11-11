@@ -10,7 +10,6 @@ export function Input(props: TextInputProps) {
     <TextInput
       className={`min-h-10 rounded-full border border-input bg-muted px-4 py-2 ${customFontsAvailable ? 'font-sans' : ''} text-base text-foreground`}
       placeholderTextColorClassName="accent-muted-foreground"
-      accessibilityRole="text"
       style={
         customFontsAvailable
           ? { fontFamily: nativeFontFamilies.regular }
