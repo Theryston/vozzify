@@ -7,7 +7,7 @@ export type MobileLocale = 'en' | 'pt-BR';
 
 type MobileIntlProviderProps = {
   children: ReactNode;
-  locale?: MobileLocale;
+  locale: MobileLocale;
 };
 
 const messageCatalogs = {
@@ -17,7 +17,7 @@ const messageCatalogs = {
 
 export function MobileIntlProvider({
   children,
-  locale = 'en',
+  locale,
 }: MobileIntlProviderProps) {
   return (
     <IntlProvider locale={locale} messages={messageCatalogs[locale]}>
