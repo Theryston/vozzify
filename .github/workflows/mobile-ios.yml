@@ -50,7 +50,7 @@ jobs:
 
   simulator-smoke:
     name: Build, install and smoke test iOS simulator app
-    if: always() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.mobile == 'true')
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.mobile == 'true') }}
     needs: changes
     runs-on: macos-15
     timeout-minutes: 45
