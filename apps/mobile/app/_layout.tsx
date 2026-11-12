@@ -20,6 +20,10 @@ import {
   MobileIntlProvider,
   type MobileLocale,
 } from '../src/lib/i18n/mobile-intl-provider';
+import {
+  MobileLocaleProvider,
+  useMobileLocale,
+} from '../src/lib/i18n/mobile-locale-provider';
 import { MobileQueryProvider } from '../src/lib/query/mobile-query-provider';
 
 void SplashScreen.preventAutoHideAsync();
@@ -45,24 +49,50 @@ function NavigationStack() {
 
 type RootLayoutContentProps = {
   locale?: MobileLocale;
+  detectDeviceLocale?: boolean;
 };
 
-export function RootLayoutContent({ locale = 'en' }: RootLayoutContentProps) {
+export function RootLayoutContent({
+  locale = 'en',
+  detectDeviceLocale = false,
+}: RootLayoutContentProps) {
   getMobileEnv();
   const colorScheme = useColorScheme();
 
   return (
     <SafeAreaProvider>
-      <MobileIntlProvider locale={locale}>
-        <StatusBar
-          barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
-        />
-        <MobileQueryProvider>
-          <NavigationStack />
-          <PortalHost />
-        </MobileQueryProvider>
-      </MobileIntlProvider>
+      <MobileLocaleProvider
+        initialLocale={detectDeviceLocale ? undefined : locale}
+      >
+        <LocalizedAppShell colorScheme={colorScheme} />
+      </MobileLocaleProvider>
     </SafeAreaProvider>
+  );
+}
+
+function LocalizedAppShell({
+  colorScheme,
+}: {
+  colorScheme: ReturnType<typeof useColorScheme>;
+}) {
+  const { locale, ready } = useMobileLocale();
+
+  useEffect(() => {
+    if (ready) {
+      void SplashScreen.hideAsync();
+    }
+  }, [ready]);
+
+  return (
+    <MobileIntlProvider locale={locale}>
+      <StatusBar
+        barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+      />
+      <MobileQueryProvider>
+        <NavigationStack />
+        <PortalHost />
+      </MobileQueryProvider>
+    </MobileIntlProvider>
   );
 }
 
@@ -78,19 +108,13 @@ export default function RootLayout() {
     GeistMono_400Regular,
   });
 
-  useEffect(() => {
-    if (fontsLoaded || fontError) {
-      void SplashScreen.hideAsync();
-    }
-  }, [fontError, fontsLoaded]);
-
   if (!fontsLoaded && !fontError) {
     return null;
   }
 
   return (
     <FontAvailabilityProvider available={fontsLoaded}>
-      <RootLayoutContent />
+      <RootLayoutContent detectDeviceLocale />
     </FontAvailabilityProvider>
   );
 }

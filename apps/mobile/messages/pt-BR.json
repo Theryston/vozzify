@@ -21,5 +21,10 @@
     "overlayTitle": "Uma sobreposição nativa",
     "overlayDescription": "Este elemento usa a mesma paleta e os mesmos cantos arredondados do app.",
     "returnHome": "Voltar ao início"
+  },
+  "preferences": {
+    "language": "Idioma",
+    "english": "Inglês",
+    "brazilianPortuguese": "Português do Brasil"
   }
 }
