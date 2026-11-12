@@ -10,20 +10,30 @@ export function AppearancePreferenceControl() {
 
   return (
     <View accessibilityRole="radiogroup" className="gap-2">
-      {appearancePreferences.map((option) => (
-        <Pressable
-          accessibilityLabel={translate(option)}
-          accessibilityRole="radio"
-          accessibilityState={{ checked: preference === option }}
-          className="min-h-10 flex-row items-center rounded-full border border-border bg-background px-4 py-2"
-          key={option}
-          onPress={() => {
-            void setPreference(option).catch(() => undefined);
-          }}
-        >
-          <Text>{translate(option)}</Text>
-        </Pressable>
-      ))}
+      {appearancePreferences.map((option) => {
+        const isSelected = preference === option;
+
+        return (
+          <Pressable
+            accessibilityLabel={translate(option)}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: isSelected }}
+            className={`min-h-10 flex-row items-center rounded-full border px-4 py-2 ${isSelected ? 'border-primary bg-primary' : 'border-border bg-background'}`}
+            key={option}
+            onPress={() => {
+              void setPreference(option).catch(() => undefined);
+            }}
+          >
+            <Text
+              className={
+                isSelected ? 'text-primary-foreground' : 'text-foreground'
+              }
+            >
+              {translate(option)}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }

@@ -9,9 +9,3 @@ export function parseAppearancePreference(
     appearancePreferences.find((preference) => preference === value) ?? 'system'
   );
 }
-
-export function getNativeColorScheme(
-  preference: AppearancePreference,
-): 'light' | 'dark' | 'auto' {
-  return preference === 'system' ? 'auto' : preference;
-}

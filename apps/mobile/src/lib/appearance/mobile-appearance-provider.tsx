@@ -9,10 +9,9 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Appearance } from 'react-native';
+import { Uniwind } from 'uniwind';
 import {
   type AppearancePreference,
-  getNativeColorScheme,
   parseAppearancePreference,
 } from './appearance-preference';
 
@@ -60,7 +59,7 @@ export function MobileAppearanceProvider({
         return;
       }
       if (preferenceVersion.current === 0) {
-        Appearance.setColorScheme(getNativeColorScheme(restoredPreference));
+        Uniwind.setTheme(restoredPreference);
         setPreferenceState(restoredPreference);
       }
       setReady(true);
@@ -74,7 +73,7 @@ export function MobileAppearanceProvider({
 
   const setPreference = useCallback((nextPreference: AppearancePreference) => {
     preferenceVersion.current += 1;
-    Appearance.setColorScheme(getNativeColorScheme(nextPreference));
+    Uniwind.setTheme(nextPreference);
     setPreferenceState(nextPreference);
     const write = pendingWrites.current.then(() =>
       AsyncStorage.setItem(appearanceStorageKey, nextPreference),
