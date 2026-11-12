@@ -70,6 +70,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Verify Xcode and Swift toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
       - name: Install locked workspace dependencies
         run: nub install --frozen-lockfile
 
