@@ -168,14 +168,41 @@ jobs:
         run: xcrun simctl launch "$SIMULATOR_UDID" com.vozzify.app.preview
 
       - name: Run internal gallery smoke flow
+        id: maestro
         working-directory: apps/mobile
-        run: maestro test --format junit --output "$RUNNER_TEMP/maestro-results.xml" .maestro/flows/gallery-smoke.yaml
+        run: |
+          mkdir -p "$RUNNER_TEMP/maestro-artifacts" "$RUNNER_TEMP/maestro-debug"
+          maestro test \
+            --format junit \
+            --output "$RUNNER_TEMP/maestro-results.xml" \
+            --test-output-dir "$RUNNER_TEMP/maestro-artifacts" \
+            --debug-output "$RUNNER_TEMP/maestro-debug" \
+            .maestro/flows/gallery-smoke.yaml
+
+      - name: Capture iOS simulator screenshot on Maestro failure
+        if: ${{ failure() && steps.maestro.outcome == 'failure' }}
+        run: xcrun simctl io "$SIMULATOR_UDID" screenshot "$RUNNER_TEMP/maestro-artifacts/current-screen.png"
+
+      - name: Check Maestro diagnostics size
+        id: diagnostics
+        if: always()
+        run: |
+          size_kb=$(du -sk "$RUNNER_TEMP/maestro-artifacts" "$RUNNER_TEMP/maestro-debug" | awk '{ total += $1 } END { print total + 0 }')
+          if [ "$size_kb" -le 10240 ]; then
+            echo 'upload=true' >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Skipping Maestro diagnostics artifact because it is ${size_kb} KiB; the cap is 10240 KiB."
+            echo 'upload=false' >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Upload Maestro results
-        if: always()
+        if: ${{ always() && steps.diagnostics.outputs.upload == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: ios-maestro-results
-          path: ${{ runner.temp }}/maestro-results.xml
+          name: ios-maestro-diagnostics
+          path: |
+            ${{ runner.temp }}/maestro-results.xml
+            ${{ runner.temp }}/maestro-artifacts/
+            ${{ runner.temp }}/maestro-debug/
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 1

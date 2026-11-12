@@ -13,8 +13,10 @@ compiles the preview variant for an iOS simulator, boots the selected
 available iPhone simulator, installs and launches the app, then runs Maestro
 2.12.0. Separate workflow
 steps report project generation, dependency installation, compilation,
-simulator startup, app installation and smoke execution. The workflow retains
-the small JUnit smoke result for seven days.
+simulator startup, app installation and smoke execution. Maestro's command
+data, hierarchy and screenshots, debug log, and JUnit result are uploaded when
+their combined size is at most 10 MiB and retained for one day. A simulator
+screenshot is added when the gallery flow fails.
 The shared flow in `.maestro/flows/gallery-smoke.yaml` checks app launch,
 gallery navigation, text entry, overlay interaction, appearance and language
 selection, and restoration of the selected appearance and language after an
