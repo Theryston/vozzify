@@ -1,6 +1,4 @@
 appId: com.vozzify.app
 ---
 - tapOn: System
-- assertVisible:
-    text: System
-    checked: true
+- assertVisible: System

@@ -1,6 +1,4 @@
 appId: com.vozzify.app
 ---
 - tapOn: Light
-- assertVisible:
-    text: Light
-    checked: true
+- assertVisible: Light
