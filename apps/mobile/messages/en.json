@@ -21,5 +21,10 @@
     "overlayTitle": "A native overlay",
     "overlayDescription": "This surface uses the same palette and rounded shapes as the app.",
     "returnHome": "Return home"
+  },
+  "preferences": {
+    "language": "Language",
+    "english": "English",
+    "brazilianPortuguese": "Brazilian Portuguese"
   }
 }

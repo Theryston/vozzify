@@ -5,10 +5,14 @@ const appRequire = createRequire(import.meta.url);
 const expoPackagePath = appRequire.resolve('expo/package.json');
 const expoRequire = createRequire(expoPackagePath);
 const expoModulesCorePath = expoRequire.resolve('expo-modules-core');
+const asyncStorageMockPath = appRequire.resolve(
+  '@react-native-async-storage/async-storage/jest',
+);
 
 const config: Config = {
   preset: 'jest-expo',
   moduleNameMapper: {
+    '^@react-native-async-storage/async-storage$': asyncStorageMockPath,
     '^expo-modules-core$': expoModulesCorePath,
   },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],

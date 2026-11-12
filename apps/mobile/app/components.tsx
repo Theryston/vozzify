@@ -6,9 +6,12 @@ import { Text } from '../src/components/text';
 import { Button } from '../src/components/ui/button';
 import { Input } from '../src/components/ui/input';
 import { Overlay } from '../src/components/ui/overlay';
+import { useMobileLocale } from '../src/lib/i18n/mobile-locale-provider';
 
 export default function ComponentsScreen() {
   const translate = useTranslations('components');
+  const preferenceTranslate = useTranslations('preferences');
+  const { locale, setLocale } = useMobileLocale();
   const [input, setInput] = useState('');
   const [overlayOpen, setOverlayOpen] = useState(false);
 
@@ -16,6 +19,27 @@ export default function ComponentsScreen() {
     <Screen>
       <Text variant="heading">{translate('title')}</Text>
       <Text>{translate('description')}</Text>
+      <Text>{preferenceTranslate('language')}</Text>
+      <Button
+        accessibilityLabel={preferenceTranslate('english')}
+        accessibilityRole="radio"
+        accessibilityState={{ checked: locale === 'en' }}
+        onPress={() => setLocale('en')}
+        testID="language-en"
+        variant={locale === 'en' ? 'primary' : 'outline'}
+      >
+        {preferenceTranslate('english')}
+      </Button>
+      <Button
+        accessibilityLabel={preferenceTranslate('brazilianPortuguese')}
+        accessibilityRole="radio"
+        accessibilityState={{ checked: locale === 'pt-BR' }}
+        onPress={() => setLocale('pt-BR')}
+        testID="language-pt-BR"
+        variant={locale === 'pt-BR' ? 'primary' : 'outline'}
+      >
+        {preferenceTranslate('brazilianPortuguese')}
+      </Button>
       <Button accessibilityLabel={translate('buttonLabel')}>
         {translate('button')}
       </Button>

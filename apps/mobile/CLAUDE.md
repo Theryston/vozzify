@@ -26,6 +26,12 @@ the source of truth. Keep route files thin; generic UI and infrastructure live
 under `src/components` and `src/lib`. Add product features only in their later
 tickets. Keep native dependencies free and do not enable paid services.
 
+The mobile shell detects the device language on first launch, maps English to
+`en` and Portuguese to `pt-BR`, and falls back to `en` for other languages. A
+manual selection in the component gallery is stored on the device and takes
+precedence on later launches. Keep mobile copy in the mobile catalogs; add
+English keys first, then their Brazilian Portuguese translations.
+
 Shared colors, typography intent, radii, spacing and motion values come from
 `@vozzify/design-tokens`. Use its native adapter or semantic Uniwind classes;
 keep font registration, native system bars, elevation and layout in this app.
