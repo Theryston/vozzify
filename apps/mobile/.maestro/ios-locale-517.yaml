@@ -1,0 +1,41 @@
+appId: com.vozzify.app
+---
+- launchApp
+- assertVisible: "Welcome to Vozzify"
+- tapOn:
+    id: open-components
+- assertVisible: "Foundation components"
+- assertVisible:
+    id: language-en
+    checked: true
+- tapOn:
+    id: language-pt-BR
+- assertVisible: "Componentes da base"
+- assertVisible: "Idioma"
+- assertVisible:
+    id: language-pt-BR
+    checked: true
+- takeScreenshot: ios-locale-pt-br
+- tapOn: "Abrir sobreposição"
+- assertVisible: "Uma sobreposição nativa"
+- assertVisible: "Este elemento usa a mesma paleta e os mesmos cantos arredondados do app."
+- tapOn: "Fechar sobreposição"
+- stopApp
+- launchApp
+- assertVisible: "Boas-vindas ao Vozzify"
+- tapOn:
+    id: open-components
+- assertVisible: "Componentes da base"
+- assertVisible:
+    id: language-pt-BR
+    checked: true
+- tapOn:
+    id: language-en
+- assertVisible: "Foundation components"
+- assertVisible:
+    id: language-en
+    checked: true
+- takeScreenshot: ios-locale-en
+- tapOn: "Open overlay"
+- assertVisible: "A native overlay"
+- assertVisible: "This surface uses the same palette and rounded shapes as the app."
