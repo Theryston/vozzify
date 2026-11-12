@@ -12,11 +12,15 @@ import { AppearancePreferenceControl } from '../src/components/appearance-prefer
 import { MobileAppearanceProvider } from '../src/lib/appearance/mobile-appearance-provider';
 import { MobileIntlProvider } from '../src/lib/i18n/mobile-intl-provider';
 
-jest.mock('react-native/Libraries/Utilities/Appearance', () =>
-  jest.requireActual('./helpers/controlled-appearance'),
+jest.mock(
+  'react-native/Libraries/Utilities/Appearance',
+  () =>
+    jest.requireActual<typeof import('./helpers/controlled-appearance')>(
+      './helpers/controlled-appearance',
+    ).controlledAppearance,
 );
 
-import { emitAppearanceChange } from './helpers/controlled-appearance';
+import { controlledAppearance } from './helpers/controlled-appearance';
 
 function ThemeProbe() {
   const { theme } = useUniwind();
@@ -38,7 +42,7 @@ describe('appearance preference', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();
     await act(async () => {
-      emitAppearanceChange('light');
+      controlledAppearance.emitAppearanceChange('light');
     });
     Uniwind.setTheme('system');
   });
@@ -99,7 +103,7 @@ describe('appearance preference', () => {
     });
 
     await act(async () => {
-      emitAppearanceChange('light');
+      controlledAppearance.emitAppearanceChange('light');
     });
     await waitFor(() => {
       expect(screen.getByTestId('active-theme')).toHaveTextContent('dark');
@@ -111,7 +115,7 @@ describe('appearance preference', () => {
     });
 
     await act(async () => {
-      emitAppearanceChange('dark');
+      controlledAppearance.emitAppearanceChange('dark');
     });
     await waitFor(() => {
       expect(screen.getByTestId('active-theme')).toHaveTextContent('dark');
