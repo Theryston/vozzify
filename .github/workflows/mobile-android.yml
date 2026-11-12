@@ -98,6 +98,13 @@ jobs:
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/maestro/bin/maestro" --version
 
+      - name: Enable KVM access for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm && test -w /dev/kvm
+
       - name: Start emulator, install APK and run Maestro
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -105,6 +112,7 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_6
+          disable-linux-hw-accel: false
           script: |
             set -e
             echo '::group::Install test app'
