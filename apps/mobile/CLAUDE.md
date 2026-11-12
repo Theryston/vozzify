@@ -83,8 +83,10 @@ included. It starts an Android emulator, installs that APK and runs `apps/mobile
 against the installed app. It checks gallery navigation, input, overlay,
 appearance and language selection, then restarts the app to verify that the
 selected appearance and language return. The Maestro JUnit report is uploaded
-for seven days, including when the smoke test fails. It does not use EAS or
-produce a store-ready signed build.
+for seven days, including when the smoke test fails. Maestro failure logs,
+screenshots and screen hierarchy are uploaded in a separate artifact capped at
+10 MiB and retained for one day. It does not use EAS or produce a store-ready
+signed build.
 
 To reproduce the build locally, run `APP_VARIANT=preview
 EXPO_PUBLIC_API_URL=http://10.0.2.2:3333 nub exec expo prebuild --clean

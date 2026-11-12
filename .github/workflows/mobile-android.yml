@@ -122,8 +122,35 @@ jobs:
             adb install apps/mobile/android/app/build/outputs/apk/release/app-release.apk
             echo '::endgroup::'
             echo '::group::Run installed app smoke flow'
-            maestro test --format junit --output apps/mobile/maestro-results.xml apps/mobile/.maestro/flows/gallery-smoke.yaml
+            maestro test --format junit \
+              --output apps/mobile/maestro-results.xml \
+              --test-output-dir "$RUNNER_TEMP/maestro-debug" \
+              --debug-output "$RUNNER_TEMP/maestro-debug" \
+              apps/mobile/.maestro/flows/gallery-smoke.yaml
             echo '::endgroup::'
+
+      - name: Check Maestro diagnostics size
+        if: always()
+        id: maestro-diagnostics
+        run: |
+          diagnostics="$RUNNER_TEMP/maestro-debug"
+          if [ -d "$diagnostics" ]; then
+            size_bytes="$(du -sb "$diagnostics" | cut -f1)"
+            if [ "$size_bytes" -le 10485760 ]; then
+              echo 'upload=true' >> "$GITHUB_OUTPUT"
+            else
+              echo "::warning::Skipping Maestro diagnostics artifact over 10 MiB ($size_bytes bytes)."
+            fi
+          fi
+
+      - name: Upload Maestro diagnostics
+        if: always() && steps.maestro-diagnostics.outputs.upload == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-maestro-diagnostics
+          path: ${{ runner.temp }}/maestro-debug
+          if-no-files-found: ignore
+          retention-days: 1
 
       - name: Upload Maestro results
         if: always()
