@@ -17,7 +17,7 @@ describe('gallery language preference', () => {
     expect(
       screen.getByRole('radio', { name: 'Brazilian Portuguese' }).props
         .accessibilityState,
-    ).toEqual({ checked: false });
+    ).toEqual({ checked: false, selected: false });
 
     await userEvent.press(screen.getByTestId('language-pt-BR'));
 
@@ -25,6 +25,6 @@ describe('gallery language preference', () => {
     expect(
       screen.getByRole('radio', { name: 'Português do Brasil' }).props
         .accessibilityState,
-    ).toEqual({ checked: true });
+    ).toEqual({ checked: true, selected: true });
   });
 });

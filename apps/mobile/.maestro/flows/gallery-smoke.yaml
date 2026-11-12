@@ -10,7 +10,11 @@ appId: com.vozzify.app.preview
     id: language-en
 - assertVisible:
     id: language-en
-    checked: true
+    selected: true
+- scrollUntilVisible:
+    element:
+      text: Foundation components
+    direction: UP
 - assertVisible: Foundation components
 - scrollUntilVisible:
     element:
@@ -47,7 +51,7 @@ appId: com.vozzify.app.preview
     direction: DOWN
 - assertVisible:
     id: appearance-dark
-    checked: true
+    selected: true
 - scrollUntilVisible:
     element:
       id: language-pt-BR
@@ -56,7 +60,11 @@ appId: com.vozzify.app.preview
     id: language-pt-BR
 - assertVisible:
     id: language-pt-BR
-    checked: true
+    selected: true
+- scrollUntilVisible:
+    element:
+      text: Componentes da base
+    direction: UP
 - assertVisible: Componentes da base
 - stopApp
 - launchApp
@@ -69,4 +77,4 @@ appId: com.vozzify.app.preview
     direction: UP
 - assertVisible:
     id: language-pt-BR
-    checked: true
+    selected: true

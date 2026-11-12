@@ -24,7 +24,10 @@ export default function ComponentsScreen() {
       <Button
         accessibilityLabel={preferenceTranslate('english')}
         accessibilityRole="radio"
-        accessibilityState={{ checked: locale === 'en' }}
+        accessibilityState={{
+          checked: locale === 'en',
+          selected: locale === 'en',
+        }}
         onPress={() => setLocale('en')}
         testID="language-en"
         variant={locale === 'en' ? 'primary' : 'outline'}
@@ -34,7 +37,10 @@ export default function ComponentsScreen() {
       <Button
         accessibilityLabel={preferenceTranslate('brazilianPortuguese')}
         accessibilityRole="radio"
-        accessibilityState={{ checked: locale === 'pt-BR' }}
+        accessibilityState={{
+          checked: locale === 'pt-BR',
+          selected: locale === 'pt-BR',
+        }}
         onPress={() => setLocale('pt-BR')}
         testID="language-pt-BR"
         variant={locale === 'pt-BR' ? 'primary' : 'outline'}
