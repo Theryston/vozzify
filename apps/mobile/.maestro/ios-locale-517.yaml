@@ -7,18 +7,25 @@ appId: com.vozzify.app
 - assertVisible: "Foundation components"
 - assertVisible:
     id: language-en
-    checked: true
+    text: "radio button, checked"
+- assertVisible:
+    id: language-pt-BR
+    text: "radio button, unchecked"
 - tapOn:
     id: language-pt-BR
 - assertVisible: "Componentes da base"
 - assertVisible: "Idioma"
 - assertVisible:
     id: language-pt-BR
-    checked: true
-- takeScreenshot: ios-locale-pt-br
+    text: "radio button, checked"
+- assertVisible:
+    id: language-en
+    text: "radio button, unchecked"
+- takeScreenshot: ios-locale-pt-br-selection
 - tapOn: "Abrir sobreposição"
 - assertVisible: "Uma sobreposição nativa"
 - assertVisible: "Este elemento usa a mesma paleta e os mesmos cantos arredondados do app."
+- takeScreenshot: ios-locale-pt-br-overlay
 - tapOn: "Fechar sobreposição"
 - stopApp
 - launchApp
@@ -28,14 +35,22 @@ appId: com.vozzify.app
 - assertVisible: "Componentes da base"
 - assertVisible:
     id: language-pt-BR
-    checked: true
+    text: "radio button, checked"
+- assertVisible:
+    id: language-en
+    text: "radio button, unchecked"
+- takeScreenshot: ios-locale-pt-br-restored
 - tapOn:
     id: language-en
 - assertVisible: "Foundation components"
 - assertVisible:
     id: language-en
-    checked: true
-- takeScreenshot: ios-locale-en
+    text: "radio button, checked"
+- assertVisible:
+    id: language-pt-BR
+    text: "radio button, unchecked"
+- takeScreenshot: ios-locale-en-selection
 - tapOn: "Open overlay"
 - assertVisible: "A native overlay"
 - assertVisible: "This surface uses the same palette and rounded shapes as the app."
+- takeScreenshot: ios-locale-en-overlay
