@@ -57,14 +57,14 @@ describe('appearance preference', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('radio', { name: 'System' }).props.accessibilityState,
-      ).toEqual({ checked: true });
+      ).toEqual({ checked: true, selected: true });
     });
 
     await userEvent.press(screen.getByRole('radio', { name: 'Dark' }));
     await waitFor(() => {
       expect(
         screen.getByRole('radio', { name: 'Dark' }).props.accessibilityState,
-      ).toEqual({ checked: true });
+      ).toEqual({ checked: true, selected: true });
     });
 
     expect(screen.getByTestId('active-theme')).toHaveTextContent('dark');
@@ -81,7 +81,7 @@ describe('appearance preference', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('radio', { name: 'Dark' }).props.accessibilityState,
-      ).toEqual({ checked: true });
+      ).toEqual({ checked: true, selected: true });
     });
   });
 
