@@ -1,0 +1,185 @@
+name: Mobile iOS simulator
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify native workflow path filters
+        run: python .github/scripts/test-mobile-native-workflow-paths.py
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            mobile:
+              - 'apps/mobile/**'
+              - 'packages/design-tokens/**'
+              - 'packages/contracts/**'
+              - 'nub.lock'
+              - 'package.json'
+              - 'turbo.json'
+              - 'tsconfig.base.json'
+              - '.node-version'
+              - '.npmrc'
+              - 'biome.json'
+              - 'knip.config.ts'
+              - '.jscpd.json'
+              - 'vitest.config.ts'
+              - 'vitest.config.*.ts'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/mobile-android.yml'
+              - '.github/workflows/mobile-ios.yml'
+              - '.github/scripts/test-mobile-native-path-filter.py'
+
+  simulator-smoke:
+    name: Build, install and smoke test iOS simulator app
+    if: always() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.mobile == 'true')
+    needs: changes
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      APP_VARIANT: preview
+      EXPO_PUBLIC_API_URL: http://127.0.0.1:3333
+      MAESTRO_CLI_NO_ANALYTICS: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: nubjs/setup-nub@v0
+        with:
+          nub-version: 0.9.5
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install locked workspace dependencies
+        run: nub install --frozen-lockfile
+
+      - name: Generate iOS project
+        working-directory: apps/mobile
+        run: nub exec expo prebuild --clean --no-install --platform ios
+
+      - name: Install CocoaPods dependencies
+        working-directory: apps/mobile
+        run: ./scripts/install-ios-pods.sh
+
+      - name: Select available iPhone simulator
+        run: |
+          simulator=$(xcrun simctl list devices available -j | node -e '
+            let input = "";
+            process.stdin.on("data", (chunk) => input += chunk);
+            process.stdin.on("end", () => {
+              const devices = Object.values(JSON.parse(input).devices).flat();
+              const simulator = devices.find((device) => device.isAvailable && device.name.startsWith("iPhone"));
+              if (!simulator) process.exit(1);
+              process.stdout.write(`${simulator.name}\t${simulator.udid}`);
+            });
+          ')
+          if [ -z "$simulator" ]; then
+            echo '::error::No available iPhone simulator runtime is installed.'
+            exit 1
+          fi
+          IFS=$'\t' read -r SIMULATOR_NAME SIMULATOR_UDID <<< "$simulator"
+          echo "SIMULATOR_NAME=$SIMULATOR_NAME" >> "$GITHUB_ENV"
+          echo "SIMULATOR_UDID=$SIMULATOR_UDID" >> "$GITHUB_ENV"
+          echo "Using $SIMULATOR_NAME ($SIMULATOR_UDID)"
+
+      - name: Compile iOS simulator app
+        working-directory: apps/mobile
+        run: |
+          workspace=$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)
+          scheme=$(xcodebuild -list -json -workspace "$workspace" | node -e '
+            let input = "";
+            process.stdin.on("data", (chunk) => input += chunk);
+            process.stdin.on("end", () => {
+              const schemes = JSON.parse(input).workspace.schemes;
+              const scheme = schemes.find((value) => value.startsWith("Vozzify"));
+              if (!scheme) process.exit(1);
+              process.stdout.write(scheme);
+            });
+          ')
+          xcodebuild \
+            -workspace "$workspace" \
+            -scheme "$scheme" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/ios-derived-data" \
+            -resultBundlePath "$RUNNER_TEMP/ios-build.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Start iOS simulator
+        run: |
+          if ! xcrun simctl list devices available -j | node -e '
+            let input = "";
+            process.stdin.on("data", (chunk) => input += chunk);
+            process.stdin.on("end", () => {
+              const devices = Object.values(JSON.parse(input).devices).flat();
+              const simulator = devices.find((device) => device.udid === process.argv[1]);
+              process.exit(simulator?.state === "Booted" ? 0 : 1);
+            });
+          ' "$SIMULATOR_UDID"; then
+            xcrun simctl boot "$SIMULATOR_UDID"
+          fi
+          xcrun simctl bootstatus "$SIMULATOR_UDID" -b
+
+      - name: Install native app
+        working-directory: apps/mobile
+        run: |
+          app=$(find "$RUNNER_TEMP/ios-derived-data/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
+          if [ -z "$app" ]; then
+            echo '::error::The native build did not produce an iOS simulator app.'
+            exit 1
+          fi
+          xcrun simctl install "$SIMULATOR_UDID" "$app"
+
+      - name: Install Maestro CLI
+        run: |
+          curl -fsSLO https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.12.0/maestro.zip
+          echo 'a6044a84542f522f434c5dc3d609e60c7446d423f3ed1b2ae513f5c48663ec5e  maestro.zip' | shasum -a 256 --check --status
+          unzip -q maestro.zip -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/maestro/bin/maestro" --version
+
+      - name: Launch installed app
+        run: xcrun simctl launch "$SIMULATOR_UDID" com.vozzify.app.preview
+
+      - name: Run internal gallery smoke flow
+        working-directory: apps/mobile
+        run: maestro test --format junit --output "$RUNNER_TEMP/maestro-results.xml" .maestro/flows/gallery-smoke.yaml
+
+      - name: Upload Maestro results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-maestro-results
+          path: ${{ runner.temp }}/maestro-results.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload native build result on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-native-build-result
+          path: ${{ runner.temp }}/ios-build.xcresult
+          retention-days: 7
