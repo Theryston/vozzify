@@ -12,17 +12,18 @@ import {
   useMobileLocale,
 } from '../src/lib/i18n/mobile-locale-provider';
 
-let mockStoredLocale: string | null = null;
+const mockStoredValues = new Map<string, string>();
 let mockPendingRead: Promise<string | null> | null = null;
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
   default: {
     getItem: jest.fn(
-      () => mockPendingRead ?? Promise.resolve(mockStoredLocale),
+      (key: string) =>
+        mockPendingRead ?? Promise.resolve(mockStoredValues.get(key) ?? null),
     ),
-    setItem: jest.fn((_key: string, value: string) => {
-      mockStoredLocale = value;
+    setItem: jest.fn((key: string, value: string) => {
+      mockStoredValues.set(key, value);
       return Promise.resolve();
     }),
   },
@@ -59,7 +60,7 @@ function LocaleApp() {
 
 describe('mobile locale preference', () => {
   beforeEach(() => {
-    mockStoredLocale = null;
+    mockStoredValues.clear();
     mockPendingRead = null;
     jest.clearAllMocks();
   });
@@ -85,7 +86,7 @@ describe('mobile locale preference', () => {
   });
 
   it('persists a manual choice and restores the translated screen after restart', async () => {
-    mockStoredLocale = 'en';
+    mockStoredValues.set('mobile-language', 'en');
     const firstLaunch = await render(
       <MobileLocaleProvider>
         <LocaleApp />
@@ -99,7 +100,7 @@ describe('mobile locale preference', () => {
     await waitFor(() => {
       expect(screen.getByText('Boas-vindas ao Vozzify')).toBeOnTheScreen();
     });
-    expect(mockStoredLocale).toBe('pt-BR');
+    expect(mockStoredValues.get('mobile-language')).toBe('pt-BR');
 
     await firstLaunch.unmount();
     await render(
@@ -135,7 +136,7 @@ describe('mobile locale preference', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Boas-vindas ao Vozzify')).toBeOnTheScreen();
-      expect(mockStoredLocale).toBe('pt-BR');
+      expect(mockStoredValues.get('mobile-language')).toBe('pt-BR');
     });
   });
 });
