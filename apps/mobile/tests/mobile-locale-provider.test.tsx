@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   render,
   screen,
@@ -6,75 +5,137 @@ import {
   waitFor,
 } from '@testing-library/react-native';
 import { Pressable, Text } from 'react-native';
+import { useTranslations } from 'use-intl';
+import { MobileIntlProvider } from '../src/lib/i18n/mobile-intl-provider';
 import {
   MobileLocaleProvider,
   useMobileLocale,
 } from '../src/lib/i18n/mobile-locale-provider';
 
+let mockStoredLocale: string | null = null;
+let mockPendingRead: Promise<string | null> | null = null;
+
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
   default: {
-    getItem: jest.fn(),
-    setItem: jest.fn(),
+    getItem: jest.fn(
+      () => mockPendingRead ?? Promise.resolve(mockStoredLocale),
+    ),
+    setItem: jest.fn((_key: string, value: string) => {
+      mockStoredLocale = value;
+      return Promise.resolve();
+    }),
   },
 }));
 
 function LocaleChoice() {
   const { locale, setLocale } = useMobileLocale();
+  const translate = useTranslations('home');
 
   return (
-    <Pressable
-      accessibilityLabel={locale}
-      accessibilityRole="button"
-      onPress={() => setLocale('pt-BR')}
-      testID="choose-portuguese"
-    >
-      <Text>{locale}</Text>
-    </Pressable>
+    <>
+      <Text>{translate('title')}</Text>
+      <Pressable
+        accessibilityLabel="Choose Brazilian Portuguese"
+        accessibilityRole="button"
+        onPress={() => setLocale('pt-BR')}
+        testID="choose-portuguese"
+      >
+        <Text>{locale}</Text>
+      </Pressable>
+    </>
+  );
+}
+
+function LocaleApp() {
+  const { locale } = useMobileLocale();
+
+  return (
+    <MobileIntlProvider locale={locale}>
+      <LocaleChoice />
+    </MobileIntlProvider>
   );
 }
 
 describe('mobile locale preference', () => {
   beforeEach(() => {
+    mockStoredLocale = null;
+    mockPendingRead = null;
     jest.clearAllMocks();
-    jest.mocked(AsyncStorage.getItem).mockResolvedValue(null);
-    jest.mocked(AsyncStorage.setItem).mockResolvedValue(undefined);
   });
 
-  it('restores a saved language and persists a new manual choice', async () => {
-    jest.mocked(AsyncStorage.getItem).mockResolvedValue('en');
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('detects a supported device language when no preference is saved', async () => {
+    jest.spyOn(Intl, 'DateTimeFormat').mockReturnValue({
+      resolvedOptions: () => ({ locale: 'pt-BR' }),
+    } as Intl.DateTimeFormat);
+
+    await render(
+      <MobileLocaleProvider>
+        <LocaleApp />
+      </MobileLocaleProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Boas-vindas ao Vozzify')).toBeOnTheScreen();
+    });
+  });
+
+  it('persists a manual choice and restores the translated screen after restart', async () => {
+    mockStoredLocale = 'en';
     const firstLaunch = await render(
       <MobileLocaleProvider>
-        <LocaleChoice />
+        <LocaleApp />
       </MobileLocaleProvider>,
     );
 
-    await waitFor(() => expect(screen.getByText('en')).toBeOnTheScreen());
+    await waitFor(() => {
+      expect(screen.getByText('Welcome to Vozzify')).toBeOnTheScreen();
+    });
     await userEvent.press(screen.getByTestId('choose-portuguese'));
-
-    await waitFor(() => expect(screen.getByText('pt-BR')).toBeOnTheScreen());
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith(
-      'mobile-language',
-      'pt-BR',
-    );
+    await waitFor(() => {
+      expect(screen.getByText('Boas-vindas ao Vozzify')).toBeOnTheScreen();
+    });
+    expect(mockStoredLocale).toBe('pt-BR');
 
     await firstLaunch.unmount();
-    jest.mocked(AsyncStorage.getItem).mockResolvedValue('pt-BR');
     await render(
       <MobileLocaleProvider>
-        <LocaleChoice />
+        <LocaleApp />
       </MobileLocaleProvider>,
     );
-    await waitFor(() => expect(screen.getByText('pt-BR')).toBeOnTheScreen());
+    await waitFor(() => {
+      expect(screen.getByText('Boas-vindas ao Vozzify')).toBeOnTheScreen();
+    });
   });
 
-  it('uses an injected locale without waiting for storage', async () => {
+  it('keeps a manual choice made while the initial preference read is pending', async () => {
+    let resolveRead: ((value: string | null) => void) | undefined;
+    mockPendingRead = new Promise((resolve) => {
+      resolveRead = resolve;
+    });
+
     await render(
-      <MobileLocaleProvider initialLocale="pt-BR">
-        <LocaleChoice />
+      <MobileLocaleProvider>
+        <LocaleApp />
       </MobileLocaleProvider>,
     );
+    await userEvent.press(screen.getByTestId('choose-portuguese'));
+    await waitFor(() => {
+      expect(screen.getByText('Boas-vindas ao Vozzify')).toBeOnTheScreen();
+    });
 
-    expect(AsyncStorage.getItem).not.toHaveBeenCalled();
+    if (!resolveRead) {
+      throw new Error('The initial preference read did not start');
+    }
+    resolveRead('en');
+
+    await waitFor(() => {
+      expect(screen.getByText('Boas-vindas ao Vozzify')).toBeOnTheScreen();
+      expect(mockStoredLocale).toBe('pt-BR');
+    });
   });
 });

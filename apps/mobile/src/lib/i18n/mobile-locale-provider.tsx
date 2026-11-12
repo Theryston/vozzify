@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ReactNode } from 'react';
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { MobileLocale } from './mobile-intl-provider';
 import {
   detectDeviceLocale,
@@ -33,6 +33,7 @@ export function MobileLocaleProvider({
 }: MobileLocaleProviderProps) {
   const [locale, setLocaleState] = useState(initialLocale ?? getDeviceLocale);
   const [ready, setReady] = useState(initialLocale !== undefined);
+  const hasManualChoice = useRef(false);
 
   useEffect(() => {
     if (initialLocale !== undefined) {
@@ -42,7 +43,7 @@ export function MobileLocaleProvider({
     let active = true;
     void AsyncStorage.getItem(MOBILE_LOCALE_STORAGE_KEY)
       .then((savedValue) => {
-        if (active) {
+        if (active && !hasManualChoice.current) {
           setLocaleState(parseSavedLocale(savedValue) ?? getDeviceLocale());
         }
       })
@@ -59,6 +60,7 @@ export function MobileLocaleProvider({
   }, [initialLocale]);
 
   function setLocale(nextLocale: MobileLocale) {
+    hasManualChoice.current = true;
     setLocaleState(nextLocale);
     void AsyncStorage.setItem(MOBILE_LOCALE_STORAGE_KEY, nextLocale).catch(
       () => undefined,
