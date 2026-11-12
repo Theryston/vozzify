@@ -31,6 +31,9 @@ jobs:
       - name: Install Maestro CLI
         run: brew install mobile-dev-inc/tap/maestro
       - name: Install app and smoke test locale selection and persistence
+        # Fresh macOS XCUITest startup can exceed Maestro's 120-second default.
+        env:
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: "360000"
         run: |
           simulator_id="$(xcrun simctl list devices available | sed -nE 's/.*iPhone 17 \(([0-9A-F-]{36})\).*/\1/p' | head -n 1)"
           if [ -z "$simulator_id" ]; then
