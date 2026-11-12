@@ -48,7 +48,7 @@ jobs:
           echo "IOS_SIMULATOR_ID=$simulator_id" >> "$GITHUB_ENV"
           xcrun simctl boot "$simulator_id" || true
           xcrun simctl bootstatus "$simulator_id" -b
-          nub exec expo run:ios --configuration Release --device "$simulator_id"
+          nub exec expo run:ios --configuration Release --no-bundler --device "$simulator_id"
           xcrun simctl ui "$simulator_id" appearance light
           xcrun simctl launch "$simulator_id" com.vozzify.app
           maestro test .maestro/appearance-save-dark.yaml
