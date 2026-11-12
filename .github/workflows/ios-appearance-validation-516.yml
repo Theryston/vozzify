@@ -78,6 +78,16 @@ jobs:
           else
             echo "No simulator app artifact found; retaining screenshots and logs only"
           fi
+      - name: Capture final simulator state
+        if: always()
+        working-directory: apps/mobile
+        run: |
+          if [ -z "$IOS_SIMULATOR_ID" ]; then
+            echo "Simulator was not booted; no UI state to capture"
+            exit 0
+          fi
+          xcrun simctl io "$IOS_SIMULATOR_ID" screenshot ios-appearance-final.png || true
+          xcrun simctl spawn "$IOS_SIMULATOR_ID" log show --last 5m --style compact --predicate 'process == "Vozzify"' > ios-appearance.log 2>&1 || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
