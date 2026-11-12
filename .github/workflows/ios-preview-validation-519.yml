@@ -23,16 +23,16 @@ jobs:
           xcodebuild -version
           xcrun simctl list devices available
       - name: Install pinned Nub CLI
-        run: |
-          curl -fsSL https://nubjs.com/install.sh | NUB_INSTALL_DIR="$HOME/.nub" NUB_NO_MODIFY_PATH=1 bash
-          "$HOME/.nub/bin/nub" upgrade --version 0.9.5
+        uses: nubjs/setup-nub@v0.1.0
+        with:
+          nub-version: 0.9.5
       - name: Install locked workspace dependencies
         run: |
-          "$HOME/.nub/bin/nub" install --filter=mobile... --frozen-lockfile
+          nub install --filter=mobile... --frozen-lockfile
       - name: Generate iOS native project
         working-directory: apps/mobile
         run: |
-          "$HOME/.nub/bin/nub" exec expo prebuild --clean --no-install --platform ios
+          nub exec expo prebuild --clean --no-install --platform ios
       - name: Install CocoaPods dependencies
         working-directory: apps/mobile
         run: ./scripts/install-ios-pods.sh
@@ -45,7 +45,7 @@ jobs:
             exit 1
           fi
           echo "IOS_SIMULATOR_ID=$simulator_id" >> "$GITHUB_ENV"
-          "$HOME/.nub/bin/nub" exec expo run:ios --configuration Release --device "$simulator_id"
+          nub exec expo run:ios --configuration Release --device "$simulator_id"
           xcrun simctl bootstatus "$simulator_id" -b
           xcrun simctl launch "$simulator_id" com.vozzify.app.preview
           sleep 10
