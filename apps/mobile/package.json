@@ -9,7 +9,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "android:variant": "expo prebuild --clean --no-install --platform android && expo run:android",
-    "ios:variant": "expo prebuild --clean --no-install --platform ios && cd ios && pod install && cd .. && expo run:ios",
+    "ios:variant": "expo prebuild --clean --no-install --platform ios && ./scripts/install-ios-pods.sh && expo run:ios",
     "build": "APP_VARIANT=${APP_VARIANT:-production} expo export --platform all --output-dir dist",
     "lint": "biome check . && depcruise app src --config .dependency-cruiser.cjs",
     "format": "biome check --write .",
