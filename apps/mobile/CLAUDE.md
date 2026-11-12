@@ -89,7 +89,9 @@ produce a store-ready signed build.
 To reproduce the build locally, run `APP_VARIANT=preview
 EXPO_PUBLIC_API_URL=http://10.0.2.2:3333 nub exec expo prebuild --clean
 --no-install --platform android` from `apps/mobile`, then run
-`./gradlew --no-daemon assembleRelease` from `apps/mobile/android`. Install
+`./gradlew --no-daemon assembleRelease -PreactNativeArchitectures=x86_64` from
+`apps/mobile/android` to match the x86_64 emulator and avoid compiling unused
+Android ABIs. Install
 `apps/mobile/android/app/build/outputs/apk/release/app-release.apk` on a running
 emulator and run `maestro test --format junit --output
 apps/mobile/maestro-results.xml apps/mobile/.maestro/flows/gallery-smoke.yaml`
