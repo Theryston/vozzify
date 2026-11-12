@@ -11,7 +11,9 @@ build:
         name: Install locked workspace dependencies
         working_directory: ../..
         command: "$HOME/.nub/bin/nub install --filter=mobile... --frozen-lockfile"
-    - eas/prebuild
+    - run:
+        name: Generate Ios native project with Nub
+        command: "../../.nub/bin/nub exec expo prebuild --no-install --platform ios"
     - run:
         name: Install CocoaPods dependencies
         working_directory: ./ios

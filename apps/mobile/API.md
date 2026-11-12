@@ -31,7 +31,8 @@ project automatically. Request free-plan builds with the repository's package
 manager, for example from `apps/mobile`:
 `nub dlx eas-cli build --platform android --profile development`. EAS custom
 worker configs install the pinned Nub CLI and install the workspace with the
-root `nub.lock` before native compilation. Use `--profile preview` for an internal APK and
+root `nub.lock`, then run platform-specific Expo prebuild with `--no-install`
+through Nub before native compilation. Use `--profile preview` for an internal APK and
 `--profile production` only when preparing a later store publication. EAS
 profiles keep iOS outputs simulator-only for development and preview; these are
 not iPhone previews. No Apple membership, TestFlight, signing or store upload

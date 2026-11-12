@@ -11,7 +11,9 @@ build:
         name: Install locked workspace dependencies
         working_directory: ../..
         command: "$HOME/.nub/bin/nub install --filter=mobile... --frozen-lockfile"
-    - eas/prebuild
+    - run:
+        name: Generate Android native project with Nub
+        command: "../../.nub/bin/nub exec expo prebuild --no-install --platform android"
     - eas/inject_android_credentials
     - eas/run_gradle
     - eas/find_and_upload_build_artifacts
