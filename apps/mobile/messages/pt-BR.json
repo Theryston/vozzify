@@ -1,8 +1,8 @@
 {
   "navigation": {
-    "back": "Voltar",
     "home": "Início",
-    "components": "Componentes"
+    "components": "Componentes",
+    "back": "Voltar"
   },
   "home": {
     "title": "Boas-vindas ao Vozzify",
@@ -12,8 +12,9 @@
   "components": {
     "title": "Componentes da base",
     "description": "Uma pequena galeria nativa para revisar estilos e controles do Vozzify.",
-    "buttonLabel": "Botão de exemplo",
+    "appearanceTitle": "Aparência",
     "button": "Ação principal",
+    "buttonLabel": "Botão de exemplo",
     "inputLabel": "Campo de texto de exemplo",
     "inputPlaceholder": "Digite algo",
     "openOverlay": "Abrir sobreposição",
@@ -21,6 +22,11 @@
     "overlayTitle": "Uma sobreposição nativa",
     "overlayDescription": "Este elemento usa a mesma paleta e os mesmos cantos arredondados do app.",
     "returnHome": "Voltar ao início"
+  },
+  "appearance": {
+    "system": "Sistema",
+    "light": "Claro",
+    "dark": "Escuro"
   },
   "preferences": {
     "language": "Idioma",

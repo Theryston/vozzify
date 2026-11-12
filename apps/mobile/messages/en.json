@@ -1,8 +1,8 @@
 {
   "navigation": {
-    "back": "Back",
     "home": "Home",
-    "components": "Components"
+    "components": "Components",
+    "back": "Back"
   },
   "home": {
     "title": "Welcome to Vozzify",
@@ -12,8 +12,9 @@
   "components": {
     "title": "Foundation components",
     "description": "A small native gallery for reviewing Vozzify styles and controls.",
-    "buttonLabel": "Example button",
+    "appearanceTitle": "Appearance",
     "button": "Primary action",
+    "buttonLabel": "Example button",
     "inputLabel": "Sample text input",
     "inputPlaceholder": "Type something",
     "openOverlay": "Open overlay",
@@ -21,6 +22,11 @@
     "overlayTitle": "A native overlay",
     "overlayDescription": "This surface uses the same palette and rounded shapes as the app.",
     "returnHome": "Return home"
+  },
+  "appearance": {
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
   },
   "preferences": {
     "language": "Language",

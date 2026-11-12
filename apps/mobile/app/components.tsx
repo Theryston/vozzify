@@ -1,6 +1,7 @@
 import { Link } from 'expo-router';
 import { useState } from 'react';
 import { useTranslations } from 'use-intl';
+import { AppearancePreferenceControl } from '../src/components/appearance-preference-control';
 import { Screen } from '../src/components/screen';
 import { Text } from '../src/components/text';
 import { Button } from '../src/components/ui/button';
@@ -40,6 +41,8 @@ export default function ComponentsScreen() {
       >
         {preferenceTranslate('brazilianPortuguese')}
       </Button>
+      <Text>{translate('appearanceTitle')}</Text>
+      <AppearancePreferenceControl />
       <Button accessibilityLabel={translate('buttonLabel')}>
         {translate('button')}
       </Button>
