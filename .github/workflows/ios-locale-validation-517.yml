@@ -33,8 +33,8 @@ jobs:
         working-directory: apps/mobile
         run: nub exec expo prebuild --clean --no-install --platform ios
       - name: Install CocoaPods dependencies
-        working-directory: apps/mobile
-        run: ./scripts/install-ios-pods.sh
+        working-directory: apps/mobile/ios
+        run: pod install
       - name: Build and launch app in iOS Simulator
         working-directory: apps/mobile
         run: |
@@ -57,7 +57,11 @@ jobs:
             xcrun simctl io "$IOS_SIMULATOR_ID" screenshot ios-locale-final.png || true
             xcrun simctl spawn "$IOS_SIMULATOR_ID" log show --last 5m --style compact --predicate 'process == "Vozzify"' > ios-locale.log 2>&1 || true
           fi
-          app_path="$(find "$HOME/Library/Developer/Xcode/DerivedData" -type d -path '*/Build/Products/Release-iphonesimulator/*.app' -print -quit)"
+          derived_data="$HOME/Library/Developer/Xcode/DerivedData"
+          app_path=""
+          if [ -d "$derived_data" ]; then
+            app_path="$(find "$derived_data" -type d -path '*/Build/Products/Release-iphonesimulator/*.app' -print -quit)"
+          fi
           if [ -n "$app_path" ]; then
             ditto -c -k --sequesterRsrc --keepParent "$app_path" ios-locale-app.zip
           fi
