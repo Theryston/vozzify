@@ -1,0 +1,72 @@
+appId: com.vozzify.app.preview
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: open-components
+- tapOn:
+    id: open-components
+- tapOn:
+    id: language-en
+- assertVisible:
+    id: language-en
+    checked: true
+- assertVisible: Foundation components
+- scrollUntilVisible:
+    element:
+      id: gallery-input
+    direction: DOWN
+- tapOn:
+    id: gallery-input
+- inputText: Vozzify
+- hideKeyboard
+- assertVisible: Vozzify
+- scrollUntilVisible:
+    element:
+      id: overlay-open
+    direction: DOWN
+- tapOn:
+    id: overlay-open
+- assertVisible: A native overlay
+- tapOn:
+    id: overlay-dismiss
+- assertNotVisible: A native overlay
+- scrollUntilVisible:
+    element:
+      id: appearance-dark
+    direction: UP
+- tapOn:
+    id: appearance-dark
+- stopApp
+- launchApp
+- tapOn:
+    id: open-components
+- scrollUntilVisible:
+    element:
+      id: appearance-dark
+    direction: DOWN
+- assertVisible:
+    id: appearance-dark
+    checked: true
+- scrollUntilVisible:
+    element:
+      id: language-pt-BR
+    direction: UP
+- tapOn:
+    id: language-pt-BR
+- assertVisible:
+    id: language-pt-BR
+    checked: true
+- assertVisible: Componentes da base
+- stopApp
+- launchApp
+- tapOn:
+    id: open-components
+- assertVisible: Componentes da base
+- scrollUntilVisible:
+    element:
+      id: language-pt-BR
+    direction: UP
+- assertVisible:
+    id: language-pt-BR
+    checked: true

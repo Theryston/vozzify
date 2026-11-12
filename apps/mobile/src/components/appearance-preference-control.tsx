@@ -20,6 +20,7 @@ export function AppearancePreferenceControl() {
             accessibilityState={{ checked: isSelected }}
             className={`min-h-10 flex-row items-center rounded-full border px-4 py-2 ${isSelected ? 'border-primary bg-primary' : 'border-border bg-background'}`}
             key={option}
+            testID={`appearance-${option}`}
             onPress={() => {
               void setPreference(option).catch(() => undefined);
             }}

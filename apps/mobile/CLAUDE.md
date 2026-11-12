@@ -68,3 +68,30 @@ linking an EAS project, verify and reuse `@vozzify/vozzify`; do not create a
 second project. Development and preview iOS builds target the simulator only,
 which cannot be installed on an iPhone. A JavaScript export does not count as a
 native build; report compilation and installed-app evidence separately.
+
+## Automatic Android validation
+
+Changes to the mobile app, shared design tokens or contracts, lockfile,
+mobile/shared package manifests, Node configuration,
+TypeScript/Biome/Knip/test configuration, Turbo configuration and the main CI
+workflow run Android native validation on pull requests and pushes to `main`. Other isolated service changes do not trigger it. Use the workflow's
+**Run workflow** action to run it manually; manual runs always build and test.
+
+The workflow uses a standard GitHub-hosted Ubuntu runner, the preview app
+variant and a locally compiled release APK with its JavaScript bundle
+included. It starts an Android emulator, installs that APK and runs `apps/mobile/.maestro/flows/gallery-smoke.yaml`
+against the installed app. It checks gallery navigation, input, overlay,
+appearance and language selection, then restarts the app to verify that the
+selected appearance and language return. The Maestro JUnit report is uploaded
+for seven days, including when the smoke test fails. It does not use EAS or
+produce a store-ready signed build.
+
+To reproduce the build locally, run `APP_VARIANT=preview
+EXPO_PUBLIC_API_URL=http://10.0.2.2:3333 nub exec expo prebuild --clean
+--no-install --platform android` from `apps/mobile`, then run
+`./gradlew --no-daemon assembleRelease` from `apps/mobile/android`. Install
+`apps/mobile/android/app/build/outputs/apk/release/app-release.apk` on a running
+emulator and run `maestro test --format junit --output
+apps/mobile/maestro-results.xml apps/mobile/.maestro/flows/gallery-smoke.yaml`
+from the repository root. Install the Maestro CLI separately; the CI workflow
+pins its CLI release and does not use Maestro Cloud.
