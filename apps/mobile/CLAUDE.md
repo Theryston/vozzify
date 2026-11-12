@@ -8,7 +8,7 @@ the Next.js app remains the web client.
 From the repository root, use `nub run <task> --filter=mobile` for `lint`,
 `check-types`, `test`, `test:cov`, and `build`. For native development, change
 to `apps/mobile` and run `nub run start` or the `android:variant` / `ios:variant`
-scripts. Those native scripts run a clean, platform-specific Expo prebuild with `--no-install` under the selected `APP_VARIANT` before compiling. The iOS script installs CocoaPods dependencies before launching the simulator.
+scripts. Those native scripts run a clean, platform-specific Expo prebuild with `--no-install` under the selected `APP_VARIANT` before compiling. Expo’s iOS run command synchronizes CocoaPods dependencies before launching the simulator.
 
 Expo Go is not used: the app uses a development client so later native modules
 fit the same workflow. `nub run build --filter=mobile` exports production
