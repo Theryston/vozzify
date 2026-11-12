@@ -34,9 +34,17 @@ repository root run:
 ```sh
 nub install --frozen-lockfile
 cd apps/mobile
-APP_VARIANT=preview EXPO_PUBLIC_API_URL=http://127.0.0.1:3333 nub run ios:variant
+export APP_VARIANT=preview
+export EXPO_PUBLIC_API_URL=http://127.0.0.1:3333
+nub exec expo prebuild --clean --no-install --platform ios
+./scripts/install-ios-pods.sh
+nub exec expo run:ios --configuration Release --no-bundler --device "<available iPhone simulator name>"
 maestro test .maestro/flows/gallery-smoke.yaml
 ```
+
+Keep both environment variables exported through the build and Maestro run so
+the installed app uses the preview bundle and API URL. Replace the device
+placeholder with an available iPhone simulator name from Xcode.
 
 Maestro CLI and Java 17 or newer are required for the flow. Simulator
 availability depends on the installed Xcode runtimes; choose an available
