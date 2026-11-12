@@ -1,31 +1,36 @@
 {
   "navigation": {
-    "back": "Back",
     "home": "Home",
-    "components": "Components"
+    "components": "Components",
+    "back": "Back"
   },
   "home": {
     "title": "Welcome to Vozzify",
-    "description": "Your voice, mapped to every note.",
+    "description": "Your native mobile foundation is ready.",
     "openComponents": "Open component gallery"
   },
   "components": {
     "title": "Foundation components",
     "description": "A small native gallery for reviewing Vozzify styles and controls.",
-    "buttonLabel": "Example button",
+    "appearanceTitle": "Appearance",
     "button": "Primary action",
-    "inputLabel": "Sample text input",
+    "buttonLabel": "Example button",
+    "inputLabel": "Gallery input",
     "inputPlaceholder": "Type something",
     "openOverlay": "Open overlay",
     "dismissOverlay": "Dismiss overlay",
     "overlayTitle": "A native overlay",
     "overlayDescription": "This surface uses the same palette and rounded shapes as the app.",
-    "returnHome": "Return home",
-    "appearanceTitle": "Appearance"
+    "returnHome": "Return home"
   },
   "appearance": {
     "system": "System",
     "light": "Light",
     "dark": "Dark"
+  },
+  "preferences": {
+    "language": "Language",
+    "english": "English",
+    "brazilianPortuguese": "Brazilian Portuguese"
   }
 }

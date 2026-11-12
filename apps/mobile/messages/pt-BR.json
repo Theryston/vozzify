@@ -1,31 +1,36 @@
 {
   "navigation": {
-    "back": "Voltar",
     "home": "Início",
-    "components": "Componentes"
+    "components": "Componentes",
+    "back": "Voltar"
   },
   "home": {
     "title": "Boas-vindas ao Vozzify",
-    "description": "Sua voz, mapeada para cada nota.",
+    "description": "Sua base mobile nativa está pronta.",
     "openComponents": "Abrir galeria de componentes"
   },
   "components": {
     "title": "Componentes da base",
-    "description": "Uma pequena galeria nativa para revisar estilos e controles do Vozzify.",
-    "buttonLabel": "Botão de exemplo",
+    "description": "Uma pequena galeria nativa para revisar os estilos e controles do Vozzify.",
+    "appearanceTitle": "Aparência",
     "button": "Ação principal",
-    "inputLabel": "Campo de texto de exemplo",
+    "buttonLabel": "Botão de exemplo",
+    "inputLabel": "Campo da galeria",
     "inputPlaceholder": "Digite algo",
     "openOverlay": "Abrir sobreposição",
     "dismissOverlay": "Fechar sobreposição",
     "overlayTitle": "Uma sobreposição nativa",
     "overlayDescription": "Este elemento usa a mesma paleta e os mesmos cantos arredondados do app.",
-    "returnHome": "Voltar ao início",
-    "appearanceTitle": "Aparência"
+    "returnHome": "Voltar ao início"
   },
   "appearance": {
     "system": "Sistema",
     "light": "Claro",
     "dark": "Escuro"
+  },
+  "preferences": {
+    "language": "Idioma",
+    "english": "Inglês",
+    "brazilianPortuguese": "Português do Brasil"
   }
 }

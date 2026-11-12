@@ -1,0 +1,52 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "environment": "development",
+      "env": {
+        "APP_VARIANT": "development"
+      },
+      "android": {
+        "buildType": "apk",
+        "config": "nub-android.yml"
+      },
+      "ios": {
+        "simulator": true,
+        "config": "nub-ios.yml"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "environment": "preview",
+      "env": {
+        "APP_VARIANT": "preview"
+      },
+      "android": {
+        "buildType": "apk",
+        "config": "nub-android.yml"
+      },
+      "ios": {
+        "simulator": true,
+        "config": "nub-ios.yml"
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "environment": "production",
+      "env": {
+        "APP_VARIANT": "production"
+      },
+      "android": {
+        "config": "nub-android.yml"
+      },
+      "ios": {
+        "config": "nub-ios.yml"
+      }
+    }
+  }
+}

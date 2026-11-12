@@ -52,6 +52,33 @@
       "cache": false,
       "passThroughEnv": ["CI", "PLAYWRIGHT_*"]
     },
+    "mobile#build": {
+      "env": ["APP_VARIANT", "EXPO_PUBLIC_API_URL"]
+    },
+    "mobile#start": {
+      "env": ["APP_VARIANT", "EXPO_PUBLIC_API_URL"],
+      "cache": false
+    },
+    "mobile#dev": {
+      "env": ["APP_VARIANT", "EXPO_PUBLIC_API_URL"],
+      "cache": false
+    },
+    "mobile#android": {
+      "env": ["APP_VARIANT", "EXPO_PUBLIC_API_URL"],
+      "cache": false
+    },
+    "mobile#ios": {
+      "env": ["APP_VARIANT", "EXPO_PUBLIC_API_URL"],
+      "cache": false
+    },
+    "mobile#android:variant": {
+      "env": ["APP_VARIANT", "EXPO_PUBLIC_API_URL"],
+      "cache": false
+    },
+    "mobile#ios:variant": {
+      "env": ["APP_VARIANT", "EXPO_PUBLIC_API_URL"],
+      "cache": false
+    },
     "format": {
       "cache": false
     },

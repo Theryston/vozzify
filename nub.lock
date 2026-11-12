@@ -4096,6 +4096,12 @@ packages:
       react: '>=16'
       react-native: '>=0.57'
 
+  '@react-native-async-storage/async-storage@3.1.1':
+    resolution: {integrity: sha512-z+PnLz1n6ECKhgoHZHkfc+dijXZEyZnNFSajbtE0NEbsJhmX8x9GlOeiMQIKX2E4DUqPSgfIh4FYBv1M49KgPQ==}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
+
   '@react-native/asset-utils@0.88.1':
     resolution: {integrity: sha512-BLb5FF7NgggGYiCsA7KKkK2qFhn0K+6iGXOI+4Ucd+G7Robzw9Gt4WsWwxLt+Od+G+/hyqfz8ASokyWFZ6VcLw==}
     engines: {node: ^22.13.0 || ^24.3.0 || >= 26.0.0}
@@ -15061,6 +15067,12 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.3.0
 
+  '@react-native-async-storage/async-storage@3.1.1(@babel/core@7.29.7)(react@19.3.0)(react-native@0.88.1(@types/react@19.3.0)(react@19.3.0))':
+    dependencies:
+      idb: 8.0.3
+      react: 19.3.0
+      react-native: 0.88.1(@babel/core@7.29.7)(@types/react@19.3.0)(react@19.3.0)
+
   '@react-native-masked-view/masked-view@0.3.2(@babel/core@7.29.7)(react@19.3.0)(react-native@0.88.1(@types/react@19.3.0)(react@19.3.0))':
     dependencies:
       react: 19.3.0
@@ -18564,6 +18576,8 @@ snapshots:
   icu-minify@4.14.7:
     dependencies:
       '@formatjs/icu-messageformat-parser': 3.5.20
+
+  idb@8.0.3: {}
 
   ieee754@1.2.1: {}
 
