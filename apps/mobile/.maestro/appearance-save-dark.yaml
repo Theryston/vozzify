@@ -1,0 +1,8 @@
+appId: com.vozzify.app
+---
+- launchApp
+- tapOn: Open component gallery
+- tapOn: Dark
+- assertVisible:
+    text: Dark
+    checked: true

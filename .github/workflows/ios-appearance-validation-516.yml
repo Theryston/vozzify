@@ -1,0 +1,89 @@
+name: Temporary iOS appearance validation
+
+on:
+  push:
+    branches:
+      - codex/ios-native-validation-516
+
+permissions:
+  contents: read
+
+jobs:
+  ios-appearance:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      EXPO_PUBLIC_API_URL: http://127.0.0.1:3333
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode with iOS simulator runtime
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+          xcodebuild -version
+          xcrun simctl list devices available
+      - name: Install pinned Nub CLI
+        uses: nubjs/setup-nub@v0.1.0
+        with:
+          nub-version: 0.9.5
+      - name: Install locked workspace dependencies
+        run: nub install --filter=mobile... --frozen-lockfile
+      - name: Generate iOS native project
+        working-directory: apps/mobile
+        run: nub exec expo prebuild --clean --no-install --platform ios
+      - name: Install CocoaPods dependencies
+        working-directory: apps/mobile
+        run: ./scripts/install-ios-pods.sh
+      - name: Install Maestro
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Build and exercise appearance preferences
+        working-directory: apps/mobile
+        run: |
+          simulator_id="$(xcrun simctl list devices available | sed -nE 's/.*iPhone 17 \(([0-9A-F-]{36})\).*/\1/p' | head -n 1)"
+          if [ -z "$simulator_id" ]; then
+            echo "No iPhone 17 simulator is available on this runner" >&2
+            exit 1
+          fi
+          echo "IOS_SIMULATOR_ID=$simulator_id" >> "$GITHUB_ENV"
+          xcrun simctl boot "$simulator_id" || true
+          xcrun simctl bootstatus "$simulator_id" -b
+          nub exec expo run:ios --configuration Release --device "$simulator_id"
+          xcrun simctl ui "$simulator_id" appearance light
+          xcrun simctl launch "$simulator_id" com.vozzify.app
+          maestro test .maestro/appearance-save-dark.yaml
+          xcrun simctl terminate "$simulator_id" com.vozzify.app
+          xcrun simctl launch "$simulator_id" com.vozzify.app
+          maestro test .maestro/appearance-restored-dark.yaml
+          xcrun simctl io "$simulator_id" screenshot ios-appearance-restored-dark.png
+          maestro test .maestro/appearance-switch-system.yaml
+          xcrun simctl ui "$simulator_id" appearance dark
+          sleep 2
+          xcrun simctl io "$simulator_id" screenshot ios-appearance-system-dark.png
+          xcrun simctl ui "$simulator_id" appearance light
+          sleep 2
+          xcrun simctl io "$simulator_id" screenshot ios-appearance-system-light.png
+          maestro test .maestro/appearance-fixed-light.yaml
+          xcrun simctl ui "$simulator_id" appearance dark
+          sleep 2
+          xcrun simctl io "$simulator_id" screenshot ios-appearance-fixed-light.png
+          maestro test .maestro/appearance-return-system.yaml
+          xcrun simctl ui "$simulator_id" appearance light
+          sleep 2
+          xcrun simctl io "$simulator_id" screenshot ios-appearance-system-restored.png
+          xcrun simctl spawn "$simulator_id" log show --last 5m --style compact --predicate 'process == "Vozzify"' > ios-appearance.log 2>&1 || true
+          app_path="$(find "$HOME/Library/Developer/Xcode/DerivedData" -type d -path '*/Build/Products/Release-iphonesimulator/*.app' -print -quit)"
+          if [ -z "$app_path" ]; then
+            echo "Release simulator app artifact was not found" >&2
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" ios-appearance-app.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-appearance-qa
+          path: |
+            apps/mobile/ios-appearance-app.zip
+            apps/mobile/ios-appearance-*.png
+            apps/mobile/ios-appearance.log
+          if-no-files-found: error
+          retention-days: 1
