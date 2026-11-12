@@ -1,0 +1,70 @@
+name: Temporary iOS preview cold-launch validation
+
+on:
+  push:
+    branches:
+      - codex/ios-preview-smoke-519
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  ios-preview-cold-launch:
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - name: Select Xcode with iOS simulator runtime
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Download existing preview app artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-preview-simulator-qa
+          path: artifact
+          repository: ${{ github.repository }}
+          run-id: 43230874512
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install and launch preview without Metro
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -q artifact/apps/mobile/ios-preview-app.zip -d extracted
+          app_path="$(find extracted -type d -name 'VozzifyPreview.app' -print -quit)"
+          if [ -z "$app_path" ]; then
+            echo 'Preview app bundle was not found in the downloaded artifact' >&2
+            exit 1
+          fi
+          executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app_path/Info.plist")"
+          bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Info.plist")"
+          printf 'App executable: %s\nBundle identifier: %s\n' "$executable" "$bundle_id"
+          if [ "$executable" != 'VozzifyPreview' ] || [ "$bundle_id" != 'com.vozzify.app.preview' ]; then
+            echo 'Downloaded artifact does not match the preview identity' >&2
+            exit 1
+          fi
+
+          simulator_id="$(xcrun simctl list devices available | sed -nE 's/.*iPhone 17 \(([0-9A-F-]{36})\).*/\1/p' | head -n 1)"
+          if [ -z "$simulator_id" ]; then
+            echo 'No iPhone 17 simulator is available on this runner' >&2
+            exit 1
+          fi
+          xcrun simctl boot "$simulator_id"
+          xcrun simctl bootstatus "$simulator_id" -b
+          xcrun simctl install "$simulator_id" "$app_path"
+          xcrun simctl launch "$simulator_id" "$bundle_id" | tee ios-preview-launch.txt
+          sleep 15
+          xcrun simctl io "$simulator_id" screenshot ios-preview-cold-launch.png
+          xcrun simctl spawn "$simulator_id" log show --last 2m --style compact --predicate "process == '$executable'" > ios-preview-cold-launch.log 2>&1 || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-preview-cold-launch-proof
+          path: |
+            ios-preview-cold-launch.png
+            ios-preview-cold-launch.log
+            ios-preview-launch.txt
+          if-no-files-found: error
+          retention-days: 1
