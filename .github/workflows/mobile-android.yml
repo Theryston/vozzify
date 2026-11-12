@@ -124,7 +124,7 @@ jobs:
             echo '::group::Run installed app smoke flow'
             maestro test --format junit \
               --output apps/mobile/maestro-results.xml \
-              --test-output-dir "$RUNNER_TEMP/maestro-debug" \
+              --test-output-dir "$RUNNER_TEMP/maestro-artifacts" \
               --debug-output "$RUNNER_TEMP/maestro-debug" \
               apps/mobile/.maestro/flows/gallery-smoke.yaml
             echo '::endgroup::'
@@ -133,14 +133,19 @@ jobs:
         if: always()
         id: maestro-diagnostics
         run: |
-          diagnostics="$RUNNER_TEMP/maestro-debug"
-          if [ -d "$diagnostics" ]; then
-            size_bytes="$(du -sb "$diagnostics" | cut -f1)"
-            if [ "$size_bytes" -le 10485760 ]; then
-              echo 'upload=true' >> "$GITHUB_OUTPUT"
-            else
-              echo "::warning::Skipping Maestro diagnostics artifact over 10 MiB ($size_bytes bytes)."
+          test_artifacts="$RUNNER_TEMP/maestro-artifacts"
+          debug_output="$RUNNER_TEMP/maestro-debug"
+          total_bytes=0
+          for diagnostics in "$test_artifacts" "$debug_output"; do
+            if [ -d "$diagnostics" ]; then
+              size_bytes="$(du -sb "$diagnostics" | cut -f1)"
+              total_bytes=$((total_bytes + size_bytes))
             fi
+          done
+          if [ "$total_bytes" -le 10485760 ] && [ "$total_bytes" -gt 0 ]; then
+            echo 'upload=true' >> "$GITHUB_OUTPUT"
+          elif [ "$total_bytes" -gt 10485760 ]; then
+            echo "::warning::Skipping Maestro diagnostics artifact over 10 MiB ($total_bytes bytes)."
           fi
 
       - name: Upload Maestro diagnostics
@@ -148,7 +153,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-maestro-diagnostics
-          path: ${{ runner.temp }}/maestro-debug
+          path: |
+            ${{ runner.temp }}/maestro-artifacts
+            ${{ runner.temp }}/maestro-debug
           if-no-files-found: ignore
           retention-days: 1
 
