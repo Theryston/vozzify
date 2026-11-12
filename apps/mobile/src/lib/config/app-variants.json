@@ -1,0 +1,17 @@
+{
+  "development": {
+    "name": "Vozzify Dev",
+    "androidPackage": "com.vozzify.app.dev",
+    "iosBundleIdentifier": "com.vozzify.app.dev"
+  },
+  "preview": {
+    "name": "Vozzify Preview",
+    "androidPackage": "com.vozzify.app.preview",
+    "iosBundleIdentifier": "com.vozzify.app.preview"
+  },
+  "production": {
+    "name": "Vozzify",
+    "androidPackage": "com.vozzify.app",
+    "iosBundleIdentifier": "com.vozzify.app"
+  }
+}

@@ -11,7 +11,8 @@ to `apps/mobile` and run `nub run start`, `nub run android`, or `nub run ios`.
 
 Expo Go is not used: the app uses a development client so later native modules
 fit the same workflow. `nub run build --filter=mobile` exports production
-JavaScript bundles for both platforms. It does not compile, install, or launch a
+JavaScript bundles for both platforms by default; set `APP_VARIANT` to export a
+different identity. It does not compile, install, or launch a
 native app. Android launch requires Android Studio/SDK and an emulator or device;
 iOS launch requires macOS, Xcode, and an iOS simulator. Record native startup
 evidence separately from a JavaScript bundle export.
@@ -40,3 +41,15 @@ and place portalled content under the root `PortalHost`.
 Protected quality configuration requires explicit approval for each proposed
 change. Do not modify coverage thresholds, Biome, Knip, or architecture rules
 without presenting the exact change and receiving that approval first.
+
+## App variants
+
+The native app uses development, preview and production identities configured
+in `app.config.ts`; select them with `APP_VARIANT`. Each EAS profile selects
+its corresponding EAS environment, which must define the public
+`EXPO_PUBLIC_API_URL`. Use `.env.example` for local API addressing. Never put
+secrets in public app configuration. Keep EAS builds manual and free. Before
+linking an EAS project, verify and reuse `@vozzify/vozzify`; do not create a
+second project. Development and preview iOS builds target the simulator only,
+which cannot be installed on an iPhone. A JavaScript export does not count as a
+native build; report compilation and installed-app evidence separately.
