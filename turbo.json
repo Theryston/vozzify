@@ -71,6 +71,14 @@
       "env": ["APP_VARIANT", "EXPO_PUBLIC_API_URL"],
       "cache": false
     },
+    "mobile#android:variant": {
+      "env": ["APP_VARIANT", "EXPO_PUBLIC_API_URL"],
+      "cache": false
+    },
+    "mobile#ios:variant": {
+      "env": ["APP_VARIANT", "EXPO_PUBLIC_API_URL"],
+      "cache": false
+    },
     "format": {
       "cache": false
     },

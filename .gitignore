@@ -32,6 +32,9 @@ coverage-e2e
 out/
 build
 dist
+# Expo custom build worker configs are source, not generated output.
+!apps/mobile/.eas/
+!apps/mobile/.eas/build/
 
 
 # Debug

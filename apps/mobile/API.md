@@ -9,13 +9,15 @@ inspected. Invalid variants and API URLs fail during configuration.
 
 For local development, copy `.env.example` to `.env` and set the API address
 for the target: Android emulator uses `http://10.0.2.2:3333`; a physical Android
-device uses the computer's LAN address. Then run `APP_VARIANT=development nub
-run start --filter=mobile`, `APP_VARIANT=development nub run android
---filter=mobile`, or `APP_VARIANT=development nub run ios --filter=mobile`.
-Android and iOS identifiers differ per variant, so development and preview can
-be installed alongside production when the platform supports it. Local iOS
-builds require macOS and Xcode. An iOS simulator build does not run on an
-iPhone.
+device uses the computer's LAN address. From `apps/mobile`, run
+`APP_VARIANT=development nub run start` to start Metro. Native builds use
+`APP_VARIANT=development nub run android:variant` or
+`APP_VARIANT=development nub run ios:variant`. These scripts run
+`expo prebuild --clean` before compiling so native package IDs match the selected
+variant. The generated native directories are ignored and may be regenerated
+when switching identities. Development and preview use unique identifiers and
+can be installed alongside production. Local iOS builds require macOS and
+Xcode. An iOS simulator build does not run on an iPhone.
 
 EAS profiles are manual and use the EAS `development`, `preview` and
 `production` environments. The production profile remains a store-ready device
@@ -26,8 +28,10 @@ not a secret. Do not put credentials or private keys in `EXPO_PUBLIC_*` values.
 The EAS project must belong to `@vozzify/vozzify`; check that organization and
 project before linking this app. The repository does not create or link an EAS
 project automatically. Request free-plan builds with the repository's package
-manager, for example from `apps/mobile`: `nub dlx eas-cli build --platform
-android --profile development`. Use `--profile preview` for an internal APK and
+manager, for example from `apps/mobile`:
+`nub dlx eas-cli build --platform android --profile development`. EAS custom
+worker configs install the pinned Nub CLI and install the workspace with the
+root `nub.lock` before native compilation. Use `--profile preview` for an internal APK and
 `--profile production` only when preparing a later store publication. EAS
 profiles keep iOS outputs simulator-only for development and preview; these are
 not iPhone previews. No Apple membership, TestFlight, signing or store upload

@@ -1,0 +1,21 @@
+build:
+  name: iOS build with Nub workspace install
+  steps:
+    - eas/checkout
+    - run:
+        name: Install pinned Nub CLI
+        command: |
+          curl -fsSL https://nubjs.com/install.sh | NUB_INSTALL_DIR="$HOME/.nub" NUB_NO_MODIFY_PATH=1 bash
+          "$HOME/.nub/bin/nub" upgrade --version 0.9.5
+    - run:
+        name: Install locked workspace dependencies
+        working_directory: ../..
+        command: "$HOME/.nub/bin/nub install --filter=mobile... --frozen-lockfile"
+    - eas/prebuild
+    - run:
+        name: Install CocoaPods dependencies
+        working_directory: ./ios
+        command: pod install
+    - eas/generate_gymfile_from_template
+    - eas/run_fastlane
+    - eas/find_and_upload_build_artifacts

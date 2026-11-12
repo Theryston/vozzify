@@ -2,16 +2,19 @@
   "development": {
     "name": "Vozzify Dev",
     "androidPackage": "com.vozzify.app.dev",
-    "iosBundleIdentifier": "com.vozzify.app.dev"
+    "iosBundleIdentifier": "com.vozzify.app.dev",
+    "schemes": ["vozzify-dev", "exp+vozzify-dev"]
   },
   "preview": {
     "name": "Vozzify Preview",
     "androidPackage": "com.vozzify.app.preview",
-    "iosBundleIdentifier": "com.vozzify.app.preview"
+    "iosBundleIdentifier": "com.vozzify.app.preview",
+    "schemes": ["vozzify-preview"]
   },
   "production": {
     "name": "Vozzify",
     "androidPackage": "com.vozzify.app",
-    "iosBundleIdentifier": "com.vozzify.app"
+    "iosBundleIdentifier": "com.vozzify.app",
+    "schemes": ["vozzify", "exp+vozzify"]
   }
 }

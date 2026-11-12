@@ -2,24 +2,29 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 import appVariants from './src/lib/config/app-variants.json';
 
+type AppVariant = keyof typeof appVariants;
+
+const parseAppVariant = require('./src/lib/config/app-variant.cjs') as (
+  value: string | undefined,
+) => AppVariant;
+
 type MobileBuildEnvironment = Readonly<Record<string, string | undefined>>;
 
 export function createAppConfig(
   config: Partial<ExpoConfig>,
   environment: MobileBuildEnvironment,
 ): ExpoConfig {
-  const requestedVariant = environment.APP_VARIANT ?? 'development';
-  if (!Object.hasOwn(appVariants, requestedVariant)) {
-    throw new Error(
-      `APP_VARIANT must be development, preview, or production; received ${requestedVariant}`,
-    );
-  }
-  const variant = requestedVariant as keyof typeof appVariants;
+  const variant = parseAppVariant(environment.APP_VARIANT);
   const identity = appVariants[variant];
   return {
     ...config,
     name: identity.name,
     slug: config.slug ?? 'vozzify',
+    scheme: identity.schemes,
+    plugins: [
+      ...(config.plugins ?? []),
+      ['expo-dev-client', { addGeneratedScheme: false }],
+    ],
     owner: config.owner ?? 'vozzify',
     ios: {
       ...config.ios,

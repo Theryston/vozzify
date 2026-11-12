@@ -1,0 +1,17 @@
+build:
+  name: Android build with Nub workspace install
+  steps:
+    - eas/checkout
+    - run:
+        name: Install pinned Nub CLI
+        command: |
+          curl -fsSL https://nubjs.com/install.sh | NUB_INSTALL_DIR="$HOME/.nub" NUB_NO_MODIFY_PATH=1 bash
+          "$HOME/.nub/bin/nub" upgrade --version 0.9.5
+    - run:
+        name: Install locked workspace dependencies
+        working_directory: ../..
+        command: "$HOME/.nub/bin/nub install --filter=mobile... --frozen-lockfile"
+    - eas/prebuild
+    - eas/inject_android_credentials
+    - eas/run_gradle
+    - eas/find_and_upload_build_artifacts
