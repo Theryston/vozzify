@@ -76,7 +76,7 @@ describe('native status bar appearance', () => {
   });
 
   it('sets native stack icons from the app theme and follows System changes', async () => {
-    render(<RootLayoutContent />);
+    await render(<RootLayoutContent />);
 
     await waitFor(() => {
       expect(screen.getByRole('radio', { name: 'System' })).toBeChecked();
