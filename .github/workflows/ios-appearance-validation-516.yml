@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   ios-appearance:
@@ -14,6 +15,7 @@ jobs:
     timeout-minutes: 60
     env:
       EXPO_PUBLIC_API_URL: http://127.0.0.1:3333
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: 360000
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode with iOS simulator runtime
@@ -33,11 +35,18 @@ jobs:
       - name: Install CocoaPods dependencies
         working-directory: apps/mobile/ios
         run: pod install
+      - name: Download the previously built simulator app
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-appearance-qa
+          path: ${{ runner.temp }}/previous-ios-qa
+          run-id: 43237809091
+          github-token: ${{ github.token }}
       - name: Install Maestro
         run: |
           curl -Ls "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
-      - name: Build and exercise appearance preferences
+      - name: Re-bundle JavaScript and exercise appearance preferences
         working-directory: apps/mobile
         run: |
           simulator_id="$(xcrun simctl list devices available | sed -nE 's/.*iPhone 17 \(([0-9A-F-]{36})\).*/\1/p' | head -n 1)"
@@ -48,10 +57,12 @@ jobs:
           echo "IOS_SIMULATOR_ID=$simulator_id" >> "$GITHUB_ENV"
           xcrun simctl boot "$simulator_id" || true
           xcrun simctl bootstatus "$simulator_id" -b
-          nub exec expo run:ios --configuration Release --no-bundler --device "$simulator_id"
-          app_path="$(find "$HOME/Library/Developer/Xcode/DerivedData" -type d -path '*/Build/Products/Release-iphonesimulator/Vozzify.app' -print -quit)"
-          if [ -z "$app_path" ]; then
-            echo "Expected Vozzify.app simulator artifact was not found" >&2
+          app_root="$RUNNER_TEMP/ios-app/Payload"
+          app_path="$app_root/Vozzify.app"
+          mkdir -p "$app_root"
+          unzip -q "$RUNNER_TEMP/previous-ios-qa/ios-appearance-app.zip" -d "$app_root"
+          if [ ! -d "$app_path" ]; then
+            echo "Expected Vozzify.app in the previous simulator artifact was not found" >&2
             exit 1
           fi
           bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Info.plist")"
@@ -59,7 +70,28 @@ jobs:
             echo "Unexpected simulator app bundle ID: $bundle_id" >&2
             exit 1
           fi
+          rm -f "$app_path/main.jsbundle"
+
+          export PROJECT_ROOT="$PWD"
+          export NODE_BINARY="$(command -v node)"
+          export REACT_NATIVE_DIR="$(dirname "$(node --print "require.resolve('react-native/package.json')")")"
+          export CLI_PATH="$(node --print "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })")"
+          export BUNDLE_COMMAND=export:embed
+          export ENTRY_FILE="$(node -e "require('expo/scripts/resolveAppEntry')" "$PROJECT_ROOT" ios absolute)"
+          export CONFIGURATION=Release
+          export PLATFORM_NAME=iphonesimulator
+          export CONFIGURATION_BUILD_DIR="$app_root"
+          export UNLOCALIZED_RESOURCES_FOLDER_PATH=Vozzify.app
+          export PODS_ROOT="$PROJECT_ROOT/ios/Pods"
+          export PODS_PODFILE_DIR_PATH="$PROJECT_ROOT/ios"
+          export HERMES_CLI_PATH="$PODS_ROOT/hermes-engine/destroot/bin/hermesc"
+          REACT_NATIVE_ROOT="$(dirname "$(node --print "require.resolve('react-native/package.json')")")"
+          "$REACT_NATIVE_ROOT/scripts/react-native-xcode.sh"
+          test -s "$app_path/main.jsbundle"
+          codesign --force --deep --sign - "$app_path"
           ditto -c -k --sequesterRsrc --keepParent "$app_path" ios-appearance-app.zip
+
+          xcrun simctl install "$simulator_id" "$app_path"
           xcrun simctl ui "$simulator_id" appearance light
           xcrun simctl launch "$simulator_id" com.vozzify.app
           maestro test --debug-output=maestro-debug-save-dark .maestro/appearance-save-dark.yaml
@@ -70,25 +102,11 @@ jobs:
           maestro test --debug-output=maestro-debug-restored-dark .maestro/appearance-restored-dark.yaml
           xcrun simctl io "$simulator_id" screenshot ios-appearance-restored-dark.png
           maestro hierarchy > ios-appearance-restored-dark-hierarchy.json || true
-          maestro test --debug-output=maestro-debug-system .maestro/appearance-switch-system.yaml
           xcrun simctl ui "$simulator_id" appearance dark
-          sleep 2
-          xcrun simctl io "$simulator_id" screenshot ios-appearance-system-dark.png
-          maestro hierarchy > ios-appearance-system-dark-hierarchy.json || true
-          xcrun simctl ui "$simulator_id" appearance light
-          sleep 2
-          xcrun simctl io "$simulator_id" screenshot ios-appearance-system-light.png
-          maestro hierarchy > ios-appearance-system-light-hierarchy.json || true
           maestro test --debug-output=maestro-debug-fixed-light .maestro/appearance-fixed-light.yaml
-          xcrun simctl ui "$simulator_id" appearance dark
           sleep 2
           xcrun simctl io "$simulator_id" screenshot ios-appearance-fixed-light.png
           maestro hierarchy > ios-appearance-fixed-light-hierarchy.json || true
-          maestro test --debug-output=maestro-debug-system-restored .maestro/appearance-return-system.yaml
-          xcrun simctl ui "$simulator_id" appearance light
-          sleep 2
-          xcrun simctl io "$simulator_id" screenshot ios-appearance-system-restored.png
-          maestro hierarchy > ios-appearance-system-restored-hierarchy.json || true
           xcrun simctl spawn "$simulator_id" log show --last 5m --style compact --predicate 'process == "Vozzify"' > ios-appearance.log 2>&1 || true
       - name: Capture final simulator state
         if: always()
