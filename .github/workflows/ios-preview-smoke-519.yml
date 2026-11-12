@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          unzip -q artifact/apps/mobile/ios-preview-app.zip -d extracted
+          unzip -q artifact/ios-preview-app.zip -d extracted
           app_path="$(find extracted -type d -name 'VozzifyPreview.app' -print -quit)"
           if [ -z "$app_path" ]; then
             echo 'Preview app bundle was not found in the downloaded artifact' >&2
