@@ -185,9 +185,15 @@ jobs:
 
       - name: Check Maestro diagnostics size
         id: diagnostics
-        if: always()
+        if: ${{ failure() && steps.maestro.outcome == 'failure' }}
         run: |
-          size_kb=$(du -sk "$RUNNER_TEMP/maestro-artifacts" "$RUNNER_TEMP/maestro-debug" | awk '{ total += $1 } END { print total + 0 }')
+          size_kb=0
+          for directory in "$RUNNER_TEMP/maestro-artifacts" "$RUNNER_TEMP/maestro-debug"; do
+            if [ -d "$directory" ]; then
+              directory_kb=$(du -sk "$directory" | awk '{ print $1 }')
+              size_kb=$((size_kb + directory_kb))
+            fi
+          done
           if [ "$size_kb" -le 10240 ]; then
             echo 'upload=true' >> "$GITHUB_OUTPUT"
           else
@@ -195,13 +201,21 @@ jobs:
             echo 'upload=false' >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Upload Maestro results
-        if: ${{ always() && steps.diagnostics.outputs.upload == 'true' }}
+      - name: Upload Maestro JUnit result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-maestro-junit
+          path: ${{ runner.temp }}/maestro-results.xml
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Upload Maestro failure diagnostics
+        if: ${{ failure() && steps.maestro.outcome == 'failure' && steps.diagnostics.outputs.upload == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: ios-maestro-diagnostics
           path: |
-            ${{ runner.temp }}/maestro-results.xml
             ${{ runner.temp }}/maestro-artifacts/
             ${{ runner.temp }}/maestro-debug/
           if-no-files-found: ignore
