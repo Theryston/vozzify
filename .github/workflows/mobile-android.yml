@@ -149,7 +149,7 @@ jobs:
           fi
 
       - name: Upload Maestro diagnostics
-        if: always() && steps.maestro-diagnostics.outputs.upload == 'true'
+        if: failure() && steps.maestro-diagnostics.outputs.upload == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: android-maestro-diagnostics
