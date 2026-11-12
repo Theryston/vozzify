@@ -44,7 +44,7 @@ jobs:
             exit 1
           fi
           echo "IOS_SIMULATOR_ID=$simulator_id" >> "$GITHUB_ENV"
-          nub exec expo run:ios --configuration Release --device "$simulator_id"
+          nub exec expo run:ios --configuration Release --no-bundler --device "$simulator_id"
           xcrun simctl bootstatus "$simulator_id" -b
       - name: Smoke test locale selection and persistence
         working-directory: apps/mobile
