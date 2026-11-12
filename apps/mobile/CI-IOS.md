@@ -7,7 +7,7 @@ native workflow definitions. Isolated changes to other apps or packages do not
 start the simulator job. It also supports manual runs from the Actions tab
 with `workflow_dispatch`.
 
-The workflow uses a standard `macos-15` GitHub-hosted runner. It installs the
+The workflow uses a standard `macos-26` GitHub-hosted runner. It installs the
 locked workspace with Nub, generates the iOS project, installs CocoaPods,
 compiles the preview variant for an iOS simulator, boots the selected
 available iPhone simulator, installs and launches the app, then runs Maestro
