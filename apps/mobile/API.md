@@ -25,15 +25,19 @@ build; development and preview iOS profiles explicitly target the simulator.
 Define `EXPO_PUBLIC_API_URL` separately in each EAS environment before
 requesting a build; this is public app configuration,
 not a secret. Do not put credentials or private keys in `EXPO_PUBLIC_*` values.
-The EAS project must belong to `@vozzify/vozzify`; check that organization and
-project before linking this app. The repository does not create or link an EAS
-project automatically. Request free-plan builds with the repository's package
-manager, for example from `apps/mobile`:
-`nub dlx eas-cli build --platform android --profile development`. EAS custom
-worker configs install the pinned Nub CLI and install the workspace with the
-root `nub.lock`, then run platform-specific Expo prebuild with `--no-install`
-through Nub before native compilation. Use `--profile preview` for an internal APK and
-`--profile production` only when preparing a later store publication. EAS
+The app is linked to the `@vozzify/vozzify` EAS project. Request free-plan
+builds with the repository package manager, for example from `apps/mobile`:
+```sh
+EAS_BUILD_SKIP_LOCKFILE_CHECK=1 nub dlx eas-cli build --platform android --profile development
+```
+
+EAS custom worker configs install the pinned Nub CLI and install the workspace
+with the root `nub.lock`, then run platform-specific
+Expo prebuild with `--no-install` through Nub before native compilation. The
+EAS CLI preflight skip is needed because the app has no package-local npm
+lockfile; the custom worker still uses Nub with `--frozen-lockfile` against the
+root lock. Use the `preview` profile for an internal APK. The `production`
+profile prepares a later store publication. EAS
 profiles keep iOS outputs simulator-only for development and preview; these are
 not iPhone previews. No Apple membership, TestFlight, signing or store upload
 is needed for the simulator build. Keep EAS on the free plan: stop if the free

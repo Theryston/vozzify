@@ -30,11 +30,9 @@ coverage-e2e
 # Build Outputs
 .next/
 out/
-build
+# Keep Expo's `.eas/build` worker configs tracked.
+/build/
 dist
-# Expo custom build worker configs are source, not generated output.
-!apps/mobile/.eas/
-!apps/mobile/.eas/build/
 
 
 # Debug
