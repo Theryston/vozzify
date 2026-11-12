@@ -12,8 +12,9 @@ import { NavigationBar } from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { StatusBar, useColorScheme, View } from 'react-native';
+import { StatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useUniwind } from 'uniwind';
 import { useTranslations } from 'use-intl';
 import { getMobileEnv } from '../src/lib/api/mobile-env';
 import {
@@ -29,7 +30,11 @@ import { MobileQueryProvider } from '../src/lib/query/mobile-query-provider';
 
 void SplashScreen.preventAutoHideAsync();
 
-function NavigationStack() {
+function NavigationStack({
+  statusBarStyle,
+}: {
+  statusBarStyle: 'light' | 'dark';
+}) {
   const translate = useTranslations('navigation');
 
   return (
@@ -38,6 +43,7 @@ function NavigationStack() {
         headerShown: false,
         headerBackTitle: translate('back'),
         contentStyle: { backgroundColor: 'transparent' },
+        statusBarStyle,
       }}
     >
       <Stack.Screen name="index" options={{ title: translate('home') }} />
@@ -58,17 +64,18 @@ function AppShell({ fontsReady }: { fontsReady: boolean }) {
     }
   }, [appearanceReady, fontsReady]);
 
-  const colorScheme = useColorScheme();
+  const { theme } = useUniwind();
+  const statusBarStyle = theme === 'dark' ? 'light' : 'dark';
 
   return (
     <>
       <StatusBar
-        barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+        barStyle={statusBarStyle === 'light' ? 'light-content' : 'dark-content'}
       />
-      <NavigationBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <NavigationBar style={statusBarStyle} />
       <MobileQueryProvider>
         <View className="flex-1 bg-background">
-          <NavigationStack />
+          <NavigationStack statusBarStyle={statusBarStyle} />
         </View>
         <PortalHost />
       </MobileQueryProvider>
