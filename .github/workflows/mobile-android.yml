@@ -122,11 +122,7 @@ jobs:
             adb install apps/mobile/android/app/build/outputs/apk/release/app-release.apk
             echo '::endgroup::'
             echo '::group::Run installed app smoke flow'
-            maestro test --format junit \
-              --output apps/mobile/maestro-results.xml \
-              --test-output-dir "$RUNNER_TEMP/maestro-artifacts" \
-              --debug-output "$RUNNER_TEMP/maestro-debug" \
-              apps/mobile/.maestro/flows/gallery-smoke.yaml
+            maestro test --format junit --output apps/mobile/maestro-results.xml --test-output-dir "$RUNNER_TEMP/maestro-artifacts" --debug-output "$RUNNER_TEMP/maestro-debug" apps/mobile/.maestro/flows/gallery-smoke.yaml
             echo '::endgroup::'
 
       - name: Check Maestro diagnostics size
