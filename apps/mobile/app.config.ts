@@ -4,11 +4,21 @@ import appVariants from './src/lib/config/app-variants.json';
 
 type AppVariant = keyof typeof appVariants;
 
-const parseAppVariant = require('./src/lib/config/app-variant.cjs') as (
-  value: string | undefined,
-) => AppVariant;
-
 type MobileBuildEnvironment = Readonly<Record<string, string | undefined>>;
+
+function parseAppVariant(value: string | undefined): AppVariant {
+  if (value === undefined || value === '') return 'development';
+  if (
+    value === 'development' ||
+    value === 'preview' ||
+    value === 'production'
+  ) {
+    return value;
+  }
+  throw new Error(
+    `APP_VARIANT must be development, preview, or production; received ${value}`,
+  );
+}
 
 export function createAppConfig(
   config: Partial<ExpoConfig>,
