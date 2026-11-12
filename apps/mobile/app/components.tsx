@@ -56,6 +56,7 @@ export default function ComponentsScreen() {
       <Button
         accessibilityLabel={translate('openOverlay')}
         onPress={() => setOverlayOpen(true)}
+        testID="overlay-open"
         variant="secondary"
       >
         {translate('openOverlay')}
@@ -64,6 +65,7 @@ export default function ComponentsScreen() {
         onOpenChange={setOverlayOpen}
         open={overlayOpen}
         dismissLabel={translate('dismissOverlay')}
+        testID="overlay-dismiss"
         title={translate('overlayTitle')}
       >
         {translate('overlayDescription')}

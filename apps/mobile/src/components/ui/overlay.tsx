@@ -14,6 +14,7 @@ type OverlayProps = {
   onOpenChange: (open: boolean) => void;
   title: string;
   dismissLabel: string;
+  testID?: string;
   children: ReactNode;
 };
 
@@ -32,6 +33,7 @@ export function Overlay({
   onOpenChange,
   title,
   dismissLabel,
+  testID,
   children,
 }: OverlayProps) {
   const customFontsAvailable = useCustomFontsAvailable();
@@ -91,7 +93,9 @@ export function Overlay({
           </Dialog.Title>
           <Text className="text-popover-foreground">{children}</Text>
           <Dialog.Close asChild>
-            <Button variant="outline">{dismissLabel}</Button>
+            <Button testID={testID} variant="outline">
+              {dismissLabel}
+            </Button>
           </Dialog.Close>
         </Dialog.Content>
       </Dialog.Portal>

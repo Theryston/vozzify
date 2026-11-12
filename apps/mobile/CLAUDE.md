@@ -68,3 +68,5 @@ linking an EAS project, verify and reuse `@vozzify/vozzify`; do not create a
 second project. Development and preview iOS builds target the simulator only,
 which cannot be installed on an iPhone. A JavaScript export does not count as a
 native build; report compilation and installed-app evidence separately.
+The iOS simulator CI workflow, triggers and manual execution are documented in
+[`CI-IOS.md`](./CI-IOS.md).

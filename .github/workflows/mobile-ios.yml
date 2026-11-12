@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Verify native workflow path filters
-        run: python .github/scripts/test-mobile-native-workflow-paths.py
+        run: python .github/scripts/test-mobile-native-path-filter.py
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -123,7 +123,6 @@ jobs:
             -sdk iphonesimulator \
             -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
             -derivedDataPath "$RUNNER_TEMP/ios-derived-data" \
-            -resultBundlePath "$RUNNER_TEMP/ios-build.xcresult" \
             CODE_SIGNING_ALLOWED=NO \
             build
 
@@ -174,12 +173,4 @@ jobs:
           name: ios-maestro-results
           path: ${{ runner.temp }}/maestro-results.xml
           if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Upload native build result on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-native-build-result
-          path: ${{ runner.temp }}/ios-build.xcresult
           retention-days: 7
