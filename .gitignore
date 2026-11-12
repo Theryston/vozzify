@@ -30,7 +30,8 @@ coverage-e2e
 # Build Outputs
 .next/
 out/
-build
+# Keep Expo's `.eas/build` worker configs tracked.
+/build/
 dist
 
 

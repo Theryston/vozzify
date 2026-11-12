@@ -1,3 +1,53 @@
+# Native app variants and builds
+
+The app has three native identities: development (`Vozzify Dev`,
+`com.vozzify.app.dev`), preview (`Vozzify Preview`,
+`com.vozzify.app.preview`) and production (`Vozzify`,
+`com.vozzify.app`). `APP_VARIANT` selects the identity; the build config writes
+that same value beside the validated API URL so the installed app can be
+inspected. Invalid variants and API URLs fail during configuration.
+
+For local development, copy `.env.example` to `.env` and set the API address
+for the target: Android emulator uses `http://10.0.2.2:3333`; a physical Android
+device uses the computer's LAN address. From `apps/mobile`, run
+`APP_VARIANT=development nub run start` to start Metro. Native builds use
+`APP_VARIANT=development nub run android:variant` or
+`APP_VARIANT=development nub run ios:variant`. These scripts run
+`expo prebuild --clean` before compiling so native package IDs match the selected
+variant. The generated native directories are ignored and may be regenerated
+when switching identities. Development and preview use unique identifiers and
+can be installed alongside production. Local iOS builds require macOS and
+Xcode. An iOS simulator build does not run on an iPhone.
+
+EAS profiles are manual and use the EAS `development`, `preview` and
+`production` environments. The production profile remains a store-ready device
+build; development and preview iOS profiles explicitly target the simulator.
+Define `EXPO_PUBLIC_API_URL` separately in each EAS environment before
+requesting a build; this is public app configuration,
+not a secret. Do not put credentials or private keys in `EXPO_PUBLIC_*` values.
+The app is linked to the `@vozzify/vozzify` EAS project. Request free-plan
+builds with the repository package manager, for example from `apps/mobile`:
+```sh
+EAS_BUILD_SKIP_LOCKFILE_CHECK=1 nub dlx eas-cli build --platform android --profile development
+```
+
+EAS custom worker configs install the pinned Nub CLI and install the workspace
+with the root `nub.lock`, then run platform-specific
+Expo prebuild with `--no-install` through Nub before native compilation. The
+EAS CLI preflight skip is needed because the app has no package-local npm
+lockfile; the custom worker still uses Nub with `--frozen-lockfile` against the
+root lock. Use the `preview` profile for an internal APK. The `production`
+profile prepares a later store publication. EAS
+profiles keep iOS outputs simulator-only for development and preview; these are
+not iPhone previews. No Apple membership, TestFlight, signing or store upload
+is needed for the simulator build. Keep EAS on the free plan: stop if the free
+quota or credentials are unavailable; do not enable paid overages or fallback.
+
+`nub run build --filter=mobile` exports the production JavaScript bundle by
+default; set `APP_VARIANT` to export another identity. It is not native
+compilation or evidence that an app was installed. Record local/EAS native
+compilation and device/simulator launches separately.
+
 # Native API client
 
 Set `EXPO_PUBLIC_API_URL` before starting Expo or exporting a bundle. Expo
