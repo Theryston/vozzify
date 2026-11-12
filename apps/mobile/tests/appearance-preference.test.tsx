@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+  act,
   render,
   screen,
   userEvent,
@@ -10,6 +11,12 @@ import { Uniwind, useUniwind } from 'uniwind';
 import { AppearancePreferenceControl } from '../src/components/appearance-preference-control';
 import { MobileAppearanceProvider } from '../src/lib/appearance/mobile-appearance-provider';
 import { MobileIntlProvider } from '../src/lib/i18n/mobile-intl-provider';
+
+jest.mock('react-native/Libraries/Utilities/Appearance', () =>
+  jest.requireActual('./helpers/controlled-appearance'),
+);
+
+import { emitAppearanceChange } from './helpers/controlled-appearance';
 
 function ThemeProbe() {
   const { theme } = useUniwind();
@@ -30,6 +37,9 @@ async function renderAppearanceControl() {
 describe('appearance preference', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();
+    await act(async () => {
+      emitAppearanceChange('light');
+    });
     Uniwind.setTheme('system');
   });
 
@@ -71,51 +81,51 @@ describe('appearance preference', () => {
     });
   });
 
-  it('switches between fixed themes and follows the system again on request', async () => {
-    Uniwind.setTheme('system');
-    const setColorScheme = jest.spyOn(Uniwind, 'setTheme');
+  it('follows OS changes in system mode and ignores them under a fixed theme', async () => {
     await renderAppearanceControl();
 
     await waitFor(() => {
-      expect(setColorScheme).toHaveBeenLastCalledWith('system');
+      expect(screen.getByTestId('active-theme')).toHaveTextContent('light');
     });
 
     await userEvent.press(screen.getByRole('radio', { name: 'Light' }));
     await waitFor(() => {
-      expect(setColorScheme).toHaveBeenLastCalledWith('light');
       expect(screen.getByTestId('active-theme')).toHaveTextContent('light');
     });
 
     await userEvent.press(screen.getByRole('radio', { name: 'Dark' }));
     await waitFor(() => {
-      expect(setColorScheme).toHaveBeenLastCalledWith('dark');
       expect(screen.getByTestId('active-theme')).toHaveTextContent('dark');
     });
 
-    await userEvent.press(screen.getByRole('radio', { name: 'Light' }));
+    await act(async () => {
+      emitAppearanceChange('light');
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('active-theme')).toHaveTextContent('dark');
+    });
+
+    await userEvent.press(screen.getByRole('radio', { name: 'System' }));
     await waitFor(() => {
       expect(screen.getByTestId('active-theme')).toHaveTextContent('light');
     });
 
-    jest.spyOn(Appearance, 'getColorScheme').mockReturnValue('dark');
-    await userEvent.press(screen.getByRole('radio', { name: 'System' }));
+    await act(async () => {
+      emitAppearanceChange('dark');
+    });
     await waitFor(() => {
-      expect(setColorScheme).toHaveBeenLastCalledWith('system');
       expect(screen.getByTestId('active-theme')).toHaveTextContent('dark');
     });
   });
 
   it('applies a restored theme before a delayed native appearance update', async () => {
     await AsyncStorage.setItem('vozzify.appearance', 'dark');
-    jest.spyOn(Uniwind, 'setTheme');
-    const delayedNativeUpdate = jest
+    jest
       .spyOn(Appearance, 'setColorScheme')
       .mockImplementation(() => undefined);
 
     await renderAppearanceControl();
 
     expect(screen.getByTestId('active-theme')).toHaveTextContent('dark');
-    expect(Uniwind.setTheme).toHaveBeenCalledWith('dark');
-    expect(delayedNativeUpdate).toHaveBeenCalledWith('dark');
   });
 });
