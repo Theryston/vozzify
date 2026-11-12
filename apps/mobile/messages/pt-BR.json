@@ -6,16 +6,16 @@
   },
   "home": {
     "title": "Boas-vindas ao Vozzify",
-    "description": "Sua base mobile nativa está pronta.",
+    "description": "Sua voz, mapeada para cada nota.",
     "openComponents": "Abrir galeria de componentes"
   },
   "components": {
     "title": "Componentes da base",
-    "description": "Uma pequena galeria nativa para revisar os estilos e controles do Vozzify.",
+    "description": "Uma pequena galeria nativa para revisar estilos e controles do Vozzify.",
     "appearanceTitle": "Aparência",
     "button": "Ação principal",
     "buttonLabel": "Botão de exemplo",
-    "inputLabel": "Campo da galeria",
+    "inputLabel": "Campo de texto de exemplo",
     "inputPlaceholder": "Digite algo",
     "openOverlay": "Abrir sobreposição",
     "dismissOverlay": "Fechar sobreposição",

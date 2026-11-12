@@ -6,7 +6,7 @@
   },
   "home": {
     "title": "Welcome to Vozzify",
-    "description": "Your native mobile foundation is ready.",
+    "description": "Your voice, mapped to every note.",
     "openComponents": "Open component gallery"
   },
   "components": {
@@ -15,7 +15,7 @@
     "appearanceTitle": "Appearance",
     "button": "Primary action",
     "buttonLabel": "Example button",
-    "inputLabel": "Gallery input",
+    "inputLabel": "Sample text input",
     "inputPlaceholder": "Type something",
     "openOverlay": "Open overlay",
     "dismissOverlay": "Dismiss overlay",
