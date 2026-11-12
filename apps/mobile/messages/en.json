@@ -20,6 +20,12 @@
     "dismissOverlay": "Dismiss overlay",
     "overlayTitle": "A native overlay",
     "overlayDescription": "This surface uses the same palette and rounded shapes as the app.",
-    "returnHome": "Return home"
+    "returnHome": "Return home",
+    "appearanceTitle": "Appearance"
+  },
+  "appearance": {
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
   }
 }

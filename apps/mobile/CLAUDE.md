@@ -27,6 +27,12 @@ tickets. Keep native dependencies free and do not enable paid services.
 Shared colors, typography intent, radii, spacing and motion values come from
 `@vozzify/design-tokens`. Use its native adapter or semantic Uniwind classes;
 keep font registration, native system bars, elevation and layout in this app.
+The component gallery includes a system/light/dark appearance control. The
+choice is stored on-device; system mode clears the app override and follows
+subsequent operating-system changes. Keep the launch screen visible until the
+saved appearance is restored so the first visible frame uses the selected
+palette. Components, navigation, overlays and the status bar follow the same
+resolved native color scheme.
 If custom fonts fail to load, render with system fonts and release the splash
 screen; never keep the launch screen waiting for an optional font asset. Native
 floating layers use translucent semantic surfaces and platform elevation; the

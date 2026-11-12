@@ -8,13 +8,18 @@ import {
 import { GeistMono_400Regular } from '@expo-google-fonts/geist-mono';
 import { PortalHost } from '@rn-primitives/portal';
 import { useFonts } from 'expo-font';
+import { NavigationBar } from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { StatusBar, useColorScheme } from 'react-native';
+import { StatusBar, useColorScheme, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useTranslations } from 'use-intl';
 import { getMobileEnv } from '../src/lib/api/mobile-env';
+import {
+  MobileAppearanceProvider,
+  useMobileAppearance,
+} from '../src/lib/appearance/mobile-appearance-provider';
 import { FontAvailabilityProvider } from '../src/lib/design/font-availability';
 import {
   MobileIntlProvider,
@@ -32,6 +37,7 @@ function NavigationStack() {
       screenOptions={{
         headerShown: false,
         headerBackTitle: translate('back'),
+        contentStyle: { backgroundColor: 'transparent' },
       }}
     >
       <Stack.Screen name="index" options={{ title: translate('home') }} />
@@ -43,24 +49,50 @@ function NavigationStack() {
   );
 }
 
+function AppShell({ fontsReady }: { fontsReady: boolean }) {
+  const { ready: appearanceReady } = useMobileAppearance();
+
+  useEffect(() => {
+    if (fontsReady && appearanceReady) {
+      void SplashScreen.hideAsync();
+    }
+  }, [appearanceReady, fontsReady]);
+
+  const colorScheme = useColorScheme();
+
+  return (
+    <>
+      <StatusBar
+        barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+      />
+      <NavigationBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <MobileQueryProvider>
+        <View className="flex-1 bg-background">
+          <NavigationStack />
+        </View>
+        <PortalHost />
+      </MobileQueryProvider>
+    </>
+  );
+}
+
 type RootLayoutContentProps = {
   locale?: MobileLocale;
+  fontsReady?: boolean;
 };
 
-export function RootLayoutContent({ locale = 'en' }: RootLayoutContentProps) {
+export function RootLayoutContent({
+  locale = 'en',
+  fontsReady = true,
+}: RootLayoutContentProps) {
   getMobileEnv();
-  const colorScheme = useColorScheme();
 
   return (
     <SafeAreaProvider>
       <MobileIntlProvider locale={locale}>
-        <StatusBar
-          barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
-        />
-        <MobileQueryProvider>
-          <NavigationStack />
-          <PortalHost />
-        </MobileQueryProvider>
+        <MobileAppearanceProvider>
+          <AppShell fontsReady={fontsReady} />
+        </MobileAppearanceProvider>
       </MobileIntlProvider>
     </SafeAreaProvider>
   );
@@ -78,19 +110,13 @@ export default function RootLayout() {
     GeistMono_400Regular,
   });
 
-  useEffect(() => {
-    if (fontsLoaded || fontError) {
-      void SplashScreen.hideAsync();
-    }
-  }, [fontError, fontsLoaded]);
-
   if (!fontsLoaded && !fontError) {
     return null;
   }
 
   return (
     <FontAvailabilityProvider available={fontsLoaded}>
-      <RootLayoutContent />
+      <RootLayoutContent fontsReady={fontsLoaded || fontError !== null} />
     </FontAvailabilityProvider>
   );
 }
