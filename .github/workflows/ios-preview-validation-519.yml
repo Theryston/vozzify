@@ -1,0 +1,68 @@
+name: Temporary iOS preview validation
+
+on:
+  push:
+    branches:
+      - codex/ios-native-validation-519
+
+permissions:
+  contents: read
+
+jobs:
+  ios-preview:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      APP_VARIANT: preview
+      EXPO_PUBLIC_API_URL: http://127.0.0.1:3333
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode with iOS simulator runtime
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+          xcodebuild -version
+          xcrun simctl list devices available
+      - name: Install pinned Nub CLI
+        run: |
+          curl -fsSL https://nubjs.com/install.sh | NUB_INSTALL_DIR="$HOME/.nub" NUB_NO_MODIFY_PATH=1 bash
+          "$HOME/.nub/bin/nub" upgrade --version 0.9.5
+      - name: Install locked workspace dependencies
+        run: |
+          "$HOME/.nub/bin/nub" install --filter=mobile... --frozen-lockfile
+      - name: Generate iOS native project
+        working-directory: apps/mobile
+        run: |
+          "$HOME/.nub/bin/nub" exec expo prebuild --clean --no-install --platform ios
+      - name: Install CocoaPods dependencies
+        working-directory: apps/mobile
+        run: ./scripts/install-ios-pods.sh
+      - name: Build and launch standalone preview in iOS Simulator
+        working-directory: apps/mobile
+        run: |
+          simulator_id="$(xcrun simctl list devices available | sed -nE 's/.*iPhone 17 \(([0-9A-F-]{36})\).*/\1/p' | head -n 1)"
+          if [ -z "$simulator_id" ]; then
+            echo "No iPhone 17 simulator is available on this runner" >&2
+            exit 1
+          fi
+          echo "IOS_SIMULATOR_ID=$simulator_id" >> "$GITHUB_ENV"
+          "$HOME/.nub/bin/nub" exec expo run:ios --configuration Release --device "$simulator_id"
+          xcrun simctl bootstatus "$simulator_id" -b
+          xcrun simctl launch "$simulator_id" com.vozzify.app.preview
+          sleep 10
+          xcrun simctl io "$simulator_id" screenshot ios-preview.png
+          xcrun simctl spawn "$simulator_id" log show --last 2m --style compact --predicate 'process == "Vozzify Preview"' > ios-preview.log 2>&1 || true
+          app_path="$(find "$HOME/Library/Developer/Xcode/DerivedData" -type d -path '*/Build/Products/Release-iphonesimulator/*.app' -print -quit)"
+          if [ -z "$app_path" ]; then
+            echo "Release simulator app artifact was not found" >&2
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" ios-preview-app.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-preview-simulator-qa
+          path: |
+            apps/mobile/ios-preview-app.zip
+            apps/mobile/ios-preview.png
+            apps/mobile/ios-preview.log
+          if-no-files-found: error
+          retention-days: 1
