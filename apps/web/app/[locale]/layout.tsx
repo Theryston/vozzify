@@ -44,6 +44,9 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: getSiteUrl(),
     title: { default: t('title'), template: t('titleTemplate') },
     description: t('description'),
+    other: {
+      'google-adsense-account': 'ca-pub-9375786333422765',
+    },
   };
 }
 
