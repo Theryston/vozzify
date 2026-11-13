@@ -47,6 +47,13 @@ export const webServerEnv = {
   SITEMAP_EXTRA_HOSTS: 'vozzify.example',
   // The practice page plays through a fake clock: YouTube cannot load here.
   E2E_FAKE_PLAYER: 'true',
+  // Safe fixture identifiers; the CMP/AdSense requests are intercepted by the
+  // Home ads Playwright journey and never reach Google's live inventory.
+  ADSENSE_ENABLED: 'true',
+  ADSENSE_CLIENT: 'ca-pub-0000000000000000',
+  ADSENSE_SLOT: '1234567890',
+  ADSENSE_LAYOUT_KEY: '-test-layout-key',
+  ADSENSE_CMP_URL: `${API_URL}/__adsense-cmp.js`,
   // A data URL keeps the preload in this file: NODE_OPTIONS is split on
   // spaces, which `encodeURIComponent` removes from the code.
   NODE_OPTIONS: `--import data:text/javascript,${encodeURIComponent(coverUpstreamPreload)}`,

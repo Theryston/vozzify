@@ -1,4 +1,7 @@
 {
+  "advertising": {
+    "label": "Publicidade"
+  },
   "metadata": {
     "title": "Vozzify – veja as notas que o cantor canta",
     "titleTemplate": "%s | Vozzify",

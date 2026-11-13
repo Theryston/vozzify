@@ -4,8 +4,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { HomeFeedPage, Locale } from '@vozzify/contracts';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { AdvertisingProvider } from '@/features/advertising/components/advertising-provider';
+import type { AdsenseConfig } from '@/lib/env/adsense-config';
 import {
   fetchHomeRowsPage,
   restartHomeRowsAfterExpiredVisit,
@@ -40,9 +42,11 @@ const HomeEventsTracker = dynamic(
 export function HomeRows({
   locale,
   initialPage,
+  advertising,
 }: {
   locale: Locale;
   initialPage: HomeFeedPage;
+  advertising?: AdsenseConfig;
 }) {
   const {
     data,
@@ -54,6 +58,7 @@ export function HomeRows({
   } = useHomeRows(locale, initialPage);
   const queryClient = useQueryClient();
   const rows = data.pages.flatMap((page) => page.rows);
+  const stableAdvertising = useStableAdvertisingConfig(advertising);
 
   useEffect(() => {
     if (!isHomeVisitRestartError(error)) return;
@@ -91,20 +96,34 @@ export function HomeRows({
   );
 
   return (
-    <div className="flex flex-col gap-8">
-      <HomeEventsTracker pages={data.pages} locale={locale} />
-      <HomeFeedRows
-        rows={rows}
-        locale={locale}
-        onVisitExpired={onVisitExpired}
-      />
-      {isFetchingNextPage ? <CarouselRowSkeleton /> : null}
-      {isFetchNextPageError ? <LoadMoreError onRetry={loadMore} /> : null}
-      {hasNextPage && !isFetchNextPageError ? (
-        <LoadMoreSentinel active={!isFetchingNextPage} onVisible={loadMore} />
-      ) : null}
-    </div>
+    <AdvertisingProvider config={stableAdvertising}>
+      <div className="flex flex-col gap-8">
+        <HomeEventsTracker pages={data.pages} locale={locale} />
+        <HomeFeedRows
+          rows={rows}
+          locale={locale}
+          onVisitExpired={onVisitExpired}
+          advertising={stableAdvertising}
+        />
+        {isFetchingNextPage ? <CarouselRowSkeleton /> : null}
+        {isFetchNextPageError ? <LoadMoreError onRetry={loadMore} /> : null}
+        {hasNextPage && !isFetchNextPageError ? (
+          <LoadMoreSentinel active={!isFetchingNextPage} onVisible={loadMore} />
+        ) : null}
+      </div>
+    </AdvertisingProvider>
   );
+}
+
+function useStableAdvertisingConfig(config?: AdsenseConfig) {
+  const client = config?.client;
+  const slot = config?.slot;
+  const layoutKey = config?.layoutKey;
+  const cmpUrl = config?.cmpUrl;
+  return useMemo(() => {
+    if (!client || !slot || !layoutKey || !cmpUrl) return undefined;
+    return { client, slot, layoutKey, cmpUrl };
+  }, [client, cmpUrl, layoutKey, slot]);
 }
 
 /** Fires once the marker nears the viewport, so the next rows load ahead of the scroll. */
