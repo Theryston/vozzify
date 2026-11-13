@@ -250,15 +250,21 @@ test.describe('Home native In-feed advertising', () => {
       { name: 'vozzify.session_token', value: 'signed-in', url: baseURL },
     ]);
     const sessionResponse = page.waitForResponse('**/v1/auth/get-session');
-    const subscriptionResponses = Array.from({ length: 4 }, () =>
-      page.waitForResponse('**/v1/me/subscription**'),
-    );
+    const subscriptionStatuses: number[] = [];
+    const terminalSubscriptionResponse = page.waitForResponse((response) => {
+      if (
+        response.url().includes('/v1/me/subscription') &&
+        response.status() === 503
+      ) {
+        subscriptionStatuses.push(response.status());
+      }
+      return subscriptionStatuses.length === 4;
+    });
     await page.goto('/en');
     expect((await sessionResponse).status()).toBe(200);
-    const failedResponses = await Promise.all(subscriptionResponses);
-    expect(failedResponses.map((response) => response.status())).toEqual([
-      503, 503, 503, 503,
-    ]);
+    const finalSubscriptionResponse = await terminalSubscriptionResponse;
+    expect(subscriptionStatuses).toEqual([503, 503, 503, 503]);
+    await finalSubscriptionResponse.finished();
     await page.waitForLoadState('networkidle');
     await expect(
       page.getByRole('link', { name: /Ad test song/ }).first(),
