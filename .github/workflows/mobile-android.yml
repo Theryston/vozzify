@@ -1,0 +1,165 @@
+name: Mobile Android
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          base: ${{ github.event.before }}
+          filters: |
+            mobile:
+              - 'apps/mobile/**'
+              - 'packages/design-tokens/**'
+              - 'packages/contracts/**'
+              - 'nub.lock'
+              - 'package.json'
+              - 'apps/mobile/package.json'
+              - 'packages/design-tokens/package.json'
+              - 'packages/contracts/package.json'
+              - '.node-version'
+              - '.npmrc'
+              - 'turbo.json'
+              - 'tsconfig.base.json'
+              - 'biome.json'
+              - 'knip.config.ts'
+              - '.jscpd.json'
+              - 'vitest.config.ts'
+              - 'vitest.config.*.ts'
+              - '.github/scripts/test-mobile-native-path-filter.py'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/mobile-android.yml'
+              - '.github/workflows/mobile-ios.yml'
+
+      - name: Verify direct, shared and unrelated path cases
+        run: python .github/scripts/test-mobile-native-path-filter.py
+
+  android-smoke:
+    name: Android build and Maestro smoke
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.mobile == 'true') }}
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      APP_VARIANT: preview
+      EXPO_PUBLIC_API_URL: http://10.0.2.2:3333
+      MAESTRO_CLI_NO_ANALYTICS: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable KVM access for the emulator
+        run: |
+          ls -l /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo chmod 0666 /dev/kvm
+          ls -l /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
+
+      - uses: nubjs/setup-nub@v0
+        with:
+          nub-version: 0.9.5
+
+      - name: Install dependencies
+        run: nub install --frozen-lockfile
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Generate Android native project
+        working-directory: apps/mobile
+        run: nub exec expo prebuild --clean --no-install --platform android
+
+      - name: Compile Android test APK
+        working-directory: apps/mobile/android
+        run: ./gradlew --no-daemon assembleRelease -PreactNativeArchitectures=x86_64
+
+      - name: Install Maestro CLI
+        run: |
+          curl -fsSLO https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.12.0/maestro.zip
+          echo 'a6044a84542f522f434c5dc3d609e60c7446d423f3ed1b2ae513f5c48663ec5e  maestro.zip' | sha256sum --check --status
+          unzip -q maestro.zip -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/maestro/bin/maestro" --version
+
+      - name: Start emulator, install APK and run Maestro
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-linux-hw-accel: false
+          script: |
+            set -e
+            echo '::group::Install test app'
+            adb install apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+            echo '::endgroup::'
+            echo '::group::Run installed app smoke flow'
+            maestro test --format junit --output apps/mobile/maestro-results.xml --test-output-dir "$RUNNER_TEMP/maestro-artifacts" --debug-output "$RUNNER_TEMP/maestro-debug" apps/mobile/.maestro/flows/gallery-smoke.yaml
+            echo '::endgroup::'
+
+      - name: Check Maestro diagnostics size
+        if: always()
+        id: maestro-diagnostics
+        run: |
+          test_artifacts="$RUNNER_TEMP/maestro-artifacts"
+          debug_output="$RUNNER_TEMP/maestro-debug"
+          total_bytes=0
+          for diagnostics in "$test_artifacts" "$debug_output"; do
+            if [ -d "$diagnostics" ]; then
+              size_bytes="$(du -sb "$diagnostics" | cut -f1)"
+              total_bytes=$((total_bytes + size_bytes))
+            fi
+          done
+          if [ "$total_bytes" -le 10485760 ] && [ "$total_bytes" -gt 0 ]; then
+            echo 'upload=true' >> "$GITHUB_OUTPUT"
+          elif [ "$total_bytes" -gt 10485760 ]; then
+            echo "::warning::Skipping Maestro diagnostics artifact over 10 MiB ($total_bytes bytes)."
+          fi
+
+      - name: Upload Maestro diagnostics
+        if: failure() && steps.maestro-diagnostics.outputs.upload == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-maestro-diagnostics
+          path: |
+            ${{ runner.temp }}/maestro-artifacts
+            ${{ runner.temp }}/maestro-debug
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Upload Maestro results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-maestro-results
+          path: apps/mobile/maestro-results.xml
+          if-no-files-found: ignore
+          retention-days: 7
