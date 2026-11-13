@@ -23,9 +23,19 @@ AdSense tag.
 Create a **Native In-feed** unit in AdSense and use the generated fluid format,
 layout key and slot ID. Disable display ads in that unit and disable AdSense's
 “Fill empty in-page ads” setting so no display fallback replaces a no-fill
-native unit. Configure Privacy & Messaging in the AdSense account and verify
-the CMP URL and consent choices with the real provider before enabling this
-runtime. Site approval is also required for live inventory.
+native unit. For this manually placed unit, turn **Auto ads off**, including
+the **Vignette ads** format, and turn **Allow Google to optimize existing ads**
+off. These account settings prevent automatically placed ads or optimization
+from adding placements outside the three-Row Home cadence. Check them in the
+AdSense Ads settings before and after activating the publisher account or
+changing the site configuration. See [Auto ads settings](https://support.google.com/adsense/answer/9274634)
+and [Auto optimize](https://support.google.com/adsense/answer/15876143).
+
+Configure Privacy & Messaging in the AdSense account and verify the CMP URL
+and consent choices with the real provider before enabling this runtime. Site
+approval is also required for live inventory. Confirm the CMP is certified,
+serves TCF v2.3, and has Google's vendor and purpose bases enabled as required
+by [Google's TCF integration](https://support.google.com/adsense/answer/9804260).
 
 The `public/ads.txt` file declares the existing publisher as a direct Google
 seller. Re-check it against the account's current Authorized Sellers details

@@ -131,19 +131,21 @@ function useCmpListener(
   onConsentChange: (consent: AdConsent | undefined) => void,
 ) {
   useEffect(() => {
+    let active = true;
     let unsubscribe: (() => void) | undefined;
     void loadCmp(config)
       .then((api) => {
-        if (!activeRef.current) return;
+        if (!active || !activeRef.current) return;
         unsubscribe = subscribeToTcfChoice(api, (choice) => {
+          if (!active || !activeRef.current) return;
           onConsentChange(choice);
         });
       })
       .catch(() => {
-        if (activeRef.current) onConsentChange('denied');
+        if (active && activeRef.current) onConsentChange('denied');
       });
     return () => {
-      activeRef.current = false;
+      active = false;
       unsubscribe?.();
       onPermissionChange(false);
       onConsentChange(undefined);

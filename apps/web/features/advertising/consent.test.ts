@@ -47,22 +47,28 @@ describe('adConsentFromTcf', () => {
     );
   });
 
-  it('allows ads when GDPR consent does not apply', () => {
-    expect(
-      adConsentFromTcf({ gdprApplies: false, eventStatus: 'tcloaded' }),
-    ).toBe('personalized');
+  it('honors explicit permission choices when GDPR consent does not apply', () => {
+    expect(adConsentFromTcf({ ...consent, gdprApplies: false })).toBe(
+      'personalized',
+    );
     expect(
       adConsentFromTcf({
+        ...consent,
         gdprApplies: false,
-        eventStatus: 'useractioncomplete',
-        purpose: { consents: { 3: false } },
+        purpose: {
+          ...consent.purpose,
+          consents: { ...consent.purpose?.consents, 3: false },
+        },
       }),
     ).toBe('non-personalized');
     expect(
       adConsentFromTcf({
+        ...consent,
         gdprApplies: false,
-        eventStatus: 'useractioncomplete',
-        purpose: { consents: { 1: false } },
+        purpose: {
+          ...consent.purpose,
+          consents: { ...consent.purpose?.consents, 1: false },
+        },
       }),
     ).toBe('denied');
   });
@@ -74,6 +80,10 @@ describe('adConsentFromTcf', () => {
         purpose: {
           consents: { 1: true, 3: false, 4: false },
           legitimateInterests: { 2: true, 7: true, 9: true, 10: true },
+        },
+        vendor: {
+          consents: { 755: true },
+          legitimateInterests: { 755: true },
         },
       }),
     ).toBe('non-personalized');
@@ -92,8 +102,70 @@ describe('adConsentFromTcf', () => {
     expect(
       adConsentFromTcf({
         ...consent,
-        publisher: { restrictions: { 7: { 755: 2 } } },
+        publisher: { restrictions: { 4: { 755: 0 } } },
+      }),
+    ).toBe('non-personalized');
+    expect(
+      adConsentFromTcf({
+        ...consent,
+        purpose: {
+          consents: { 1: true, 3: true, 4: true },
+          legitimateInterests: { 2: true, 7: true, 9: true, 10: true },
+        },
+        vendor: {
+          consents: { 755: true },
+          legitimateInterests: { 755: false },
+        },
       }),
     ).toBe('denied');
+  });
+
+  it('requires Google vendor consent while allowing purpose legal bases', () => {
+    expect(
+      adConsentFromTcf({
+        ...consent,
+        purpose: {
+          consents: { 1: true, 3: true, 4: true },
+          legitimateInterests: { 2: true, 7: true, 9: true, 10: true },
+        },
+        vendor: {
+          consents: { 755: false },
+          legitimateInterests: { 755: true },
+        },
+      }),
+    ).toBe('denied');
+    expect(
+      adConsentFromTcf({
+        ...consent,
+        purpose: {
+          consents: { 1: true, 3: true, 4: true },
+          legitimateInterests: { 2: true, 7: true, 9: true, 10: true },
+        },
+        vendor: {
+          consents: { 755: true },
+          legitimateInterests: { 755: false },
+        },
+      }),
+    ).toBe('denied');
+  });
+
+  it('does not use restricted storage or personalization purposes', () => {
+    const restrictedPurposeOne = {
+      ...consent,
+      publisher: { restrictions: { 1: { 755: 0 as const } } },
+    };
+    expect(adConsentFromTcf(restrictedPurposeOne)).toBe('denied');
+    expect(
+      adConsentFromTcf({
+        ...consent,
+        publisher: { restrictions: { 3: { 755: 0 } } },
+      }),
+    ).toBe('non-personalized');
+    expect(
+      adConsentFromTcf({
+        ...consent,
+        publisher: { restrictions: { 4: { 755: 0 } } },
+      }),
+    ).toBe('non-personalized');
   });
 });

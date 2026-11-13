@@ -112,7 +112,12 @@ function parseTcfConsentData(value: unknown): TcfConsentData | undefined {
         }
       : {}),
     ...(vendor
-      ? { vendor: { consents: parseBooleanMap(vendor.consents) } }
+      ? {
+          vendor: {
+            consents: parseBooleanMap(vendor.consents),
+            legitimateInterests: parseBooleanMap(vendor.legitimateInterests),
+          },
+        }
       : {}),
     ...(publisher
       ? {

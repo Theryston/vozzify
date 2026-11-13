@@ -12,6 +12,7 @@ const apiURL = 'http://127.0.0.1:3333';
 export const cmpURL = `${apiURL}/__adsense-cmp.js`;
 export const adScriptURL =
   'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-0000000000000000';
+export const adSlotURL = 'https://adsense-provider.test/slot';
 
 export const consent = { ...allowedAdConsent };
 
@@ -48,19 +49,21 @@ export async function expectPaidMembershipWithheld(
 ) {
   await setSession(page, true);
   await setSubscription(page, subscription);
+  await setCmp(page, consent);
+  await setAdProvider(page);
   await context.addCookies([
     { name: 'vozzify.session_token', value: 'signed-in', url: baseURL },
   ]);
-  const cmpRequests: string[] = [];
-  page.on('request', (request) => {
-    if (request.url() === cmpURL) cmpRequests.push(request.url());
-  });
+  const adRequests = observeAdRequests(page);
+  const sessionResponse = page.waitForResponse('**/v1/auth/get-session');
+  const subscriptionResponse = page.waitForResponse('**/v1/me/subscription**');
   await page.goto('/en');
+  await Promise.all([sessionResponse, subscriptionResponse]);
   await expect(
     page.getByRole('link', { name: /Ad test song/ }).first(),
   ).toBeVisible();
-  expect(cmpRequests).toHaveLength(0);
   await expect(page.getByTestId('home-in-feed-ad')).toHaveCount(0);
+  expect(adRequests).toHaveLength(0);
 }
 
 export function feedRows(count: number): FakeHomeRow[] {
@@ -92,6 +95,13 @@ export function feedRows(count: number): FakeHomeRow[] {
 }
 
 export async function installFeed(rows = feedRows(12)) {
+  await setHomeFeed(rows);
+  await expect
+    .poll(async () => (await fetch(`${baseURL}/en`)).text())
+    .toContain('/en/tracks/');
+}
+
+export async function setHomeFeed(rows: FakeHomeRow[]) {
   await setHomeMock({ feeds: { en: rows } });
   const response = await fetch(`${baseURL}/api/revalidate`, {
     method: 'POST',
@@ -102,9 +112,34 @@ export async function installFeed(rows = feedRows(12)) {
     body: JSON.stringify({ tags: ['home:en'] }),
   });
   expect(response.ok).toBe(true);
-  await expect
-    .poll(async () => (await fetch(`${baseURL}/en`)).text())
-    .toContain('/en/tracks/');
+}
+
+export function observeAdRequests(page: Page): string[] {
+  const requests: string[] = [];
+  page.on('request', (request) => {
+    if (
+      request.url().startsWith(adScriptURL) ||
+      request.url().startsWith(adSlotURL)
+    )
+      requests.push(request.url());
+  });
+  return requests;
+}
+
+export function observeSlotRequests(page: Page): string[] {
+  const requests: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().startsWith(adSlotURL)) requests.push(request.url());
+  });
+  return requests;
+}
+
+export function observeCmpRequests(page: Page): string[] {
+  const requests: string[] = [];
+  page.on('request', (request) => {
+    if (request.url() === cmpURL) requests.push(request.url());
+  });
+  return requests;
 }
 
 export async function setSession(page: Page, user: boolean | 'failure') {
@@ -164,18 +199,22 @@ export async function setCmp(page: Page, value: Record<string, unknown>) {
 export async function setAdProvider(
   page: Page,
   outcomes: Array<'filled' | 'unfilled'> = ['filled'],
+  status = 200,
 ) {
+  await page.route(`${adSlotURL}**`, (route) =>
+    route.fulfill({ status: 200, contentType: 'image/gif', body: '' }),
+  );
   await page.route(adScriptURL, (route) =>
     route.fulfill({
-      status: 200,
+      status,
       contentType: 'text/javascript',
       body:
-        `window.__adOutcomes=${JSON.stringify(outcomes)};` +
-        'window.__adsenseNpaAtLoad=window.adsbygoogle.requestNonPersonalizedAds;' +
+        `const outcomes=${JSON.stringify(outcomes)};let requestNumber=0;` +
         'window.adsbygoogle.push=function(){' +
-        'window.__adsenseRequests=(window.__adsenseRequests||0)+1;' +
         'const slot=document.querySelector("ins.adsbygoogle:not([data-ad-status])");' +
-        'if(slot){const outcome=window.__adOutcomes.shift()||"filled";' +
+        'if(slot){const npa=window.adsbygoogle.requestNonPersonalizedAds||0;' +
+        'const request=new Image();request.src="https://adsense-provider.test/slot?npa="+npa+"&request="+requestNumber++;' +
+        'const outcome=outcomes.shift()||"filled";' +
         'if(outcome==="filled")slot.style.height="180px";' +
         'slot.dataset.adStatus=outcome;}}',
     }),

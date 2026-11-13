@@ -25,6 +25,7 @@ export function HomeInFeedAd({ config }: { config?: AdsenseConfig }) {
       attributes: true,
       attributeFilter: ['data-ad-status'],
     });
+    if (slot.dataset.adStatus) return () => observer.disconnect();
     try {
       requestInFeedAd();
     } catch {

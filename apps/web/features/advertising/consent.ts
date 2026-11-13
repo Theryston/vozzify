@@ -8,6 +8,7 @@ export type TcfConsentData = {
   };
   vendor?: {
     consents?: Record<number, boolean>;
+    legitimateInterests?: Record<number, boolean>;
   };
   publisher?: {
     restrictions?: Record<number, Record<number, 0 | 1 | 2>>;
@@ -20,51 +21,62 @@ export type PublisherRestrictions = Record<number, Record<number, 0 | 1 | 2>>;
 const GOOGLE_VENDOR_ID = 755;
 const REQUIRED_AD_PURPOSES = [2, 7, 9, 10] as const;
 
-function purposeIsAllowed(data: TcfConsentData, purpose: number): boolean {
+type LegalBasis = 'consent' | 'legitimateInterest';
+
+function purposeBasisIsAllowed(
+  data: TcfConsentData,
+  purpose: number,
+  basis: LegalBasis,
+): boolean {
   const restriction =
     data.publisher?.restrictions?.[purpose]?.[GOOGLE_VENDOR_ID];
-  if (restriction === 0) return false;
-  if (restriction === 1) return data.purpose?.consents?.[purpose] === true;
-  if (restriction === 2) {
-    return data.purpose?.legitimateInterests?.[purpose] === true;
-  }
+  if (
+    restriction === 0 ||
+    (restriction === 1 && basis !== 'consent') ||
+    (restriction === 2 && basis !== 'legitimateInterest')
+  )
+    return false;
+  const purposeBases =
+    basis === 'consent'
+      ? data.purpose?.consents
+      : data.purpose?.legitimateInterests;
+  const vendorBases =
+    basis === 'consent'
+      ? data.vendor?.consents
+      : data.vendor?.legitimateInterests;
   return (
-    data.purpose?.consents?.[purpose] === true ||
-    data.purpose?.legitimateInterests?.[purpose] === true
+    purposeBases?.[purpose] === true && vendorBases?.[GOOGLE_VENDOR_ID] === true
   );
 }
 
-/** Require storage consent and an allowed Google vendor basis before requests. */
+function purposeHasAllowedBasis(
+  data: TcfConsentData,
+  purpose: number,
+): boolean {
+  return (
+    purposeBasisIsAllowed(data, purpose, 'consent') ||
+    purposeBasisIsAllowed(data, purpose, 'legitimateInterest')
+  );
+}
+
+/** Require storage consent and matching Google vendor/purpose legal bases. */
 export function adConsentFromTcf(data: TcfConsentData): AdConsent | undefined {
   if (
     data.eventStatus !== 'tcloaded' &&
     data.eventStatus !== 'useractioncomplete'
   )
     return undefined;
-  if (data.gdprApplies === false) {
-    const explicitRefusal =
-      data.purpose?.consents?.[1] === false ||
-      data.vendor?.consents?.[GOOGLE_VENDOR_ID] === false;
-    if (explicitRefusal) return 'denied';
-    if (
-      data.purpose?.consents?.[3] === false ||
-      data.purpose?.consents?.[4] === false
-    )
-      return 'non-personalized';
-    return 'personalized';
-  }
-  if (data.gdprApplies !== true) return undefined;
+  if (data.gdprApplies !== true && data.gdprApplies !== false) return undefined;
 
-  const purposes = data.purpose?.consents;
-  const storageAllowed = purposes?.[1] === true;
-  const googleAllowed = data.vendor?.consents?.[GOOGLE_VENDOR_ID] === true;
+  if (data.vendor?.consents?.[GOOGLE_VENDOR_ID] !== true) return 'denied';
+  const storageAllowed = purposeBasisIsAllowed(data, 1, 'consent');
   const requiredPurposesAllowed = REQUIRED_AD_PURPOSES.every((purpose) =>
-    purposeIsAllowed(data, purpose),
+    purposeHasAllowedBasis(data, purpose),
   );
-  if (!storageAllowed || !googleAllowed || !requiredPurposesAllowed)
-    return 'denied';
+  if (!storageAllowed || !requiredPurposesAllowed) return 'denied';
 
-  return purposes?.[3] === true && purposes[4] === true
+  return purposeBasisIsAllowed(data, 3, 'consent') &&
+    purposeBasisIsAllowed(data, 4, 'consent')
     ? 'personalized'
     : 'non-personalized';
 }
