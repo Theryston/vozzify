@@ -101,7 +101,7 @@ export async function installFeed(rows = feedRows(12)) {
     .toContain('/en/tracks/');
 }
 
-export async function setHomeFeed(rows: FakeHomeRow[]) {
+async function setHomeFeed(rows: FakeHomeRow[]) {
   await setHomeMock({ feeds: { en: rows } });
   const response = await fetch(`${baseURL}/api/revalidate`, {
     method: 'POST',

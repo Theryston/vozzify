@@ -48,29 +48,91 @@ describe('adConsentFromTcf', () => {
   });
 
   it('honors explicit permission choices when GDPR consent does not apply', () => {
-    expect(adConsentFromTcf({ ...consent, gdprApplies: false })).toBe(
-      'personalized',
-    );
+    const nonGdprConsent = {
+      ...consent,
+      gdprApplies: false,
+      purpose: {
+        ...consent.purpose,
+        legitimateInterests: {
+          2: false,
+          7: false,
+          9: false,
+          10: false,
+        },
+      },
+      vendor: {
+        consents: { 755: true },
+        legitimateInterests: { 755: false },
+      },
+    };
+    expect(adConsentFromTcf(nonGdprConsent)).toBe('personalized');
     expect(
       adConsentFromTcf({
-        ...consent,
-        gdprApplies: false,
+        ...nonGdprConsent,
         purpose: {
-          ...consent.purpose,
-          consents: { ...consent.purpose?.consents, 3: false },
+          ...nonGdprConsent.purpose,
+          consents: { ...nonGdprConsent.purpose.consents, 3: false },
         },
       }),
     ).toBe('non-personalized');
     expect(
       adConsentFromTcf({
-        ...consent,
-        gdprApplies: false,
+        ...nonGdprConsent,
         purpose: {
-          ...consent.purpose,
-          consents: { ...consent.purpose?.consents, 1: false },
+          ...nonGdprConsent.purpose,
+          consents: { ...nonGdprConsent.purpose.consents, 1: false },
         },
       }),
     ).toBe('denied');
+  });
+
+  it('uses non-personalized ads for reduced non-GDPR TCData', () => {
+    expect(adConsentFromTcf({ gdprApplies: false })).toBe('non-personalized');
+    expect(
+      adConsentFromTcf({
+        gdprApplies: false,
+        purpose: { consents: { 1: false } },
+      }),
+    ).toBe('denied');
+    expect(
+      adConsentFromTcf({
+        gdprApplies: false,
+        vendor: { consents: { 755: false } },
+      }),
+    ).toBe('denied');
+    expect(
+      adConsentFromTcf({
+        gdprApplies: false,
+        publisher: { restrictions: { 2: { 755: 0 } } },
+      }),
+    ).toBe('denied');
+    expect(
+      adConsentFromTcf({
+        gdprApplies: false,
+        purpose: {
+          consents: {
+            1: true,
+            2: false,
+            3: false,
+            4: false,
+            7: false,
+            9: false,
+            10: false,
+          },
+          legitimateInterests: { 2: true, 7: true, 9: true, 10: true },
+        },
+        vendor: {
+          consents: { 755: true },
+          legitimateInterests: { 755: false },
+        },
+      }),
+    ).toBe('denied');
+    expect(
+      adConsentFromTcf({
+        gdprApplies: false,
+        eventStatus: 'cmpuishown',
+      }),
+    ).toBeUndefined();
   });
 
   it('honors allowed legitimate interest and publisher restrictions for required purposes', () => {

@@ -38,11 +38,18 @@ test.describe('Home native In-feed advertising', () => {
     await setSession(page, false);
     await setCmp(page, consent);
     await setAdProvider(page);
-    const adRequests = observeAdRequests(page);
+    const slotRequests = observeSlotRequests(page);
+    const cmpResponse = page.waitForResponse(cmpURL);
+    const providerResponse = page.waitForResponse((response) =>
+      response.url().startsWith(adScriptURL),
+    );
     await page.goto('/en');
+    expect((await cmpResponse).status()).toBe(200);
+    expect((await providerResponse).status()).toBe(200);
+    await page.waitForLoadState('networkidle');
     await expect(page.locator('[data-home-row-id]')).toHaveCount(2);
     await expect(page.getByTestId('home-in-feed-ad')).toHaveCount(0);
-    expect(adRequests).toHaveLength(0);
+    expect(slotRequests).toHaveLength(0);
   });
 
   test('renders a filled unit after Rows 3 and 6 without changing content order', async ({
@@ -225,7 +232,12 @@ test.describe('Home native In-feed advertising', () => {
     await setCmp(page, consent);
     await setAdProvider(page);
     const adRequests = observeAdRequests(page);
+    const failedSessionResponse = page.waitForResponse(
+      '**/v1/auth/get-session',
+    );
     await page.goto('/en');
+    expect((await failedSessionResponse).status()).toBe(503);
+    await page.waitForLoadState('networkidle');
     await expect(
       page.getByRole('link', { name: /Ad test song/ }).first(),
     ).toBeVisible();
@@ -237,15 +249,19 @@ test.describe('Home native In-feed advertising', () => {
     await context.addCookies([
       { name: 'vozzify.session_token', value: 'signed-in', url: baseURL },
     ]);
+    const sessionResponse = page.waitForResponse('**/v1/auth/get-session');
     const subscriptionResponse = page.waitForResponse(
       '**/v1/me/subscription**',
     );
     await page.goto('/en');
+    expect((await sessionResponse).status()).toBe(200);
+    expect((await subscriptionResponse).status()).toBe(503);
+    await page.waitForLoadState('networkidle');
     await expect(
       page.getByRole('link', { name: /Ad test song/ }).first(),
     ).toBeVisible();
-    await subscriptionResponse;
     await expect(page.getByTestId('home-in-feed-ad')).toHaveCount(0);
+    expect(adRequests).toHaveLength(0);
   });
 
   test('waits for session and Subscription responses before requesting ads', async ({
@@ -347,7 +363,10 @@ test.describe('Home native In-feed advertising', () => {
     await setCmp(page, { ...consent, eventStatus: 'cmpuishown' });
     await setAdProvider(page);
     const adRequests = observeAdRequests(page);
+    const cmpResponse = page.waitForResponse(cmpURL);
     await page.goto('/en');
+    expect((await cmpResponse).status()).toBe(200);
+    await page.waitForLoadState('networkidle');
     await expect(
       page.getByRole('link', { name: /Ad test song/ }).first(),
     ).toBeVisible();
@@ -397,6 +416,23 @@ test.describe('Home native In-feed advertising', () => {
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(360);
+  });
+
+  test('serves non-personalized inventory for reduced non-GDPR TCData', async ({
+    page,
+  }) => {
+    await setSession(page, false);
+    await setCmp(page, { gdprApplies: false });
+    await setAdProvider(page);
+    const slotRequests = observeSlotRequests(page);
+    const cmpResponse = page.waitForResponse(cmpURL);
+    await page.goto('/en');
+    expect((await cmpResponse).status()).toBe(200);
+    await expect(page.getByTestId('home-in-feed-ad').first()).toBeVisible();
+    await expect.poll(() => slotRequests.length).toBe(2);
+    expect(
+      slotRequests.map((request) => new URL(request).searchParams.get('npa')),
+    ).toEqual(['1', '1']);
   });
 
   test('withholds ads after consent refusal and keeps the feed available', async ({

@@ -90,7 +90,10 @@ function parseRestrictions(value: unknown): PublisherRestrictions {
 }
 
 function parseTcfConsentData(value: unknown): TcfConsentData | undefined {
-  if (!isRecord(value) || typeof value.eventStatus !== 'string')
+  if (
+    !isRecord(value) ||
+    (typeof value.eventStatus !== 'string' && value.gdprApplies !== false)
+  )
     return undefined;
   const purpose = isRecord(value.purpose) ? value.purpose : undefined;
   const vendor = isRecord(value.vendor) ? value.vendor : undefined;
@@ -102,7 +105,9 @@ function parseTcfConsentData(value: unknown): TcfConsentData | undefined {
     ...(typeof value.gdprApplies === 'boolean'
       ? { gdprApplies: value.gdprApplies }
       : {}),
-    eventStatus: value.eventStatus,
+    ...(typeof value.eventStatus === 'string'
+      ? { eventStatus: value.eventStatus }
+      : {}),
     ...(purpose
       ? {
           purpose: {

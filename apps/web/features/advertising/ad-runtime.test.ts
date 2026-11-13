@@ -110,6 +110,18 @@ describe('AdSense runtime', () => {
     expect(onChoice).not.toHaveBeenCalled();
   });
 
+  it('accepts reduced successful TCData when GDPR does not apply', async () => {
+    const { subscribeToTcfChoice } = await loadRuntime();
+    let listener: TcfCallback | undefined;
+    const api: TcfApi = (_command, _version, callback) => {
+      listener = callback;
+    };
+    const onChoice = vi.fn();
+    subscribeToTcfChoice(api, onChoice);
+    listener?.({ gdprApplies: false }, true);
+    expect(onChoice).toHaveBeenCalledWith('non-personalized');
+  });
+
   it('sets request controls before loading the provider and handles queue controls', async () => {
     const {
       loadAdSense,
