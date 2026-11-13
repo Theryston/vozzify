@@ -99,3 +99,6 @@ emulator and run `maestro test --format junit --output
 apps/mobile/maestro-results.xml apps/mobile/.maestro/flows/gallery-smoke.yaml`
 from the repository root. Install the Maestro CLI separately; the CI workflow
 pins its CLI release and does not use Maestro Cloud.
+
+The iOS simulator CI workflow, triggers and manual execution are documented in
+[`CI-IOS.md`](./CI-IOS.md).
