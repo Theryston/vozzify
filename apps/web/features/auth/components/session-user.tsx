@@ -17,7 +17,11 @@ const subscribeNever = () => () => {};
 export function SessionUserBoundary({
   render,
 }: {
-  render: (user: SessionUser | null, loading: boolean) => ReactNode;
+  render: (
+    user: SessionUser | null,
+    loading: boolean,
+    failed: boolean,
+  ) => ReactNode;
 }) {
   const session = useQuery(sessionUserOptions());
   // The server never knows the session, and the query may already hold it when
@@ -28,6 +32,6 @@ export function SessionUserBoundary({
     () => true,
     () => false,
   );
-  if (!hydrated) return render(null, true);
-  return render(session.data ?? null, session.isPending);
+  if (!hydrated) return render(null, true, false);
+  return render(session.data ?? null, session.isPending, session.isError);
 }

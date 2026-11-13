@@ -1,4 +1,7 @@
 {
+  "advertising": {
+    "label": "Advertisement"
+  },
   "metadata": {
     "title": "Vozzify – see the notes a singer hits",
     "titleTemplate": "%s | Vozzify",

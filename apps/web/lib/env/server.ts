@@ -55,6 +55,29 @@ const serverEnvSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
+  ADSENSE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  ADSENSE_CLIENT: z
+    .string()
+    .regex(/^ca-pub-[0-9]+$/)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+  ADSENSE_SLOT: z
+    .string()
+    .regex(/^[0-9]+$/)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+  ADSENSE_LAYOUT_KEY: z
+    .string()
+    .min(1)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+  ADSENSE_CMP_URL: z
+    .url()
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
 });
 
 export type ServerEnv = z.output<typeof serverEnvSchema>;
@@ -72,6 +95,11 @@ export function getServerEnv(): ServerEnv {
     CACHE_REDIS_URL: process.env.CACHE_REDIS_URL,
     SITEMAP_EXTRA_HOSTS: process.env.SITEMAP_EXTRA_HOSTS,
     E2E_FAKE_PLAYER: process.env.E2E_FAKE_PLAYER,
+    ADSENSE_ENABLED: process.env.ADSENSE_ENABLED,
+    ADSENSE_CLIENT: process.env.ADSENSE_CLIENT,
+    ADSENSE_SLOT: process.env.ADSENSE_SLOT,
+    ADSENSE_LAYOUT_KEY: process.env.ADSENSE_LAYOUT_KEY,
+    ADSENSE_CMP_URL: process.env.ADSENSE_CMP_URL,
   });
   return cached;
 }

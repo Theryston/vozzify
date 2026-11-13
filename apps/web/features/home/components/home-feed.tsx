@@ -2,6 +2,7 @@ import type { HomeFeedPage } from '@vozzify/contracts';
 import { cookies } from 'next/headers';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
+import { getAdsenseConfig } from '@/lib/env/adsense';
 import { isLocale, type Locale } from '@/lib/i18n/routing';
 import { getPublicHomePage, getSessionHomePage } from '../home-queries';
 import { hasSessionCookie } from '../session-cookie';
@@ -22,7 +23,11 @@ export async function HomeFeed() {
     // The rows' client components need the home and track-card strings only;
     // the rest of the messages stay on the server.
     <NextIntlClientProvider messages={await rowMessages()}>
-      <HomeRows locale={locale} initialPage={page} />
+      <HomeRows
+        locale={locale}
+        initialPage={page}
+        advertising={getAdsenseConfig()}
+      />
     </NextIntlClientProvider>
   );
 }
@@ -35,6 +40,6 @@ async function loadFirstPage(locale: Locale): Promise<HomeFeedPage> {
 }
 
 async function rowMessages() {
-  const { home, tracks } = await getMessages();
-  return { home, tracks: { card: tracks.card } };
+  const { advertising, home, tracks } = await getMessages();
+  return { advertising, home, tracks: { card: tracks.card } };
 }

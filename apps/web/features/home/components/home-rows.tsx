@@ -6,6 +6,8 @@ import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { AdvertisingProvider } from '@/features/advertising/components/advertising-provider';
+import type { AdsenseConfig } from '@/lib/env/adsense-config';
 import {
   fetchHomeRowsPage,
   restartHomeRowsAfterExpiredVisit,
@@ -40,9 +42,11 @@ const HomeEventsTracker = dynamic(
 export function HomeRows({
   locale,
   initialPage,
+  advertising,
 }: {
   locale: Locale;
   initialPage: HomeFeedPage;
+  advertising?: AdsenseConfig;
 }) {
   const {
     data,
@@ -91,19 +95,22 @@ export function HomeRows({
   );
 
   return (
-    <div className="flex flex-col gap-8">
-      <HomeEventsTracker pages={data.pages} locale={locale} />
-      <HomeFeedRows
-        rows={rows}
-        locale={locale}
-        onVisitExpired={onVisitExpired}
-      />
-      {isFetchingNextPage ? <CarouselRowSkeleton /> : null}
-      {isFetchNextPageError ? <LoadMoreError onRetry={loadMore} /> : null}
-      {hasNextPage && !isFetchNextPageError ? (
-        <LoadMoreSentinel active={!isFetchingNextPage} onVisible={loadMore} />
-      ) : null}
-    </div>
+    <AdvertisingProvider config={advertising}>
+      <div className="flex flex-col gap-8">
+        <HomeEventsTracker pages={data.pages} locale={locale} />
+        <HomeFeedRows
+          rows={rows}
+          locale={locale}
+          onVisitExpired={onVisitExpired}
+          advertising={advertising}
+        />
+        {isFetchingNextPage ? <CarouselRowSkeleton /> : null}
+        {isFetchNextPageError ? <LoadMoreError onRetry={loadMore} /> : null}
+        {hasNextPage && !isFetchNextPageError ? (
+          <LoadMoreSentinel active={!isFetchingNextPage} onVisible={loadMore} />
+        ) : null}
+      </div>
+    </AdvertisingProvider>
   );
 }
 
