@@ -35,7 +35,8 @@ and report it.
 
 ## While coding
 
-- Branch from `main` with a descriptive name.
+- Branch from `origin/dev` with a descriptive name. For a production hotfix,
+  prepare the two branches specified in the root Git workflow.
 - TDD at the seams the spec agreed on (highest seam first).
 - Run `nub run check-types` and single test files regularly.
 - Never edit quality configs (coverage/Stryker thresholds, `biome.json`,
@@ -52,8 +53,9 @@ and report it.
   `nub run infra:up` if services are needed.
 - Commit with Conventional Commits scoped by package, following the
   attribution rules in your context. Never bypass hooks.
-- Push and open the PR with `gh pr create`: conventional-commit title, body
+- Push and open the PR with `gh pr create --base dev`. For a production
+  hotfix, also open the production branch’s PR with `--base main`. For each PR use a conventional-commit title, body
   with a summary, `Closes #<n>`, which existing tests changed and why,
   coverage/mutation numbers if they went up, and open concerns.
-- Final report: PR URL, what changed, gate results (failures verbatim),
+- Final report: each PR URL and base, what changed, gate results (failures verbatim),
   and anything left undone or uncertain.

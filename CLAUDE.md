@@ -309,8 +309,15 @@ the maintainer changes these files.
 
 ### Git workflow
 
-- Branch from `main`, keep branches short-lived, merge via PR with green CI
-  (lint, check-types, test, build). Squash merge.
+- Branch from `origin/dev` for features, routine fixes and maintenance. Open
+  the PR against `dev` and squash merge after green CI (lint, check-types,
+  test, build). The maintainer manually releases accumulated changes from
+  `dev` to `main`.
+- The automated Music catalog mbslave version bump opens a single PR against
+  `main` so the maintainer can deploy the replication update directly.
+- For a production hotfix, open **two PRs**. Branch from `origin/main` for
+  the PR to `main`, then apply the same fix on a separate branch from
+  `origin/dev` for the PR to `dev`. Review and run CI against each base.
 - **Conventional Commits**, scoped by package:
   `<type>(<scope>): <subject>` with types `feat fix refactor perf test docs
   build ci chore style revert` and scopes `web mobile api music-catalog contracts
