@@ -32,7 +32,7 @@ describe('PrivateAudioInspector', () => {
     path = join(directory, 'source.audio');
     await writeFile(path, 'same file bytes');
     ffmpeg = new FfmpegClient({} as Env);
-    vi.spyOn(ffmpeg, 'validateAudioFile').mockResolvedValue();
+    vi.spyOn(ffmpeg, 'validateAudioFile').mockResolvedValue(1.25);
     inspector = new PrivateAudioInspector(ffmpeg);
   });
 
@@ -41,6 +41,7 @@ describe('PrivateAudioInspector', () => {
   });
 
   it('reads embedded title and artist tags after a complete decode', async () => {
+    vi.mocked(ffmpeg.validateAudioFile).mockResolvedValueOnce(1800);
     runProbe({
       streams: [
         {
@@ -56,7 +57,7 @@ describe('PrivateAudioInspector', () => {
       title: 'Track title',
       artist: 'Singer',
     });
-    expect(ffmpeg.validateAudioFile).toHaveBeenCalledWith(path);
+    expect(ffmpeg.validateAudioFile).toHaveBeenCalledWith(path, 1800);
     expect(spawnMock).toHaveBeenCalledWith(
       'ffprobe',
       expect.arrayContaining([
@@ -72,7 +73,7 @@ describe('PrivateAudioInspector', () => {
 
   it('uses container tags when audio-stream tags are absent', async () => {
     runProbe({
-      streams: [{ codec_type: 'audio', duration: '1.25', tags: {} }],
+      streams: [{ codec_type: 'audio', tags: {} }],
       format: { tags: { TITLE: 'Container title' } },
     });
     await expect(inspector.inspect(path)).resolves.toMatchObject({
@@ -83,8 +84,8 @@ describe('PrivateAudioInspector', () => {
 
   it('allows missing tags for filename fallback and empty artist', async () => {
     runProbe({
-      streams: [{ codec_type: 'audio', duration: '1.25' }],
-      format: { duration: '1.25' },
+      streams: [{ codec_type: 'audio' }],
+      format: {},
     });
     await expect(inspector.inspect(path)).resolves.toEqual({
       durationMs: 1250,
@@ -100,17 +101,18 @@ describe('PrivateAudioInspector', () => {
     });
     expect(ffmpeg.validateAudioFile).not.toHaveBeenCalled();
 
-    runProbe({ streams: [{ codec_type: 'audio', duration: '1' }] });
+    runProbe({ streams: [{ codec_type: 'audio' }] });
     vi.mocked(ffmpeg.validateAudioFile).mockRejectedValueOnce(new Error('bad'));
     await expect(inspector.inspect(path)).rejects.toMatchObject({
       status: 400,
     });
   });
 
-  it.each(['0', '-1', '1800.001', 'NaN'])(
+  it.each([0, -1, 1800.001, Number.NaN])(
     'rejects invalid duration %s',
     async (duration) => {
-      runProbe({ streams: [{ codec_type: 'audio', duration }] });
+      runProbe({ streams: [{ codec_type: 'audio' }] });
+      vi.mocked(ffmpeg.validateAudioFile).mockResolvedValueOnce(duration);
       await expect(inspector.inspect(path)).rejects.toMatchObject({
         status: 400,
       });

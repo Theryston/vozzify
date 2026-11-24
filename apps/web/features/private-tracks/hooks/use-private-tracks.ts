@@ -1,20 +1,34 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  type MyPrivateTracks,
-  myPrivateTracksSchema,
+  type InfiniteData,
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query';
+import {
+  type MyPrivateTracksPage,
+  myPrivateTracksPageSchema,
   privateTrackSchema,
 } from '@vozzify/contracts';
 import { browserApi } from '@/lib/api/browser';
 import { privateTrackKeys } from '../query-keys';
 
 export function usePrivateTracks(userId: string) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: privateTrackKeys.list(userId),
     enabled: Boolean(userId),
-    queryFn: () =>
-      browserApi('/me/private-tracks', { schema: myPrivateTracksSchema }),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam, signal }) =>
+      browserApi('/me/private-tracks', {
+        schema: myPrivateTracksPageSchema,
+        query: {
+          limit: 20,
+          ...(pageParam === undefined ? {} : { cursor: pageParam }),
+        },
+        signal,
+      }),
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
   });
 }
 
@@ -31,13 +45,25 @@ export function useSubmitPrivateTrack(userId: string) {
       });
     },
     onSuccess: async (created) => {
-      await queryClient.setQueryData<MyPrivateTracks>(
-        privateTrackKeys.list(userId),
-        (current) =>
-          current
-            ? { ...current, tracks: [created, ...current.tracks] }
-            : current,
-      );
+      await queryClient.setQueryData<
+        InfiniteData<MyPrivateTracksPage, string | undefined>
+      >(privateTrackKeys.list(userId), (current) => {
+        if (!current?.pages[0]) return current;
+        return {
+          ...current,
+          pages: current.pages.map((page, index) =>
+            index === 0
+              ? {
+                  ...page,
+                  items: [
+                    created,
+                    ...page.items.filter((track) => track.id !== created.id),
+                  ],
+                }
+              : page,
+          ),
+        };
+      });
       await queryClient.invalidateQueries({
         queryKey: privateTrackKeys.list(userId),
       });

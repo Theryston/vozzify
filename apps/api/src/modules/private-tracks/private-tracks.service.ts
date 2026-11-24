@@ -1,6 +1,15 @@
 import { basename } from 'node:path';
-import { ForbiddenException, Injectable } from '@nestjs/common';
-import type { MyPrivateTracks, PrivateTrack } from '@vozzify/contracts';
+import { Injectable } from '@nestjs/common';
+import type {
+  MyPrivateTracksPage,
+  MyPrivateTracksQuery,
+  PrivateTrack,
+} from '@vozzify/contracts';
+import {
+  decodeTupleCursor,
+  encodeTupleCursor,
+} from '../../common/cursor/tuple-cursor.js';
+import { AppException } from '../../common/errors/app-exception.js';
 import { StorageService } from '../../integrations/storage/storage.service.js';
 import { SubscriptionMembershipService } from '../plans/subscription-membership.service.js';
 import { PrivateAudioInspector } from './private-audio.js';
@@ -17,17 +26,36 @@ export class PrivateTracksService {
     private readonly membership: SubscriptionMembershipService,
   ) {}
 
-  async list(userId: string): Promise<MyPrivateTracks> {
+  async listPage(
+    userId: string,
+    query: MyPrivateTracksQuery,
+  ): Promise<MyPrivateTracksPage> {
     const [canSubmit, rows] = await Promise.all([
       this.membership.hasPaidMembership(userId),
-      this.repository.list(userId),
+      this.repository.listPage(userId, {
+        after: query.cursor
+          ? decodePrivateTrackCursor(query.cursor)
+          : undefined,
+        limit: query.limit,
+      }),
     ]);
-    return { canSubmit, tracks: rows.map(toPrivateTrack) };
+    const hasMore = rows.length > query.limit;
+    const page = hasMore ? rows.slice(0, query.limit) : rows;
+    const last = page.at(-1);
+    return {
+      canSubmit,
+      items: page.map(toPrivateTrack),
+      nextCursor:
+        hasMore && last
+          ? encodeTupleCursor([last.createdAt.toISOString(), last.id])
+          : null,
+    };
   }
 
   async submit(userId: string, file: Upload): Promise<PrivateTrack> {
     if (!(await this.membership.hasPaidMembership(userId))) {
-      throw new ForbiddenException(
+      throw new AppException(
+        'FORBIDDEN',
         'A Pro membership is required to upload audio',
       );
     }
@@ -35,7 +63,9 @@ export class PrivateTracksService {
       this.audio.inspect(file.path),
       this.audio.hash(file.path),
     ]);
-    const filename = basename(file.originalname.replaceAll('\\', '/'));
+    const filename = basename(
+      decodeMultipartFilename(file.originalname).replaceAll('\\', '/'),
+    );
     const title = metadata.title || filename;
     const objectKey = `${userId}/${contentSha256}`;
     await this.storage.putPrivateFile({
@@ -55,6 +85,21 @@ export class PrivateTracksService {
     return toPrivateTrack(row);
   }
 }
+
+const decodePrivateTrackCursor = (cursor: string) => {
+  const [createdAt, id] = decodeTupleCursor(cursor);
+  const date = new Date(createdAt);
+  if (!Number.isFinite(date.getTime()) || date.toISOString() !== createdAt) {
+    throw new AppException('VALIDATION_FAILED', 'Invalid cursor');
+  }
+  return { createdAt: date, id };
+};
+
+const decodeMultipartFilename = (filename: string): string => {
+  const latinBytes = Buffer.from(filename, 'latin1');
+  const decoded = latinBytes.toString('utf8');
+  return Buffer.from(decoded, 'utf8').equals(latinBytes) ? decoded : filename;
+};
 
 const toPrivateTrack = (row: {
   id: string;

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, lt, or } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
 import { privateTracks } from '../../database/schema/private-tracks.js';
 
@@ -8,12 +8,29 @@ import { privateTracks } from '../../database/schema/private-tracks.js';
 export class PrivateTracksRepository {
   constructor(private readonly txHost: TransactionHost<DatabaseAdapter>) {}
 
-  async list(userId: string) {
+  async listPage(
+    userId: string,
+    query: { after?: { createdAt: Date; id: string }; limit: number },
+  ) {
+    const cursor = query.after
+      ? or(
+          lt(privateTracks.createdAt, query.after.createdAt),
+          and(
+            eq(privateTracks.createdAt, query.after.createdAt),
+            lt(privateTracks.id, query.after.id),
+          ),
+        )
+      : undefined;
     return this.txHost.tx
       .select()
       .from(privateTracks)
-      .where(eq(privateTracks.userId, userId))
-      .orderBy(desc(privateTracks.createdAt), desc(privateTracks.id));
+      .where(
+        cursor
+          ? and(eq(privateTracks.userId, userId), cursor)
+          : eq(privateTracks.userId, userId),
+      )
+      .orderBy(desc(privateTracks.createdAt), desc(privateTracks.id))
+      .limit(query.limit + 1);
   }
 
   async save(input: typeof privateTracks.$inferInsert) {

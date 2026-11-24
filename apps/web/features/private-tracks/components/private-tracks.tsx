@@ -1,6 +1,6 @@
 'use client';
 
-import { PRIVATE_AUDIO_MAX_BYTES } from '@vozzify/contracts';
+import { createPrivateTrackBodySchema } from '@vozzify/contracts';
 import { useTranslations } from 'next-intl';
 import type { FormEvent, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
@@ -56,7 +56,7 @@ function PrivateTracksContent({
   usePrivateTracksPageEffects({
     loading,
     user,
-    tracks: tracks.data,
+    tracks: tracks.data?.pages,
     setPaywallOpen,
   });
 
@@ -66,11 +66,11 @@ function PrivateTracksContent({
     event.preventDefault();
     setValidationError(false);
     setUploadError(false);
-    if (!tracks.data?.canSubmit) {
+    if (!tracks.data?.pages[0]?.canSubmit) {
       setPaywallOpen(true);
       return;
     }
-    if (!isValidPrivateAudio(selected)) {
+    if (!selected || !isValidPrivateAudio(selected)) {
       setValidationError(true);
       return;
     }
@@ -89,10 +89,12 @@ function PrivateTracksContent({
 
   return (
     <PrivateTracksLibrary
-      tracks={tracks.data?.tracks ?? []}
-      canSubmit={tracks.data?.canSubmit ?? false}
+      tracks={tracks.data?.pages.flatMap((page) => page.items) ?? []}
+      canSubmit={tracks.data?.pages[0]?.canSubmit ?? false}
       loading={tracks.isPending}
       loadError={tracks.isError}
+      hasMore={tracks.hasNextPage}
+      loadingMore={tracks.isFetchingNextPage}
       pending={submit.isPending}
       selected={selected}
       input={input}
@@ -102,12 +104,13 @@ function PrivateTracksContent({
       onSelected={setSelected}
       onSubmit={submitAudio}
       onPaywallOpenChange={setPaywallOpen}
+      onLoadMore={() => void tracks.fetchNextPage()}
     />
   );
 }
 
-const isValidPrivateAudio = (file: File | undefined) =>
-  file !== undefined && file.size > 0 && file.size <= PRIVATE_AUDIO_MAX_BYTES;
+const isValidPrivateAudio = (file: File) =>
+  createPrivateTrackBodySchema.safeParse({ audio: file }).success;
 
 function usePrivateTracksPageEffects({
   loading,
@@ -117,7 +120,7 @@ function usePrivateTracksPageEffects({
 }: {
   loading: boolean;
   user: AccountUser | null;
-  tracks: { canSubmit: boolean; tracks: unknown[] } | undefined;
+  tracks: { canSubmit: boolean; items: unknown[] }[] | undefined;
   setPaywallOpen: (open: boolean) => void;
 }) {
   const router = useRouter();
@@ -132,7 +135,8 @@ function usePrivateTracksPageEffects({
   }, [loading, router, user]);
 
   useEffect(() => {
-    if (tracks && !tracks.canSubmit && tracks.tracks.length === 0) {
+    const firstPage = tracks?.[0];
+    if (firstPage && !firstPage.canSubmit && firstPage.items.length === 0) {
       setPaywallOpen(true);
     }
   }, [setPaywallOpen, tracks]);
@@ -143,6 +147,8 @@ type LibraryProps = {
   canSubmit: boolean;
   loading: boolean;
   loadError: boolean;
+  hasMore: boolean;
+  loadingMore: boolean;
   pending: boolean;
   selected: File | undefined;
   input: RefObject<HTMLInputElement | null>;
@@ -152,9 +158,11 @@ type LibraryProps = {
   onSelected: (file: File | undefined) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onPaywallOpenChange: (open: boolean) => void;
+  onLoadMore: () => void;
 };
 
 function PrivateTracksLibrary(props: LibraryProps) {
+  const t = useTranslations('privateTracks');
   return (
     <section className="flex flex-col gap-6">
       <PrivateAudioForm {...props} />
@@ -167,6 +175,17 @@ function PrivateTracksLibrary(props: LibraryProps) {
         loading={props.loading}
         loadError={props.loadError}
       />
+      {props.hasMore ? (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            disabled={props.loadingMore}
+            onClick={props.onLoadMore}
+          >
+            {props.loadingMore ? t('loadingMore') : t('loadMore')}
+          </Button>
+        </div>
+      ) : null}
       <ProDialog
         open={props.paywallOpen}
         onPaywallOpenChange={props.onPaywallOpenChange}
@@ -287,6 +306,7 @@ function ProDialog({
           <DialogDescription>{t('proDescription')}</DialogDescription>
         </DialogHeader>
         <Button
+          nativeButton={false}
           render={<Link href="/plans" />}
           onClick={() => onPaywallOpenChange(false)}
         >

@@ -413,6 +413,8 @@
     "title": "Minhas faixas",
     "description": "Os áudios enviados ficam privados na sua conta.",
     "loading": "Carregando suas músicas…",
+    "loadingMore": "Carregando mais…",
+    "loadMore": "Carregar mais",
     "loadError": "Não foi possível carregar suas músicas.",
     "empty": "Você ainda não adicionou nenhum áudio.",
     "artistUnknown": "Artista desconhecido",

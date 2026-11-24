@@ -29,9 +29,21 @@ export class PrivateAudioInspector {
       throw invalidPrivateAudio('Audio could not be decoded');
     }
     const stream = probe.streams?.[0];
-    const duration = Number(stream?.duration ?? probe.format?.duration);
+    if (stream?.codec_type !== 'audio') {
+      throw invalidPrivateAudio(
+        'Audio must be decodable and no longer than 30 minutes',
+      );
+    }
+    let duration: number;
+    try {
+      duration = await this.ffmpeg.validateAudioFile(
+        filePath,
+        PRIVATE_AUDIO_MAX_DURATION_SECONDS,
+      );
+    } catch {
+      throw invalidPrivateAudio('Audio could not be decoded');
+    }
     if (
-      stream?.codec_type !== 'audio' ||
       !Number.isFinite(duration) ||
       duration <= 0 ||
       duration > PRIVATE_AUDIO_MAX_DURATION_SECONDS
@@ -39,11 +51,6 @@ export class PrivateAudioInspector {
       throw invalidPrivateAudio(
         'Audio must be decodable and no longer than 30 minutes',
       );
-    }
-    try {
-      await this.ffmpeg.validateAudioFile(filePath);
-    } catch {
-      throw invalidPrivateAudio('Audio could not be decoded');
     }
     const streamTags = stream.tags ?? {};
     const formatTags = probe.format?.tags ?? {};

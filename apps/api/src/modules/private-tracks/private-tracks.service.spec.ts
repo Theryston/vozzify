@@ -1,4 +1,3 @@
-import { ForbiddenException } from '@nestjs/common';
 import { StorageService } from '../../integrations/storage/storage.service.js';
 import { SubscriptionMembershipService } from '../plans/subscription-membership.service.js';
 import { PrivateAudioInspector } from './private-audio.js';
@@ -6,7 +5,7 @@ import { PrivateTracksRepository } from './private-tracks.repository.js';
 import { PrivateTracksService } from './private-tracks.service.js';
 
 describe('PrivateTracksService', () => {
-  const repository = { list: vi.fn(), save: vi.fn() };
+  const repository = { listPage: vi.fn(), save: vi.fn() };
   const audio = { inspect: vi.fn(), hash: vi.fn() };
   const storage = { putPrivateFile: vi.fn() };
   const subscriptions = { hasPaidMembership: vi.fn() };
@@ -24,7 +23,7 @@ describe('PrivateTracksService', () => {
 
   it('lists only the owner’s private entries with current membership', async () => {
     subscriptions.hasPaidMembership.mockResolvedValue(true);
-    repository.list.mockResolvedValue([
+    repository.listPage.mockResolvedValue([
       {
         id: 'entry-1',
         title: 'Song',
@@ -33,9 +32,9 @@ describe('PrivateTracksService', () => {
         createdAt: new Date('2026-01-02T03:04:05.000Z'),
       },
     ]);
-    await expect(service.list('u1')).resolves.toEqual({
+    await expect(service.listPage('u1', { limit: 20 })).resolves.toEqual({
       canSubmit: true,
-      tracks: [
+      items: [
         {
           id: 'entry-1',
           title: 'Song',
@@ -44,15 +43,19 @@ describe('PrivateTracksService', () => {
           createdAt: '2026-01-02T03:04:05.000Z',
         },
       ],
+      nextCursor: null,
     });
-    expect(repository.list).toHaveBeenCalledWith('u1');
+    expect(repository.listPage).toHaveBeenCalledWith('u1', {
+      after: undefined,
+      limit: 20,
+    });
   });
 
   it('rejects free uploads before inspection or storage', async () => {
     subscriptions.hasPaidMembership.mockResolvedValue(false);
     await expect(
       service.submit('u1', { path: '/tmp/upload', originalname: 'song.wav' }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(audio.inspect).not.toHaveBeenCalled();
     expect(storage.putPrivateFile).not.toHaveBeenCalled();
   });
@@ -126,6 +129,31 @@ describe('PrivateTracksService', () => {
         title: 'Tagged title',
         artist: 'Tagged artist',
       }),
+    );
+  });
+
+  it('repairs a UTF-8 filename decoded as Latin-1 by multipart tooling', async () => {
+    subscriptions.hasPaidMembership.mockResolvedValue(true);
+    audio.inspect.mockResolvedValue({
+      durationMs: 1000,
+      title: '',
+      artist: '',
+    });
+    audio.hash.mockResolvedValue('ef56');
+    storage.putPrivateFile.mockResolvedValue(undefined);
+    repository.save.mockResolvedValue({
+      id: 'entry-3',
+      title: 'Canção de João.m4a',
+      artist: '',
+      durationMs: 1000,
+      createdAt: new Date('2026-01-02T03:04:05.000Z'),
+    });
+    await service.submit('u1', {
+      path: '/tmp/upload',
+      originalname: 'CanÃ§Ã£o de JoÃ£o.m4a',
+    });
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Canção de João.m4a' }),
     );
   });
 });

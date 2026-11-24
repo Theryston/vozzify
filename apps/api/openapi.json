@@ -1835,7 +1835,28 @@
     "/v1/me/private-tracks": {
       "get": {
         "operationId": "PrivateTracksController_list_v1",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "The signed-in user's private audio entries."
@@ -4208,6 +4229,7 @@
             "type": "string",
             "format": "binary",
             "contentEncoding": "binary",
+            "minLength": 1,
             "maxLength": 262144000
           }
         },

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  myPrivateTracksSchema,
+  myPrivateTracksPageSchema,
   PRIVATE_AUDIO_MAX_BYTES,
   PRIVATE_AUDIO_MAX_DURATION_SECONDS,
   privateTrackSchema,
@@ -12,42 +12,84 @@ import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { loadEnv } from '../src/config/env.js';
 import { privateTracks } from '../src/database/schema/private-tracks.js';
+import { subscriptions } from '../src/database/schema/subscriptions.js';
 import { StorageService } from '../src/integrations/storage/storage.service.js';
-import { SubscriptionMembershipService } from '../src/modules/plans/subscription-membership.service.js';
 import { createAuthClient, signIn } from './utils/auth.js';
+import { billingCatalog } from './utils/billing-fixture.js';
 import { createTestApp, type TestApp } from './utils/create-test-app.js';
 import { resetDatabase } from './utils/database.js';
 import { createPasswordUser, DEFAULT_PASSWORD } from './utils/factories.js';
+import {
+  FAKE_CATALOG_API_KEY,
+  startFakeMusicCatalog,
+} from './utils/fake-music-catalog.js';
 
 const FIXTURE = fileURLToPath(
   new URL('../../web/e2e/fixtures/a4-440hz.wav', import.meta.url),
+);
+const WEBM_FIXTURE = fileURLToPath(
+  new URL('./fixtures/untagged-short.webm', import.meta.url),
 );
 const ROOT = '/v1/me/private-tracks';
 
 describe('Private tracks (e2e)', () => {
   let testApp: TestApp;
-  const paidUsers = new Set<string>();
-  const hasPaidMembership = vi.fn((userId: string) =>
-    Promise.resolve(paidUsers.has(userId)),
-  );
+  let catalog: Awaited<ReturnType<typeof startFakeMusicCatalog>>;
+  let catalogSeeded: boolean;
 
   beforeAll(async () => {
+    catalog = await startFakeMusicCatalog(() => ({
+      result: {
+        results: [
+          {
+            mbid: '7f3c8a5d-441a-4e6a-9b7a-4fc21a9c9001',
+            title: 'Public control song',
+            artistCredit: 'Public artist',
+            coverUrl: null,
+            trackId: 'public-control-track',
+          },
+        ],
+      },
+    }));
     testApp = await createTestApp({
-      override: (builder) =>
-        builder
-          .overrideProvider(SubscriptionMembershipService)
-          .useValue({ hasPaidMembership }),
+      env: {
+        MUSIC_CATALOG_URL: catalog.url,
+        MUSIC_CATALOG_API_KEY: FAKE_CATALOG_API_KEY,
+      },
     });
   });
 
   afterAll(async () => {
     await testApp.close();
+    await catalog.close();
   });
 
   beforeEach(async () => {
-    paidUsers.clear();
+    catalogSeeded = false;
     await resetDatabase(testApp.db);
   });
+
+  const grantPro = async (userId: string) => {
+    if (!catalogSeeded) {
+      await billingCatalog(testApp);
+      catalogSeeded = true;
+    }
+    await testApp.db.insert(subscriptions).values({
+      userId,
+      planId: 'pro',
+      priceId: 'usd-monthly',
+      cycle: 'monthly',
+      currency: 'USD',
+      amount: 350,
+      stripePriceId: 'price_usd_monthly',
+      status: 'confirmed',
+      providerStatus: 'active',
+      paidMembership: true,
+      hasPaidInvoice: true,
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+  };
 
   it('requires a session and a Pro membership to submit audio', async () => {
     await request(testApp.app.getHttpServer()).get(ROOT).expect(401);
@@ -55,9 +97,10 @@ describe('Private tracks (e2e)', () => {
     const client = createAuthClient(testApp);
     await signIn(client, { email: user.email, password: DEFAULT_PASSWORD });
     const listed = await client.get(ROOT).expect(200);
-    expect(myPrivateTracksSchema.parse(listed.body)).toEqual({
+    expect(myPrivateTracksPageSchema.parse(listed.body)).toEqual({
       canSubmit: false,
-      tracks: [],
+      items: [],
+      nextCursor: null,
     });
     await client.post(ROOT).attach('audio', FIXTURE).expect(403);
   });
@@ -65,8 +108,8 @@ describe('Private tracks (e2e)', () => {
   it('accepts an audio source once, deduplicates concurrent copies, and keeps it private to its owner', async () => {
     const owner = await createPasswordUser(testApp.db);
     const other = await createPasswordUser(testApp.db);
-    paidUsers.add(owner.id);
-    paidUsers.add(other.id);
+    await grantPro(owner.id);
+    await grantPro(other.id);
     const client = createAuthClient(testApp);
     await signIn(client, { email: owner.email, password: DEFAULT_PASSWORD });
 
@@ -88,13 +131,6 @@ describe('Private tracks (e2e)', () => {
       durationMs: 1000,
     });
     expect(first.headers['cache-control']).toBe('private, no-store');
-    expect(
-      await testApp.db
-        .select()
-        .from(privateTracks)
-        .where(eq(privateTracks.userId, owner.id)),
-    ).toHaveLength(1);
-
     const distinctAudio = Buffer.from(await readFile(FIXTURE));
     const finalByte = distinctAudio.length - 1;
     const sample = distinctAudio[finalByte];
@@ -110,7 +146,7 @@ describe('Private tracks (e2e)', () => {
       await testApp.db
         .select()
         .from(privateTracks)
-        .where(eq(privateTracks.userId, owner.id))
+        .where(eq(privateTracks.id, entry.id))
     )[0];
     if (!privateRow) throw new Error('Expected the private audio row');
     const stored = testApp.app.get(StorageService);
@@ -136,13 +172,23 @@ describe('Private tracks (e2e)', () => {
       password: DEFAULT_PASSWORD,
     });
     const otherList = await otherClient.get(ROOT).expect(200);
-    expect(myPrivateTracksSchema.parse(otherList.body).tracks).toHaveLength(0);
+    expect(myPrivateTracksPageSchema.parse(otherList.body).items).toHaveLength(
+      0,
+    );
     const otherEntry = await otherClient
       .post(ROOT)
       .attach('audio', FIXTURE, { filename: 'fallback song.wav' })
       .expect(201);
     expect(privateTrackSchema.parse(otherEntry.body).id).not.toBe(entry.id);
 
+    const publicSearch = await request(testApp.app.getHttpServer())
+      .get('/v1/search')
+      .query({ query: 'fallback song' })
+      .expect(200);
+    expect(publicSearch.body.results).toEqual([
+      expect.objectContaining({ title: 'Public control song' }),
+    ]);
+    expect(JSON.stringify(publicSearch.body)).not.toContain('fallback song');
     await request(testApp.app.getHttpServer())
       .get(`/v1/tracks/${entry.id}`)
       .expect(404);
@@ -150,7 +196,7 @@ describe('Private tracks (e2e)', () => {
 
   it('accepts exact byte and duration limits and rejects values above them', async () => {
     const owner = await createPasswordUser(testApp.db);
-    paidUsers.add(owner.id);
+    await grantPro(owner.id);
     const client = createAuthClient(testApp);
     await signIn(client, { email: owner.email, password: DEFAULT_PASSWORD });
     const directory = await mkdtemp(join(tmpdir(), 'private-audio-limits-'));
@@ -193,9 +239,61 @@ describe('Private tracks (e2e)', () => {
     }
   });
 
+  it('measures duration when a browser WebM has no container duration and decodes its filename', async () => {
+    const owner = await createPasswordUser(testApp.db);
+    await grantPro(owner.id);
+    const client = createAuthClient(testApp);
+    await signIn(client, { email: owner.email, password: DEFAULT_PASSWORD });
+    const response = await client
+      .post(ROOT)
+      .attach('audio', WEBM_FIXTURE, { filename: 'Canção de João.m4a' })
+      .expect(201);
+    expect(privateTrackSchema.parse(response.body)).toMatchObject({
+      title: 'Canção de João.m4a',
+      artist: '',
+    });
+  });
+
+  it('paginates older private tracks with an opaque cursor', async () => {
+    const owner = await createPasswordUser(testApp.db);
+    const client = createAuthClient(testApp);
+    await signIn(client, { email: owner.email, password: DEFAULT_PASSWORD });
+    const dates = [3, 2, 1].map(
+      (day) => new Date(`2026-11-0${day}T00:00:00.000Z`),
+    );
+    await testApp.db.insert(privateTracks).values(
+      dates.map((createdAt, index) => ({
+        userId: owner.id,
+        contentSha256: `hash-${index}`,
+        objectKey: `${owner.id}/key-${index}`,
+        originalFilename: `song-${index}.wav`,
+        title: `Song ${index}`,
+        artist: '',
+        durationMs: 1000,
+        createdAt,
+      })),
+    );
+
+    const first = myPrivateTracksPageSchema.parse(
+      (await client.get(ROOT).query({ limit: 2 }).expect(200)).body,
+    );
+    expect(first.items.map(({ title }) => title)).toEqual(['Song 0', 'Song 1']);
+    expect(first.nextCursor).toEqual(expect.any(String));
+    const second = myPrivateTracksPageSchema.parse(
+      (
+        await client
+          .get(ROOT)
+          .query({ limit: 2, cursor: first.nextCursor })
+          .expect(200)
+      ).body,
+    );
+    expect(second.items.map(({ title }) => title)).toEqual(['Song 2']);
+    expect(second.nextCursor).toBeNull();
+  });
+
   it('rejects invalid audio content and unsupported multipart fields', async () => {
     const owner = await createPasswordUser(testApp.db);
-    paidUsers.add(owner.id);
+    await grantPro(owner.id);
     const client = createAuthClient(testApp);
     await signIn(client, { email: owner.email, password: DEFAULT_PASSWORD });
     await client

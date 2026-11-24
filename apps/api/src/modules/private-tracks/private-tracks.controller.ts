@@ -3,6 +3,7 @@ import {
   Get,
   Header,
   Post,
+  Query,
   Req,
   UploadedFile,
   UseInterceptors,
@@ -17,10 +18,12 @@ import {
 } from '@nestjs/swagger';
 import {
   createPrivateTrackBodySchema,
-  type MyPrivateTracks,
-  myPrivateTracksSchema,
+  type MyPrivateTracksPage,
+  myPrivateTracksPageSchema,
+  myPrivateTracksQuerySchema,
   PRIVATE_AUDIO_MAX_BYTES,
   type PrivateTrack,
+  privateAudioSizeSchema,
   privateTrackSchema,
 } from '@vozzify/contracts';
 import type { Request } from 'express';
@@ -37,6 +40,9 @@ import { PrivateTracksService } from './private-tracks.service.js';
 
 type UploadedAudio = { path: string; originalname: string; size: number };
 type RequestWithUpload = Request & { privateAudioDirectory?: string };
+class ListPrivateTracksQueryDto extends createZodDto(
+  myPrivateTracksQuerySchema,
+) {}
 class CreatePrivateTrackBodyDto extends createZodDto(
   createPrivateTrackBodySchema,
 ) {}
@@ -48,11 +54,14 @@ export class PrivateTracksController {
 
   @Get()
   @Header('Cache-Control', 'private, no-store')
-  @ZodSerializerDto(myPrivateTracksSchema)
+  @ZodSerializerDto(myPrivateTracksPageSchema)
   @ApiOkResponse({ description: "The signed-in user's private audio entries." })
   @ApiUnauthorizedResponse({ description: 'No valid session.' })
-  list(@CurrentUser() user: AuthUser): Promise<MyPrivateTracks> {
-    return this.privateTracks.list(user.id);
+  list(
+    @CurrentUser() user: AuthUser,
+    @Query() query: ListPrivateTracksQueryDto,
+  ): Promise<MyPrivateTracksPage> {
+    return this.privateTracks.listPage(user.id, query);
   }
 
   @Post()
@@ -71,7 +80,8 @@ export class PrivateTracksController {
     const directory = request.privateAudioDirectory;
     try {
       if (!file) throw invalidPrivateAudio('Audio file is required');
-      if (file.size > PRIVATE_AUDIO_MAX_BYTES) {
+      const size = privateAudioSizeSchema.safeParse(file.size);
+      if (!size.success) {
         throw invalidPrivateAudio(
           `Audio is larger than ${PRIVATE_AUDIO_MAX_BYTES} bytes`,
         );

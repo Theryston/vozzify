@@ -413,6 +413,8 @@
     "title": "My tracks",
     "description": "Audio you submit stays private to your account.",
     "loading": "Loading your tracks…",
+    "loadingMore": "Loading more…",
+    "loadMore": "Load more",
     "loadError": "Your tracks could not be loaded.",
     "empty": "You have not added any audio yet.",
     "artistUnknown": "Unknown artist",

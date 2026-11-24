@@ -11,6 +11,31 @@ import { PRIVATE_AUDIO_FORMAT_WHITELIST } from './private-audio-formats.js';
 // it at this boundary.
 const DEFAULT_FFMPEG_PATH = 'ffmpeg';
 const DEFAULT_FFPROBE_PATH = 'ffprobe';
+const PRIVATE_AUDIO_DECODE_ARGS = [
+  '-v',
+  'error',
+  '-protocol_whitelist',
+  'file',
+  '-format_whitelist',
+  PRIVATE_AUDIO_FORMAT_WHITELIST,
+  '-i',
+  '/proc/self/fd/3',
+  '-map',
+  '0:a:0',
+  '-vn',
+  '-sn',
+  '-dn',
+  '-threads',
+  '1',
+  '-nostats',
+  '-stats_period',
+  '0.25',
+  '-progress',
+  'pipe:1',
+  '-f',
+  'null',
+  '-',
+];
 // A conversion of a 15-minute track takes seconds; a hung process is killed.
 const CONVERSION_TIMEOUT_MS = 2 * 60_000;
 // The end of ffmpeg's log is where its error is.
@@ -50,37 +75,65 @@ export class FfmpegClient {
   }
 
   /** Decode only the first audio stream from the self-contained uploaded file. */
-  async validateAudioFile(input: string): Promise<void> {
+  async validateAudioFile(
+    input: string,
+    maxDurationSeconds: number,
+  ): Promise<number> {
     const file = await open(input, 'r');
     try {
-      await this.run(
-        [
-          '-v',
-          'error',
-          '-protocol_whitelist',
-          'file',
-          '-format_whitelist',
-          PRIVATE_AUDIO_FORMAT_WHITELIST,
-          '-i',
-          '/proc/self/fd/3',
-          '-map',
-          '0:a:0',
-          '-vn',
-          '-sn',
-          '-dn',
-          '-threads',
-          '1',
-          '-t',
-          '1800.001',
-          '-f',
-          'null',
-          '-',
-        ],
-        file.fd,
-      );
+      return await this.decodeForValidation(file.fd, maxDurationSeconds);
     } finally {
       await file.close();
     }
+  }
+
+  private decodeForValidation(
+    inputFd: number,
+    maxDurationSeconds: number,
+  ): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const child = spawn(
+        this.env.FFMPEG_PATH ?? DEFAULT_FFMPEG_PATH,
+        PRIVATE_AUDIO_DECODE_ARGS,
+        {
+          stdio: ['ignore', 'pipe', 'pipe', inputFd],
+          signal: AbortSignal.timeout(CONVERSION_TIMEOUT_MS),
+        },
+      );
+      let progressBuffer = '';
+      let stderr = '';
+      let durationUs = 0;
+      let durationExceeded = false;
+      child.stdout?.on('data', (chunk: Buffer) => {
+        const update = readProgress(
+          progressBuffer,
+          chunk.toString(),
+          durationUs,
+          maxDurationSeconds,
+        );
+        progressBuffer = update.buffer;
+        durationUs = update.durationUs;
+        durationExceeded ||= update.durationExceeded;
+        if (update.outputExceeded || update.durationExceeded) {
+          child.kill('SIGKILL');
+        }
+      });
+      child.stderr?.on('data', (chunk: Buffer) => {
+        stderr = `${stderr}${chunk}`.slice(-STDERR_TAIL_CHARS);
+      });
+      child.once('error', reject);
+      child.once('close', (code) => {
+        if (durationExceeded) {
+          reject(new Error('Audio duration exceeds its limit'));
+          return;
+        }
+        if (code !== 0) {
+          reject(new Error(`ffmpeg exited with code ${code}: ${stderr}`));
+          return;
+        }
+        resolve(durationUs / 1_000_000);
+      });
+    });
   }
 
   /**
@@ -139,4 +192,41 @@ export class FfmpegClient {
       });
     });
   }
+}
+
+function readProgress(
+  buffer: string,
+  chunk: string,
+  currentDurationUs: number,
+  maxDurationSeconds: number,
+) {
+  const output = buffer + chunk;
+  if (output.length > 32_000) {
+    return {
+      buffer: '',
+      durationUs: currentDurationUs,
+      durationExceeded: false,
+      outputExceeded: true,
+    };
+  }
+  const lines = output.split('\n');
+  const remaining = lines.pop() ?? '';
+  let durationUs = currentDurationUs;
+  let durationExceeded = false;
+  for (const line of lines) {
+    if (!line.startsWith('out_time_us=')) continue;
+    const parsed = Number(line.slice('out_time_us='.length));
+    if (!Number.isFinite(parsed)) continue;
+    durationUs = Math.max(durationUs, parsed);
+    if (durationUs > maxDurationSeconds * 1_000_000) {
+      durationExceeded = true;
+      break;
+    }
+  }
+  return {
+    buffer: remaining,
+    durationUs,
+    durationExceeded,
+    outputExceeded: false,
+  };
 }
