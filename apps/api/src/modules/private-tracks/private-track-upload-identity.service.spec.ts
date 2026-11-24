@@ -55,7 +55,7 @@ describe('PrivateTracksService upload identity', () => {
       expect.objectContaining({
         id: created.id,
         contentSha256: 'same-content',
-        objectKey: `private-tracks/owner-1/${candidateId}/source`,
+        objectKey: uploaded.key,
       }),
     );
     expect(storage.deletePrivateObject).not.toHaveBeenCalled();
