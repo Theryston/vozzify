@@ -47,9 +47,7 @@ describe('PrivateTrackDeletionService', () => {
     expect(storage.deletePrivateObjectsWithPrefix).toHaveBeenCalledWith(
       'private-tracks/owner-1/entry-1/',
     );
-    expect(storage.deletePrivateObjectsWithPrefix).toHaveBeenCalledWith(
-      'private-track-derivatives/owner-1/entry-1/',
-    );
+    expect(storage.deletePrivateObjectsWithPrefix).toHaveBeenCalledOnce();
   });
 
   it('keeps retryable cleanup queued when the immediate storage sweep fails', async () => {

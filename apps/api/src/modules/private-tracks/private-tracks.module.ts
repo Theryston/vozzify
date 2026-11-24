@@ -16,6 +16,7 @@ import { PrivateTrackProcessingProcessor } from './private-track-processing.proc
 import { PrivateTrackProcessingService } from './private-track-processing.service.js';
 import { PrivateTrackProcessingIntegrations } from './private-track-processing-integrations.js';
 import { PrivateTrackWorkflowService } from './private-track-workflow.service.js';
+import { PrivateTrackSourceStorage } from './private-track-source-storage.js';
 import { PrivateTracksController } from './private-tracks.controller.js';
 import { PrivateTracksRepository } from './private-tracks.repository.js';
 import { PrivateTracksService } from './private-tracks.service.js';
@@ -34,6 +35,7 @@ import { PrivateTracksService } from './private-tracks.service.js';
     PrivateAudioInspector,
     PrivateTracksRepository,
     PrivateTracksService,
+    PrivateTrackSourceStorage,
     PrivateTrackDeletionService,
     PrivateTrackProcessingService,
     PrivateTrackProcessingIntegrations,

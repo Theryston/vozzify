@@ -12,11 +12,10 @@ import {
   encodeTupleCursor,
 } from '../../common/cursor/tuple-cursor.js';
 import { AppException } from '../../common/errors/app-exception.js';
-import { StorageService } from '../../integrations/storage/storage.service.js';
 import { SubscriptionMembershipService } from '../plans/subscription-membership.service.js';
 import { PrivateAudioInspector } from './private-audio.js';
-import { PRIVATE_TRACK_UPLOAD_URL_TTL_MS } from './private-track-asset-cleanup.job.js';
-import { PrivateTrackAssetCleanupQueue } from './private-track-asset-cleanup.queue.js';
+import type { PrivateTrackSourceStoragePort } from './private-track-source-storage.js';
+import { PrivateTrackSourceStorage } from './private-track-source-storage.js';
 import { PrivateTracksRepository } from './private-tracks.repository.js';
 
 type Upload = { path: string; originalname: string };
@@ -24,13 +23,12 @@ type Upload = { path: string; originalname: string };
 @Injectable()
 export class PrivateTracksService {
   private readonly logger = new Logger(PrivateTracksService.name);
-  @Inject(PrivateTrackAssetCleanupQueue)
-  private cleanup: PrivateTrackAssetCleanupQueue | undefined;
 
   constructor(
     private readonly repository: PrivateTracksRepository,
     private readonly audio: PrivateAudioInspector,
-    private readonly storage: StorageService,
+    @Inject(PrivateTrackSourceStorage)
+    private readonly storage: PrivateTrackSourceStoragePort,
     private readonly membership: SubscriptionMembershipService,
   ) {}
 
@@ -100,7 +98,6 @@ export class PrivateTracksService {
       filePath: file.path,
       contentType: 'application/octet-stream',
     });
-    await this.scheduleCandidateCleanup(objectKey, privateTrackId);
     const row = await this.repository.save({
       id: privateTrackId,
       userId,
@@ -115,31 +112,6 @@ export class PrivateTracksService {
       await this.removeDiscardedUpload(row.discardedUploadKey, privateTrackId);
     }
     return toPrivateTrack(row);
-  }
-
-  private async scheduleCandidateCleanup(
-    objectKey: string,
-    privateTrackId: string,
-  ): Promise<void> {
-    if (!this.cleanup) return;
-    try {
-      await this.cleanup.schedulePrivateObjectCleanup(
-        objectKey,
-        PRIVATE_TRACK_UPLOAD_URL_TTL_MS,
-      );
-    } catch (error) {
-      await this.storage
-        .deletePrivateObject(objectKey)
-        .catch((cleanupError: unknown) => {
-          this.logger.warn(
-            `Could not remove an unassociated private source ${privateTrackId}`,
-            cleanupError instanceof Error
-              ? cleanupError.stack
-              : String(cleanupError),
-          );
-        });
-      throw error;
-    }
   }
 
   private async removeDiscardedUpload(

@@ -33,7 +33,7 @@ export function PrivateTrackDeleteButton({
       <Button
         type="button"
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         aria-label={t('delete')}
         title={t('delete')}
         onClick={() => setOpen(true)}

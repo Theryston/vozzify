@@ -107,6 +107,10 @@ export function useDeletePrivateTrack(userId: string) {
         schema: z.undefined(),
       }),
     onSuccess: async (_deleted, privateTrackId) => {
+      queryClient.removeQueries({
+        queryKey: privateTrackKeys.detail(userId, privateTrackId),
+        exact: true,
+      });
       await queryClient.setQueryData<
         InfiniteData<MyPrivateTracksPage, string | undefined>
       >(privateTrackKeys.list(userId), (current) => {

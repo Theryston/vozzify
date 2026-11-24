@@ -33,9 +33,6 @@ export class PrivateTrackDeletionService {
       await Promise.all([
         this.storage.deletePrivateObject(existing.objectKey),
         this.storage.deletePrivateObjectsWithPrefix(prefix),
-        this.storage.deletePrivateObjectsWithPrefix(
-          `private-track-derivatives/${userId}/${privateTrackId}/`,
-        ),
       ]);
     } catch (error) {
       this.logger.warn(

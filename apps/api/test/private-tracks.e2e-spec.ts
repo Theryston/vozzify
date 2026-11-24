@@ -298,6 +298,16 @@ describe('Private tracks (e2e)', () => {
     }
   });
 
+  it('validates DELETE authentication, identifiers, and missing entries', async () => {
+    await request(testApp.app.getHttpServer())
+      .delete(`${ROOT}/missing-entry`)
+      .expect(401);
+
+    const client = await createProClient();
+    await client.delete(`${ROOT}/${'x'.repeat(129)}`).expect(400);
+    await client.delete(`${ROOT}/missing-entry`).expect(404);
+  });
+
   // This real endpoint check sends a 250 MiB fixture through Supertest.
   it('accepts exact byte limit and rejects uploads above it', async () => {
     const client = await createProClient();
