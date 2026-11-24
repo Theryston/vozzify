@@ -1924,6 +1924,38 @@
         "tags": [
           "private tracks"
         ]
+      },
+      "delete": {
+        "operationId": "PrivateTracksController_delete_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The private audio entry is deleted."
+          },
+          "400": {
+            "description": "The private Track ID is invalid."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "404": {
+            "description": "The private Track does not exist."
+          }
+        },
+        "tags": [
+          "private tracks"
+        ]
       }
     },
     "/v1/me/private-tracks/{id}/media/{kind}": {
