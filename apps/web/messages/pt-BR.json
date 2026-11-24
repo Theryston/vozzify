@@ -385,6 +385,7 @@
       "signIn": "Entrar",
       "accountMenu": "Menu da conta",
       "myProfile": "Meu perfil",
+      "myTracks": "Minhas faixas",
       "editProfile": "Editar perfil",
       "signOut": "Sair",
       "signingOut": "Saindo",
@@ -405,6 +406,25 @@
         "pt-BR": "Português (Brasil)"
       }
     }
+  },
+  "privateTracks": {
+    "metaTitle": "Minhas faixas",
+    "overline": "Sua biblioteca",
+    "title": "Minhas faixas",
+    "description": "Os áudios enviados ficam privados na sua conta.",
+    "loading": "Carregando suas músicas…",
+    "loadError": "Não foi possível carregar suas músicas.",
+    "empty": "Você ainda não adicionou nenhum áudio.",
+    "artistUnknown": "Artista desconhecido",
+    "upload": "Adicionar áudio",
+    "uploading": "Enviando…",
+    "chooseAudio": "Escolher um arquivo de áudio",
+    "uploadError": "Não foi possível enviar este áudio. Confira o arquivo e tente novamente.",
+    "invalidAudio": "Escolha um áudio decodificável de até 30 minutos e 250 MB.",
+    "proTitle": "Áudio privado é um recurso Pro",
+    "proDescription": "Assine o Pro para adicionar arquivos à sua biblioteca privada.",
+    "viewPlans": "Ver planos",
+    "close": "Fechar"
   },
   "terms": {
     "metaTitle": "Termos e Condições",

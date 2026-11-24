@@ -1,6 +1,8 @@
-import { createReadStream } from 'node:fs';
+import { createReadStream, createWriteStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
 import {
+  GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -9,6 +11,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { OnModuleDestroy } from '@nestjs/common';
 import {
   type PresignedPut,
+  type PrivateFile,
   type PublicFile,
   type PublicObject,
   StorageError,
@@ -63,11 +66,19 @@ export class S3StorageService
 {
   constructor(
     private readonly client: S3Sender,
-    private readonly config: Pick<StorageConfig, 'bucket' | 'publicUrl'>,
+    private readonly config: Pick<StorageConfig, 'bucket' | 'publicUrl'> &
+      Pick<StorageConfig, 'privateBucket'>,
     // Without it, presigning fails (see `createUrlPresigner`).
     private readonly presigner?: UrlPresigner,
   ) {
     super();
+    if (config.privateBucket === config.bucket) {
+      throw new Error('Private file storage must use a separate S3 bucket');
+    }
+  }
+
+  private get privateBucket(): string {
+    return this.config.privateBucket ?? `${this.config.bucket}-private`;
   }
 
   async presignPublicPut({
@@ -152,6 +163,52 @@ export class S3StorageService
       throw new StorageError(`Could not store "${key}"`, { cause: error });
     } finally {
       body?.destroy();
+    }
+  }
+
+  async putPrivateFile({
+    key,
+    filePath,
+    contentType,
+  }: PrivateFile): Promise<void> {
+    let body: ReturnType<typeof createReadStream> | undefined;
+    try {
+      const { size } = await stat(filePath);
+      body = createReadStream(filePath);
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: this.privateBucket,
+          Key: key,
+          Body: body,
+          ContentLength: size,
+          ContentType: contentType,
+        }),
+        { abortSignal: AbortSignal.timeout(2 * 60_000) },
+      );
+    } catch (error) {
+      throw new StorageError(`Could not store private object "${key}"`, {
+        cause: error,
+      });
+    } finally {
+      body?.destroy();
+    }
+  }
+
+  async downloadPrivateFile(key: string, filePath: string): Promise<void> {
+    try {
+      const response = await this.client.send(
+        new GetObjectCommand({ Bucket: this.privateBucket, Key: key }),
+        { abortSignal: AbortSignal.timeout(2 * 60_000) },
+      );
+      if (!response.Body) throw new Error('The private object has no body');
+      await pipeline(
+        response.Body.transformToWebStream(),
+        createWriteStream(filePath),
+      );
+    } catch (error) {
+      throw new StorageError(`Could not read private object "${key}"`, {
+        cause: error,
+      });
     }
   }
 

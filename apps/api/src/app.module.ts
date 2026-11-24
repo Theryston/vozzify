@@ -16,6 +16,7 @@ import { HealthModule } from './modules/health/health.module.js';
 import { HomeModule } from './modules/home/home.module.js';
 import { PlansModule } from './modules/plans/plans.module.js';
 import { PracticePreferencesModule } from './modules/practice-preferences/practice-preferences.module.js';
+import { PrivateTracksModule } from './modules/private-tracks/private-tracks.module.js';
 import { ProfileSummaryModule } from './modules/profile-summary/profile-summary.module.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
 import { SearchModule } from './modules/search/search.module.js';
@@ -44,6 +45,7 @@ import { RedisModule } from './redis/redis.module.js';
     HealthModule,
     HomeModule,
     PlansModule,
+    PrivateTracksModule,
     AlbumsModule,
     ArtistsModule,
     SearchModule,

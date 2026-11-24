@@ -385,6 +385,7 @@
       "signIn": "Sign in",
       "accountMenu": "Account menu",
       "myProfile": "My profile",
+      "myTracks": "My tracks",
       "editProfile": "Edit profile",
       "signOut": "Sign out",
       "signingOut": "Signing out",
@@ -405,6 +406,25 @@
         "pt-BR": "Português (Brasil)"
       }
     }
+  },
+  "privateTracks": {
+    "metaTitle": "My tracks",
+    "overline": "Your library",
+    "title": "My tracks",
+    "description": "Audio you submit stays private to your account.",
+    "loading": "Loading your tracks…",
+    "loadError": "Your tracks could not be loaded.",
+    "empty": "You have not added any audio yet.",
+    "artistUnknown": "Unknown artist",
+    "upload": "Add audio",
+    "uploading": "Uploading…",
+    "chooseAudio": "Choose an audio file",
+    "uploadError": "This audio could not be submitted. Check the file and try again.",
+    "invalidAudio": "Choose a decodable audio file up to 30 minutes and 250 MB.",
+    "proTitle": "Private audio is a Pro feature",
+    "proDescription": "Upgrade to Pro to add audio files to your private library.",
+    "viewPlans": "View plans",
+    "close": "Close"
   },
   "terms": {
     "metaTitle": "Terms and Conditions",

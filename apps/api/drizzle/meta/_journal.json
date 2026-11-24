@@ -407,6 +407,13 @@
       "when": 1793984784765,
       "tag": "0057_rare_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1795526705540,
+      "tag": "0058_absurd_pixie",
+      "breakpoints": true
     }
   ]
 }

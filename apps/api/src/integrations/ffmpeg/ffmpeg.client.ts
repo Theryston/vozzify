@@ -1,14 +1,16 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, open, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Inject, Injectable } from '@nestjs/common';
 import { ENV, type Env } from '../../config/env.js';
+import { PRIVATE_AUDIO_FORMAT_WHITELIST } from './private-audio-formats.js';
 
 // The ffmpeg binary that converts the downloaded audio (ADR 0014). It is the
 // only code that runs ffmpeg: features depend on this class, so tests replace
 // it at this boundary.
 const DEFAULT_FFMPEG_PATH = 'ffmpeg';
+const DEFAULT_FFPROBE_PATH = 'ffprobe';
 // A conversion of a 15-minute track takes seconds; a hung process is killed.
 const CONVERSION_TIMEOUT_MS = 2 * 60_000;
 // The end of ffmpeg's log is where its error is.
@@ -18,6 +20,10 @@ const MAX_WAV_BYTES = 256 * 1024 * 1024;
 @Injectable()
 export class FfmpegClient {
   constructor(@Inject(ENV) private readonly env: Env) {}
+
+  get ffprobePath(): string {
+    return this.env.FFPROBE_PATH ?? DEFAULT_FFPROBE_PATH;
+  }
 
   /**
    * Converts any supported audio container without buffering either file.
@@ -40,6 +46,40 @@ export class FfmpegClient {
     ]);
     if ((await stat(output)).size > MAX_WAV_BYTES) {
       throw new Error('The WAV is larger than the accepted size');
+    }
+  }
+
+  /** Decode only the first audio stream from the self-contained uploaded file. */
+  async validateAudioFile(input: string): Promise<void> {
+    const file = await open(input, 'r');
+    try {
+      await this.run(
+        [
+          '-v',
+          'error',
+          '-protocol_whitelist',
+          'file',
+          '-format_whitelist',
+          PRIVATE_AUDIO_FORMAT_WHITELIST,
+          '-i',
+          '/proc/self/fd/3',
+          '-map',
+          '0:a:0',
+          '-vn',
+          '-sn',
+          '-dn',
+          '-threads',
+          '1',
+          '-t',
+          '1800.001',
+          '-f',
+          'null',
+          '-',
+        ],
+        file.fd,
+      );
+    } finally {
+      await file.close();
     }
   }
 
@@ -76,14 +116,17 @@ export class FfmpegClient {
     }
   }
 
-  private run(args: string[]): Promise<void> {
+  private run(args: string[], inputFd?: number): Promise<void> {
     return new Promise((resolve, reject) => {
       const child = spawn(this.env.FFMPEG_PATH ?? DEFAULT_FFMPEG_PATH, args, {
-        stdio: ['ignore', 'ignore', 'pipe'],
+        stdio:
+          inputFd === undefined
+            ? ['ignore', 'ignore', 'pipe']
+            : ['ignore', 'ignore', 'pipe', inputFd],
         signal: AbortSignal.timeout(CONVERSION_TIMEOUT_MS),
       });
       let stderr = '';
-      child.stderr.on('data', (chunk: Buffer) => {
+      child.stderr?.on('data', (chunk: Buffer) => {
         stderr = `${stderr}${chunk}`.slice(-STDERR_TAIL_CHARS);
       });
       child.once('error', reject);

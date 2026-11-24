@@ -24,6 +24,7 @@ import { PriceChangeScheduleService } from './price-change-schedule.service.js';
 import { PriceChangesRepository } from './price-changes.repository.js';
 import { PriceChangesService } from './price-changes.service.js';
 import { SubscriptionChangesService } from './subscription-changes.service.js';
+import { SubscriptionMembershipService } from './subscription-membership.service.js';
 import {
   StripeWebhookController,
   SubscriptionsController,
@@ -56,6 +57,7 @@ import { SubscriptionsService } from './subscriptions.service.js';
     PriceChangeRetryService,
     SubscriptionsRepository,
     SubscriptionsService,
+    SubscriptionMembershipService,
     SubscriptionChangesService,
     StripeBillingService,
     PlansService,
@@ -64,5 +66,6 @@ import { SubscriptionsService } from './subscriptions.service.js';
     AdminBenefitsRepository,
     AdminBenefitsService,
   ],
+  exports: [SubscriptionsService, SubscriptionMembershipService],
 })
 export class PlansModule {}
