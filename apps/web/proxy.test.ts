@@ -126,3 +126,60 @@ describe('proxy artist guard', () => {
     expect(response.headers.get('location')).toBeNull();
   });
 });
+
+describe('proxy private track fallback', () => {
+  const missingPublicTrack = () =>
+    jsonResponse(404, {
+      statusCode: 404,
+      code: 'NOT_FOUND',
+      message: 'Track not found',
+    });
+
+  it('lets the owner page render after an owner-scoped private lookup', async () => {
+    const proxy = await loadProxy();
+    fetchMock
+      .mockResolvedValueOnce(missingPublicTrack())
+      .mockResolvedValueOnce(jsonResponse(200, { id: 'private-1' }));
+
+    const response = await proxy(
+      new NextRequest('http://localhost:3000/en/tracks/private-1', {
+        headers: { cookie: 'session=owner' },
+      }),
+    );
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://api.test/v1/me/private-tracks/private-1',
+      expect.objectContaining({
+        cache: 'no-store',
+        headers: { cookie: 'session=owner' },
+      }),
+    );
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(response.headers.get('x-middleware-rewrite')).toBeNull();
+  });
+
+  it('keeps a real 404 for visitors and users without access', async () => {
+    const proxy = await loadProxy();
+    fetchMock.mockResolvedValueOnce(missingPublicTrack());
+
+    const visitor = await proxy(
+      new NextRequest('http://localhost:3000/en/tracks/private-1'),
+    );
+    expect(visitor.status).toBe(404);
+    expect(fetchMock).toHaveBeenCalledOnce();
+
+    fetchMock
+      .mockResolvedValueOnce(missingPublicTrack())
+      .mockResolvedValueOnce(jsonResponse(404, { code: 'NOT_FOUND' }));
+    const otherUser = await proxy(
+      new NextRequest('http://localhost:3000/en/tracks/private-1', {
+        headers: { cookie: 'session=other-user' },
+      }),
+    );
+    expect(otherUser.status).toBe(404);
+    expect(otherUser.headers.get('x-middleware-rewrite')).toBe(
+      'http://localhost:3000/en/not-found',
+    );
+  });
+});

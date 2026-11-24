@@ -4,6 +4,7 @@ import type {
   MyPrivateTracksPage,
   MyPrivateTracksQuery,
   PrivateTrack,
+  PrivateTrackDetail,
 } from '@vozzify/contracts';
 import {
   decodeTupleCursor,
@@ -49,6 +50,26 @@ export class PrivateTracksService {
         hasMore && last
           ? encodeTupleCursor([last.createdAt.toISOString(), last.id])
           : null,
+    };
+  }
+
+  async getDetail(userId: string, id: string): Promise<PrivateTrackDetail> {
+    const row = await this.repository.findOwned(userId, id);
+    if (!row) throw new AppException('NOT_FOUND', 'Private track not found');
+    const canPractice = await this.membership.hasPaidMembership(userId);
+    const notes =
+      canPractice && row.processingStatus === 'COMPLETED'
+        ? await this.repository.listNotes(row.id)
+        : [];
+    return {
+      ...toPrivateTrack(row),
+      ownerId: row.userId,
+      processing: {
+        status: toProcessingStatus(row.processingStatus),
+        progress: row.processingProgress,
+      },
+      locked: !canPractice,
+      notes,
     };
   }
 
@@ -99,10 +120,34 @@ const toPrivateTrack = (row: {
   artist: string;
   durationMs: number;
   createdAt: Date;
+  processingStatus?: string;
+  processingProgress?: number;
 }): PrivateTrack => ({
   id: row.id,
   title: row.title,
   artist: row.artist,
   durationMs: row.durationMs,
   createdAt: row.createdAt.toISOString(),
+  ...(row.processingStatus === undefined
+    ? {}
+    : {
+        processing: {
+          status: toProcessingStatus(row.processingStatus),
+          progress: row.processingProgress ?? 0,
+        },
+      }),
 });
+
+const toProcessingStatus = (
+  status: string,
+): PrivateTrackDetail['processing']['status'] => {
+  if (
+    status === 'EXTRACTING_VOCALS' ||
+    status === 'DETECTING_NOTES' ||
+    status === 'COMPLETED' ||
+    status === 'FAILED'
+  ) {
+    return status;
+  }
+  return 'QUEUED';
+};

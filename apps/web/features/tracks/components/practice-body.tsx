@@ -2,13 +2,13 @@
 
 import type {
   SubmitPracticeAttemptBody,
+  TrackAudio,
   TrackDetail,
   TrackLyrics,
   TrackNotes,
 } from '@vozzify/contracts';
-import { MicOffIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { type RefObject, useMemo, useRef } from 'react';
+import { type RefObject, useRef } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SessionUserBoundary } from '@/features/auth/components/session-user';
 import { KaraokeLine } from '@/features/lyrics/components/karaoke-line';
@@ -36,36 +36,17 @@ import {
   readStoredView,
   sessionStorageOrUndefined,
 } from '../track-view-session';
-import { transposeNotes } from '../transpose/transpose';
 import { ListeningActions } from './listening-actions';
 import { PendingAttemptSubmitter } from './pending-attempt-submitter';
+import {
+  durationSecondsOf,
+  NoVoice,
+  useTransposedNotes,
+} from './practice-body-support';
 import { PracticeDock } from './practice-dock';
 import { SharedMomentSeek } from './shared-moment-seek';
 import { TIMELINE_BOX_CLASS } from './timeline-box-class';
 import { TrackAttemptStatus } from './track-attempt-status';
-
-/** What a Track with no vocal notes shows in place of the timeline. */
-function NoVoice() {
-  const t = useTranslations('tracks.practice.noVoice');
-
-  return (
-    <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed px-6 py-12 text-center">
-      <MicOffIcon aria-hidden="true" className="size-6 text-muted-foreground" />
-      <h2 className="font-semibold">{t('title')}</h2>
-      <p className="max-w-md text-muted-foreground text-sm">
-        {t('description')}
-      </p>
-    </div>
-  );
-}
-
-function useTransposedNotes(notes: TrackNotes | undefined) {
-  const semitones = useTranspose();
-  return useMemo(
-    () => (notes ? transposeNotes(notes.notes, semitones) : []),
-    [notes, semitones],
-  );
-}
 
 const currentViewId = (trackId: string) =>
   readStoredView(sessionStorageOrUndefined(), trackId)?.viewId;
@@ -76,12 +57,14 @@ function TrackTimeline({
   failed,
   controller,
   signedIn,
+  recordAttempts,
 }: {
   header: TrackDetail;
   notes: TrackNotes | undefined;
   failed: boolean;
   controller: PlaybackController | null;
   signedIn: boolean;
+  recordAttempts: boolean;
 }) {
   const t = useTranslations('tracks.practice');
   const semitones = useTranspose();
@@ -107,9 +90,8 @@ function TrackTimeline({
       })
     : t('timeline.labelEmpty', { title: header.title });
 
-  // A finished run is submitted at once signed in, and kept in the session
-  // for the sign-in to submit as a visitor.
   const handleAttempt = (body: SubmitPracticeAttemptBody) => {
+    if (!recordAttempts) return;
     reportAttempt({
       signedIn,
       trackId: header.id,
@@ -129,7 +111,11 @@ function TrackTimeline({
       transpose={semitones}
       rate={rate}
       onAttempt={handleAttempt}
-      renderAttemptStatus={() => <TrackAttemptStatus trackId={header.id} />}
+      renderAttemptStatus={
+        recordAttempts
+          ? () => <TrackAttemptStatus trackId={header.id} />
+          : undefined
+      }
       label={label}
       clock={controller ? playbackClock : undefined}
       onScrub={controller?.seek}
@@ -138,18 +124,6 @@ function TrackTimeline({
   );
 }
 
-/** The length the dock shows until the player knows it, in seconds. */
-function durationSecondsOf(header: TrackDetail, notes: TrackNotes | undefined) {
-  if (header.durationMs !== null) return header.durationMs / 1000;
-  const last = notes?.notes.at(-1);
-  return last ? last.end : 0;
-}
-
-/**
- * The Timed lyrics: the karaoke line goes under the timeline, the whole block
- * below it. Both follow the player and a click on a line seeks there. Nothing
- * shows for a Track without lyrics.
- */
 function TrackLyricsBlock({
   lyrics,
   controller,
@@ -201,6 +175,8 @@ type PracticeBodyProps = {
   /** The lyrics are still being read: their slot is held. */
   lyricsLoading: boolean;
   failed: boolean;
+  directAudio?: TrackAudio;
+  recordAttempts?: boolean;
   /** The e2e build's flag: play with a clock instead of YouTube. */
   fakePlayer: boolean;
 };
@@ -210,13 +186,15 @@ function usePracticeController({
   notes,
   fakePlayer,
   admin,
-}: Pick<PracticeBodyProps, 'header' | 'notes' | 'fakePlayer' | 'admin'>) {
+  directAudio: privateAudio,
+}: Pick<
+  PracticeBodyProps,
+  'header' | 'notes' | 'fakePlayer' | 'admin' | 'directAudio'
+>) {
   const audio = useDirectAudio(header.id, admin);
-  const directAudio = admin ? audio.data : undefined;
-  // Admins almost always have stored audio: paint its layout (no video
-  // square, vocals toggle, waveform slot) while the URLs load, instead of
-  // flashing the YouTube layout first. A refusal falls back to YouTube.
-  const expectDirectAudio = admin && !audio.isError;
+  const directAudio = privateAudio ?? (admin ? audio.data : undefined);
+  const expectDirectAudio =
+    privateAudio !== undefined || (admin && !audio.isError);
   const hostRef = useRef<HTMLDivElement>(null);
   const controller = usePlayback({
     hostRef,
@@ -261,12 +239,6 @@ function TrackPracticeDock({
   );
 }
 
-/**
- * The practice view below the title row: the note timeline (or the "no voice"
- * message for a Track without notes), the lyrics and the dock that plays the
- * Track's video. The timeline follows the dock's player and can be dragged to
- * seek; the page leaves room under it for the dock, which floats.
- */
 function PracticeBodyContent(props: PracticeBodyProps & { signedIn: boolean }) {
   const { header, notes, lyrics, lyricsLoading, failed, signedIn } = props;
   const { controller, directAudio, expectDirectAudio, hostRef } =
@@ -274,7 +246,6 @@ function PracticeBodyContent(props: PracticeBodyProps & { signedIn: boolean }) {
   const fullscreenRef = useRef<HTMLDivElement>(null);
   const guideNotes = useTransposedNotes(notes);
   const timelineRef = useRef<HTMLDivElement>(null);
-  // The timeline block is on screen once its notes loaded or failed to.
   useTimelineFocus(
     timelineRef,
     header.hasNotes && (notes !== undefined || failed),
@@ -299,6 +270,7 @@ function PracticeBodyContent(props: PracticeBodyProps & { signedIn: boolean }) {
             failed={failed}
             controller={controller}
             signedIn={signedIn}
+            recordAttempts={props.recordAttempts ?? true}
           />
           {hasLyrics ? (
             <KaraokeLine lines={lyrics.lines} clock={playbackClock} />

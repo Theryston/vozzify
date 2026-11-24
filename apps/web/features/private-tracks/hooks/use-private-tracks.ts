@@ -4,15 +4,40 @@ import {
   type InfiniteData,
   useInfiniteQuery,
   useMutation,
+  useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
 import {
   type MyPrivateTracksPage,
   myPrivateTracksPageSchema,
+  type PrivateTrackDetail,
+  privateTrackDetailSchema,
   privateTrackSchema,
 } from '@vozzify/contracts';
 import { browserApi } from '@/lib/api/browser';
 import { privateTrackKeys } from '../query-keys';
+
+export function usePrivateTrackDetail(
+  userId: string,
+  trackId: string,
+  initial: PrivateTrackDetail | undefined,
+) {
+  return useQuery({
+    queryKey: privateTrackKeys.detail(userId, trackId),
+    queryFn: () =>
+      browserApi(`/me/private-tracks/${encodeURIComponent(trackId)}`, {
+        schema: privateTrackDetailSchema,
+      }),
+    ...(initial === undefined ? {} : { initialData: initial }),
+    // Membership can expire after processing ends, so keep the private
+    // owner-scoped authorization state fresh for the active detail page.
+    refetchInterval: (query) =>
+      query.state.data?.processing.status === 'COMPLETED' ||
+      query.state.data?.processing.status === 'FAILED'
+        ? 60_000
+        : 5_000,
+  });
+}
 
 export function usePrivateTracks(userId: string) {
   return useInfiniteQuery({

@@ -15,6 +15,7 @@ const runningFfmpeg = (outcome: {
   stderr?: string;
   error?: Error;
   oversized?: boolean;
+  oversizedAt?: number;
 }) => {
   spawnMock.mockImplementation((_command, args) => {
     const child = new EventEmitter() as ChildProcess & EventEmitter;
@@ -27,7 +28,12 @@ const runningFfmpeg = (outcome: {
       }
       if ((outcome.code ?? 0) === 0) {
         await writeFile(output, wav);
-        if (outcome.oversized) await truncate(output, 256 * 1024 * 1024 + 1);
+        if (outcome.oversized) {
+          await truncate(
+            output,
+            (outcome.oversizedAt ?? 256 * 1024 * 1024) + 1,
+          );
+        }
       }
       child.emit('close', outcome.code ?? 0);
     });
@@ -108,5 +114,32 @@ describe('FfmpegClient file conversion', () => {
     await expect(client.convertAudioFileToWav(input, output)).rejects.toThrow(
       'WAV is larger',
     );
+  });
+  it('keeps stereo private audio and allows a 30-minute 44.1 kHz WAV', async () => {
+    runningFfmpeg({});
+    await client.convertPrivateAudioFileToWav(input, output);
+    expect(spawnMock.mock.calls[0]?.[1]).toEqual([
+      '-y',
+      '-i',
+      input,
+      '-vn',
+      '-acodec',
+      'pcm_s16le',
+      '-ac',
+      '2',
+      '-ar',
+      '44100',
+      '-fs',
+      '335544321',
+      output,
+    ]);
+    // 30m * 44,100 frames/s * two 16-bit channels fits the private cap.
+    expect(30 * 60 * 44_100 * 2 * 2).toBeLessThan(320 * 1024 * 1024);
+  });
+  it('rejects private WAV output above its dedicated cap', async () => {
+    runningFfmpeg({ oversized: true, oversizedAt: 320 * 1024 * 1024 });
+    await expect(
+      client.convertPrivateAudioFileToWav(input, output),
+    ).rejects.toThrow('WAV is larger');
   });
 });

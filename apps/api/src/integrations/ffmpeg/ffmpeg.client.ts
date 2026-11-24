@@ -41,6 +41,7 @@ const CONVERSION_TIMEOUT_MS = 2 * 60_000;
 // The end of ffmpeg's log is where its error is.
 const STDERR_TAIL_CHARS = 2_000;
 const MAX_WAV_BYTES = 256 * 1024 * 1024;
+const MAX_PRIVATE_WAV_BYTES = 320 * 1024 * 1024;
 
 @Injectable()
 export class FfmpegClient {
@@ -56,20 +57,44 @@ export class FfmpegClient {
    * The caller owns both temporary paths and removes them after uploading.
    */
   async convertAudioFileToWav(input: string, output: string): Promise<void> {
-    await this.run([
+    await this.convertAudioFileToWavWithLimit(input, output, MAX_WAV_BYTES);
+  }
+
+  /** Keep both channels of private recordings while allowing a 30-minute WAV. */
+  async convertPrivateAudioFileToWav(
+    input: string,
+    output: string,
+  ): Promise<void> {
+    await this.convertAudioFileToWavWithLimit(
+      input,
+      output,
+      MAX_PRIVATE_WAV_BYTES,
+      2,
+    );
+  }
+
+  private async convertAudioFileToWavWithLimit(
+    input: string,
+    output: string,
+    maxBytes: number,
+    channels?: number,
+  ): Promise<void> {
+    const args = [
       '-y',
       '-i',
       input,
       '-vn',
       '-acodec',
       'pcm_s16le',
+      ...(channels === undefined ? [] : ['-ac', String(channels)]),
       '-ar',
       '44100',
       '-fs',
-      String(MAX_WAV_BYTES + 1),
+      String(maxBytes + 1),
       output,
-    ]);
-    if ((await stat(output)).size > MAX_WAV_BYTES) {
+    ];
+    await this.run(args);
+    if ((await stat(output)).size > maxBytes) {
       throw new Error('The WAV is larger than the accepted size');
     }
   }

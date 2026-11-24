@@ -1,4 +1,5 @@
 import {
+  doublePrecision,
   index,
   integer,
   pgTable,
@@ -23,6 +24,14 @@ export const privateTracks = pgTable(
     title: text().notNull(),
     artist: text().notNull().default(''),
     durationMs: integer().notNull(),
+    processingStatus: text().notNull().default('QUEUED'),
+    processingProgress: integer().notNull().default(0),
+    processingJobId: text(),
+    processingAttemptId: text(),
+    detectorVersion: text(),
+    mediaObjectKey: text(),
+    vocalsObjectKey: text(),
+    pitchCurveObjectKey: text(),
     ...timestamps,
     createdAt: timestamp({ withTimezone: true, precision: 3 })
       .notNull()
@@ -36,4 +45,19 @@ export const privateTracks = pgTable(
     ),
     index().on(table.userId, table.createdAt, table.id),
   ],
+);
+
+export const privateTrackNotes = pgTable(
+  'private_track_notes',
+  {
+    id: id(),
+    privateTrackId: text()
+      .notNull()
+      .references(() => privateTracks.id, { onDelete: 'cascade' }),
+    pitch: doublePrecision().notNull(),
+    start: doublePrecision().notNull(),
+    end: doublePrecision().notNull(),
+    ...timestamps,
+  },
+  (table) => [index().on(table.privateTrackId, table.start)],
 );
