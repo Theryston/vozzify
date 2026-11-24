@@ -1,5 +1,5 @@
 interface:
   display_name: "Subagents Implement"
-  short_description: "Implement issues in parallel, one subagent and PR each"
+  short_description: "Implement issues in parallel, one subagent per issue"
 policy:
   allow_implicit_invocation: false
