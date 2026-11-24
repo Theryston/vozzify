@@ -12,7 +12,10 @@ import { AppException } from '../../common/errors/app-exception.js';
 import { StripeBillingService } from '../../integrations/stripe/stripe-billing.service.js';
 import { checkoutOffer } from './checkout-offer.js';
 import { refreshSubscription } from './refresh-subscription.js';
-import { recoveryDeadline } from './renewal-recovery.js';
+import {
+  isPaidMembershipActive,
+  recoveryDeadline,
+} from './renewal-recovery.js';
 import { replaceEndedContract } from './replace-ended-contract.js';
 import { SubscriptionChangesService } from './subscription-changes.service.js';
 import { SubscriptionsRepository } from './subscriptions.repository.js';
@@ -272,10 +275,7 @@ export class SubscriptionsService {
         amount: contract.amount,
         status: contract.status,
         providerStatus: contract.providerStatus,
-        paidMembership: deadline
-          ? deadline.getTime() > Date.now()
-          : contract.paidMembership &&
-            (contract.currentPeriodEnd?.getTime() ?? 0) > Date.now(),
+        paidMembership: isPaidMembershipActive(contract),
         currentPeriodStart: contract.currentPeriodStart?.toISOString() ?? null,
         currentPeriodEnd: contract.currentPeriodEnd?.toISOString() ?? null,
         cancelAtPeriodEnd: contract.cancelAtPeriodEnd,

@@ -6,6 +6,9 @@ export type PublicObject = {
 };
 
 export type PublicFile = Omit<PublicObject, 'body'> & { filePath: string };
+export type PrivateFile = Omit<PublicFile, 'contentType'> & {
+  contentType: string;
+};
 
 /** The upload a presigned URL allows: one object, at one key, for a limited time. */
 export type PresignedPut = {
@@ -37,6 +40,12 @@ export abstract class StorageService {
 
   /** Stream a caller-owned file without loading the complete object in memory. */
   abstract putPublicFile(file: PublicFile): Promise<void>;
+
+  /** Stream an object into the private bucket without a public ACL. */
+  abstract putPrivateFile(file: PrivateFile): Promise<void>;
+
+  /** Download a private object to a caller-owned file without buffering it. */
+  abstract downloadPrivateFile(key: string, filePath: string): Promise<void>;
 
   /**
    * Whether an object is stored under this key. A key that is not there is

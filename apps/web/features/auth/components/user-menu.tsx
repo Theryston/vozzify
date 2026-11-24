@@ -5,6 +5,7 @@ import {
   LayersIcon,
   LogOutIcon,
   type LucideIcon,
+  Music2Icon,
   PencilIcon,
   UserIcon,
 } from 'lucide-react';
@@ -54,6 +55,7 @@ function useMenuLinks(user: SessionUser, subscribed: boolean): MenuLink[] {
     : [];
   return [
     ...profile,
+    { href: '/me/tracks', label: t('account.myTracks'), icon: Music2Icon },
     { href: '/me/edit', label: t('account.editProfile'), icon: PencilIcon },
     {
       href: subscribed ? '/subscription' : '/plans',

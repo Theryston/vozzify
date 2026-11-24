@@ -5,6 +5,7 @@ export type StorageConfig = {
   endpoint: string | undefined;
   region: string;
   bucket: string;
+  privateBucket?: string;
   accessKeyId: string;
   secretAccessKey: string;
   forcePathStyle: boolean;

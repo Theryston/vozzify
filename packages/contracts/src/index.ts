@@ -26,6 +26,7 @@ export * from './pitch.js';
 export * from './plans.js';
 export * from './practice-attempts.js';
 export * from './practice-preferences.js';
+export * from './private-tracks.js';
 export * from './profile-visibility.js';
 export * from './public-profile.js';
 export * from './public-profile-summary.js';

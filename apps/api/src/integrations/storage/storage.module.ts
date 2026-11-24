@@ -17,7 +17,11 @@ import { resolveStorageConfig } from './storage-config.js';
       useFactory: (env: Env) => {
         const config = resolveStorageConfig(env);
         const client = createS3Client(config);
-        return new S3StorageService(client, config, createUrlPresigner(client));
+        return new S3StorageService(
+          client,
+          { ...config, privateBucket: env.S3_PRIVATE_BUCKET },
+          createUrlPresigner(client),
+        );
       },
     },
   ],

@@ -72,8 +72,7 @@ services:
       timeout: 5s
       retries: 10
 
-  # One-shot job: creates the bucket the API uploads to and makes its objects
-  # publicly readable (production serves them from a public files domain).
+  # One-shot job: creates the public bucket and a separate private bucket.
   # Idempotent, so it is safe on every `infra:up`.
   minio-init:
     image: ghcr.io/coollabsio/minio:RELEASE.2025-10-15T17-29-55Z
@@ -89,7 +88,8 @@ services:
       - |
         mc alias set storage http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
         mc mb --ignore-existing storage/vozzify &&
-        mc anonymous set download storage/vozzify
+        mc anonymous set download storage/vozzify &&
+        mc mb --ignore-existing storage/vozzify-private
 
 volumes:
   postgres-data:

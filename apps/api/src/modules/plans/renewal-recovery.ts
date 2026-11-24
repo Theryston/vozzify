@@ -52,3 +52,15 @@ export function renewalRecovery(
 export function recoveryDeadline(start: Date | null): Date | null {
   return start ? new Date(start.getTime() + 3 * 24 * 60 * 60 * 1000) : null;
 }
+
+export function isPaidMembershipActive(input: {
+  recoveryStartedAt: Date | null;
+  paidMembership: boolean;
+  currentPeriodEnd: Date | null;
+}): boolean {
+  const deadline = recoveryDeadline(input.recoveryStartedAt);
+  return deadline
+    ? deadline.getTime() > Date.now()
+    : input.paidMembership &&
+        (input.currentPeriodEnd?.getTime() ?? 0) > Date.now();
+}
