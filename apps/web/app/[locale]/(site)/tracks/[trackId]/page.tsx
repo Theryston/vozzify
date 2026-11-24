@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
-import { getTranslations } from 'next-intl/server';
+import { NextIntlClientProvider } from 'next-intl';
+import { getMessages, getTranslations } from 'next-intl/server';
 
 import { StructuredData } from '@/components/structured-data';
 import { PrivateTrackDetailSection } from '@/features/private-tracks/components/private-track-detail-section';
@@ -86,11 +87,17 @@ export default async function TrackRoutePage({
   if (result.status === 'missing') {
     const privateTrack = await getPrivateTrackDetail(trackId);
     if (!privateTrack) notFound();
+    const { errors, practice, privateTracks, streaks, tracks } =
+      await getMessages();
     return (
-      <PrivateTrackDetailSection
-        initial={privateTrack}
-        fakePlayer={getServerEnv().E2E_FAKE_PLAYER}
-      />
+      <NextIntlClientProvider
+        messages={{ errors, practice, privateTracks, streaks, tracks }}
+      >
+        <PrivateTrackDetailSection
+          initial={privateTrack}
+          fakePlayer={getServerEnv().E2E_FAKE_PLAYER}
+        />
+      </NextIntlClientProvider>
     );
   }
   const initialPractice =

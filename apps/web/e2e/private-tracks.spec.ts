@@ -1,5 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import { ADA, mockAuthApi } from './auth-api-mock';
+import { setPrivateTrackMock } from './fake-private-track-api';
+import { SIGNED_IN_COOKIE } from './fake-track-api';
 import { messages } from './messages';
 
 const track = {
@@ -117,4 +119,115 @@ test('shows the localized Pro modal for a free account with no private tracks', 
   await expect(
     page.getByRole('dialog').getByRole('link', { name: 'Ver planos' }),
   ).toHaveAttribute('href', '/pt-BR/plans');
+});
+
+test('opens an uploaded private Track and follows processing into its notes', async ({
+  page,
+}) => {
+  const detail = {
+    ...track,
+    ownerId: ADA.id,
+    locked: false,
+    processing: { status: 'QUEUED' as const, progress: 0 },
+    notes: [],
+  };
+  await setPrivateTrackMock(detail);
+  await mockAuthApi(page, { user: { ...ADA, username: 'ada' } });
+  await page.context().addCookies([
+    { ...SIGNED_IN_COOKIE, url: 'http://localhost:3000' },
+    { ...SIGNED_IN_COOKIE, url: 'http://127.0.0.1:3333' },
+  ]);
+  await mockPrivateTracksApi(page, true);
+  let detailReads = 0;
+  await page.route('**/v1/me/private-tracks/private_1', async (route) => {
+    detailReads += 1;
+    const processing =
+      detailReads === 1
+        ? { status: 'DETECTING_NOTES', progress: 70 }
+        : { status: 'COMPLETED', progress: 100 };
+    await route.fulfill({
+      status: 200,
+      headers: {
+        'access-control-allow-origin': 'http://localhost:3000',
+        'access-control-allow-credentials': 'true',
+        'cache-control': 'private, no-store',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...detail,
+        processing,
+        notes:
+          processing.status === 'COMPLETED'
+            ? [{ pitch: 69, start: 0.1, end: 0.3 }]
+            : [],
+      }),
+    });
+  });
+  await page.goto('/en/me/tracks');
+  await page.getByLabel('Choose an audio file').setInputFiles({
+    name: 'source.wav',
+    mimeType: 'audio/wav',
+    buffer: Buffer.from('audio'),
+  });
+  await page.getByRole('button', { name: 'Add audio' }).click();
+  await expect(page.getByRole('link', { name: /Tagged song/ })).toHaveAttribute(
+    'href',
+    '/en/tracks/private_1',
+  );
+  await page.getByRole('link', { name: /Tagged song/ }).click();
+
+  await expect(page.getByText('Private · only you')).toBeVisible();
+  await expect(page.getByText('Detecting notes')).toBeVisible();
+  await expect(page.getByText('Ready to practice')).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.locator('audio')).toHaveCount(1);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('keeps private metadata visible while locked and refreshes membership at the route', async ({
+  page,
+}) => {
+  const detail = {
+    ...track,
+    id: 'private_locked',
+    ownerId: ADA.id,
+    locked: false,
+    processing: { status: 'COMPLETED' as const, progress: 100 },
+    notes: [{ pitch: 69, start: 0.1, end: 0.3 }],
+  };
+  await setPrivateTrackMock(detail);
+  await mockAuthApi(page, { user: { ...ADA, username: 'ada' } });
+  await page.context().addCookies([
+    { ...SIGNED_IN_COOKIE, url: 'http://localhost:3000' },
+    { ...SIGNED_IN_COOKIE, url: 'http://127.0.0.1:3333' },
+  ]);
+  let detailReads = 0;
+  await page.route('**/v1/me/private-tracks/private_locked', async (route) => {
+    detailReads += 1;
+    await route.fulfill({
+      status: 200,
+      headers: {
+        'access-control-allow-origin': 'http://localhost:3000',
+        'access-control-allow-credentials': 'true',
+        'cache-control': 'private, no-store',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...detail,
+        locked: detailReads > 1,
+      }),
+    });
+  });
+  await page.goto('/en/tracks/private_locked');
+
+  await expect(page.getByText('Private · only you')).toBeVisible();
+  await expect(page.getByText('Ready to practice')).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(
+    page.getByRole('heading', { name: 'This private track is locked' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Reactivate Pro' }),
+  ).toHaveAttribute('href', '/en/plans');
 });

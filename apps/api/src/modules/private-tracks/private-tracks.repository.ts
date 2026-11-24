@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
-import { and, desc, eq, lt, or } from 'drizzle-orm';
+import { and, asc, desc, eq, lt, or } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
 import {
   privateTrackNotes,
@@ -81,6 +81,15 @@ export class PrivateTracksRepository {
       .where(eq(privateTracks.id, id))
       .returning({ id: privateTracks.id });
     return updated.length > 0;
+  }
+
+  listQueued(limit: number) {
+    return this.txHost.tx
+      .select({ id: privateTracks.id, userId: privateTracks.userId })
+      .from(privateTracks)
+      .where(eq(privateTracks.processingStatus, 'QUEUED'))
+      .orderBy(asc(privateTracks.createdAt), asc(privateTracks.id))
+      .limit(limit);
   }
 
   async replaceNotes(

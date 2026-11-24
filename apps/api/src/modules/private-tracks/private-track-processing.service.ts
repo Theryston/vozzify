@@ -23,6 +23,7 @@ import { PrivateTracksRepository } from './private-tracks.repository.js';
 const PRIVATE_UPLOAD_TTL_SECONDS = 2 * 60 * 60;
 const NOTE_POLL_INTERVAL_MS = 5_000;
 const MAX_NOTE_POLL_ROUNDS = 120;
+const MAX_QUEUED_TRACKS_PER_RECONCILIATION = 100;
 const DETECTOR_OUTPUT = z.object({
   vocalsUrl: z.string().min(1),
   pitchCurveUrl: z.string().min(1),
@@ -51,8 +52,15 @@ export class PrivateTrackProcessingService {
     await this.queue.add(
       PROCESS_PRIVATE_TRACK_JOB,
       { userId, privateTrackId, poll: 0 },
-      { jobId: privateTrackId },
+      { jobId: privateTrackId, removeOnComplete: true },
     );
+  }
+
+  async reconcileQueuedTracks(): Promise<void> {
+    const queued = await this.tracks.listQueued(
+      MAX_QUEUED_TRACKS_PER_RECONCILIATION,
+    );
+    for (const track of queued) await this.enqueue(track.userId, track.id);
   }
 
   async process(rawJob: unknown): Promise<void> {
