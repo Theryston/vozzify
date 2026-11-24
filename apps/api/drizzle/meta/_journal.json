@@ -414,6 +414,13 @@
       "when": 1795526705540,
       "tag": "0058_absurd_pixie",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795531495614,
+      "tag": "0059_dark_nemesis",
+      "breakpoints": true
     }
   ]
 }

@@ -18,7 +18,7 @@ const olderTrack = {
 async function mockPrivateTracksApi(page: Page, canSubmit: boolean) {
   const entries: (typeof track)[] = [];
   let loadedOlder = false;
-  await page.route('**/v1/me/private-tracks', async (route) => {
+  await page.route('**/v1/me/private-tracks**', async (route) => {
     const origin = route.request().headers().origin ?? '*';
     const headers = {
       'access-control-allow-origin': origin,
