@@ -7,6 +7,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { S3PrivateObjects } from './s3-private-objects.js';
+import { StorageError } from './storage.service.js';
 
 const privateBucket = 'vozzify-private';
 
@@ -75,5 +76,26 @@ describe('S3PrivateObjects', () => {
     expect(send.mock.calls[3]?.[0]).toMatchObject({
       input: { ContinuationToken: 'next' },
     });
+  });
+
+  it('retries cleanup when S3 reports a partial batch failure', async () => {
+    send
+      .mockResolvedValueOnce({ Contents: [{ Key: 'private-track/one' }] })
+      .mockResolvedValueOnce({ Errors: [{ Key: 'private-track/one' }] });
+
+    await expect(objects.deletePrefix('private-track/')).rejects.toBeInstanceOf(
+      StorageError,
+    );
+  });
+
+  it('fails cleanup when S3 omits a truncated page token', async () => {
+    send.mockResolvedValueOnce({
+      Contents: [{ Key: 'private-track/one' }],
+      IsTruncated: true,
+    });
+
+    await expect(objects.deletePrefix('private-track/')).rejects.toBeInstanceOf(
+      StorageError,
+    );
   });
 });

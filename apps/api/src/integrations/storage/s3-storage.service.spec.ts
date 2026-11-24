@@ -1,4 +1,10 @@
-import { HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+  HeadObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+} from '@aws-sdk/client-s3';
 import { createS3Client, S3StorageService } from './s3-storage.service.js';
 import { StorageError, StorageService } from './storage.service.js';
 
@@ -136,6 +142,74 @@ describe('S3StorageService', () => {
       await expect(failure).rejects.toThrow(
         'Could not check "track-audio/a.wav"',
       );
+    });
+  });
+
+  describe('deletePrivateObject', () => {
+    it('deletes one private object from the private bucket', async () => {
+      await service.deletePrivateObject('private-tracks/user-1/source');
+
+      const command = send.mock.calls[0]?.[0];
+      expect(command).toBeInstanceOf(DeleteObjectCommand);
+      expect(command.input).toEqual({
+        Bucket: 'vozzify-private',
+        Key: 'private-tracks/user-1/source',
+      });
+    });
+
+    it('wraps deletion failures as StorageError', async () => {
+      send.mockRejectedValue(new Error('permission denied'));
+
+      await expect(
+        service.deletePrivateObject('private-tracks/user-1/source'),
+      ).rejects.toMatchObject({
+        name: 'StorageError',
+        message:
+          'Could not delete private object "private-tracks/user-1/source"',
+      });
+    });
+  });
+
+  describe('deletePrivateObjectsWithPrefix', () => {
+    it('deletes every paginated key under the private prefix', async () => {
+      send
+        .mockResolvedValueOnce({
+          Contents: [{ Key: 'private-tracks/u1/e1/source' }],
+          IsTruncated: true,
+          NextContinuationToken: 'next-page',
+        })
+        .mockResolvedValueOnce({})
+        .mockResolvedValueOnce({
+          Contents: [{ Key: 'private-tracks/u1/e1/notes.json' }],
+          IsTruncated: false,
+        })
+        .mockResolvedValueOnce({});
+
+      await service.deletePrivateObjectsWithPrefix('private-tracks/u1/e1/');
+
+      expect(send.mock.calls.map(([command]) => command)).toEqual([
+        expect.any(ListObjectsV2Command),
+        expect.any(DeleteObjectsCommand),
+        expect.any(ListObjectsV2Command),
+        expect.any(DeleteObjectsCommand),
+      ]);
+      expect(send.mock.calls[0]?.[0].input).toMatchObject({
+        Bucket: 'vozzify-private',
+        Prefix: 'private-tracks/u1/e1/',
+      });
+      expect(send.mock.calls[2]?.[0].input).toMatchObject({
+        ContinuationToken: 'next-page',
+      });
+    });
+
+    it('treats an empty prefix as already clean', async () => {
+      send.mockResolvedValue({ Contents: [], IsTruncated: false });
+
+      await expect(
+        service.deletePrivateObjectsWithPrefix('private-tracks/u1/e1/'),
+      ).resolves.toBeUndefined();
+
+      expect(send).toHaveBeenCalledOnce();
     });
   });
 

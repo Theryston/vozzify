@@ -15,6 +15,7 @@ import {
   usePrivateTracks,
   useSubmitPrivateTrack,
 } from '../hooks/use-private-tracks';
+import { PrivateTrackDeleteButton } from './private-track-delete-button';
 
 type AccountUser = {
   id?: string;
@@ -73,7 +74,7 @@ export function PrivateTracksContent({
 
   return (
     <PrivateTracksLibrary
-      tracks={tracks.data?.pages.flatMap((page) => page.items) ?? []}
+      tracks={privateTrackItems(tracks.data?.pages, user.id ?? '')}
       canSubmit={tracks.data?.pages[0]?.canSubmit ?? false}
       loading={tracks.isPending}
       loadError={tracks.isError}
@@ -95,6 +96,15 @@ export function PrivateTracksContent({
 
 const isValidPrivateAudio = (file: File) =>
   createPrivateTrackBodySchema.safeParse({ audio: file }).success;
+
+const privateTrackItems = (
+  pages:
+    | { items: { id: string; title: string; artist: string }[] }[]
+    | undefined,
+  userId: string,
+) =>
+  pages?.flatMap((page) => page.items.map((track) => ({ ...track, userId }))) ??
+  [];
 
 function usePrivateTracksPageEffects({
   loading,
@@ -127,7 +137,7 @@ function usePrivateTracksPageEffects({
 }
 
 type LibraryProps = {
-  tracks: { id: string; title: string; artist: string }[];
+  tracks: { id: string; title: string; artist: string; userId: string }[];
   canSubmit: boolean;
   loading: boolean;
   loadError: boolean;
@@ -258,20 +268,26 @@ function PrivateTrackRows({
           {tracks.map((track) => (
             <li
               key={track.id}
-              className="flex min-h-16 flex-col justify-center py-3"
+              className="flex min-h-16 items-center justify-between gap-3 py-3"
             >
-              <Link
-                href={`/tracks/${encodeURIComponent(track.id)}`}
-                className="inline-flex w-fit items-center gap-2 font-semibold hover:underline"
-              >
-                <LockKeyhole aria-hidden="true" className="size-4" />
-                {track.title}
-              </Link>
-              {track.artist ? (
-                <span className="text-muted-foreground text-sm">
-                  {track.artist}
-                </span>
-              ) : null}
+              <div className="flex min-w-0 flex-col">
+                <Link
+                  href={`/tracks/${encodeURIComponent(track.id)}`}
+                  className="inline-flex w-fit items-center gap-2 truncate font-semibold hover:underline"
+                >
+                  <LockKeyhole aria-hidden="true" className="size-4 shrink-0" />
+                  {track.title}
+                </Link>
+                {track.artist ? (
+                  <span className="truncate text-muted-foreground text-sm">
+                    {track.artist}
+                  </span>
+                ) : null}
+              </div>
+              <PrivateTrackDeleteButton
+                privateTrackId={track.id}
+                userId={track.userId}
+              />
             </li>
           ))}
         </ul>

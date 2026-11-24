@@ -442,7 +442,13 @@
         "COMPLETED": "Pronta para praticar",
         "FAILED": "O processamento falhou"
       }
-    }
+    },
+    "delete": "Excluir faixa",
+    "confirmDeleteTitle": "Excluir esta faixa?",
+    "confirmDeleteDescription": "Isso remove permanentemente a faixa privada e o áudio processado.",
+    "confirmDelete": "Excluir faixa",
+    "cancelDelete": "Manter faixa",
+    "deleteError": "Não foi possível excluir esta faixa. Tente novamente."
   },
   "terms": {
     "metaTitle": "Termos e Condições",

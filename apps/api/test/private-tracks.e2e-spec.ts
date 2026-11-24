@@ -202,6 +202,102 @@ describe('Private tracks (e2e)', () => {
       .expect(404);
   });
 
+  it('deletes one owner entry, denies cross-account deletion, and revokes its source and derivatives', async () => {
+    const owner = await createPasswordUser(testApp.db);
+    const other = await createPasswordUser(testApp.db);
+    await grantPro(owner.id);
+    await grantPro(other.id);
+    const ownerClient = createAuthClient(testApp);
+    const otherClient = createAuthClient(testApp);
+    await signIn(ownerClient, {
+      email: owner.email,
+      password: DEFAULT_PASSWORD,
+    });
+    await signIn(otherClient, {
+      email: other.email,
+      password: DEFAULT_PASSWORD,
+    });
+
+    const created = await ownerClient
+      .post(ROOT)
+      .attach('audio', FIXTURE, { filename: 'owner-song.wav' })
+      .expect(201);
+    const entry = privateTrackSchema.parse(created.body);
+    const differentAudio = Buffer.from(await readFile(FIXTURE));
+    const lastByte = differentAudio.length - 1;
+    const lastSample = differentAudio[lastByte];
+    if (lastSample === undefined)
+      throw new Error('Expected fixture audio bytes');
+    differentAudio[lastByte] = lastSample ^ 1;
+    await ownerClient
+      .post(ROOT)
+      .attach('audio', differentAudio, { filename: 'independent.wav' })
+      .expect(201);
+    await otherClient
+      .post(ROOT)
+      .attach('audio', FIXTURE, { filename: 'other-owner.wav' })
+      .expect(201);
+
+    await otherClient.delete(`${ROOT}/${entry.id}`).expect(404);
+    expect(
+      myPrivateTracksPageSchema.parse((await ownerClient.get(ROOT)).body).items,
+    ).toHaveLength(2);
+
+    const row = (
+      await testApp.db
+        .select()
+        .from(privateTracks)
+        .where(eq(privateTracks.id, entry.id))
+    )[0];
+    if (!row) throw new Error('Expected the private audio row');
+    const storage = testApp.app.get(StorageService);
+    const derivativeKey = `private-tracks/${owner.id}/${entry.id}/derivatives/vocals.wav`;
+    await storage.putPrivateFile({
+      key: derivativeKey,
+      filePath: FIXTURE,
+      contentType: 'audio/wav',
+    });
+
+    await ownerClient.delete(`${ROOT}/${entry.id}`).expect(204);
+    const remaining = myPrivateTracksPageSchema.parse(
+      (await ownerClient.get(ROOT).expect(200)).body,
+    );
+    expect(remaining.items).toHaveLength(1);
+
+    const directory = await mkdtemp(join(tmpdir(), 'private-audio-deleted-'));
+    try {
+      await expect(
+        storage.downloadPrivateFile(
+          row.objectKey,
+          join(directory, 'source.wav'),
+        ),
+      ).rejects.toThrow();
+      await expect(
+        storage.downloadPrivateFile(
+          derivativeKey,
+          join(directory, 'derivative.wav'),
+        ),
+      ).rejects.toThrow();
+
+      const otherEntry = myPrivateTracksPageSchema.parse(
+        (await otherClient.get(ROOT).expect(200)).body,
+      ).items[0];
+      if (!otherEntry) throw new Error('Expected other owner entry');
+      const otherRow = (
+        await testApp.db
+          .select()
+          .from(privateTracks)
+          .where(eq(privateTracks.userId, other.id))
+      )[0];
+      if (!otherRow) throw new Error('Expected other owner private audio row');
+      const otherDownload = join(directory, 'other-owner.wav');
+      await storage.downloadPrivateFile(otherRow.objectKey, otherDownload);
+      expect(await readFile(otherDownload)).toEqual(await readFile(FIXTURE));
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   // This real endpoint check sends a 250 MiB fixture through Supertest.
   it('accepts exact byte limit and rejects uploads above it', async () => {
     const client = await createProClient();

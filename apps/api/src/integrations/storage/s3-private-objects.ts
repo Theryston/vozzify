@@ -35,29 +35,48 @@ export class S3PrivateObjects {
 
   async deletePrefix(prefix: string): Promise<void> {
     let continuationToken: string | undefined;
-    do {
-      const page = await this.client.send(
-        new ListObjectsV2Command({
-          Bucket: this.bucket,
-          Prefix: prefix,
-          ContinuationToken: continuationToken,
-        }),
-        { abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
-      );
-      const objects = page.Contents?.flatMap((object) =>
-        object.Key === undefined ? [] : [{ Key: object.Key }],
-      );
-      if (objects?.length) {
-        await this.client.send(
-          new DeleteObjectsCommand({
+    try {
+      do {
+        const page = await this.client.send(
+          new ListObjectsV2Command({
             Bucket: this.bucket,
-            Delete: { Objects: objects, Quiet: true },
+            Prefix: prefix,
+            ContinuationToken: continuationToken,
           }),
           { abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
         );
-      }
-      continuationToken = page.NextContinuationToken;
-    } while (continuationToken);
+        const objects = page.Contents?.flatMap((object) =>
+          object.Key === undefined ? [] : [{ Key: object.Key }],
+        );
+        if (objects?.length) await this.deletePage(prefix, objects);
+        if (page.IsTruncated && !page.NextContinuationToken) {
+          throw new Error(
+            'S3 omitted the next page token for a truncated list',
+          );
+        }
+        continuationToken = page.IsTruncated
+          ? page.NextContinuationToken
+          : undefined;
+      } while (continuationToken !== undefined);
+    } catch (error) {
+      throw new StorageError(
+        `Could not delete private objects under "${prefix}"`,
+        { cause: error },
+      );
+    }
+  }
+
+  private async deletePage(prefix: string, objects: { Key: string }[]) {
+    const result = await this.client.send(
+      new DeleteObjectsCommand({
+        Bucket: this.bucket,
+        Delete: { Objects: objects, Quiet: true },
+      }),
+      { abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
+    );
+    if (result.Errors?.length) {
+      throw new Error(`S3 did not delete every object under "${prefix}"`);
+    }
   }
 
   async head(key: string): Promise<{ size: number }> {

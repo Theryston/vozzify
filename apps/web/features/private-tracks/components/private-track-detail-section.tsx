@@ -13,9 +13,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { SessionUserBoundary } from '@/features/auth/components/session-user';
 import { PracticeBody } from '@/features/tracks/components/practice-body';
 import { isApiError } from '@/lib/api/api-error';
-import { Link } from '@/lib/i18n/navigation';
+import { Link, useRouter } from '@/lib/i18n/navigation';
 import { usePrivateTrackDetail } from '../hooks/use-private-tracks';
 import { privateTrackKeys } from '../query-keys';
+import { PrivateTrackDeleteButton } from './private-track-delete-button';
 
 function usePrivateTrackAccess(
   initial: PrivateTrackDetailData,
@@ -51,6 +52,7 @@ function PrivateTrackDetailContent({
   userId: string;
 }) {
   const { track, failed } = usePrivateTrackAccess(initial, userId);
+  const router = useRouter();
   const t = useTranslations('privateTracks.detail');
 
   if (!track) {
@@ -84,22 +86,11 @@ function PrivateTrackDetailContent({
 
   return (
     <section className="flex flex-col gap-6 pb-6 md:pb-8">
-      <header className="flex flex-wrap items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate font-bold text-2xl tracking-tight">
-            {track.title}
-          </h1>
-          {track.artist ? (
-            <p className="truncate text-muted-foreground text-sm">
-              {track.artist}
-            </p>
-          ) : null}
-        </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 font-semibold text-sm">
-          <LockKeyhole aria-hidden="true" className="size-3.5" />
-          {t('privateBadge')}
-        </span>
-      </header>
+      <PrivateTrackHeader
+        track={track}
+        userId={userId}
+        onDeleted={() => router.replace('/me/tracks')}
+      />
       {track.locked ? (
         <LockedPrivateTrack />
       ) : canPractice ? (
@@ -117,6 +108,43 @@ function PrivateTrackDetailContent({
         <ProcessingStatus track={track} />
       )}
     </section>
+  );
+}
+
+function PrivateTrackHeader({
+  track,
+  userId,
+  onDeleted,
+}: {
+  track: PrivateTrackDetailData;
+  userId: string;
+  onDeleted: () => void;
+}) {
+  const t = useTranslations('privateTracks.detail');
+  return (
+    <header className="flex flex-wrap items-center gap-3">
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate font-bold text-2xl tracking-tight">
+          {track.title}
+        </h1>
+        {track.artist ? (
+          <p className="truncate text-muted-foreground text-sm">
+            {track.artist}
+          </p>
+        ) : null}
+      </div>
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 font-semibold text-sm">
+        <LockKeyhole aria-hidden="true" className="size-3.5" />
+        {t('privateBadge')}
+      </span>
+      {track.ownerId === userId ? (
+        <PrivateTrackDeleteButton
+          privateTrackId={track.id}
+          userId={userId}
+          onDeleted={onDeleted}
+        />
+      ) : null}
+    </header>
   );
 }
 

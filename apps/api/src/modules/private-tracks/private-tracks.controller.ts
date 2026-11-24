@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
+  HttpCode,
   Param,
   Post,
   Query,
@@ -14,6 +16,7 @@ import {
   ApiConsumes,
   ApiCreatedResponse,
   ApiNotFoundResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -37,6 +40,8 @@ import { ZodSerializerDto } from '../../common/zod/zod-serializer.interceptor.js
 import type { AuthUser } from '../auth/auth.js';
 import { PrivateAudioUploadInterceptor } from './private-audio-upload.interceptor.js';
 import { PrivateTrackWorkflowService } from './private-track-workflow.service.js';
+import { PrivateTrackDeletionService } from './private-track-deletion.service.js';
+import { PrivateTrackProcessingService } from './private-track-processing.service.js';
 import { PrivateTracksService } from './private-tracks.service.js';
 
 type RequestWithUpload = Request & {
@@ -56,6 +61,8 @@ export class PrivateTracksController {
   constructor(
     private readonly privateTracks: PrivateTracksService,
     private readonly workflow: PrivateTrackWorkflowService,
+    private readonly processing: PrivateTrackProcessingService,
+    private readonly deletion: PrivateTrackDeletionService,
   ) {}
 
   @Get()
@@ -81,6 +88,18 @@ export class PrivateTracksController {
     @Param() params: PrivateTrackIdParamDto,
   ): Promise<PrivateTrackDetail> {
     return this.privateTracks.getDetail(user.id, params.id);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @Header('Cache-Control', 'private, no-store')
+  @ApiNoContentResponse({ description: 'The private audio entry is deleted.' })
+  @ApiUnauthorizedResponse({ description: 'No valid session.' })
+  async delete(
+    @CurrentUser() user: AuthUser,
+    @Param() params: PrivateTrackIdParamDto,
+  ): Promise<void> {
+    await this.deletion.delete(user.id, params.id);
   }
 
   @Post()

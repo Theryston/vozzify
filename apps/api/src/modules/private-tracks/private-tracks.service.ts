@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { createId } from '@paralleldrive/cuid2';
 import type {
   MyPrivateTracksPage,
   MyPrivateTracksQuery,
@@ -14,12 +15,18 @@ import { AppException } from '../../common/errors/app-exception.js';
 import { StorageService } from '../../integrations/storage/storage.service.js';
 import { SubscriptionMembershipService } from '../plans/subscription-membership.service.js';
 import { PrivateAudioInspector } from './private-audio.js';
+import { PRIVATE_TRACK_UPLOAD_URL_TTL_MS } from './private-track-asset-cleanup.job.js';
+import { PrivateTrackAssetCleanupQueue } from './private-track-asset-cleanup.queue.js';
 import { PrivateTracksRepository } from './private-tracks.repository.js';
 
 type Upload = { path: string; originalname: string };
 
 @Injectable()
 export class PrivateTracksService {
+  private readonly logger = new Logger(PrivateTracksService.name);
+  @Inject(PrivateTrackAssetCleanupQueue)
+  private cleanup: PrivateTrackAssetCleanupQueue | undefined;
+
   constructor(
     private readonly repository: PrivateTracksRepository,
     private readonly audio: PrivateAudioInspector,
@@ -86,13 +93,16 @@ export class PrivateTracksService {
     ]);
     const filename = basename(file.originalname.replaceAll('\\', '/'));
     const title = metadata.title || filename;
-    const objectKey = `${userId}/${contentSha256}`;
+    const privateTrackId = createId();
+    const objectKey = `private-tracks/${userId}/${privateTrackId}/source`;
     await this.storage.putPrivateFile({
       key: objectKey,
       filePath: file.path,
       contentType: 'application/octet-stream',
     });
+    await this.scheduleCandidateCleanup(objectKey, privateTrackId);
     const row = await this.repository.save({
+      id: privateTrackId,
       userId,
       contentSha256,
       objectKey,
@@ -101,7 +111,49 @@ export class PrivateTracksService {
       artist: metadata.artist,
       durationMs: metadata.durationMs,
     });
+    if (row.discardedUploadKey) {
+      await this.removeDiscardedUpload(row.discardedUploadKey, privateTrackId);
+    }
     return toPrivateTrack(row);
+  }
+
+  private async scheduleCandidateCleanup(
+    objectKey: string,
+    privateTrackId: string,
+  ): Promise<void> {
+    if (!this.cleanup) return;
+    try {
+      await this.cleanup.schedulePrivateObjectCleanup(
+        objectKey,
+        PRIVATE_TRACK_UPLOAD_URL_TTL_MS,
+      );
+    } catch (error) {
+      await this.storage
+        .deletePrivateObject(objectKey)
+        .catch((cleanupError: unknown) => {
+          this.logger.warn(
+            `Could not remove an unassociated private source ${privateTrackId}`,
+            cleanupError instanceof Error
+              ? cleanupError.stack
+              : String(cleanupError),
+          );
+        });
+      throw error;
+    }
+  }
+
+  private async removeDiscardedUpload(
+    objectKey: string,
+    privateTrackId: string,
+  ): Promise<void> {
+    try {
+      await this.storage.deletePrivateObject(objectKey);
+    } catch (error) {
+      this.logger.warn(
+        `Deferred cleanup will remove duplicate private source ${privateTrackId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
   }
 }
 
