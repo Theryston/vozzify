@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { privateTrackDetailSchema } from '@vozzify/contracts';
+import type { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import {
@@ -12,6 +13,8 @@ import {
   type NoteDetectionInput,
 } from '../src/integrations/note-detection/note-detection.client.js';
 import { StorageService } from '../src/integrations/storage/storage.service.js';
+import { PROCESS_PRIVATE_TRACK_JOB } from '../src/modules/private-tracks/private-track-processing.job.js';
+import { PrivateTrackProcessingProcessor } from '../src/modules/private-tracks/private-track-processing.processor.js';
 import { PrivateTrackProcessingService } from '../src/modules/private-tracks/private-track-processing.service.js';
 import { PrivateTracksRepository } from '../src/modules/private-tracks/private-tracks.repository.js';
 import { createAuthClient, signIn } from './utils/auth.js';
@@ -82,6 +85,7 @@ describe('Private track detail and playback (e2e)', () => {
   });
 
   beforeEach(async () => {
+    vi.restoreAllMocks();
     catalogSeeded = false;
     detectorInputs.clear();
     fakeDetector.startJob.mockClear();
@@ -311,6 +315,10 @@ describe('Private track detail and playback (e2e)', () => {
     await grantPro(owner.id);
     const client = createAuthClient(testApp);
     await signIn(client, { email: owner.email, password: DEFAULT_PASSWORD });
+    const processing = testApp.app.get(PrivateTrackProcessingService);
+    const enqueue = vi
+      .spyOn(processing, 'enqueue')
+      .mockResolvedValue(undefined);
     const firstUpload = await client
       .post(ROOT)
       .attach('audio', FIXTURE, { filename: 'first.wav' })
@@ -321,7 +329,7 @@ describe('Private track detail and playback (e2e)', () => {
       .expect(201);
     const firstTrackId = firstUpload.body.id as string;
     const secondTrackId = secondUpload.body.id as string;
-    const processing = testApp.app.get(PrivateTrackProcessingService);
+    enqueue.mockRestore();
 
     fakeDetector.startJob.mockImplementationOnce(async (input) => {
       const jobId = `accepted-response-lost-${input.processingId}`;
@@ -406,5 +414,47 @@ describe('Private track detail and playback (e2e)', () => {
       expect(detail.locked).toBe(true);
       expect(detail.notes).toEqual([]);
     }
+  });
+
+  it('marks the claimed attempt failed after its final launch failure', async () => {
+    const owner = await createPasswordUser(testApp.db);
+    await grantPro(owner.id);
+    const client = createAuthClient(testApp);
+    await signIn(client, { email: owner.email, password: DEFAULT_PASSWORD });
+    const processing = testApp.app.get(PrivateTrackProcessingService);
+    const enqueue = vi
+      .spyOn(processing, 'enqueue')
+      .mockResolvedValue(undefined);
+    const uploaded = await client
+      .post(ROOT)
+      .attach('audio', FIXTURE, { filename: 'failed-launch.wav' })
+      .expect(201);
+    enqueue.mockRestore();
+    const processor = new PrivateTrackProcessingProcessor(
+      processing,
+      {} as never,
+    );
+    fakeDetector.startJob.mockRejectedValueOnce(
+      new Error('RunPod launch unavailable'),
+    );
+
+    await expect(
+      processor.process({
+        name: PROCESS_PRIVATE_TRACK_JOB,
+        data: {
+          privateTrackId: uploaded.body.id as string,
+          userId: owner.id,
+          poll: 0,
+        },
+        attemptsMade: 0,
+        opts: { attempts: 1 },
+      } as Job<unknown>),
+    ).rejects.toThrow('Private track processing attempt failed');
+
+    const failed = await testApp.app
+      .get(PrivateTracksRepository)
+      .findById(uploaded.body.id as string);
+    expect(failed?.processingStatus).toBe('FAILED');
+    expect(failed?.processingAttemptId).not.toBeNull();
   });
 });

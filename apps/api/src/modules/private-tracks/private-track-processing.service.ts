@@ -1,17 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 import type { Queue } from 'bullmq';
 import { z } from 'zod';
 import type { RunpodJobState } from '../../integrations/note-detection/runpod-job.js';
-import {
-  privateTrackMediaKey,
-  privateTrackStagingKey,
-} from './private-track-object-keys.js';
+import { ensurePrivateTrackMusicWav } from './private-track-music-conversion.js';
+import { privateTrackStagingKey } from './private-track-object-keys.js';
 import {
   CLEAN_PRIVATE_TRACK_ASSETS_JOB,
   type CleanPrivateTrackAssetsJob,
@@ -22,6 +17,7 @@ import {
   privateTrackPollingJobId,
   processPrivateTrackJobSchema,
 } from './private-track-processing.job.js';
+import { PrivateTrackProcessingAttemptError } from './private-track-processing-attempt-error.js';
 import { PrivateTrackProcessingIntegrations } from './private-track-processing-integrations.js';
 import { PrivateTracksRepository } from './private-tracks.repository.js';
 
@@ -74,7 +70,19 @@ export class PrivateTrackProcessingService {
     const job = processPrivateTrackJobSchema.parse(rawJob);
     const track = await this.tracks.findOwned(job.userId, job.privateTrackId);
     if (!track || isTerminal(track.processingStatus)) return;
-    const musicKey = await this.ensureMusicWav(track);
+    let musicKey: string | null;
+    try {
+      musicKey = await ensurePrivateTrackMusicWav(
+        track,
+        this.tracks,
+        this.integrations,
+      );
+    } catch (error) {
+      throw new PrivateTrackProcessingAttemptError(
+        track.processingAttemptId,
+        error,
+      );
+    }
     if (musicKey === null) return;
     const runpodJobId = track.processingJobId;
     const attemptId = track.processingAttemptId;
@@ -108,37 +116,6 @@ export class PrivateTrackProcessingService {
     await this.tracks.markFailedForAttempt(privateTrackId, attemptId);
   }
 
-  private async ensureMusicWav(
-    track: NonNullable<
-      Awaited<ReturnType<PrivateTracksRepository['findOwned']>>
-    >,
-  ): Promise<string | null> {
-    if (track.mediaObjectKey !== null) return track.mediaObjectKey;
-    const directory = await mkdtemp(join(tmpdir(), 'vozzify-private-track-'));
-    try {
-      const sourcePath = join(directory, 'source.audio');
-      const wavPath = join(directory, 'music.wav');
-      await this.integrations.storage.downloadPrivateFile(
-        track.objectKey,
-        sourcePath,
-      );
-      await this.integrations.ffmpeg.convertPrivateAudioFileToWav(
-        sourcePath,
-        wavPath,
-      );
-      const key = privateTrackMediaKey(track.userId, track.id);
-      await this.integrations.storage.putPrivateFile({
-        key,
-        filePath: wavPath,
-        contentType: 'audio/wav',
-      });
-      const saved = await this.tracks.saveMusicMedia(track.id, key);
-      return saved ? key : null;
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
-  }
-
   private async startDetection(
     userId: string,
     privateTrackId: string,
@@ -146,39 +123,46 @@ export class PrivateTrackProcessingService {
     existingAttemptId: string | null,
   ): Promise<void> {
     const attemptId = randomUUID();
-    const claimed = await this.tracks.claimProcessingAttempt(
-      privateTrackId,
-      existingAttemptId,
-      attemptId,
-    );
-    if (!claimed) return;
-    const input = await this.integrations.detectorInput(
-      userId,
-      privateTrackId,
-      musicKey,
-      attemptId,
-    );
-    const vocalsKey = privateTrackStagingKey(
-      userId,
-      privateTrackId,
-      attemptId,
-      'vocals.wav',
-    );
-    const pitchCurveKey = privateTrackStagingKey(
-      userId,
-      privateTrackId,
-      attemptId,
-      'pitch-curve.bin',
-    );
-    await this.scheduleAssetCleanup(privateTrackId, [vocalsKey, pitchCurveKey]);
-    const jobId = await this.integrations.detector.startJob(input);
-    const saved = await this.tracks.saveProcessingJob(
-      privateTrackId,
-      attemptId,
-      jobId,
-    );
-    if (!saved) return;
-    await this.enqueuePoll(userId, privateTrackId, attemptId, 1);
+    try {
+      const claimed = await this.tracks.claimProcessingAttempt(
+        privateTrackId,
+        existingAttemptId,
+        attemptId,
+      );
+      if (!claimed) return;
+      const input = await this.integrations.detectorInput(
+        userId,
+        privateTrackId,
+        musicKey,
+        attemptId,
+      );
+      const vocalsKey = privateTrackStagingKey(
+        userId,
+        privateTrackId,
+        attemptId,
+        'vocals.wav',
+      );
+      const pitchCurveKey = privateTrackStagingKey(
+        userId,
+        privateTrackId,
+        attemptId,
+        'pitch-curve.bin',
+      );
+      await this.scheduleAssetCleanup(privateTrackId, [
+        vocalsKey,
+        pitchCurveKey,
+      ]);
+      const jobId = await this.integrations.detector.startJob(input);
+      const saved = await this.tracks.saveProcessingJob(
+        privateTrackId,
+        attemptId,
+        jobId,
+      );
+      if (!saved) return;
+      await this.enqueuePoll(userId, privateTrackId, attemptId, 1);
+    } catch (error) {
+      throw new PrivateTrackProcessingAttemptError(attemptId, error);
+    }
   }
 
   private async pollDetection(
@@ -274,8 +258,6 @@ export class PrivateTrackProcessingService {
       await this.scheduleAssetCleanup(track.id, [vocalsKey, pitchCurveKey]);
       return;
     }
-    if (!stored)
-      await this.scheduleAssetCleanup(track.id, [vocalsKey, pitchCurveKey]);
   }
 
   private async enqueuePoll(

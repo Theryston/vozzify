@@ -41,7 +41,7 @@ export function DockSettings({
   videoId,
 }: {
   controller: PlaybackController | null;
-  videoId: string;
+  videoId: string | null;
 }) {
   const t = useTranslations('tracks.practice.dock');
   const [calibrationOpen, setCalibrationOpen] = useState(false);
@@ -105,18 +105,20 @@ export function DockSettings({
               setCalibrationOpen(true);
             }}
           />
-          <DropdownMenuItem
-            render={
-              <a
-                href={youtubeWatchUrl(videoId)}
-                target="_blank"
-                rel="noopener noreferrer"
-              />
-            }
-          >
-            <ExternalLinkIcon aria-hidden="true" />
-            {t('openOnYouTube')}
-          </DropdownMenuItem>
+          {videoId ? (
+            <DropdownMenuItem
+              render={
+                <a
+                  href={youtubeWatchUrl(videoId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+              }
+            >
+              <ExternalLinkIcon aria-hidden="true" />
+              {t('openOnYouTube')}
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
       <CalibrationDialog

@@ -37,8 +37,9 @@ async function mockPrivateDetail(page: Page, initial: PrivateTrackDetail) {
   await page.route(
     (url) => url.pathname === `/v1/me/private-tracks/${initial.id}`,
     async (route) => {
+      const origin = route.request().headers().origin ?? '*';
       const headers = {
-        'access-control-allow-origin': 'http://localhost:3560',
+        'access-control-allow-origin': origin,
         'access-control-allow-credentials': 'true',
         'cache-control': 'private, no-store',
         'content-type': 'application/json',
@@ -241,6 +242,14 @@ test('opens an uploaded private Track and follows processing into its notes', as
   await expect
     .poll(async () => Number(await progress.getAttribute('aria-valuenow')))
     .toBeGreaterThan(before);
+  await page
+    .getByRole('button', { name: messages.en.tracks.practice.dock.settings })
+    .click();
+  await expect(
+    page.getByRole('menuitem', {
+      name: messages.en.tracks.practice.dock.openOnYouTube,
+    }),
+  ).toHaveCount(0);
   await expect(page.locator('p[role="alert"]')).toHaveCount(0);
 });
 

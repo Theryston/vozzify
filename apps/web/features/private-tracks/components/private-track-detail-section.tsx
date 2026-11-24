@@ -72,7 +72,7 @@ function PrivateTrackDetailContent({
       ? [{ name: track.artist, joinPhrase: '', artistId: null }]
       : [],
     durationMs: track.durationMs,
-    youtubeVideoId: `private-${track.id}`,
+    youtubeVideoId: null,
     contributors: [],
     contributorCount: 0,
     hasNotes: track.notes.length > 0,

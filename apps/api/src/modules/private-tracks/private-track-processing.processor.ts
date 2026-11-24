@@ -13,6 +13,7 @@ import {
   type ReconcilePrivateTracksJob,
 } from './private-track-processing.job.js';
 import { PrivateTrackProcessingService } from './private-track-processing.service.js';
+import { PrivateTrackProcessingAttemptError } from './private-track-processing-attempt-error.js';
 
 @Processor(PRIVATE_TRACK_PROCESSING_QUEUE, { concurrency: 3 })
 export class PrivateTrackProcessingProcessor
@@ -54,19 +55,30 @@ export class PrivateTrackProcessingProcessor
     try {
       await this.processing.process(job.data);
     } catch (error) {
-      if (isFinalAttempt(job)) {
-        const data = job.data as {
-          attemptId?: unknown;
-          privateTrackId?: unknown;
-        };
-        if (typeof data.privateTrackId === 'string') {
-          await this.processing.markFailed(
-            data.privateTrackId,
-            typeof data.attemptId === 'string' ? data.attemptId : null,
-          );
-        }
+      const failure = finalPrivateTrackFailure(job, error);
+      if (failure) {
+        await this.processing.markFailed(
+          failure.privateTrackId,
+          failure.attemptId,
+        );
       }
       throw error;
     }
   }
+}
+
+function finalPrivateTrackFailure(job: Job<unknown>, error: unknown) {
+  if (!isFinalAttempt(job)) return null;
+  const data = job.data as {
+    attemptId?: unknown;
+    privateTrackId?: unknown;
+  };
+  if (typeof data.privateTrackId !== 'string') return null;
+  const attemptId =
+    typeof data.attemptId === 'string'
+      ? data.attemptId
+      : error instanceof PrivateTrackProcessingAttemptError
+        ? error.attemptId
+        : null;
+  return { privateTrackId: data.privateTrackId, attemptId };
 }

@@ -199,7 +199,7 @@ function usePracticeController({
   const controller = usePlayback({
     hostRef,
     videoId: directAudio
-      ? (header.youtubeVideoId ?? '')
+      ? (header.youtubeVideoId ?? `private-${header.id}`)
       : header.youtubeVideoId,
     durationSeconds: durationSecondsOf(header, notes),
     fake: fakePlayer,
@@ -228,7 +228,7 @@ function TrackPracticeDock({
     <PracticeDock
       controller={controller}
       hostRef={hostRef}
-      videoId={header.youtubeVideoId ?? ''}
+      videoId={header.youtubeVideoId}
       directAudio={directAudio}
       expectDirectAudio={expectDirectAudio}
       trackKey={header.key}
