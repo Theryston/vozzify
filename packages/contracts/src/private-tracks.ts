@@ -49,6 +49,18 @@ export const privateTrackDetailSchema = privateTrackSchema.extend({
 });
 export type PrivateTrackDetail = z.infer<typeof privateTrackDetailSchema>;
 
+export const privateTrackIdParamsSchema = z.object({
+  id: z.string().min(1).max(128),
+});
+export type PrivateTrackIdParams = z.infer<typeof privateTrackIdParamsSchema>;
+
+export const privateTrackMediaParamsSchema = privateTrackIdParamsSchema.extend({
+  kind: z.enum(['music', 'vocals']),
+});
+export type PrivateTrackMediaParams = z.infer<
+  typeof privateTrackMediaParamsSchema
+>;
+
 export const myPrivateTracksQuerySchema = cursorPaginationQuerySchema;
 export type MyPrivateTracksQuery = z.infer<typeof myPrivateTracksQuerySchema>;
 

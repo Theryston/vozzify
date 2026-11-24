@@ -5,6 +5,7 @@ import {
   type NoteDetectionInput,
 } from '../../integrations/note-detection/note-detection.client.js';
 import { StorageService } from '../../integrations/storage/storage.service.js';
+import { privateTrackStagingKey } from './private-track-object-keys.js';
 
 const PRIVATE_UPLOAD_TTL_SECONDS = 2 * 60 * 60;
 
@@ -22,13 +23,13 @@ export class PrivateTrackProcessingIntegrations {
     musicKey: string,
     attemptId: string,
   ): Promise<NoteDetectionInput> {
-    const vocalsKey = stagingKey(
+    const vocalsKey = privateTrackStagingKey(
       userId,
       privateTrackId,
       attemptId,
       'vocals.wav',
     );
-    const pitchCurveKey = stagingKey(
+    const pitchCurveKey = privateTrackStagingKey(
       userId,
       privateTrackId,
       attemptId,
@@ -60,13 +61,4 @@ export class PrivateTrackProcessingIntegrations {
       },
     };
   }
-}
-
-function stagingKey(
-  userId: string,
-  privateTrackId: string,
-  attemptId: string,
-  filename: string,
-): string {
-  return `private-tracks/${userId}/${privateTrackId}/staging/${attemptId}/${filename}`;
 }

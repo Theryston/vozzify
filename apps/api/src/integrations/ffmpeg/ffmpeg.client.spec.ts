@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { type Env } from '../../config/env.js';
 import { FfmpegClient } from './ffmpeg.client.js';
+import { PRIVATE_AUDIO_FORMAT_WHITELIST } from './private-audio-formats.js';
 
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }));
 const spawnMock = vi.mocked(spawn);
@@ -120,9 +121,21 @@ describe('FfmpegClient file conversion', () => {
     await client.convertPrivateAudioFileToWav(input, output);
     expect(spawnMock.mock.calls[0]?.[1]).toEqual([
       '-y',
+      '-v',
+      'error',
+      '-protocol_whitelist',
+      'file',
+      '-format_whitelist',
+      PRIVATE_AUDIO_FORMAT_WHITELIST,
       '-i',
-      input,
+      '/proc/self/fd/3',
+      '-map',
+      '0:a:0',
       '-vn',
+      '-sn',
+      '-dn',
+      '-threads',
+      '1',
       '-acodec',
       'pcm_s16le',
       '-ac',

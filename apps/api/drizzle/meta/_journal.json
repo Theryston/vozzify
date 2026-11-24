@@ -428,6 +428,13 @@
       "when": 1795556748446,
       "tag": "0060_brief_rockslide",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1795559546381,
+      "tag": "0061_stiff_miracleman",
+      "breakpoints": true
     }
   ]
 }

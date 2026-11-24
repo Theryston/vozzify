@@ -1,5 +1,6 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
 import type {
   PrivateTrackDetail as PrivateTrackDetailData,
   TrackAudio,
@@ -7,11 +8,38 @@ import type {
 } from '@vozzify/contracts';
 import { LockKeyhole } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SessionUserBoundary } from '@/features/auth/components/session-user';
 import { PracticeBody } from '@/features/tracks/components/practice-body';
+import { isApiError } from '@/lib/api/api-error';
 import { Link } from '@/lib/i18n/navigation';
 import { usePrivateTrackDetail } from '../hooks/use-private-tracks';
+import { privateTrackKeys } from '../query-keys';
+
+function usePrivateTrackAccess(
+  initial: PrivateTrackDetailData,
+  userId: string,
+) {
+  const seeded = initial.ownerId === userId ? initial : undefined;
+  const query = usePrivateTrackDetail(userId, initial.id, seeded);
+  const queryClient = useQueryClient();
+  const [unavailable, setUnavailable] = useState(false);
+  const revoked =
+    isApiError(query.error) && [401, 403, 404].includes(query.error.statusCode);
+  useEffect(() => {
+    if (!revoked) return;
+    setUnavailable(true);
+    queryClient.removeQueries({
+      queryKey: privateTrackKeys.detail(userId, initial.id),
+      exact: true,
+    });
+  }, [initial.id, queryClient, revoked, userId]);
+  return {
+    track: revoked || unavailable ? undefined : query.data,
+    failed: query.isError || unavailable,
+  };
+}
 
 function PrivateTrackDetailContent({
   initial,
@@ -22,13 +50,11 @@ function PrivateTrackDetailContent({
   fakePlayer: boolean;
   userId: string;
 }) {
-  const seeded = initial.ownerId === userId ? initial : undefined;
-  const query = usePrivateTrackDetail(userId, initial.id, seeded);
-  const track = query.data;
+  const { track, failed } = usePrivateTrackAccess(initial, userId);
   const t = useTranslations('privateTracks.detail');
 
   if (!track) {
-    return query.isError ? (
+    return failed ? (
       <p role="alert" className="text-destructive text-sm">
         {t('loadError')}
       </p>
@@ -46,7 +72,7 @@ function PrivateTrackDetailContent({
       ? [{ name: track.artist, joinPhrase: '', artistId: null }]
       : [],
     durationMs: track.durationMs,
-    youtubeVideoId: null,
+    youtubeVideoId: `private-${track.id}`,
     contributors: [],
     contributorCount: 0,
     hasNotes: track.notes.length > 0,

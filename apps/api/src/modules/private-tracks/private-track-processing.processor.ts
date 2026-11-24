@@ -55,9 +55,15 @@ export class PrivateTrackProcessingProcessor
       await this.processing.process(job.data);
     } catch (error) {
       if (isFinalAttempt(job)) {
-        const data = job.data as { privateTrackId?: unknown };
+        const data = job.data as {
+          attemptId?: unknown;
+          privateTrackId?: unknown;
+        };
         if (typeof data.privateTrackId === 'string') {
-          await this.processing.markFailed(data.privateTrackId);
+          await this.processing.markFailed(
+            data.privateTrackId,
+            typeof data.attemptId === 'string' ? data.attemptId : null,
+          );
         }
       }
       throw error;

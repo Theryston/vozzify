@@ -44,6 +44,11 @@ export const privateTracks = pgTable(
       table.contentSha256,
     ),
     index().on(table.userId, table.createdAt, table.id),
+    index('private_tracks_processing_queue_idx').on(
+      table.processingStatus,
+      table.updatedAt,
+      table.id,
+    ),
   ],
 );
 

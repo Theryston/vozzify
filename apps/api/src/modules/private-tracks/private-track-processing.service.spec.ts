@@ -14,14 +14,14 @@ const queued = [
 
 describe('PrivateTrackProcessingService recovery', () => {
   const queue = { add: vi.fn() };
-  const tracks = { listQueued: vi.fn() };
+  const tracks = { listRecoverable: vi.fn() };
   const integrations = {};
   let service: PrivateTrackProcessingService;
 
   beforeEach(() => {
     vi.resetAllMocks();
     queue.add.mockResolvedValue({ id: 'job-1' });
-    tracks.listQueued.mockResolvedValue(queued);
+    tracks.listRecoverable.mockResolvedValue(queued);
     service = new PrivateTrackProcessingService(
       queue as unknown as Queue<
         ProcessPrivateTrackJob | CleanPrivateTrackAssetsJob
@@ -34,7 +34,7 @@ describe('PrivateTrackProcessingService recovery', () => {
   it('requeues a bounded page of queued owner rows with stable job IDs', async () => {
     await service.reconcileQueuedTracks();
 
-    expect(tracks.listQueued).toHaveBeenCalledWith(100);
+    expect(tracks.listRecoverable).toHaveBeenCalledWith(100, expect.any(Date));
     expect(queue.add).toHaveBeenNthCalledWith(
       1,
       'process-private-track',

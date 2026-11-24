@@ -65,12 +65,44 @@ export class FfmpegClient {
     input: string,
     output: string,
   ): Promise<void> {
-    await this.convertAudioFileToWavWithLimit(
-      input,
-      output,
-      MAX_PRIVATE_WAV_BYTES,
-      2,
-    );
+    const file = await open(input, 'r');
+    try {
+      await this.run(
+        [
+          '-y',
+          '-v',
+          'error',
+          '-protocol_whitelist',
+          'file',
+          '-format_whitelist',
+          PRIVATE_AUDIO_FORMAT_WHITELIST,
+          '-i',
+          '/proc/self/fd/3',
+          '-map',
+          '0:a:0',
+          '-vn',
+          '-sn',
+          '-dn',
+          '-threads',
+          '1',
+          '-acodec',
+          'pcm_s16le',
+          '-ac',
+          '2',
+          '-ar',
+          '44100',
+          '-fs',
+          String(MAX_PRIVATE_WAV_BYTES + 1),
+          output,
+        ],
+        file.fd,
+      );
+      if ((await stat(output)).size > MAX_PRIVATE_WAV_BYTES) {
+        throw new Error('The WAV is larger than the accepted size');
+      }
+    } finally {
+      await file.close();
+    }
   }
 
   private async convertAudioFileToWavWithLimit(

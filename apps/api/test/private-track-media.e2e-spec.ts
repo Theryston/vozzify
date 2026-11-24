@@ -1,12 +1,18 @@
 import { fileURLToPath } from 'node:url';
 import { privateTrackDetailSchema } from '@vozzify/contracts';
+import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import {
   privateTrackNotes,
   privateTracks,
 } from '../src/database/schema/private-tracks.js';
 import { subscriptions } from '../src/database/schema/subscriptions.js';
+import {
+  NoteDetectionClient,
+  type NoteDetectionInput,
+} from '../src/integrations/note-detection/note-detection.client.js';
 import { StorageService } from '../src/integrations/storage/storage.service.js';
+import { PrivateTrackProcessingService } from '../src/modules/private-tracks/private-track-processing.service.js';
 import { PrivateTracksRepository } from '../src/modules/private-tracks/private-tracks.repository.js';
 import { createAuthClient, signIn } from './utils/auth.js';
 import { billingCatalog } from './utils/billing-fixture.js';
@@ -21,7 +27,37 @@ import {
 const FIXTURE = fileURLToPath(
   new URL('../../web/e2e/fixtures/a4-440hz.wav', import.meta.url),
 );
+const MP3_FIXTURE = fileURLToPath(
+  new URL('./fixtures/tone.mp3', import.meta.url),
+);
 const ROOT = '/v1/me/private-tracks';
+const detectorInputs = new Map<string, NoteDetectionInput>();
+const fakeDetector = {
+  startJob: vi.fn(async (input: NoteDetectionInput) => {
+    const jobId = `fake-${input.processingId}-${detectorInputs.size + 1}`;
+    detectorInputs.set(jobId, input);
+    return jobId;
+  }),
+  checkJob: vi.fn(async (jobId: string) => {
+    const input = detectorInputs.get(jobId);
+    if (!input) throw new Error(`Unknown fake detector job ${jobId}`);
+    return {
+      kind: 'completed' as const,
+      output: {
+        vocalsUrl: input.vocalsUpload.publicUrl,
+        pitchCurveUrl: input.pitchCurveUpload.publicUrl,
+        detectorVersion: 'fake-private-e2e',
+        notes: [
+          {
+            pitch: 60 + [...detectorInputs.keys()].indexOf(jobId),
+            start: 0.1,
+            end: 0.3,
+          },
+        ],
+      },
+    };
+  }),
+};
 
 describe('Private track detail and playback (e2e)', () => {
   let testApp: TestApp;
@@ -35,6 +71,8 @@ describe('Private track detail and playback (e2e)', () => {
         MUSIC_CATALOG_URL: catalog.url,
         MUSIC_CATALOG_API_KEY: FAKE_CATALOG_API_KEY,
       },
+      override: (builder) =>
+        builder.overrideProvider(NoteDetectionClient).useValue(fakeDetector),
     });
   });
 
@@ -45,6 +83,9 @@ describe('Private track detail and playback (e2e)', () => {
 
   beforeEach(async () => {
     catalogSeeded = false;
+    detectorInputs.clear();
+    fakeDetector.startJob.mockClear();
+    fakeDetector.checkJob.mockClear();
     await resetDatabase(testApp.db);
   });
 
@@ -70,7 +111,7 @@ describe('Private track detail and playback (e2e)', () => {
     });
   };
 
-  it('finds a pre-processing private row for bounded recovery without terminal rows', async () => {
+  it('finds queued and stale starts for bounded recovery without terminal rows', async () => {
     const owner = await createPasswordUser(testApp.db);
     const [queued] = await testApp.db
       .insert(privateTracks)
@@ -97,13 +138,31 @@ describe('Private track detail and playback (e2e)', () => {
         processingStatus: 'COMPLETED',
       })
       .returning();
-    if (!queued || !completed) throw new Error('Expected private track rows');
+    const [stale] = await testApp.db
+      .insert(privateTracks)
+      .values({
+        userId: owner.id,
+        contentSha256: 'legacy-stale-private-hash',
+        objectKey: `${owner.id}/legacy-stale-private`,
+        originalFilename: 'stale.wav',
+        title: 'Stale private row',
+        artist: '',
+        durationMs: 1_000,
+        processingStatus: 'EXTRACTING_VOCALS',
+        processingAttemptId: 'launch-with-lost-response',
+        updatedAt: new Date(Date.now() - 120_000),
+      })
+      .returning();
+    if (!queued || !completed || !stale) {
+      throw new Error('Expected private track rows');
+    }
 
     const candidates = await testApp.app
       .get(PrivateTracksRepository)
-      .listQueued(100);
+      .listRecoverable(100, new Date(Date.now() - 60_000));
 
     expect(candidates.map((row) => row.id)).toContain(queued.id);
+    expect(candidates.map((row) => row.id)).toContain(stale.id);
     expect(candidates.map((row) => row.id)).not.toContain(completed.id);
   });
   it('returns owner-only recording notes and hides private detail from other users', async () => {
@@ -245,5 +304,107 @@ describe('Private track detail and playback (e2e)', () => {
       notes: [],
     });
     await client.get(`${ROOT}/${track.id}/media/music`).expect(403);
+  });
+
+  it('completes accepted uploads after membership expires with attempt-isolated outputs', async () => {
+    const owner = await createPasswordUser(testApp.db);
+    await grantPro(owner.id);
+    const client = createAuthClient(testApp);
+    await signIn(client, { email: owner.email, password: DEFAULT_PASSWORD });
+    const firstUpload = await client
+      .post(ROOT)
+      .attach('audio', FIXTURE, { filename: 'first.wav' })
+      .expect(201);
+    const secondUpload = await client
+      .post(ROOT)
+      .attach('audio', MP3_FIXTURE, { filename: 'second.mp3' })
+      .expect(201);
+    const firstTrackId = firstUpload.body.id as string;
+    const secondTrackId = secondUpload.body.id as string;
+    const processing = testApp.app.get(PrivateTrackProcessingService);
+
+    fakeDetector.startJob.mockImplementationOnce(async (input) => {
+      const jobId = `accepted-response-lost-${input.processingId}`;
+      detectorInputs.set(jobId, input);
+      throw new Error('RunPod accepted the job but the response was lost');
+    });
+    await expect(
+      processing.process({
+        userId: owner.id,
+        privateTrackId: firstTrackId,
+        poll: 0,
+      }),
+    ).rejects.toThrow('response was lost');
+    await processing.process({
+      userId: owner.id,
+      privateTrackId: firstTrackId,
+      poll: 0,
+    });
+    await processing.process({
+      userId: owner.id,
+      privateTrackId: secondTrackId,
+      poll: 0,
+    });
+
+    const firstLaunch = detectorInputs.get(
+      `accepted-response-lost-${firstTrackId}`,
+    );
+    const firstRow = await testApp.app
+      .get(PrivateTracksRepository)
+      .findById(firstTrackId);
+    const secondRow = await testApp.app
+      .get(PrivateTracksRepository)
+      .findById(secondTrackId);
+    if (!firstLaunch || !firstRow?.processingAttemptId || !secondRow) {
+      throw new Error('Expected detector launches and processing attempts');
+    }
+    const acceptedFirstLaunch = [...detectorInputs.entries()].find(
+      ([jobId, input]) =>
+        jobId !== `accepted-response-lost-${firstTrackId}` &&
+        input.processingId === firstTrackId,
+    )?.[1];
+    if (!acceptedFirstLaunch || !secondRow.processingAttemptId) {
+      throw new Error('Expected unique retry and second recording launches');
+    }
+    expect(acceptedFirstLaunch.vocalsUpload.publicUrl).not.toBe(
+      firstLaunch.vocalsUpload.publicUrl,
+    );
+    expect(acceptedFirstLaunch.pitchCurveUpload.publicUrl).not.toBe(
+      firstLaunch.pitchCurveUpload.publicUrl,
+    );
+
+    await testApp.db
+      .update(subscriptions)
+      .set({
+        paidMembership: false,
+      })
+      .where(eq(subscriptions.userId, owner.id));
+    expect(fakeDetector.startJob).toHaveBeenCalledTimes(3);
+
+    await processing.process({
+      userId: owner.id,
+      privateTrackId: firstTrackId,
+      attemptId: firstRow.processingAttemptId,
+      poll: 1,
+    });
+    await processing.process({
+      userId: owner.id,
+      privateTrackId: secondTrackId,
+      attemptId: secondRow.processingAttemptId,
+      poll: 1,
+    });
+
+    const repository = testApp.app.get(PrivateTracksRepository);
+    const firstNotes = await repository.listNotes(firstTrackId);
+    const secondNotes = await repository.listNotes(secondTrackId);
+    expect(firstNotes[0]?.pitch).not.toBe(secondNotes[0]?.pitch);
+    for (const trackId of [firstTrackId, secondTrackId]) {
+      const detail = privateTrackDetailSchema.parse(
+        (await client.get(`${ROOT}/${trackId}`).expect(200)).body,
+      );
+      expect(detail.processing.status).toBe('COMPLETED');
+      expect(detail.locked).toBe(true);
+      expect(detail.notes).toEqual([]);
+    }
   });
 });

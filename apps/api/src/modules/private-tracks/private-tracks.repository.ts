@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
-import { and, asc, desc, eq, lt, or } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, lt, notInArray, or } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
 import {
   privateTrackNotes,
@@ -71,37 +71,165 @@ export class PrivateTracksRepository {
     });
   }
 
-  async updateProcessing(
+  async saveMusicMedia(id: string, mediaObjectKey: string): Promise<boolean> {
+    const updated = await this.txHost.tx
+      .update(privateTracks)
+      .set({
+        mediaObjectKey,
+        processingStatus: 'EXTRACTING_VOCALS',
+        processingProgress: 5,
+      })
+      .where(
+        and(
+          eq(privateTracks.id, id),
+          isNull(privateTracks.mediaObjectKey),
+          notInArray(privateTracks.processingStatus, ['COMPLETED', 'FAILED']),
+        ),
+      )
+      .returning({ id: privateTracks.id });
+    return updated.length > 0;
+  }
+
+  async claimProcessingAttempt(
     id: string,
+    expectedAttemptId: string | null,
+    attemptId: string,
+  ): Promise<boolean> {
+    const expectedAttempt = expectedAttemptId
+      ? eq(privateTracks.processingAttemptId, expectedAttemptId)
+      : isNull(privateTracks.processingAttemptId);
+    const claimed = await this.txHost.tx
+      .update(privateTracks)
+      .set({ processingAttemptId: attemptId, processingJobId: null })
+      .where(
+        and(
+          eq(privateTracks.id, id),
+          expectedAttempt,
+          isNull(privateTracks.processingJobId),
+          notInArray(privateTracks.processingStatus, ['COMPLETED', 'FAILED']),
+        ),
+      )
+      .returning({ id: privateTracks.id });
+    return claimed.length > 0;
+  }
+
+  async saveProcessingJob(
+    id: string,
+    attemptId: string,
+    jobId: string,
+  ): Promise<boolean> {
+    const saved = await this.txHost.tx
+      .update(privateTracks)
+      .set({
+        processingJobId: jobId,
+        processingStatus: 'EXTRACTING_VOCALS',
+        processingProgress: 10,
+      })
+      .where(
+        and(
+          eq(privateTracks.id, id),
+          eq(privateTracks.processingAttemptId, attemptId),
+          isNull(privateTracks.processingJobId),
+          notInArray(privateTracks.processingStatus, ['COMPLETED', 'FAILED']),
+        ),
+      )
+      .returning({ id: privateTracks.id });
+    return saved.length > 0;
+  }
+
+  async updateProcessingAttempt(
+    id: string,
+    attemptId: string,
+    jobId: string,
     values: Partial<typeof privateTracks.$inferInsert>,
   ): Promise<boolean> {
     const updated = await this.txHost.tx
       .update(privateTracks)
       .set(values)
-      .where(eq(privateTracks.id, id))
+      .where(
+        and(
+          eq(privateTracks.id, id),
+          eq(privateTracks.processingAttemptId, attemptId),
+          eq(privateTracks.processingJobId, jobId),
+          notInArray(privateTracks.processingStatus, ['COMPLETED', 'FAILED']),
+        ),
+      )
       .returning({ id: privateTracks.id });
     return updated.length > 0;
   }
 
-  listQueued(limit: number) {
+  async markFailedForAttempt(
+    id: string,
+    attemptId: string | null,
+  ): Promise<boolean> {
+    const expectedAttempt = attemptId
+      ? eq(privateTracks.processingAttemptId, attemptId)
+      : isNull(privateTracks.processingAttemptId);
+    const updated = await this.txHost.tx
+      .update(privateTracks)
+      .set({ processingStatus: 'FAILED', processingProgress: 0 })
+      .where(
+        and(
+          eq(privateTracks.id, id),
+          expectedAttempt,
+          notInArray(privateTracks.processingStatus, ['COMPLETED', 'FAILED']),
+        ),
+      )
+      .returning({ id: privateTracks.id });
+    return updated.length > 0;
+  }
+
+  listRecoverable(limit: number, staleBefore: Date) {
     return this.txHost.tx
       .select({ id: privateTracks.id, userId: privateTracks.userId })
       .from(privateTracks)
-      .where(eq(privateTracks.processingStatus, 'QUEUED'))
-      .orderBy(asc(privateTracks.createdAt), asc(privateTracks.id))
+      .where(
+        or(
+          eq(privateTracks.processingStatus, 'QUEUED'),
+          and(
+            eq(privateTracks.processingStatus, 'EXTRACTING_VOCALS'),
+            isNull(privateTracks.processingJobId),
+            lt(privateTracks.updatedAt, staleBefore),
+          ),
+        ),
+      )
+      .orderBy(asc(privateTracks.updatedAt), asc(privateTracks.id))
       .limit(limit);
   }
 
-  async replaceNotes(
-    privateTrackId: string,
-    notes: readonly { pitch: number; start: number; end: number }[],
-  ): Promise<boolean> {
-    const existing = await this.txHost.tx
-      .select({ id: privateTracks.id })
-      .from(privateTracks)
-      .where(eq(privateTracks.id, privateTrackId))
-      .limit(1);
-    if (!existing[0]) return false;
+  async replaceNotes({
+    privateTrackId,
+    attemptId,
+    jobId,
+    notes,
+    processingValues,
+  }: {
+    privateTrackId: string;
+    attemptId: string;
+    jobId: string;
+    notes: readonly { pitch: number; start: number; end: number }[];
+    processingValues: Pick<
+      typeof privateTracks.$inferInsert,
+      | 'processingStatus'
+      | 'processingProgress'
+      | 'vocalsObjectKey'
+      | 'pitchCurveObjectKey'
+      | 'detectorVersion'
+    >;
+  }): Promise<boolean> {
+    const committed = await this.txHost.tx
+      .update(privateTracks)
+      .set(processingValues)
+      .where(
+        and(
+          eq(privateTracks.id, privateTrackId),
+          eq(privateTracks.processingAttemptId, attemptId),
+          eq(privateTracks.processingJobId, jobId),
+          notInArray(privateTracks.processingStatus, ['COMPLETED', 'FAILED']),
+        ),
+      )
+      .returning({ id: privateTracks.id });
+    if (!committed[0]) return false;
     await this.txHost.tx
       .delete(privateTrackNotes)
       .where(eq(privateTrackNotes.privateTrackId, privateTrackId));

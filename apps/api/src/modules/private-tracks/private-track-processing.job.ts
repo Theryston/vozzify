@@ -13,6 +13,7 @@ export const processPrivateTrackJobSchema = z.object({
   privateTrackId: z.string().min(1).max(128),
   userId: z.string().min(1).max(128),
   poll: z.number().int().min(0).default(0),
+  attemptId: z.string().min(1).optional(),
 });
 
 export type ProcessPrivateTrackJob = z.infer<
@@ -29,5 +30,6 @@ export type CleanPrivateTrackAssetsJob = z.infer<
 
 export const privateTrackPollingJobId = (
   privateTrackId: string,
+  attemptId: string,
   poll: number,
-) => `private-track-${privateTrackId}-poll-${poll}`;
+) => `private-track-${privateTrackId}-${attemptId}-poll-${poll}`;

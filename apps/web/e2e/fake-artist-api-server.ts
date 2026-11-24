@@ -330,4 +330,4 @@ const startFakeArtistApi = (
 
 const isMain = (process.argv[1] ?? '').endsWith('fake-artist-api-server.ts');
 
-if (isMain) await startFakeArtistApi();
+if (isMain) await startFakeArtistApi(Number(process.argv[2] ?? 3333));

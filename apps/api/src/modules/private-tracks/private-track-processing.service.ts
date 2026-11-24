@@ -4,9 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
+import { Transactional } from '@nestjs-cls/transactional';
 import type { Queue } from 'bullmq';
 import { z } from 'zod';
 import type { RunpodJobState } from '../../integrations/note-detection/runpod-job.js';
+import {
+  privateTrackMediaKey,
+  privateTrackStagingKey,
+} from './private-track-object-keys.js';
 import {
   CLEAN_PRIVATE_TRACK_ASSETS_JOB,
   type CleanPrivateTrackAssetsJob,
@@ -24,6 +29,7 @@ const PRIVATE_UPLOAD_TTL_SECONDS = 2 * 60 * 60;
 const NOTE_POLL_INTERVAL_MS = 5_000;
 const MAX_NOTE_POLL_ROUNDS = 120;
 const MAX_QUEUED_TRACKS_PER_RECONCILIATION = 100;
+const PRIVATE_TRACK_STALE_START_MS = 60_000;
 const DETECTOR_OUTPUT = z.object({
   vocalsUrl: z.string().min(1),
   pitchCurveUrl: z.string().min(1),
@@ -57,10 +63,11 @@ export class PrivateTrackProcessingService {
   }
 
   async reconcileQueuedTracks(): Promise<void> {
-    const queued = await this.tracks.listQueued(
+    const recoverable = await this.tracks.listRecoverable(
       MAX_QUEUED_TRACKS_PER_RECONCILIATION,
+      new Date(Date.now() - PRIVATE_TRACK_STALE_START_MS),
     );
-    for (const track of queued) await this.enqueue(track.userId, track.id);
+    for (const track of recoverable) await this.enqueue(track.userId, track.id);
   }
 
   async process(rawJob: unknown): Promise<void> {
@@ -70,16 +77,19 @@ export class PrivateTrackProcessingService {
     const musicKey = await this.ensureMusicWav(track);
     if (musicKey === null) return;
     const runpodJobId = track.processingJobId;
+    const attemptId = track.processingAttemptId;
     if (runpodJobId === null) {
-      await this.startDetection(
-        track.userId,
-        track.id,
-        musicKey,
-        track.processingAttemptId,
-      );
+      await this.startDetection(track.userId, track.id, musicKey, attemptId);
       return;
     }
-    await this.pollDetection(track.id, runpodJobId, job.poll);
+    if (
+      job.poll > 0 &&
+      (job.attemptId === undefined || job.attemptId !== attemptId)
+    ) {
+      return;
+    }
+    if (!attemptId) return;
+    await this.pollDetection(track.id, attemptId, runpodJobId, job.poll);
   }
 
   async cleanAssets(rawJob: unknown): Promise<void> {
@@ -91,11 +101,11 @@ export class PrivateTrackProcessingService {
     }
   }
 
-  async markFailed(privateTrackId: string): Promise<void> {
-    await this.tracks.updateProcessing(privateTrackId, {
-      processingStatus: 'FAILED',
-      processingProgress: 0,
-    });
+  async markFailed(
+    privateTrackId: string,
+    attemptId: string | null,
+  ): Promise<void> {
+    await this.tracks.markFailedForAttempt(privateTrackId, attemptId);
   }
 
   private async ensureMusicWav(
@@ -116,17 +126,13 @@ export class PrivateTrackProcessingService {
         sourcePath,
         wavPath,
       );
-      const key = mediaKey(track.userId, track.id);
+      const key = privateTrackMediaKey(track.userId, track.id);
       await this.integrations.storage.putPrivateFile({
         key,
         filePath: wavPath,
         contentType: 'audio/wav',
       });
-      const saved = await this.tracks.updateProcessing(track.id, {
-        mediaObjectKey: key,
-        processingStatus: 'EXTRACTING_VOCALS',
-        processingProgress: 5,
-      });
+      const saved = await this.tracks.saveMusicMedia(track.id, key);
       return saved ? key : null;
     } finally {
       await rm(directory, { recursive: true, force: true });
@@ -139,26 +145,26 @@ export class PrivateTrackProcessingService {
     musicKey: string,
     existingAttemptId: string | null,
   ): Promise<void> {
-    const attemptId = existingAttemptId ?? randomUUID();
-    if (existingAttemptId === null) {
-      const recorded = await this.tracks.updateProcessing(privateTrackId, {
-        processingAttemptId: attemptId,
-      });
-      if (!recorded) return;
-    }
+    const attemptId = randomUUID();
+    const claimed = await this.tracks.claimProcessingAttempt(
+      privateTrackId,
+      existingAttemptId,
+      attemptId,
+    );
+    if (!claimed) return;
     const input = await this.integrations.detectorInput(
       userId,
       privateTrackId,
       musicKey,
       attemptId,
     );
-    const vocalsKey = stagingKey(
+    const vocalsKey = privateTrackStagingKey(
       userId,
       privateTrackId,
       attemptId,
       'vocals.wav',
     );
-    const pitchCurveKey = stagingKey(
+    const pitchCurveKey = privateTrackStagingKey(
       userId,
       privateTrackId,
       attemptId,
@@ -166,63 +172,78 @@ export class PrivateTrackProcessingService {
     );
     await this.scheduleAssetCleanup(privateTrackId, [vocalsKey, pitchCurveKey]);
     const jobId = await this.integrations.detector.startJob(input);
-    await this.tracks.updateProcessing(privateTrackId, {
-      processingJobId: jobId,
-      processingStatus: 'EXTRACTING_VOCALS',
-      processingProgress: 10,
-    });
-    await this.enqueuePoll(userId, privateTrackId, 1);
+    const saved = await this.tracks.saveProcessingJob(
+      privateTrackId,
+      attemptId,
+      jobId,
+    );
+    if (!saved) return;
+    await this.enqueuePoll(userId, privateTrackId, attemptId, 1);
   }
 
   private async pollDetection(
     privateTrackId: string,
+    attemptId: string,
     runpodJobId: string,
     poll: number,
   ): Promise<void> {
     const state = await this.integrations.detector.checkJob(runpodJobId);
     if (state.kind === 'failed') {
-      await this.tracks.updateProcessing(privateTrackId, {
-        processingStatus: 'FAILED',
-        processingProgress: 0,
-      });
+      await this.tracks.updateProcessingAttempt(
+        privateTrackId,
+        attemptId,
+        runpodJobId,
+        { processingStatus: 'FAILED', processingProgress: 0 },
+      );
       return;
     }
     if (state.kind === 'completed') {
-      await this.saveOutput(privateTrackId, state);
+      await this.saveOutput(privateTrackId, attemptId, runpodJobId, state);
       return;
     }
     if (poll >= MAX_NOTE_POLL_ROUNDS) {
-      await this.tracks.updateProcessing(privateTrackId, {
-        processingStatus: 'FAILED',
-        processingProgress: 0,
-      });
+      await this.tracks.updateProcessingAttempt(
+        privateTrackId,
+        attemptId,
+        runpodJobId,
+        { processingStatus: 'FAILED', processingProgress: 0 },
+      );
       return;
     }
     const progress = state.stage === 'DETECTING_NOTES' ? 70 : 35;
-    await this.tracks.updateProcessing(privateTrackId, {
-      processingStatus: state.stage ?? 'EXTRACTING_VOCALS',
-      processingProgress: progress,
-    });
+    const updated = await this.tracks.updateProcessingAttempt(
+      privateTrackId,
+      attemptId,
+      runpodJobId,
+      {
+        processingStatus: state.stage ?? 'EXTRACTING_VOCALS',
+        processingProgress: progress,
+      },
+    );
+    if (!updated) return;
     const track = await this.tracks.findById(privateTrackId);
-    if (track) await this.enqueuePoll(track.userId, privateTrackId, poll + 1);
+    if (track && track.processingAttemptId === attemptId) {
+      await this.enqueuePoll(track.userId, privateTrackId, attemptId, poll + 1);
+    }
   }
 
+  @Transactional()
   private async saveOutput(
     privateTrackId: string,
+    attemptId: string,
+    runpodJobId: string,
     state: Extract<RunpodJobState, { kind: 'completed' }>,
   ): Promise<void> {
     const output = DETECTOR_OUTPUT.parse(state.output);
     const track = await this.tracks.findById(privateTrackId);
     if (!track) return;
-    const attemptId = track.processingAttemptId;
-    if (attemptId === null) return;
-    const vocalsKey = stagingKey(
+    const vocalsKey = privateTrackStagingKey(
       track.userId,
       track.id,
       attemptId,
       'vocals.wav',
     );
-    const pitchCurveKey = stagingKey(
+    const pitchCurveKey = privateTrackStagingKey(
       track.userId,
       track.id,
       attemptId,
@@ -236,33 +257,38 @@ export class PrivateTrackProcessingService {
     ) {
       throw new Error('The note detector returned unexpected private assets');
     }
-    const stored = await this.tracks.replaceNotes(track.id, output.notes);
+    const stored = await this.tracks.replaceNotes({
+      privateTrackId: track.id,
+      attemptId,
+      jobId: runpodJobId,
+      notes: output.notes,
+      processingValues: {
+        processingStatus: 'COMPLETED',
+        processingProgress: 100,
+        vocalsObjectKey: vocalsKey,
+        pitchCurveObjectKey: pitchCurveKey,
+        detectorVersion: output.detectorVersion,
+      },
+    });
     if (!stored) {
       await this.scheduleAssetCleanup(track.id, [vocalsKey, pitchCurveKey]);
       return;
     }
-    const committed = await this.tracks.updateProcessing(track.id, {
-      processingStatus: 'COMPLETED',
-      processingProgress: 100,
-      vocalsObjectKey: vocalsKey,
-      pitchCurveObjectKey: pitchCurveKey,
-      detectorVersion: output.detectorVersion,
-    });
-    if (!committed) {
+    if (!stored)
       await this.scheduleAssetCleanup(track.id, [vocalsKey, pitchCurveKey]);
-    }
   }
 
   private async enqueuePoll(
     userId: string,
     privateTrackId: string,
+    attemptId: string,
     poll: number,
   ): Promise<void> {
     await this.queue.add(
       PROCESS_PRIVATE_TRACK_JOB,
-      { userId, privateTrackId, poll },
+      { userId, privateTrackId, attemptId, poll },
       {
-        jobId: privateTrackPollingJobId(privateTrackId, poll),
+        jobId: privateTrackPollingJobId(privateTrackId, attemptId, poll),
         delay: NOTE_POLL_INTERVAL_MS,
       },
     );
@@ -285,17 +311,4 @@ export class PrivateTrackProcessingService {
 
 function isTerminal(status: string): boolean {
   return status === 'COMPLETED' || status === 'FAILED';
-}
-
-function mediaKey(userId: string, privateTrackId: string): string {
-  return `private-tracks/${userId}/${privateTrackId}/media/music.wav`;
-}
-
-function stagingKey(
-  userId: string,
-  privateTrackId: string,
-  attemptId: string,
-  filename: string,
-): string {
-  return `private-tracks/${userId}/${privateTrackId}/staging/${attemptId}/${filename}`;
 }

@@ -22,8 +22,9 @@ export function usePrivateTrackDetail(
   trackId: string,
   initial: PrivateTrackDetail | undefined,
 ) {
+  const queryKey = privateTrackKeys.detail(userId, trackId);
   return useQuery({
-    queryKey: privateTrackKeys.detail(userId, trackId),
+    queryKey,
     queryFn: () =>
       browserApi(`/me/private-tracks/${encodeURIComponent(trackId)}`, {
         schema: privateTrackDetailSchema,
@@ -31,6 +32,7 @@ export function usePrivateTrackDetail(
     ...(initial === undefined ? {} : { initialData: initial }),
     // Membership can expire after processing ends, so keep the private
     // owner-scoped authorization state fresh for the active detail page.
+    refetchOnWindowFocus: 'always',
     refetchInterval: (query) =>
       query.state.data?.processing.status === 'COMPLETED' ||
       query.state.data?.processing.status === 'FAILED'
