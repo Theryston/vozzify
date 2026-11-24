@@ -23,7 +23,7 @@ export async function setPrivateTrackMock(
   }
 }
 
-export async function setPrivateTrackMockFromRequest(
+async function setPrivateTrackMockFromRequest(
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
@@ -36,7 +36,7 @@ export async function setPrivateTrackMockFromRequest(
   json(response, 200, { ok: true }, request);
 }
 
-export function servePrivateTrack(
+function servePrivateTrack(
   id: string,
   request: IncomingMessage,
   response: ServerResponse,

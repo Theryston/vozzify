@@ -64,6 +64,7 @@ describe('S3PrivateObjects', () => {
     send
       .mockResolvedValueOnce({
         Contents: [{ Key: 'private-track/one' }],
+        IsTruncated: true,
         NextContinuationToken: 'next',
       })
       .mockResolvedValueOnce({ Contents: [] });
