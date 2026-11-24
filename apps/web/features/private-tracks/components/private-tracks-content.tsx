@@ -7,7 +7,6 @@ import type { FormEvent, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import type { SessionUser } from '@/features/auth/session';
 import { ApiError } from '@/lib/api/api-error';
 import { useRouter } from '@/lib/i18n/navigation';
 
@@ -16,11 +15,17 @@ import {
   useSubmitPrivateTrack,
 } from '../hooks/use-private-tracks';
 
+type AccountUser = {
+  id?: string;
+  username: string | null;
+  emailVerified: boolean;
+};
+
 export function PrivateTracksContent({
   user,
   loading,
 }: {
-  user: SessionUser | null;
+  user: AccountUser | null;
   loading: boolean;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -97,7 +102,7 @@ function usePrivateTracksPageEffects({
   setPaywallOpen,
 }: {
   loading: boolean;
-  user: SessionUser | null;
+  user: AccountUser | null;
   tracks: { canSubmit: boolean; items: unknown[] }[] | undefined;
   setPaywallOpen: (open: boolean) => void;
 }) {
