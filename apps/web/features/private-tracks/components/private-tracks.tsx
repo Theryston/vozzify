@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import type { FormEvent, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -305,13 +305,13 @@ function ProDialog({
           <DialogTitle>{t('proTitle')}</DialogTitle>
           <DialogDescription>{t('proDescription')}</DialogDescription>
         </DialogHeader>
-        <Button
-          nativeButton={false}
-          render={<Link href="/plans" />}
+        <Link
+          className={buttonVariants()}
+          href="/plans"
           onClick={() => onPaywallOpenChange(false)}
         >
           {t('viewPlans')}
-        </Button>
+        </Link>
       </DialogContent>
     </Dialog>
   );

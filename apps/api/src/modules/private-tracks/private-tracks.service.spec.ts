@@ -131,29 +131,4 @@ describe('PrivateTracksService', () => {
       }),
     );
   });
-
-  it('repairs a UTF-8 filename decoded as Latin-1 by multipart tooling', async () => {
-    subscriptions.hasPaidMembership.mockResolvedValue(true);
-    audio.inspect.mockResolvedValue({
-      durationMs: 1000,
-      title: '',
-      artist: '',
-    });
-    audio.hash.mockResolvedValue('ef56');
-    storage.putPrivateFile.mockResolvedValue(undefined);
-    repository.save.mockResolvedValue({
-      id: 'entry-3',
-      title: 'Canção de João.m4a',
-      artist: '',
-      durationMs: 1000,
-      createdAt: new Date('2026-01-02T03:04:05.000Z'),
-    });
-    await service.submit('u1', {
-      path: '/tmp/upload',
-      originalname: 'CanÃ§Ã£o de JoÃ£o.m4a',
-    });
-    expect(repository.save).toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'Canção de João.m4a' }),
-    );
-  });
 });

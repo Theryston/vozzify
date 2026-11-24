@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
+import { createWriteStream, openAsBlob } from 'node:fs';
 import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,12 +14,13 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { PRIVATE_AUDIO_MAX_BYTES } from '@vozzify/contracts';
 import type { Request } from 'express';
-import type { Observable } from 'rxjs';
+import { finalize, type Observable } from 'rxjs';
 import { invalidPrivateAudio } from './private-audio.js';
 
 type UploadRequest = Request & {
+  body: Record<string, unknown>;
   privateAudioDirectory?: string;
-  file?: { path: string; originalname: string; size: number };
+  file?: { path: string; originalname: string; mimetype: string };
 };
 type UploadFileStream = {
   fieldname: string;
@@ -75,6 +76,7 @@ const fileStorage = {
 export class PrivateAudioUploadInterceptor extends FileInterceptor('audio', {
   storage: fileStorage,
   limits: { files: 1, fields: 0, fileSize: PRIVATE_AUDIO_MAX_BYTES },
+  defParamCharset: 'utf8',
 }) {
   override async intercept(
     context: ExecutionContext,
@@ -84,7 +86,20 @@ export class PrivateAudioUploadInterceptor extends FileInterceptor('audio', {
     const directory = await mkdtemp(join(tmpdir(), 'vozzify-private-audio-'));
     request.privateAudioDirectory = directory;
     try {
-      return await super.intercept(context, next);
+      const handler = await super.intercept(context, next);
+      const upload = request.file;
+      if (upload) {
+        const blob = await openAsBlob(upload.path, { type: upload.mimetype });
+        request.body ??= {};
+        request.body.audio = new File([blob], upload.originalname, {
+          type: upload.mimetype,
+        });
+      }
+      return handler.pipe(
+        finalize(() => {
+          void removePrivateAudioUpload(directory).catch(() => undefined);
+        }),
+      );
     } catch (error) {
       await rm(directory, { recursive: true, force: true });
       throw error instanceof PayloadTooLargeException
@@ -96,5 +111,5 @@ export class PrivateAudioUploadInterceptor extends FileInterceptor('audio', {
   }
 }
 
-export const removePrivateAudioUpload = (directory: string) =>
+const removePrivateAudioUpload = (directory: string) =>
   rm(directory, { recursive: true, force: true });

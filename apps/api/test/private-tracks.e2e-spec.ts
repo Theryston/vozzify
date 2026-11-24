@@ -8,7 +8,7 @@ import {
   PRIVATE_AUDIO_MAX_DURATION_SECONDS,
   privateTrackSchema,
 } from '@vozzify/contracts';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import request from 'supertest';
 import { loadEnv } from '../src/config/env.js';
 import { privateTracks } from '../src/database/schema/private-tracks.js';
@@ -289,6 +289,59 @@ describe('Private tracks (e2e)', () => {
     );
     expect(second.items.map(({ title }) => title)).toEqual(['Song 2']);
     expect(second.nextCursor).toBeNull();
+  });
+
+  it('preserves pagination order for timestamps within the same millisecond', async () => {
+    const owner = await createPasswordUser(testApp.db);
+    const client = createAuthClient(testApp);
+    await signIn(client, { email: owner.email, password: DEFAULT_PASSWORD });
+    const createdAt = new Date('2026-11-01T00:00:00.123Z');
+    await testApp.db.insert(privateTracks).values([
+      {
+        id: 'tie-b',
+        userId: owner.id,
+        contentSha256: 'tie-b-hash',
+        objectKey: `${owner.id}/tie-b`,
+        originalFilename: 'tie-b.wav',
+        title: 'Tie B',
+        artist: '',
+        durationMs: 1000,
+        createdAt,
+      },
+      {
+        id: 'tie-a',
+        userId: owner.id,
+        contentSha256: 'tie-a-hash',
+        objectKey: `${owner.id}/tie-a`,
+        originalFilename: 'tie-a.wav',
+        title: 'Tie A',
+        artist: '',
+        durationMs: 1000,
+        createdAt,
+      },
+    ]);
+    await testApp.db.execute(sql`
+      UPDATE private_tracks
+      SET created_at = CASE id
+        WHEN 'tie-b' THEN '2026-11-01T00:00:00.123900Z'::timestamptz
+        ELSE '2026-11-01T00:00:00.123500Z'::timestamptz
+      END
+      WHERE id IN ('tie-b', 'tie-a')
+    `);
+
+    const first = myPrivateTracksPageSchema.parse(
+      (await client.get(ROOT).query({ limit: 1 }).expect(200)).body,
+    );
+    const second = myPrivateTracksPageSchema.parse(
+      (
+        await client
+          .get(ROOT)
+          .query({ limit: 1, cursor: first.nextCursor })
+          .expect(200)
+      ).body,
+    );
+    expect(first.items.map(({ id }) => id)).toEqual(['tie-b']);
+    expect(second.items.map(({ id }) => id)).toEqual(['tie-a']);
   });
 
   it('rejects invalid audio content and unsupported multipart fields', async () => {

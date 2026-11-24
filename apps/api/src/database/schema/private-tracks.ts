@@ -1,4 +1,11 @@
-import { index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import {
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+} from 'drizzle-orm/pg-core';
 import { id, timestamps } from '../columns.js';
 import { users } from './users.js';
 
@@ -17,6 +24,9 @@ export const privateTracks = pgTable(
     artist: text().notNull().default(''),
     durationMs: integer().notNull(),
     ...timestamps,
+    createdAt: timestamp({ withTimezone: true, precision: 3 })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
     unique('private_tracks_object_key_unique').on(table.objectKey),

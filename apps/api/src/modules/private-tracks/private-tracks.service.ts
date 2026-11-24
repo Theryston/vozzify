@@ -63,9 +63,7 @@ export class PrivateTracksService {
       this.audio.inspect(file.path),
       this.audio.hash(file.path),
     ]);
-    const filename = basename(
-      decodeMultipartFilename(file.originalname).replaceAll('\\', '/'),
-    );
+    const filename = basename(file.originalname.replaceAll('\\', '/'));
     const title = metadata.title || filename;
     const objectKey = `${userId}/${contentSha256}`;
     await this.storage.putPrivateFile({
@@ -93,12 +91,6 @@ const decodePrivateTrackCursor = (cursor: string) => {
     throw new AppException('VALIDATION_FAILED', 'Invalid cursor');
   }
   return { createdAt: date, id };
-};
-
-const decodeMultipartFilename = (filename: string): string => {
-  const latinBytes = Buffer.from(filename, 'latin1');
-  const decoded = latinBytes.toString('utf8');
-  return Buffer.from(decoded, 'utf8').equals(latinBytes) ? decoded : filename;
 };
 
 const toPrivateTrack = (row: {

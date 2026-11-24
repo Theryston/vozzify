@@ -51,17 +51,16 @@ export function useSubmitPrivateTrack(userId: string) {
         if (!current?.pages[0]) return current;
         return {
           ...current,
-          pages: current.pages.map((page, index) =>
-            index === 0
-              ? {
-                  ...page,
-                  items: [
+          pages: current.pages.map((page, index) => ({
+            ...page,
+            items:
+              index === 0
+                ? [
                     created,
                     ...page.items.filter((track) => track.id !== created.id),
-                  ],
-                }
-              : page,
-          ),
+                  ]
+                : page.items.filter((track) => track.id !== created.id),
+          })),
         };
       });
       await queryClient.invalidateQueries({

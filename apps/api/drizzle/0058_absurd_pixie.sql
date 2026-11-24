@@ -7,7 +7,7 @@ CREATE TABLE "private_tracks" (
 	"title" text NOT NULL,
 	"artist" text DEFAULT '' NOT NULL,
 	"duration_ms" integer NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp (3) with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "private_tracks_objectKey_unique" UNIQUE("object_key"),
 	CONSTRAINT "private_tracks_userId_contentSha256_unique" UNIQUE("user_id","content_sha256")

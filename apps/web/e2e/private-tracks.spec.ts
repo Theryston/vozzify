@@ -17,6 +17,7 @@ const olderTrack = {
 
 async function mockPrivateTracksApi(page: Page, canSubmit: boolean) {
   const entries: (typeof track)[] = [];
+  let loadedOlder = false;
   await page.route('**/v1/me/private-tracks', async (route) => {
     const origin = route.request().headers().origin ?? '*';
     const headers = {
@@ -28,17 +29,19 @@ async function mockPrivateTracksApi(page: Page, canSubmit: boolean) {
       'content-type': 'application/json',
     };
     if (route.request().method() === 'POST') {
-      if (!entries.some((entry) => entry.id === track.id)) {
-        entries.unshift(track);
+      const created = loadedOlder ? olderTrack : track;
+      if (!entries.some((entry) => entry.id === created.id)) {
+        entries.unshift(created);
       }
       await route.fulfill({
         status: 201,
         headers,
-        body: JSON.stringify(track),
+        body: JSON.stringify(created),
       });
       return;
     }
     const cursor = new URL(route.request().url()).searchParams.get('cursor');
+    loadedOlder ||= Boolean(cursor);
     await route.fulfill({
       status: 200,
       headers,
@@ -88,6 +91,14 @@ test('opens My tracks from the account menu and lists a submitted file at once',
   expect(consoleErrors.join('\n')).not.toContain('same key');
   await page.getByRole('button', { name: 'Load more' }).click();
   await expect(page.getByText('Older track')).toBeVisible();
+  await page.getByLabel('Choose an audio file').setInputFiles({
+    name: 'source.wav',
+    mimeType: 'audio/wav',
+    buffer: Buffer.from('audio'),
+  });
+  await page.getByRole('button', { name: 'Add audio' }).click();
+  await expect(page.getByRole('listitem')).toHaveCount(2);
+  expect(consoleErrors.join('\n')).not.toContain('same key');
 });
 
 test('shows the localized Pro modal for a free account with no private tracks', async ({
