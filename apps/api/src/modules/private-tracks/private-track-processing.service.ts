@@ -97,7 +97,11 @@ export class PrivateTrackProcessingService {
       return;
     }
     if (!attemptId) return;
-    await this.pollDetection(track.id, attemptId, runpodJobId, job.poll);
+    try {
+      await this.pollDetection(track.id, attemptId, runpodJobId, job.poll);
+    } catch (error) {
+      throw new PrivateTrackProcessingAttemptError(attemptId, error);
+    }
   }
 
   async cleanAssets(rawJob: unknown): Promise<void> {

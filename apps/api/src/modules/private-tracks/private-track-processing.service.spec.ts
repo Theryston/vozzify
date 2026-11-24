@@ -3,6 +3,7 @@ import type {
   CleanPrivateTrackAssetsJob,
   ProcessPrivateTrackJob,
 } from './private-track-processing.job.js';
+import { PrivateTrackProcessingProcessor } from './private-track-processing.processor.js';
 import { PrivateTrackProcessingService } from './private-track-processing.service.js';
 import type { PrivateTrackProcessingIntegrations } from './private-track-processing-integrations.js';
 import { PrivateTracksRepository } from './private-tracks.repository.js';
@@ -92,5 +93,49 @@ describe('private track processing reconciliation scheduler', () => {
     await processor.process(job);
 
     expect(processing.reconcileQueuedTracks).toHaveBeenCalledOnce();
+  });
+});
+
+describe('private track initial poll recovery', () => {
+  it('marks the saved attempt failed when resuming an initial job cannot poll', async () => {
+    const attemptId = 'attempt-1';
+    const tracks = {
+      findOwned: vi.fn().mockResolvedValue({
+        id: 'track-1',
+        userId: 'owner-1',
+        objectKey: 'private/source',
+        mediaObjectKey: 'private/music.wav',
+        processingStatus: 'EXTRACTING_VOCALS',
+        processingAttemptId: attemptId,
+        processingJobId: 'runpod-job-1',
+      }),
+      markFailedForAttempt: vi.fn().mockResolvedValue(undefined),
+    };
+    const integrations = {
+      detector: {
+        checkJob: vi.fn().mockRejectedValue(new Error('poll enqueue failed')),
+      },
+    };
+    const processing = new PrivateTrackProcessingService(
+      { add: vi.fn() } as never,
+      tracks as unknown as PrivateTracksRepository,
+      integrations as unknown as PrivateTrackProcessingIntegrations,
+    );
+    const processor = new PrivateTrackProcessingProcessor(processing, {
+      upsertJobScheduler: vi.fn(),
+    } as never);
+    const job = {
+      name: 'process-private-track',
+      data: { userId: 'owner-1', privateTrackId: 'track-1', poll: 0 },
+      attemptsMade: 0,
+      opts: { attempts: 1 },
+    } as never;
+
+    await expect(processor.process(job)).rejects.toThrow('poll enqueue failed');
+
+    expect(tracks.markFailedForAttempt).toHaveBeenCalledWith(
+      'track-1',
+      attemptId,
+    );
   });
 });
