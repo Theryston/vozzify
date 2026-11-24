@@ -60,7 +60,7 @@ describe('PrivateTracksService', () => {
     expect(storage.putPrivateFile).not.toHaveBeenCalled();
   });
 
-  it('stores a tagged source under an owner- and entry-scoped key', async () => {
+  it('stores a tagged source under an owner-scoped content hash', async () => {
     subscriptions.hasPaidMembership.mockResolvedValue(true);
     audio.inspect.mockResolvedValue({
       durationMs: 12_000,
