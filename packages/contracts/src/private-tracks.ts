@@ -27,9 +27,3 @@ export const createPrivateTrackBodySchema = z.strictObject({
 export type CreatePrivateTrackBody = z.infer<
   typeof createPrivateTrackBodySchema
 >;
-
-export const privateAudioSizeSchema = z
-  .number()
-  .int()
-  .min(1)
-  .max(PRIVATE_AUDIO_MAX_BYTES);
