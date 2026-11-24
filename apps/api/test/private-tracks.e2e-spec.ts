@@ -91,6 +91,14 @@ describe('Private tracks (e2e)', () => {
     });
   };
 
+  const createProClient = async () => {
+    const owner = await createPasswordUser(testApp.db);
+    await grantPro(owner.id);
+    const client = createAuthClient(testApp);
+    await signIn(client, { email: owner.email, password: DEFAULT_PASSWORD });
+    return client;
+  };
+
   it('requires a session and a Pro membership to submit audio', async () => {
     await request(testApp.app.getHttpServer()).get(ROOT).expect(401);
     const user = await createPasswordUser(testApp.db);
@@ -194,15 +202,11 @@ describe('Private tracks (e2e)', () => {
       .expect(404);
   });
 
-  it('accepts exact byte and duration limits and rejects values above them', async () => {
-    const owner = await createPasswordUser(testApp.db);
-    await grantPro(owner.id);
-    const client = createAuthClient(testApp);
-    await signIn(client, { email: owner.email, password: DEFAULT_PASSWORD });
+  // This real endpoint check sends a 250 MiB fixture through Supertest.
+  it('accepts exact byte limit and rejects uploads above it', async () => {
+    const client = await createProClient();
     const directory = await mkdtemp(join(tmpdir(), 'private-audio-limits-'));
     const maxBytesPath = join(directory, 'max-size.wav');
-    const durationPath = join(directory, 'max-duration.wav');
-    const longDurationPath = join(directory, 'over-duration.wav');
     const oversizedPath = join(directory, 'over-size.wav');
     try {
       await createSparsePcmWav(
@@ -211,6 +215,26 @@ describe('Private tracks (e2e)', () => {
         44_100,
         2,
       );
+      await createSparsePcmWav(
+        oversizedPath,
+        PRIVATE_AUDIO_MAX_BYTES + 4,
+        44_100,
+        2,
+      );
+
+      await client.post(ROOT).attach('audio', maxBytesPath).expect(201);
+      await client.post(ROOT).attach('audio', oversizedPath).expect(400);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('accepts exact duration limit and rejects audio above it', async () => {
+    const client = await createProClient();
+    const directory = await mkdtemp(join(tmpdir(), 'private-audio-duration-'));
+    const durationPath = join(directory, 'max-duration.wav');
+    const longDurationPath = join(directory, 'over-duration.wav');
+    try {
       await createSparsePcmWav(
         durationPath,
         44 + 16_000 * 2 * PRIVATE_AUDIO_MAX_DURATION_SECONDS,
@@ -223,21 +247,12 @@ describe('Private tracks (e2e)', () => {
         16_000,
         1,
       );
-      await createSparsePcmWav(
-        oversizedPath,
-        PRIVATE_AUDIO_MAX_BYTES + 4,
-        44_100,
-        2,
-      );
-
-      await client.post(ROOT).attach('audio', maxBytesPath).expect(201);
       await client.post(ROOT).attach('audio', durationPath).expect(201);
       await client.post(ROOT).attach('audio', longDurationPath).expect(400);
-      await client.post(ROOT).attach('audio', oversizedPath).expect(400);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
-  });
+  }, 60_000);
 
   it('measures duration when a browser WebM has no container duration and decodes its filename', async () => {
     const owner = await createPasswordUser(testApp.db);
