@@ -747,7 +747,7 @@ downtime and with a single human step (issue #69):
 
 1. **CI proposes the upgrade.** A scheduled workflow
    (`.github/workflows/music-catalog-mbslave-bump.yml`) watches mbslave
-   releases and opens a PR bumping the pinned `MBSLAVE_REF` in
+   releases and opens a PR against `main` bumping the pinned `MBSLAVE_REF` in
    `mbslave.Dockerfile`, `.env.example` and
    `test/setup/musicbrainz-schema.ts`. The music-catalog e2e suite runs on
    that PR against the new schema.
