@@ -426,7 +426,23 @@
     "proTitle": "Private audio is a Pro feature",
     "proDescription": "Upgrade to Pro to add audio files to your private library.",
     "viewPlans": "View plans",
-    "close": "Close"
+    "close": "Close",
+    "detail": {
+      "privateBadge": "Private · only you",
+      "loading": "Loading this private track…",
+      "loadError": "This private track could not be loaded.",
+      "lockedTitle": "This private track is locked",
+      "lockedDescription": "Reactivate Pro to play this recording and practice with its notes.",
+      "reactivate": "Reactivate Pro",
+      "processingLabel": "Processing progress",
+      "processing": {
+        "QUEUED": "Queued for processing",
+        "EXTRACTING_VOCALS": "Separating vocals",
+        "DETECTING_NOTES": "Detecting notes",
+        "COMPLETED": "Ready to practice",
+        "FAILED": "Processing failed"
+      }
+    }
   },
   "terms": {
     "metaTitle": "Terms and Conditions",

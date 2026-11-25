@@ -1895,6 +1895,89 @@
         ]
       }
     },
+    "/v1/me/private-tracks/{id}": {
+      "get": {
+        "operationId": "PrivateTracksController_detail_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The signed-in owner's private Track detail."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "404": {
+            "description": "The private Track does not exist."
+          }
+        },
+        "tags": [
+          "private tracks"
+        ]
+      }
+    },
+    "/v1/me/private-tracks/{id}/media/{kind}": {
+      "get": {
+        "operationId": "PrivateTrackMediaController_audio_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "kind",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "enum": [
+                "music",
+                "vocals"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A private audio byte range."
+          },
+          "206": {
+            "description": "A partial private audio response."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "403": {
+            "description": "An active Pro membership is required."
+          },
+          "404": {
+            "description": "The private Track does not exist."
+          },
+          "416": {
+            "description": "The byte range is not satisfiable."
+          }
+        },
+        "tags": [
+          "private tracks"
+        ]
+      }
+    },
     "/v1/albums/{id}": {
       "get": {
         "operationId": "AlbumsController_getAlbum_v1",

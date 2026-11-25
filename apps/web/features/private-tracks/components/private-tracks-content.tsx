@@ -1,6 +1,7 @@
 'use client';
 
 import { createPrivateTrackBodySchema } from '@vozzify/contracts';
+import { LockKeyhole } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import type { FormEvent, RefObject } from 'react';
@@ -8,7 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { ApiError } from '@/lib/api/api-error';
-import { useRouter } from '@/lib/i18n/navigation';
+import { Link, useRouter } from '@/lib/i18n/navigation';
 
 import {
   usePrivateTracks,
@@ -259,7 +260,13 @@ function PrivateTrackRows({
               key={track.id}
               className="flex min-h-16 flex-col justify-center py-3"
             >
-              <span className="font-semibold">{track.title}</span>
+              <Link
+                href={`/tracks/${encodeURIComponent(track.id)}`}
+                className="inline-flex w-fit items-center gap-2 font-semibold hover:underline"
+              >
+                <LockKeyhole aria-hidden="true" className="size-4" />
+                {track.title}
+              </Link>
               {track.artist ? (
                 <span className="text-muted-foreground text-sm">
                   {track.artist}

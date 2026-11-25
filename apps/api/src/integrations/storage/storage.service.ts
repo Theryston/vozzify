@@ -1,3 +1,5 @@
+import type { Readable } from 'node:stream';
+
 export type PublicObject = {
   /** Where the object lives inside the bucket, e.g. `avatars/{userId}.webp`. */
   key: string;
@@ -16,6 +18,10 @@ export type PresignedPut = {
   contentType: string;
   expiresInSeconds: number;
 };
+
+export type PresignedPrivatePut = PresignedPut;
+export type PresignedPrivateGet = { key: string; expiresInSeconds: number };
+export type PrivateObjectMetadata = { size: number };
 
 /**
  * A storage backend failed. The SDK's own error is the `cause`, so callers
@@ -44,8 +50,23 @@ export abstract class StorageService {
   /** Stream an object into the private bucket without a public ACL. */
   abstract putPrivateFile(file: PrivateFile): Promise<void>;
 
+  /** Delete one object from the private bucket. */
+  abstract deletePrivateObject(key: string): Promise<void>;
+
+  /** Delete every object beneath a private bucket prefix. */
+  abstract deletePrivateObjectsWithPrefix(prefix: string): Promise<void>;
+
   /** Download a private object to a caller-owned file without buffering it. */
   abstract downloadPrivateFile(key: string, filePath: string): Promise<void>;
+
+  /** Read private object metadata before validating a client byte range. */
+  abstract headPrivateObject(key: string): Promise<PrivateObjectMetadata>;
+
+  /** Stream a private object, asking S3 for only the requested byte range. */
+  abstract getPrivateObject(
+    key: string,
+    range: string | undefined,
+  ): Promise<Readable>;
 
   /**
    * Whether an object is stored under this key. A key that is not there is
@@ -64,6 +85,15 @@ export abstract class StorageService {
    * @throws {StorageError} when the URL could not be signed.
    */
   abstract presignPublicPut(put: PresignedPut): Promise<string>;
+
+  /** Sign a private upload for a service such as the note detector. */
+  abstract presignPrivatePut(put: PresignedPrivatePut): Promise<string>;
+
+  /** Sign a short lived private download for a trusted processing service. */
+  abstract presignPrivateGet(get: PresignedPrivateGet): Promise<string>;
+
+  /** Stable opaque locator returned by a worker for a private object. */
+  abstract privateObjectUrl(key: string): string;
 
   /**
    * The bytes of an object stored with `putPublicObject`, read back from its

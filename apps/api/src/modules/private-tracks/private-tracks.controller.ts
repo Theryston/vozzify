@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Header,
+  Param,
   Post,
   Query,
   Req,
@@ -12,6 +13,7 @@ import {
   ApiBody,
   ApiConsumes,
   ApiCreatedResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -23,6 +25,9 @@ import {
   myPrivateTracksPageSchema,
   myPrivateTracksQuerySchema,
   type PrivateTrack,
+  type PrivateTrackDetail,
+  privateTrackDetailSchema,
+  privateTrackIdParamsSchema,
   privateTrackSchema,
 } from '@vozzify/contracts';
 import type { Request } from 'express';
@@ -31,6 +36,7 @@ import { createZodDto } from '../../common/zod/create-zod-dto.js';
 import { ZodSerializerDto } from '../../common/zod/zod-serializer.interceptor.js';
 import type { AuthUser } from '../auth/auth.js';
 import { PrivateAudioUploadInterceptor } from './private-audio-upload.interceptor.js';
+import { PrivateTrackWorkflowService } from './private-track-workflow.service.js';
 import { PrivateTracksService } from './private-tracks.service.js';
 
 type RequestWithUpload = Request & {
@@ -42,11 +48,15 @@ class ListPrivateTracksQueryDto extends createZodDto(
 class CreatePrivateTrackBodyDto extends createZodDto(
   createPrivateTrackBodySchema,
 ) {}
+class PrivateTrackIdParamDto extends createZodDto(privateTrackIdParamsSchema) {}
 
 @ApiTags('private tracks')
 @Controller('me/private-tracks')
 export class PrivateTracksController {
-  constructor(private readonly privateTracks: PrivateTracksService) {}
+  constructor(
+    private readonly privateTracks: PrivateTracksService,
+    private readonly workflow: PrivateTrackWorkflowService,
+  ) {}
 
   @Get()
   @Header('Cache-Control', 'private, no-store')
@@ -58,6 +68,19 @@ export class PrivateTracksController {
     @Query() query: ListPrivateTracksQueryDto,
   ): Promise<MyPrivateTracksPage> {
     return this.privateTracks.listPage(user.id, query);
+  }
+
+  @Get(':id')
+  @Header('Cache-Control', 'private, no-store')
+  @ZodSerializerDto(privateTrackDetailSchema)
+  @ApiOkResponse({ description: "The signed-in owner's private Track detail." })
+  @ApiNotFoundResponse({ description: 'The private Track does not exist.' })
+  @ApiUnauthorizedResponse({ description: 'No valid session.' })
+  detail(
+    @CurrentUser() user: AuthUser,
+    @Param() params: PrivateTrackIdParamDto,
+  ): Promise<PrivateTrackDetail> {
+    return this.privateTracks.getDetail(user.id, params.id);
   }
 
   @Post()
@@ -76,7 +99,7 @@ export class PrivateTracksController {
     const file = request.file;
     if (!file) throw new Error('Validated audio file is unavailable');
     const audio: CreatePrivateTrackBody['audio'] = body.audio;
-    return await this.privateTracks.submit(user.id, {
+    return this.workflow.submit(user.id, {
       path: file.path,
       originalname: audio.name,
     });

@@ -50,6 +50,19 @@ async function checkCatalogRoute(
     );
   }
   if (verdict.kind === 'missing') {
+    if (route.collection === 'tracks') {
+      const privateVerdict = await checkOwnedPrivateTrack(
+        apiUrl,
+        route.id,
+        request.headers.get('cookie'),
+      );
+      if (privateVerdict === 'found') {
+        const response = NextResponse.next();
+        response.headers.set('Cache-Control', 'private, no-store');
+        return response;
+      }
+      if (privateVerdict === 'unavailable') return undefined;
+    }
     const clickId = clickIdSchema.safeParse(
       request.nextUrl.searchParams.get('clickId'),
     );
@@ -69,6 +82,35 @@ async function checkCatalogRoute(
     );
   }
   return undefined;
+}
+
+async function checkOwnedPrivateTrack(
+  apiUrl: string,
+  trackId: string,
+  cookie: string | null,
+): Promise<'found' | 'missing' | 'unavailable'> {
+  if (!cookie) return 'missing';
+  try {
+    const response = await fetch(
+      `${apiUrl.replace(/\/+$/, '')}/v1/me/private-tracks/${encodeURIComponent(trackId)}`,
+      {
+        headers: { cookie },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(3_000),
+      },
+    );
+    if (response.status === 200) return 'found';
+    if (
+      response.status === 401 ||
+      response.status === 403 ||
+      response.status === 404
+    ) {
+      return 'missing';
+    }
+    return 'unavailable';
+  } catch {
+    return 'unavailable';
+  }
 }
 
 /**

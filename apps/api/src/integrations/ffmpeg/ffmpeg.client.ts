@@ -41,6 +41,7 @@ const CONVERSION_TIMEOUT_MS = 2 * 60_000;
 // The end of ffmpeg's log is where its error is.
 const STDERR_TAIL_CHARS = 2_000;
 const MAX_WAV_BYTES = 256 * 1024 * 1024;
+const MAX_PRIVATE_WAV_BYTES = 320 * 1024 * 1024;
 
 @Injectable()
 export class FfmpegClient {
@@ -56,20 +57,76 @@ export class FfmpegClient {
    * The caller owns both temporary paths and removes them after uploading.
    */
   async convertAudioFileToWav(input: string, output: string): Promise<void> {
-    await this.run([
+    await this.convertAudioFileToWavWithLimit(input, output, MAX_WAV_BYTES);
+  }
+
+  /** Keep both channels of private recordings while allowing a 30-minute WAV. */
+  async convertPrivateAudioFileToWav(
+    input: string,
+    output: string,
+  ): Promise<void> {
+    const file = await open(input, 'r');
+    try {
+      await this.run(
+        [
+          '-y',
+          '-v',
+          'error',
+          '-protocol_whitelist',
+          'file',
+          '-format_whitelist',
+          PRIVATE_AUDIO_FORMAT_WHITELIST,
+          '-i',
+          '/proc/self/fd/3',
+          '-map',
+          '0:a:0',
+          '-vn',
+          '-sn',
+          '-dn',
+          '-threads',
+          '1',
+          '-acodec',
+          'pcm_s16le',
+          '-ac',
+          '2',
+          '-ar',
+          '44100',
+          '-fs',
+          String(MAX_PRIVATE_WAV_BYTES + 1),
+          output,
+        ],
+        file.fd,
+      );
+      if ((await stat(output)).size > MAX_PRIVATE_WAV_BYTES) {
+        throw new Error('The WAV is larger than the accepted size');
+      }
+    } finally {
+      await file.close();
+    }
+  }
+
+  private async convertAudioFileToWavWithLimit(
+    input: string,
+    output: string,
+    maxBytes: number,
+    channels?: number,
+  ): Promise<void> {
+    const args = [
       '-y',
       '-i',
       input,
       '-vn',
       '-acodec',
       'pcm_s16le',
+      ...(channels === undefined ? [] : ['-ac', String(channels)]),
       '-ar',
       '44100',
       '-fs',
-      String(MAX_WAV_BYTES + 1),
+      String(maxBytes + 1),
       output,
-    ]);
-    if ((await stat(output)).size > MAX_WAV_BYTES) {
+    ];
+    await this.run(args);
+    if ((await stat(output)).size > maxBytes) {
       throw new Error('The WAV is larger than the accepted size');
     }
   }

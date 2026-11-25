@@ -426,7 +426,23 @@
     "proTitle": "Áudio privado é um recurso Pro",
     "proDescription": "Assine o Pro para adicionar arquivos à sua biblioteca privada.",
     "viewPlans": "Ver planos",
-    "close": "Fechar"
+    "close": "Fechar",
+    "detail": {
+      "privateBadge": "Privada · só você",
+      "loading": "Carregando esta faixa privada…",
+      "loadError": "Não foi possível carregar esta faixa privada.",
+      "lockedTitle": "Esta faixa privada está bloqueada",
+      "lockedDescription": "Reative o Pro para ouvir esta gravação e praticar com as notas.",
+      "reactivate": "Reativar o Pro",
+      "processingLabel": "Progresso do processamento",
+      "processing": {
+        "QUEUED": "Na fila de processamento",
+        "EXTRACTING_VOCALS": "Separando os vocais",
+        "DETECTING_NOTES": "Detectando as notas",
+        "COMPLETED": "Pronta para praticar",
+        "FAILED": "O processamento falhou"
+      }
+    }
   },
   "terms": {
     "metaTitle": "Termos e Condições",

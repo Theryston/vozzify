@@ -110,7 +110,7 @@ export function PracticeDock({
   expectDirectAudio?: boolean;
   controller: PlaybackController | null;
   hostRef: RefObject<HTMLDivElement | null>;
-  videoId: string;
+  videoId: string | null;
   trackKey: TrackKey | undefined;
   trackTitle: string;
   artistText: string;
