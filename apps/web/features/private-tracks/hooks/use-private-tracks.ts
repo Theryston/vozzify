@@ -14,6 +14,7 @@ import {
   privateTrackDetailSchema,
   privateTrackSchema,
 } from '@vozzify/contracts';
+import { z } from 'zod';
 import { browserApi } from '@/lib/api/browser';
 import { privateTrackKeys } from '../query-keys';
 
@@ -87,6 +88,38 @@ export function useSubmitPrivateTrack(userId: string) {
                     ...page.items.filter((track) => track.id !== created.id),
                   ]
                 : page.items.filter((track) => track.id !== created.id),
+          })),
+        };
+      });
+      await queryClient.invalidateQueries({
+        queryKey: privateTrackKeys.list(userId),
+      });
+    },
+  });
+}
+
+export function useDeletePrivateTrack(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (privateTrackId: string) =>
+      browserApi(`/me/private-tracks/${privateTrackId}`, {
+        method: 'DELETE',
+        schema: z.undefined(),
+      }),
+    onSuccess: async (_deleted, privateTrackId) => {
+      queryClient.removeQueries({
+        queryKey: privateTrackKeys.detail(userId, privateTrackId),
+        exact: true,
+      });
+      await queryClient.setQueryData<
+        InfiniteData<MyPrivateTracksPage, string | undefined>
+      >(privateTrackKeys.list(userId), (current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          pages: current.pages.map((page) => ({
+            ...page,
+            items: page.items.filter((track) => track.id !== privateTrackId),
           })),
         };
       });

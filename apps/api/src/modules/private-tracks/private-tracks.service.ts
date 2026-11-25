@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { createId } from '@paralleldrive/cuid2';
 import type {
   MyPrivateTracksPage,
   MyPrivateTracksQuery,
@@ -11,19 +12,23 @@ import {
   encodeTupleCursor,
 } from '../../common/cursor/tuple-cursor.js';
 import { AppException } from '../../common/errors/app-exception.js';
-import { StorageService } from '../../integrations/storage/storage.service.js';
 import { SubscriptionMembershipService } from '../plans/subscription-membership.service.js';
 import { PrivateAudioInspector } from './private-audio.js';
+import type { PrivateTrackSourceStoragePort } from './private-track-source-storage.js';
+import { PrivateTrackSourceStorage } from './private-track-source-storage.js';
 import { PrivateTracksRepository } from './private-tracks.repository.js';
 
 type Upload = { path: string; originalname: string };
 
 @Injectable()
 export class PrivateTracksService {
+  private readonly logger = new Logger(PrivateTracksService.name);
+
   constructor(
     private readonly repository: PrivateTracksRepository,
     private readonly audio: PrivateAudioInspector,
-    private readonly storage: StorageService,
+    @Inject(PrivateTrackSourceStorage)
+    private readonly storage: PrivateTrackSourceStoragePort,
     private readonly membership: SubscriptionMembershipService,
   ) {}
 
@@ -86,13 +91,15 @@ export class PrivateTracksService {
     ]);
     const filename = basename(file.originalname.replaceAll('\\', '/'));
     const title = metadata.title || filename;
-    const objectKey = `${userId}/${contentSha256}`;
+    const privateTrackId = createId();
+    const objectKey = `private-tracks/${userId}/${privateTrackId}/source`;
     await this.storage.putPrivateFile({
       key: objectKey,
       filePath: file.path,
       contentType: 'application/octet-stream',
     });
     const row = await this.repository.save({
+      id: privateTrackId,
       userId,
       contentSha256,
       objectKey,
@@ -101,7 +108,24 @@ export class PrivateTracksService {
       artist: metadata.artist,
       durationMs: metadata.durationMs,
     });
+    if (row.discardedUploadKey) {
+      await this.removeDiscardedUpload(row.discardedUploadKey, privateTrackId);
+    }
     return toPrivateTrack(row);
+  }
+
+  private async removeDiscardedUpload(
+    objectKey: string,
+    privateTrackId: string,
+  ): Promise<void> {
+    try {
+      await this.storage.deletePrivateObject(objectKey);
+    } catch (error) {
+      this.logger.warn(
+        `Deferred cleanup will remove duplicate private source ${privateTrackId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
   }
 }
 

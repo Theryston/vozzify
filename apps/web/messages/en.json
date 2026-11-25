@@ -442,7 +442,13 @@
         "COMPLETED": "Ready to practice",
         "FAILED": "Processing failed"
       }
-    }
+    },
+    "delete": "Delete track",
+    "confirmDeleteTitle": "Delete this track?",
+    "confirmDeleteDescription": "This permanently removes the private track and its processed audio.",
+    "confirmDelete": "Delete track",
+    "cancelDelete": "Keep track",
+    "deleteError": "This track could not be deleted. Try again."
   },
   "terms": {
     "metaTitle": "Terms and Conditions",

@@ -88,15 +88,21 @@ describe('PrivateTracksService', () => {
       durationMs: 12_000,
       createdAt: '2026-01-02T03:04:05.000Z',
     });
+    const uploaded = storage.putPrivateFile.mock.calls[0]?.[0];
+    const saved = repository.save.mock.calls[0]?.[0];
+    if (!uploaded) throw new Error('Expected the private audio source');
+    if (!saved) throw new Error('Expected the candidate private track row');
+    expect(uploaded.key).toBe(`private-tracks/u1/${saved.id}/source`);
     expect(storage.putPrivateFile).toHaveBeenCalledWith({
-      key: 'u1/ab12',
+      key: uploaded.key,
       filePath: '/tmp/upload',
       contentType: 'application/octet-stream',
     });
     expect(repository.save).toHaveBeenCalledWith({
+      id: expect.any(String),
       userId: 'u1',
       contentSha256: 'ab12',
-      objectKey: 'u1/ab12',
+      objectKey: `private-tracks/u1/${saved.id}/source`,
       originalFilename: 'original song.flac',
       title: 'original song.flac',
       artist: '',

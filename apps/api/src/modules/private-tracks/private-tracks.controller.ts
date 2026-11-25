@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
+  HttpCode,
   Param,
   Post,
   Query,
@@ -10,9 +12,11 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBody,
   ApiConsumes,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiTags,
@@ -36,6 +40,7 @@ import { createZodDto } from '../../common/zod/create-zod-dto.js';
 import { ZodSerializerDto } from '../../common/zod/zod-serializer.interceptor.js';
 import type { AuthUser } from '../auth/auth.js';
 import { PrivateAudioUploadInterceptor } from './private-audio-upload.interceptor.js';
+import { PrivateTrackDeletionService } from './private-track-deletion.service.js';
 import { PrivateTrackWorkflowService } from './private-track-workflow.service.js';
 import { PrivateTracksService } from './private-tracks.service.js';
 
@@ -56,6 +61,7 @@ export class PrivateTracksController {
   constructor(
     private readonly privateTracks: PrivateTracksService,
     private readonly workflow: PrivateTrackWorkflowService,
+    private readonly deletion: PrivateTrackDeletionService,
   ) {}
 
   @Get()
@@ -81,6 +87,20 @@ export class PrivateTracksController {
     @Param() params: PrivateTrackIdParamDto,
   ): Promise<PrivateTrackDetail> {
     return this.privateTracks.getDetail(user.id, params.id);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @Header('Cache-Control', 'private, no-store')
+  @ApiNoContentResponse({ description: 'The private audio entry is deleted.' })
+  @ApiBadRequestResponse({ description: 'The private Track ID is invalid.' })
+  @ApiNotFoundResponse({ description: 'The private Track does not exist.' })
+  @ApiUnauthorizedResponse({ description: 'No valid session.' })
+  async delete(
+    @CurrentUser() user: AuthUser,
+    @Param() params: PrivateTrackIdParamDto,
+  ): Promise<void> {
+    await this.deletion.delete(user.id, params.id);
   }
 
   @Post()

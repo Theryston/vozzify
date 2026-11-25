@@ -36,7 +36,11 @@ export class PrivateTracksRepository {
       .limit(query.limit + 1);
   }
 
-  async save(input: typeof privateTracks.$inferInsert) {
+  async save(
+    input: typeof privateTracks.$inferInsert,
+  ): Promise<
+    typeof privateTracks.$inferSelect & { discardedUploadKey?: string }
+  > {
     const inserted = await this.txHost.tx
       .insert(privateTracks)
       .values(input)
@@ -56,7 +60,7 @@ export class PrivateTracksRepository {
       );
     const row = existing[0];
     if (!row) throw new Error('Private audio deduplication failed');
-    return row;
+    return { ...row, discardedUploadKey: input.objectKey };
   }
 
   findOwned(userId: string, id: string) {
@@ -264,5 +268,18 @@ export class PrivateTracksRepository {
       columns: { id: true },
     });
     return row !== undefined;
+  }
+
+  async delete(userId: string, privateTrackId: string) {
+    const deleted = await this.txHost.tx
+      .delete(privateTracks)
+      .where(
+        and(
+          eq(privateTracks.userId, userId),
+          eq(privateTracks.id, privateTrackId),
+        ),
+      )
+      .returning({ objectKey: privateTracks.objectKey });
+    return deleted[0];
   }
 }
