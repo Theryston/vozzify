@@ -7,6 +7,7 @@
    change both together. */
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant featured (&:is([data-surface="featured"] *));
 
 @theme inline {
   --font-heading: var(--font-sans);

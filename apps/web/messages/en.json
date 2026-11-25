@@ -409,7 +409,6 @@
   },
   "privateTracks": {
     "metaTitle": "My tracks",
-    "overline": "Your library",
     "title": "My tracks",
     "description": "Audio you submit stays private to your account.",
     "loading": "Loading your tracks…",
@@ -418,9 +417,11 @@
     "loadError": "Your tracks could not be loaded.",
     "empty": "You have not added any audio yet.",
     "artistUnknown": "Unknown artist",
+    "newTrack": "Upload a recording",
     "upload": "Add audio",
     "uploading": "Uploading…",
     "chooseAudio": "Choose an audio file",
+    "audioLimits": "Up to 30 minutes and 250 MB.",
     "uploadError": "This audio could not be submitted. Check the file and try again.",
     "invalidAudio": "Choose a decodable audio file up to 30 minutes and 250 MB.",
     "proTitle": "Private audio is a Pro feature",
@@ -434,7 +435,7 @@
       "lockedTitle": "This private track is locked",
       "lockedDescription": "Reactivate Pro to play this recording and practice with its notes.",
       "reactivate": "Reactivate Pro",
-      "processingLabel": "Processing progress",
+      "closeNote": "You can close this page and come back to check the progress.",
       "processing": {
         "QUEUED": "Queued for processing",
         "EXTRACTING_VOCALS": "Separating vocals",

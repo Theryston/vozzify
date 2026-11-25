@@ -1,20 +1,19 @@
 import { NextIntlClientProvider } from 'next-intl';
-import { getMessages, getTranslations } from 'next-intl/server';
-import { AccountPageFrame } from '../../../components/account-page-frame';
-import { PrivateTracks } from './private-tracks';
+import { getMessages } from 'next-intl/server';
+import { PrivateTracksContent } from './private-tracks-content';
 
 export async function PrivateTracksPage() {
-  const t = await getTranslations('privateTracks');
-  const { errors, privateTracks } = await getMessages();
+  const { errors, privateTracks, tracks } = await getMessages();
+  const { durationShort, durationLong, durationLabel } = tracks.practice;
   return (
-    <AccountPageFrame
-      overline={t('overline')}
-      title={t('title')}
-      description={t('description')}
+    <NextIntlClientProvider
+      messages={{
+        errors,
+        privateTracks,
+        tracks: { practice: { durationShort, durationLong, durationLabel } },
+      }}
     >
-      <NextIntlClientProvider messages={{ errors, privateTracks }}>
-        <PrivateTracks />
-      </NextIntlClientProvider>
-    </AccountPageFrame>
+      <PrivateTracksContent />
+    </NextIntlClientProvider>
   );
 }

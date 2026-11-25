@@ -2,14 +2,14 @@ import type { TrackContributor, TrackDetail } from '@vozzify/contracts';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { Fragment, useState } from 'react';
+import { Fragment, type ReactNode, useState } from 'react';
 
 import { Link } from '@/lib/i18n/navigation';
 
-import { clockMessage } from '../playback/clock-message';
 import { ContributorAvatar } from './contributor-avatar';
 import { TrackBestScore } from './track-best-score';
 import { TrackCoverPlaceholder } from './track-cover-placeholder';
+import { TrackDuration } from './track-duration';
 import { TrackFavoriteButton } from './track-favorite-button';
 import { TrackShareButton } from './track-share-button';
 
@@ -106,26 +106,6 @@ function Contributors({
   );
 }
 
-/** The length as a clock (`3:08`), with hours past an hour. */
-function Duration({ ms }: { ms: number }) {
-  const t = useTranslations('tracks.practice');
-  const { key, values: parts } = clockMessage(ms / 1000);
-  const text = t(key, parts);
-
-  return (
-    <>
-      <span className="sr-only">{t('durationLabel', { duration: text })}</span>
-      <time
-        aria-hidden="true"
-        className="shrink-0 font-mono tabular-nums"
-        dateTime={`PT${parts.hours}H${parts.minutes}M${parts.seconds}S`}
-      >
-        {text}
-      </time>
-    </>
-  );
-}
-
 /** How many times the Track was viewed, with the locale's number format. */
 function ViewCount({ count }: { count: number }) {
   const t = useTranslations('tracks.practice');
@@ -133,20 +113,35 @@ function ViewCount({ count }: { count: number }) {
 }
 
 /** The line under the title: artists, then the duration, each after a dot. */
-function TrackFacts({ header }: { header: TrackDetail }) {
+function TrackFacts({
+  header,
+  showViews,
+}: {
+  header: TrackDetail;
+  showViews: boolean;
+}) {
+  const hasCredit = header.artistCredit.length > 0;
   return (
     <p className="flex min-w-0 items-center gap-2 text-muted-foreground text-sm">
-      <span className="truncate">
-        <ArtistCredit credit={header.artistCredit} />
-      </span>
+      {hasCredit ? (
+        <span className="truncate">
+          <ArtistCredit credit={header.artistCredit} />
+        </span>
+      ) : null}
       {header.durationMs === null ? null : (
         <>
-          <span aria-hidden="true">·</span>
-          <Duration ms={header.durationMs} />
+          {hasCredit ? <span aria-hidden="true">·</span> : null}
+          <TrackDuration ms={header.durationMs} />
         </>
       )}
-      <span aria-hidden="true">·</span>
-      <ViewCount count={header.viewCount ?? 0} />
+      {showViews ? (
+        <>
+          {hasCredit || header.durationMs !== null ? (
+            <span aria-hidden="true">·</span>
+          ) : null}
+          <ViewCount count={header.viewCount ?? 0} />
+        </>
+      ) : null}
     </p>
   );
 }
@@ -158,7 +153,13 @@ function TrackFacts({ header }: { header: TrackDetail }) {
  * on a phone, the avatars dropping under the title, and stays a single row
  * from `sm`.
  */
-export function TrackTitleRow({ header }: { header: TrackDetail }) {
+export function TrackTitleRow({
+  header,
+  privateActions,
+}: {
+  header: TrackDetail;
+  privateActions?: ReactNode;
+}) {
   return (
     <section
       aria-labelledby="track-title"
@@ -185,7 +186,7 @@ export function TrackTitleRow({ header }: { header: TrackDetail }) {
         >
           {header.title}
         </h1>
-        <TrackFacts header={header} />
+        <TrackFacts header={header} showViews={!privateActions} />
       </div>
       {header.contributors.length > 0 ? (
         <Contributors
@@ -194,9 +195,13 @@ export function TrackTitleRow({ header }: { header: TrackDetail }) {
           trackId={header.id}
         />
       ) : null}
-      <TrackBestScore trackId={header.id} />
-      <TrackFavoriteButton trackId={header.id} />
-      <TrackShareButton header={header} />
+      {privateActions ?? (
+        <>
+          <TrackBestScore trackId={header.id} />
+          <TrackFavoriteButton trackId={header.id} />
+          <TrackShareButton header={header} />
+        </>
+      )}
     </section>
   );
 }

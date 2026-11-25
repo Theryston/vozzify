@@ -90,17 +90,17 @@ type Position = {
 function positionOf(
   status: TrackProcessingStatus,
   resumeFrom: TrackProcessingStep | null,
+  steps: readonly TrackProcessingStep[],
 ): Position {
-  if (status === 'COMPLETED')
-    return { doneBefore: TRACK_PROCESSING_STEPS.length };
+  if (status === 'COMPLETED') return { doneBefore: steps.length };
   if (status === 'QUEUED') return { doneBefore: 0 };
-  if (status === 'FAILED') {
-    if (resumeFrom === null) return { doneBefore: 0 };
-    const index = TRACK_PROCESSING_STEPS.indexOf(resumeFrom);
-    return { doneBefore: index, active: { index, state: 'failed' } };
-  }
-  const index = TRACK_PROCESSING_STEPS.indexOf(status);
-  return { doneBefore: index, active: { index, state: 'current' } };
+  const step = status === 'FAILED' ? resumeFrom : status;
+  const index = step === null ? -1 : steps.indexOf(step);
+  if (index < 0) return { doneBefore: 0 };
+  return {
+    doneBefore: index,
+    active: { index, state: status === 'FAILED' ? 'failed' : 'current' },
+  };
 }
 
 function stateOf(index: number, position: Position): StepState {
@@ -117,9 +117,10 @@ function stateOf(index: number, position: Position): StepState {
 export function stepStates(
   status: TrackProcessingStatus,
   resumeFrom: TrackProcessingStep | null,
+  steps: readonly TrackProcessingStep[] = TRACK_PROCESSING_STEPS,
 ): StepView[] {
-  const position = positionOf(status, resumeFrom);
-  return TRACK_PROCESSING_STEPS.map((step, index) => ({
+  const position = positionOf(status, resumeFrom, steps);
+  return steps.map((step, index) => ({
     step,
     state: stateOf(index, position),
   }));
@@ -136,10 +137,11 @@ export type StepPosition = { number: number; total: number };
 export function stepPosition(
   status: TrackProcessingStatus,
   resumeFrom: TrackProcessingStep | null,
+  steps: readonly TrackProcessingStep[] = TRACK_PROCESSING_STEPS,
 ): StepPosition | null {
-  const { active } = positionOf(status, resumeFrom);
+  const { active } = positionOf(status, resumeFrom, steps);
   if (active === undefined) return null;
-  return { number: active.index + 1, total: TRACK_PROCESSING_STEPS.length };
+  return { number: active.index + 1, total: steps.length };
 }
 
 /**

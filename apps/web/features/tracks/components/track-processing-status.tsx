@@ -1,39 +1,27 @@
-import type { TrackProcessing } from '@vozzify/contracts';
+import type {
+  TrackProcessingStatus as ProcessingStatus,
+  TrackProcessingFailureCode,
+} from '@vozzify/contracts';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
 import { remainingMinutes } from '../processing-steps';
-import { isRetryOffered } from '../retry-offer';
-import { TrackRetry } from './track-retry';
 
 const TITLE_CLASS = 'font-bold text-2xl tracking-tight';
 const TEXT_CLASS = 'max-w-prose text-muted-foreground text-sm';
 
-function CloseNote() {
-  const t = useTranslations('tracks.processing');
-  return <p className={TEXT_CLASS}>{t('closeNote')}</p>;
-}
+type Failure = { code: TrackProcessingFailureCode | null; action?: ReactNode };
 
 /** Why the Processing failed and, when a retry can fix it, "Try again". */
-function FailedStatus({
-  trackId,
-  processing,
-}: {
-  trackId: string;
-  processing: TrackProcessing;
-}) {
+function FailedStatus({ failure }: { failure?: Failure }) {
   const t = useTranslations('tracks.processing');
   return (
     <>
       <h2 className={TITLE_CLASS}>{t('failed.title')}</h2>
       <p className={TEXT_CLASS}>
-        {t(`failed.reason.${processing.failureCode ?? 'INTERNAL'}`)}
+        {t(`failed.reason.${failure?.code ?? 'INTERNAL'}`)}
       </p>
-      {isRetryOffered(processing) ? (
-        <div className="pt-2">
-          <TrackRetry trackId={trackId} />
-        </div>
-      ) : null}
+      {failure?.action ? <div className="pt-2">{failure.action}</div> : null}
     </>
   );
 }
@@ -44,41 +32,53 @@ function FailedStatus({
  * Processing never gets here (the page shows only a line then).
  */
 export function TrackProcessingStatus({
-  trackId,
-  processing,
+  status,
   elapsedMs,
+  failure,
+  copy,
 }: {
-  trackId: string;
-  processing: TrackProcessing;
-  elapsedMs: number;
+  status: ProcessingStatus;
+  elapsedMs?: number;
+  failure?: Failure;
+  copy?: { activeTitle: string; closeNote: string };
 }) {
   const t = useTranslations('tracks.processing');
-  const { status } = processing;
   if (status === 'COMPLETED') return null;
 
+  const closeNote = (
+    <p className={TEXT_CLASS}>{copy?.closeNote ?? t('closeNote')}</p>
+  );
   let body: ReactNode;
   if (status === 'FAILED') {
-    body = <FailedStatus trackId={trackId} processing={processing} />;
+    body = <FailedStatus failure={failure} />;
   } else if (status === 'QUEUED') {
     body = (
       <>
         <h2 className={TITLE_CLASS}>{t('queued.title')}</h2>
-        <CloseNote />
+        {closeNote}
       </>
     );
   } else {
     body = (
       <>
-        <h2 className={TITLE_CLASS}>{t(`steps.${status}`)}</h2>
+        <h2 className={TITLE_CLASS}>
+          {copy?.activeTitle ?? t(`steps.${status}`)}
+        </h2>
         <p className={TEXT_CLASS}>{t(`steps.description.${status}`)}</p>
-        <p className="font-medium text-sm tabular-nums">
-          {t('remaining', {
-            minutes: remainingMinutes(status, elapsedMs) ?? 0,
-          })}
-        </p>
-        <CloseNote />
+        {elapsedMs === undefined ? null : (
+          <p className="font-medium text-sm tabular-nums">
+            {t('remaining', {
+              minutes: remainingMinutes(status, elapsedMs) ?? 0,
+            })}
+          </p>
+        )}
+        {closeNote}
       </>
     );
   }
-  return <section className="flex flex-col gap-2">{body}</section>;
+  return (
+    <section role="status" className="flex flex-col gap-2">
+      {body}
+    </section>
+  );
 }

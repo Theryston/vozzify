@@ -1,21 +1,19 @@
 'use client';
 
-import { createPrivateTrackBodySchema } from '@vozzify/contracts';
-import { LockKeyhole } from 'lucide-react';
+import type { PrivateTrack } from '@vozzify/contracts';
+import { LockKeyholeIcon, UploadIcon } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
-import type { FormEvent, RefObject } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
+import { AccountPageFrame } from '@/components/account-page-frame';
 import { Button } from '@/components/ui/button';
-import { ApiError } from '@/lib/api/api-error';
-import { Link, useRouter } from '@/lib/i18n/navigation';
+import { SessionUserBoundary } from '@/features/auth/components/session-user';
+import { useRouter } from '@/lib/i18n/navigation';
 
-import {
-  usePrivateTracks,
-  useSubmitPrivateTrack,
-} from '../hooks/use-private-tracks';
-import { PrivateTrackDeleteButton } from './private-track-delete-button';
+import { usePrivateTracks } from '../hooks/use-private-tracks';
+import { PrivateAudioDialog } from './private-audio-dialog';
+import { PrivateTrackRows } from './private-track-rows';
 
 type AccountUser = {
   id?: string;
@@ -23,20 +21,29 @@ type AccountUser = {
   emailVerified: boolean;
 };
 
-export function PrivateTracksContent({
+export function PrivateTracksContent() {
+  return (
+    <SessionUserBoundary
+      render={(user, loading) => (
+        <PrivateTracksLibrary user={user} loading={loading} />
+      )}
+    />
+  );
+}
+
+function PrivateTracksLibrary({
   user,
   loading,
 }: {
   user: AccountUser | null;
   loading: boolean;
 }) {
-  const input = useRef<HTMLInputElement>(null);
-  const [selected, setSelected] = useState<File>();
-  const [validationError, setValidationError] = useState(false);
-  const [uploadError, setUploadError] = useState(false);
+  const t = useTranslations('privateTracks');
+  const canView = Boolean(user?.username && user.emailVerified);
+  const userId = canView ? (user?.id ?? '') : '';
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const tracks = usePrivateTracks(user?.id ?? '');
-  const submit = useSubmitPrivateTrack(user?.id ?? '');
+  const tracks = usePrivateTracks(userId);
+  const canSubmit = tracks.data?.pages[0]?.canSubmit;
 
   usePrivateTracksPageEffects({
     loading,
@@ -45,66 +52,39 @@ export function PrivateTracksContent({
     setPaywallOpen,
   });
 
-  if (loading || !user?.username || !user.emailVerified) return null;
-
-  const submitAudio = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setValidationError(false);
-    setUploadError(false);
-    if (!tracks.data?.pages[0]?.canSubmit) {
-      setPaywallOpen(true);
-      return;
-    }
-    if (!selected || !isValidPrivateAudio(selected)) {
-      setValidationError(true);
-      return;
-    }
-    try {
-      await submit.mutateAsync(selected);
-      setSelected(undefined);
-      if (input.current) input.current.value = '';
-    } catch (error) {
-      if (error instanceof ApiError && error.code === 'VALIDATION_FAILED') {
-        setValidationError(true);
-      } else {
-        setUploadError(true);
-      }
-    }
-  };
-
   return (
-    <PrivateTracksLibrary
-      tracks={privateTrackItems(tracks.data?.pages, user.id ?? '')}
-      canSubmit={tracks.data?.pages[0]?.canSubmit ?? false}
-      loading={tracks.isPending}
-      loadError={tracks.isError}
-      hasMore={tracks.hasNextPage}
-      loadingMore={tracks.isFetchingNextPage}
-      pending={submit.isPending}
-      selected={selected}
-      input={input}
-      paywallOpen={paywallOpen}
-      validationError={validationError}
-      uploadError={uploadError}
-      onSelected={setSelected}
-      onSubmit={submitAudio}
-      onPaywallOpenChange={setPaywallOpen}
-      onLoadMore={() => void tracks.fetchNextPage()}
-    />
+    <AccountPageFrame
+      title={t('title')}
+      description={
+        <span className="inline-flex items-center gap-2">
+          <LockKeyholeIcon aria-hidden="true" className="size-4 shrink-0" />
+          {t('description')}
+        </span>
+      }
+      action={
+        canView ? (
+          <PrivateTracksAction
+            userId={userId}
+            canSubmit={canSubmit}
+            onPaywallOpen={() => setPaywallOpen(true)}
+          />
+        ) : null
+      }
+    >
+      {canView ? (
+        <PrivateTracksList
+          tracks={tracks.data?.pages.flatMap((page) => page.items) ?? []}
+          loading={tracks.isPending}
+          loadError={tracks.isError}
+          hasMore={tracks.hasNextPage}
+          loadingMore={tracks.isFetchingNextPage}
+          onLoadMore={() => void tracks.fetchNextPage()}
+        />
+      ) : null}
+      <ProDialog open={paywallOpen} onPaywallOpenChange={setPaywallOpen} />
+    </AccountPageFrame>
   );
 }
-
-const isValidPrivateAudio = (file: File) =>
-  createPrivateTrackBodySchema.safeParse({ audio: file }).success;
-
-const privateTrackItems = (
-  pages:
-    | { items: { id: string; title: string; artist: string }[] }[]
-    | undefined,
-  userId: string,
-) =>
-  pages?.flatMap((page) => page.items.map((track) => ({ ...track, userId }))) ??
-  [];
 
 function usePrivateTracksPageEffects({
   loading,
@@ -136,163 +116,59 @@ function usePrivateTracksPageEffects({
   }, [setPaywallOpen, tracks]);
 }
 
-type LibraryProps = {
-  tracks: { id: string; title: string; artist: string; userId: string }[];
-  canSubmit: boolean;
+function PrivateTracksAction({
+  userId,
+  canSubmit,
+  onPaywallOpen,
+}: {
+  userId: string;
+  canSubmit: boolean | undefined;
+  onPaywallOpen: () => void;
+}) {
+  const t = useTranslations('privateTracks');
+  if (canSubmit) return <PrivateAudioDialog userId={userId} />;
+
+  return (
+    <Button
+      className="w-full sm:w-auto"
+      disabled={canSubmit === undefined}
+      onClick={onPaywallOpen}
+    >
+      <UploadIcon data-icon="inline-start" />
+      {t('newTrack')}
+    </Button>
+  );
+}
+
+type ListProps = {
+  tracks: PrivateTrack[];
   loading: boolean;
   loadError: boolean;
   hasMore: boolean;
   loadingMore: boolean;
-  pending: boolean;
-  selected: File | undefined;
-  input: RefObject<HTMLInputElement | null>;
-  paywallOpen: boolean;
-  validationError: boolean;
-  uploadError: boolean;
-  onSelected: (file: File | undefined) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  onPaywallOpenChange: (open: boolean) => void;
   onLoadMore: () => void;
 };
 
-function PrivateTracksLibrary(props: LibraryProps) {
+function PrivateTracksList(props: ListProps) {
   const t = useTranslations('privateTracks');
   return (
-    <section className="flex flex-col gap-6">
-      <PrivateAudioForm {...props} />
-      <UploadFeedback
-        validationError={props.validationError}
-        uploadError={props.uploadError}
-      />
+    <div className="flex flex-col gap-4">
       <PrivateTrackRows
         tracks={props.tracks}
         loading={props.loading}
         loadError={props.loadError}
       />
       {props.hasMore ? (
-        <div className="flex justify-center">
-          <Button
-            variant="outline"
-            disabled={props.loadingMore}
-            onClick={props.onLoadMore}
-          >
-            {props.loadingMore ? t('loadingMore') : t('loadMore')}
-          </Button>
-        </div>
+        <Button
+          className="self-center"
+          variant="secondary"
+          disabled={props.loadingMore}
+          onClick={props.onLoadMore}
+        >
+          {props.loadingMore ? t('loadingMore') : t('loadMore')}
+        </Button>
       ) : null}
-      <ProDialog
-        open={props.paywallOpen}
-        onPaywallOpenChange={props.onPaywallOpenChange}
-      />
-    </section>
-  );
-}
-
-function PrivateAudioForm({
-  canSubmit,
-  pending,
-  input,
-  onSelected,
-  onSubmit,
-}: LibraryProps) {
-  const t = useTranslations('privateTracks');
-  return (
-    <form
-      onSubmit={onSubmit}
-      className="flex flex-col gap-3 sm:flex-row sm:items-end"
-    >
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <label htmlFor="private-audio" className="font-semibold text-sm">
-          {t('chooseAudio')}
-        </label>
-        <input
-          ref={input}
-          id="private-audio"
-          name="audio"
-          type="file"
-          accept="audio/*"
-          disabled={!canSubmit || pending}
-          onChange={(event) => onSelected(event.target.files?.[0])}
-          className="min-w-0 rounded-xl border border-input bg-background px-3 py-2 text-sm file:mr-3 file:rounded-full file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:font-semibold file:text-secondary-foreground"
-        />
-      </div>
-      <Button type="submit" disabled={pending}>
-        {pending ? t('uploading') : t('upload')}
-      </Button>
-    </form>
-  );
-}
-
-function UploadFeedback({
-  validationError,
-  uploadError,
-}: Pick<LibraryProps, 'validationError' | 'uploadError'>) {
-  const t = useTranslations('privateTracks');
-  return (
-    <>
-      {validationError ? (
-        <p role="alert" className="text-destructive text-sm">
-          {t('invalidAudio')}
-        </p>
-      ) : null}
-      {uploadError ? (
-        <p role="alert" className="text-destructive text-sm">
-          {t('uploadError')}
-        </p>
-      ) : null}
-    </>
-  );
-}
-
-function PrivateTrackRows({
-  tracks,
-  loading,
-  loadError,
-}: Pick<LibraryProps, 'tracks' | 'loading' | 'loadError'>) {
-  const t = useTranslations('privateTracks');
-  return (
-    <>
-      {loading ? <p role="status">{t('loading')}</p> : null}
-      {loadError ? (
-        <p role="alert" className="text-destructive text-sm">
-          {t('loadError')}
-        </p>
-      ) : null}
-      {!loading && !loadError && tracks.length === 0 ? (
-        <p className="rounded-2xl bg-card px-5 py-8 text-center text-muted-foreground">
-          {t('empty')}
-        </p>
-      ) : null}
-      {tracks.length ? (
-        <ul className="divide-y divide-border rounded-2xl bg-card px-4">
-          {tracks.map((track) => (
-            <li
-              key={track.id}
-              className="flex min-h-16 items-center justify-between gap-3 py-3"
-            >
-              <div className="flex min-w-0 flex-col">
-                <Link
-                  href={`/tracks/${encodeURIComponent(track.id)}`}
-                  className="inline-flex w-fit items-center gap-2 truncate font-semibold hover:underline"
-                >
-                  <LockKeyhole aria-hidden="true" className="size-4 shrink-0" />
-                  {track.title}
-                </Link>
-                {track.artist ? (
-                  <span className="truncate text-muted-foreground text-sm">
-                    {track.artist}
-                  </span>
-                ) : null}
-              </div>
-              <PrivateTrackDeleteButton
-                privateTrackId={track.id}
-                userId={track.userId}
-              />
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </>
+    </div>
   );
 }
 

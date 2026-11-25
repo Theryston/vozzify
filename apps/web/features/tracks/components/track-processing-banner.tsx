@@ -1,5 +1,10 @@
-import type { TrackHeader, TrackProcessing } from '@vozzify/contracts';
+import type {
+  TrackHeader,
+  TrackProcessing,
+  TrackProcessingStep,
+} from '@vozzify/contracts';
 import { useTranslations } from 'next-intl';
+import type { ReactNode } from 'react';
 
 import {
   entityBannerRowClass,
@@ -22,9 +27,21 @@ const TITLE_CLASS =
  * The line above the title: the step it is on (or stopped at) out of all of
  * them, else "queued" or "failed" when there is no step to name.
  */
-function StageLine({ processing }: { processing: TrackProcessing }) {
+type Stage = Pick<TrackProcessing, 'status' | 'resumeFrom'>;
+
+function StageLine({
+  processing,
+  stages,
+}: {
+  processing: Stage;
+  stages?: readonly TrackProcessingStep[];
+}) {
   const t = useTranslations('tracks.processing');
-  const position = stepPosition(processing.status, processing.resumeFrom);
+  const position = stepPosition(
+    processing.status,
+    processing.resumeFrom,
+    stages,
+  );
   const failed = processing.status === 'FAILED';
   let text: string;
   if (position === null) {
@@ -52,26 +69,37 @@ export function TrackProcessingBanner({
   track,
   processing,
   percent,
+  stages,
+  actions,
 }: {
   track: TrackHeader;
-  processing: TrackProcessing | null;
+  processing: Stage | null;
   percent: number | null;
+  stages?: readonly TrackProcessingStep[];
+  actions?: ReactNode;
 }) {
   return (
-    <section aria-labelledby="track-title" className={entityBannerSurfaceClass}>
+    <section
+      aria-labelledby="track-title"
+      data-surface="featured"
+      className={entityBannerSurfaceClass}
+    >
       <div className={entityBannerRowClass}>
         <TrackProcessingRing track={track} percent={percent} />
         <div className="flex min-w-0 flex-col gap-3 sm:flex-1">
-          {processing === null ? null : <StageLine processing={processing} />}
+          {processing === null ? null : (
+            <StageLine processing={processing} stages={stages} />
+          )}
           <h1 id="track-title" className={TITLE_CLASS}>
             {track.title}
           </h1>
           {track.artistCredit.length > 0 ? (
             <p className={entityInfoClass}>{creditText(track.artistCredit)}</p>
           ) : null}
+          {actions}
           {processing === null ? null : (
             <div className="pt-2">
-              <TrackProcessingSteps processing={processing} />
+              <TrackProcessingSteps processing={processing} stages={stages} />
             </div>
           )}
         </div>

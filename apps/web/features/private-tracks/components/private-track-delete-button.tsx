@@ -15,14 +15,20 @@ import {
 
 import { useDeletePrivateTrack } from '../hooks/use-private-tracks';
 
+// The compact button still needs a 40px touch target.
+const COMPACT_TOUCH_TARGET =
+  'relative after:absolute after:-inset-1 after:rounded-full after:content-[""]';
+
 export function PrivateTrackDeleteButton({
   privateTrackId,
   userId,
   onDeleted,
+  featured = false,
 }: {
   privateTrackId: string;
   userId: string;
   onDeleted?: () => void;
+  featured?: boolean;
 }) {
   const t = useTranslations('privateTracks');
   const [open, setOpen] = useState(false);
@@ -32,8 +38,10 @@ export function PrivateTrackDeleteButton({
     <>
       <Button
         type="button"
-        variant="ghost"
-        size="icon"
+        variant={featured ? 'outline' : 'ghost'}
+        size={featured ? 'icon-sm' : 'icon'}
+        className={featured ? COMPACT_TOUCH_TARGET : undefined}
+        aria-haspopup="dialog"
         aria-label={t('delete')}
         title={t('delete')}
         onClick={() => setOpen(true)}

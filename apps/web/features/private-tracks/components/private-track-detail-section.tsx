@@ -5,15 +5,20 @@ import type {
   PrivateTrackDetail as PrivateTrackDetailData,
   TrackAudio,
   TrackDetail,
+  TrackProcessingStep,
 } from '@vozzify/contracts';
 import { LockKeyhole } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
+import { buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SessionUserBoundary } from '@/features/auth/components/session-user';
 import { PracticeBody } from '@/features/tracks/components/practice-body';
+import { TrackProcessingPanel } from '@/features/tracks/components/track-processing-panel';
+import { TrackTitleRow } from '@/features/tracks/components/track-title-row';
 import { isApiError } from '@/lib/api/api-error';
 import { Link, useRouter } from '@/lib/i18n/navigation';
+import { cn } from '@/lib/utils';
 import { usePrivateTrackDetail } from '../hooks/use-private-tracks';
 import { privateTrackKeys } from '../query-keys';
 import { PrivateTrackDeleteButton } from './private-track-delete-button';
@@ -37,7 +42,10 @@ function usePrivateTrackAccess(
     });
   }, [initial.id, queryClient, revoked, userId]);
   return {
-    track: revoked || unavailable ? undefined : query.data,
+    track:
+      !revoked && !unavailable && query.data?.ownerId === userId
+        ? query.data
+        : undefined,
     failed: query.isError || unavailable,
   };
 }
@@ -52,7 +60,6 @@ function PrivateTrackDetailContent({
   userId: string;
 }) {
   const { track, failed } = usePrivateTrackAccess(initial, userId);
-  const router = useRouter();
   const t = useTranslations('privateTracks.detail');
 
   if (!track) {
@@ -65,8 +72,18 @@ function PrivateTrackDetailContent({
     );
   }
 
-  const canPractice = !track.locked && track.processing.status === 'COMPLETED';
-  const header: TrackDetail = {
+  return (
+    <PrivateTrackView track={track} userId={userId} fakePlayer={fakePlayer} />
+  );
+}
+
+const PRIVATE_STEPS: readonly TrackProcessingStep[] = [
+  'EXTRACTING_VOCALS',
+  'DETECTING_NOTES',
+];
+
+function privateTrackHeader(track: PrivateTrackDetailData): TrackDetail {
+  return {
     id: track.id,
     title: track.title,
     coverUrl: null,
@@ -79,111 +96,137 @@ function PrivateTrackDetailContent({
     contributorCount: 0,
     hasNotes: track.notes.length > 0,
   };
-  const audio: TrackAudio = {
-    musicMp3Url: `/api/private-tracks/${encodeURIComponent(track.id)}/music`,
-    vocalsMp3Url: `/api/private-tracks/${encodeURIComponent(track.id)}/vocals`,
-  };
-
-  return (
-    <section className="flex flex-col gap-6 pb-6 md:pb-8">
-      <PrivateTrackHeader
-        track={track}
-        userId={userId}
-        onDeleted={() => router.replace('/me/tracks')}
-      />
-      {track.locked ? (
-        <LockedPrivateTrack />
-      ) : canPractice ? (
-        <PracticeBody
-          header={header}
-          notes={{ notes: track.notes }}
-          lyrics={undefined}
-          lyricsLoading={false}
-          failed={false}
-          fakePlayer={fakePlayer}
-          directAudio={audio}
-          recordAttempts={false}
-        />
-      ) : (
-        <ProcessingStatus track={track} />
-      )}
-    </section>
-  );
 }
 
-function PrivateTrackHeader({
+function PrivateTrackView({
   track,
   userId,
-  onDeleted,
+  fakePlayer,
 }: {
   track: PrivateTrackDetailData;
   userId: string;
-  onDeleted: () => void;
+  fakePlayer: boolean;
 }) {
   const t = useTranslations('privateTracks.detail');
+  const header = privateTrackHeader(track);
+  const { status, progress } = track.processing;
+  if (!track.locked && status !== 'COMPLETED') {
+    return (
+      <TrackProcessingPanel
+        track={header}
+        processing={{ status, resumeFrom: null }}
+        percent={progress}
+        stages={PRIVATE_STEPS}
+        actions={
+          <PrivateTrackActions
+            privateTrackId={track.id}
+            userId={userId}
+            featured
+          />
+        }
+        statusOptions={{
+          copy: {
+            activeTitle: t(`processing.${status}`),
+            closeNote: t('closeNote'),
+          },
+        }}
+      />
+    );
+  }
+
   return (
-    <header className="flex flex-wrap items-center gap-3">
-      <div className="min-w-0 flex-1">
-        <h1 className="truncate font-bold text-2xl tracking-tight">
-          {track.title}
-        </h1>
-        {track.artist ? (
-          <p className="truncate text-muted-foreground text-sm">
-            {track.artist}
-          </p>
-        ) : null}
-      </div>
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 font-semibold text-sm">
-        <LockKeyhole aria-hidden="true" className="size-3.5" />
+    <div className="flex flex-col gap-6 pb-6 md:pb-8">
+      <TrackTitleRow
+        header={header}
+        privateActions={
+          <PrivateTrackActions privateTrackId={track.id} userId={userId} />
+        }
+      />
+      {track.locked ? (
+        <LockedPrivateTrack />
+      ) : (
+        <PrivateTrackPractice
+          header={header}
+          notes={track.notes}
+          fakePlayer={fakePlayer}
+        />
+      )}
+    </div>
+  );
+}
+
+function PrivateTrackPractice({
+  header,
+  notes,
+  fakePlayer,
+}: {
+  header: TrackDetail;
+  notes: PrivateTrackDetailData['notes'];
+  fakePlayer: boolean;
+}) {
+  const media = `/api/private-tracks/${encodeURIComponent(header.id)}`;
+  const audio: TrackAudio = {
+    musicMp3Url: `${media}/music`,
+    vocalsMp3Url: `${media}/vocals`,
+  };
+  return (
+    <PracticeBody
+      header={header}
+      notes={{ notes }}
+      lyrics={undefined}
+      lyricsLoading={false}
+      failed={false}
+      fakePlayer={fakePlayer}
+      directAudio={audio}
+      recordAttempts={false}
+    />
+  );
+}
+
+function PrivateTrackActions({
+  privateTrackId,
+  userId,
+  featured = false,
+}: {
+  privateTrackId: string;
+  userId: string;
+  featured?: boolean;
+}) {
+  const t = useTranslations('privateTracks.detail');
+  const router = useRouter();
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-full border border-transparent px-3 py-1 font-semibold text-sm',
+          featured ? 'border-primary-foreground/50' : 'bg-secondary',
+        )}
+      >
+        <LockKeyhole aria-hidden="true" className="size-4" />
         {t('privateBadge')}
       </span>
-      {track.ownerId === userId ? (
-        <PrivateTrackDeleteButton
-          privateTrackId={track.id}
-          userId={userId}
-          onDeleted={onDeleted}
-        />
-      ) : null}
-    </header>
+      <PrivateTrackDeleteButton
+        privateTrackId={privateTrackId}
+        userId={userId}
+        featured={featured}
+        onDeleted={() => router.replace('/me/tracks')}
+      />
+    </div>
   );
 }
 
 function LockedPrivateTrack() {
   const t = useTranslations('privateTracks.detail');
   return (
-    <div className="flex flex-col items-start gap-3 rounded-2xl border bg-card p-5">
-      <h2 className="font-semibold text-lg">{t('lockedTitle')}</h2>
-      <p className="text-muted-foreground text-sm">{t('lockedDescription')}</p>
-      <Link
-        href="/plans"
-        className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 font-semibold text-primary-foreground text-sm shadow-xs transition-transform duration-200 ease-spring hover:brightness-105 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-[0.97]"
-      >
+    <section className="flex flex-col items-start gap-3">
+      <h2 className="font-bold text-2xl tracking-tight">{t('lockedTitle')}</h2>
+      <p className="max-w-prose text-muted-foreground text-sm">
+        {t('lockedDescription')}
+      </p>
+      <Link href="/plans" className={buttonVariants()}>
         {t('reactivate')}
       </Link>
-    </div>
-  );
-}
-
-function ProcessingStatus({ track }: { track: PrivateTrackDetailData }) {
-  const t = useTranslations('privateTracks.detail');
-  return (
-    <div
-      role="status"
-      className="flex flex-col gap-3 rounded-2xl border bg-card p-5"
-    >
-      <p className="font-semibold">
-        {t(`processing.${track.processing.status}`)}
-      </p>
-      <label className="sr-only" htmlFor="private-track-progress">
-        {t('processingLabel')}
-      </label>
-      <progress
-        id="private-track-progress"
-        max={100}
-        value={track.processing.progress}
-        className="h-2 w-full accent-primary"
-      />
-    </div>
+    </section>
   );
 }
 

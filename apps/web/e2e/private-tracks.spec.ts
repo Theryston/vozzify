@@ -126,6 +126,19 @@ async function mockPrivateTracksApi(page: Page, canSubmit: boolean) {
   );
 }
 
+async function uploadPrivateAudio(page: Page) {
+  const { newTrack, chooseAudio, upload } = messages.en.privateTracks;
+  await page.getByRole('button', { name: newTrack }).click();
+  const dialog = page.getByRole('dialog', { name: newTrack });
+  await dialog.getByLabel(chooseAudio).setInputFiles({
+    name: 'source.wav',
+    mimeType: 'audio/wav',
+    buffer: Buffer.from('audio'),
+  });
+  await dialog.getByRole('button', { name: upload }).click();
+  await expect(dialog).toHaveCount(0);
+}
+
 test('opens My tracks from the account menu and lists a submitted file at once', async ({
   page,
 }) => {
@@ -145,30 +158,15 @@ test('opens My tracks from the account menu and lists a submitted file at once',
 
   await expect(page).toHaveURL('/en/me/tracks');
   await expect(page.getByRole('heading', { name: 'My tracks' })).toBeVisible();
-  await page.getByLabel('Choose an audio file').setInputFiles({
-    name: 'source.wav',
-    mimeType: 'audio/wav',
-    buffer: Buffer.from('audio'),
-  });
-  await page.getByRole('button', { name: 'Add audio' }).click();
+  await uploadPrivateAudio(page);
   await expect(page.getByText('Tagged song')).toBeVisible();
   await expect(page.getByText('Tagged artist')).toBeVisible();
-  await page.getByLabel('Choose an audio file').setInputFiles({
-    name: 'source.wav',
-    mimeType: 'audio/wav',
-    buffer: Buffer.from('audio'),
-  });
-  await page.getByRole('button', { name: 'Add audio' }).click();
+  await uploadPrivateAudio(page);
   await expect(page.getByRole('listitem')).toHaveCount(1);
   expect(consoleErrors.join('\n')).not.toContain('same key');
   await page.getByRole('button', { name: 'Load more' }).click();
   await expect(page.getByText('Older track')).toBeVisible();
-  await page.getByLabel('Choose an audio file').setInputFiles({
-    name: 'source.wav',
-    mimeType: 'audio/wav',
-    buffer: Buffer.from('audio'),
-  });
-  await page.getByRole('button', { name: 'Add audio' }).click();
+  await uploadPrivateAudio(page);
   await expect(page.getByRole('listitem')).toHaveCount(2);
   expect(consoleErrors.join('\n')).not.toContain('same key');
 });
@@ -210,12 +208,7 @@ test('opens an uploaded private Track and follows processing into its notes', as
   const updatePrivateDetail = await mockPrivateDetail(page, detail);
   await mockPrivateTracksApi(page, true);
   await page.goto('/en/me/tracks');
-  await page.getByLabel('Choose an audio file').setInputFiles({
-    name: 'source.wav',
-    mimeType: 'audio/wav',
-    buffer: Buffer.from('audio'),
-  });
-  await page.getByRole('button', { name: 'Add audio' }).click();
+  await uploadPrivateAudio(page);
   await expect(page.getByRole('link', { name: /Tagged song/ })).toHaveAttribute(
     'href',
     '/en/tracks/private_1',

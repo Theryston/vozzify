@@ -409,7 +409,6 @@
   },
   "privateTracks": {
     "metaTitle": "Minhas faixas",
-    "overline": "Sua biblioteca",
     "title": "Minhas faixas",
     "description": "Os áudios enviados ficam privados na sua conta.",
     "loading": "Carregando suas músicas…",
@@ -418,9 +417,11 @@
     "loadError": "Não foi possível carregar suas músicas.",
     "empty": "Você ainda não adicionou nenhum áudio.",
     "artistUnknown": "Artista desconhecido",
+    "newTrack": "Enviar gravação",
     "upload": "Adicionar áudio",
     "uploading": "Enviando…",
     "chooseAudio": "Escolher um arquivo de áudio",
+    "audioLimits": "Até 30 minutos e 250 MB.",
     "uploadError": "Não foi possível enviar este áudio. Confira o arquivo e tente novamente.",
     "invalidAudio": "Escolha um áudio decodificável de até 30 minutos e 250 MB.",
     "proTitle": "Áudio privado é um recurso Pro",
@@ -434,7 +435,7 @@
       "lockedTitle": "Esta faixa privada está bloqueada",
       "lockedDescription": "Reative o Pro para ouvir esta gravação e praticar com as notas.",
       "reactivate": "Reativar o Pro",
-      "processingLabel": "Progresso do processamento",
+      "closeNote": "Você pode fechar esta página e voltar para acompanhar o progresso.",
       "processing": {
         "QUEUED": "Na fila de processamento",
         "EXTRACTING_VOCALS": "Separando os vocais",
