@@ -10,6 +10,7 @@ import type {
   PrivateTrack,
   PrivateTrackDetail,
   PrivateTrackProcessingState,
+  PrivateTrackRecording,
 } from '@vozzify/contracts';
 import {
   decodeTupleCursor,
@@ -71,6 +72,7 @@ export class PrivateTracksService {
       canPractice && row.processingStatus === 'COMPLETED'
         ? await this.repository.listNotes(row.id)
         : [];
+    const recording = linkedRecording(row);
     return {
       ...toPrivateTrack(row),
       ownerId: row.userId,
@@ -79,6 +81,7 @@ export class PrivateTracksService {
       ...(canPractice && row.youtubeVideoId
         ? { youtubeVideoId: row.youtubeVideoId }
         : {}),
+      ...(canPractice && recording ? { recording } : {}),
       notes,
     };
   }
@@ -214,18 +217,25 @@ function processingOf(row: {
   };
 }
 
-export const toPrivateTrack = (row: {
-  id: string;
-  title: string;
-  artist: string;
-  durationMs: number;
-  createdAt: Date;
-  processingStatus?: string;
-  processingProgress?: number;
-}): PrivateTrack => ({
+type PrivateTrackSourceMetadata = Pick<
+  NonNullable<Awaited<ReturnType<PrivateTracksRepository['findOwned']>>>,
+  'titleOverride' | 'artistOverride' | 'recordingLink'
+>;
+
+export const toPrivateTrack = (
+  row: Partial<PrivateTrackSourceMetadata> & {
+    id: string;
+    title: string;
+    artist: string;
+    durationMs: number;
+    createdAt: Date;
+    processingStatus?: string;
+    processingProgress?: number;
+  },
+): PrivateTrack => ({
   id: row.id,
-  title: row.title,
-  artist: row.artist,
+  title: row.titleOverride ?? linkedRecording(row)?.title ?? row.title,
+  artist: row.artistOverride ?? linkedRecording(row)?.artist ?? row.artist,
   durationMs: row.durationMs,
   createdAt: row.createdAt.toISOString(),
   ...(row.processingStatus === undefined
@@ -237,6 +247,14 @@ export const toPrivateTrack = (row: {
         },
       }),
 });
+
+function linkedRecording(
+  row: Pick<Partial<PrivateTrackSourceMetadata>, 'recordingLink'>,
+): PrivateTrackRecording | undefined {
+  return row.recordingLink?.kind === 'linked'
+    ? row.recordingLink.recording
+    : undefined;
+}
 
 const toProcessingStatus = (
   status: string,

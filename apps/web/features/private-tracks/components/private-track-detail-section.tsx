@@ -8,6 +8,7 @@ import type {
   TrackProcessingStep,
 } from '@vozzify/contracts';
 import { LockKeyhole } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { buttonVariants } from '@/components/ui/button';
@@ -23,6 +24,14 @@ import { usePrivateTrackDetail } from '../hooks/use-private-tracks';
 import { privateTrackKeys } from '../query-keys';
 import { PrivateTrackDeleteButton } from './private-track-delete-button';
 import { PrivateTrackRetryButton } from './private-track-retry-button';
+
+const PrivateTrackMetadataDialog = dynamic(
+  () =>
+    import('./private-track-metadata-dialog').then(
+      (module) => module.PrivateTrackMetadataDialog,
+    ),
+  { ssr: false },
+);
 
 function usePrivateTrackAccess(
   initial: PrivateTrackDetailData,
@@ -87,7 +96,7 @@ function privateTrackHeader(track: PrivateTrackDetailData): TrackDetail {
   return {
     id: track.id,
     title: track.title,
-    coverUrl: null,
+    coverUrl: track.recording?.coverUrl ?? null,
     artistCredit: track.artist
       ? [{ name: track.artist, joinPhrase: '', artistId: null }]
       : [],
@@ -118,13 +127,7 @@ function PrivateTrackView({
         processing={{ status, resumeFrom: null }}
         percent={progress}
         stages={PRIVATE_STEPS}
-        actions={
-          <PrivateTrackActions
-            privateTrackId={track.id}
-            userId={userId}
-            featured
-          />
-        }
+        actions={<PrivateTrackActions track={track} userId={userId} featured />}
         statusOptions={{
           failure: {
             code: null,
@@ -149,9 +152,7 @@ function PrivateTrackView({
     <div className="flex flex-col gap-6 pb-6 md:pb-8">
       <TrackTitleRow
         header={header}
-        privateActions={
-          <PrivateTrackActions privateTrackId={track.id} userId={userId} />
-        }
+        privateActions={<PrivateTrackActions track={track} userId={userId} />}
       />
       {track.locked ? (
         <LockedPrivateTrack failed={status === 'FAILED'} />
@@ -194,18 +195,18 @@ function PrivateTrackPractice({
 }
 
 function PrivateTrackActions({
-  privateTrackId,
+  track,
   userId,
   featured = false,
 }: {
-  privateTrackId: string;
+  track: PrivateTrackDetailData;
   userId: string;
   featured?: boolean;
 }) {
   const t = useTranslations('privateTracks.detail');
   const router = useRouter();
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <span
         className={cn(
           'inline-flex items-center gap-1.5 rounded-full border border-transparent px-3 py-1 font-semibold text-sm',
@@ -215,8 +216,11 @@ function PrivateTrackActions({
         <LockKeyhole aria-hidden="true" className="size-4" />
         {t('privateBadge')}
       </span>
+      {track.locked ? null : (
+        <PrivateTrackMetadataDialog track={track} featured={featured} />
+      )}
       <PrivateTrackDeleteButton
-        privateTrackId={privateTrackId}
+        privateTrackId={track.id}
         userId={userId}
         featured={featured}
         onDeleted={() => router.replace('/me/tracks')}

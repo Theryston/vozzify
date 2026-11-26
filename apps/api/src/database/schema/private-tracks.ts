@@ -1,7 +1,9 @@
+import type { PrivateTrackRecording } from '@vozzify/contracts';
 import {
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -9,6 +11,11 @@ import {
 } from 'drizzle-orm/pg-core';
 import { id, timestamps } from '../columns.js';
 import { users } from './users.js';
+
+type PrivateTrackRecordingLink =
+  | { kind: 'linked'; recording: PrivateTrackRecording }
+  | { kind: 'unmatched' }
+  | { kind: 'unlinked' };
 
 /** User-owned audio sources stay outside the public catalog. */
 export const privateTracks = pgTable(
@@ -24,6 +31,11 @@ export const privateTracks = pgTable(
     originalFilename: text().notNull(),
     title: text().notNull(),
     artist: text().notNull().default(''),
+    titleOverride: text(),
+    artistOverride: text(),
+    // NULL permits automatic identification. An owner can permanently opt
+    // out by unlinking, including while an automatic lookup is in flight.
+    recordingLink: jsonb().$type<PrivateTrackRecordingLink>(),
     durationMs: integer().notNull(),
     processingStatus: text().notNull().default('QUEUED'),
     processingProgress: integer().notNull().default(0),

@@ -17,6 +17,8 @@ import { PRICE_CHANGE_QUEUE } from '../src/modules/plans/price-change.job.js';
 import { PriceChangeProcessor } from '../src/modules/plans/price-change.processor.js';
 import { PRIVATE_TRACK_ASSET_CLEANUP_QUEUE } from '../src/modules/private-tracks/private-track-asset-cleanup.job.js';
 import { PrivateTrackAssetCleanupProcessor } from '../src/modules/private-tracks/private-track-asset-cleanup.processor.js';
+import { PRIVATE_TRACK_IDENTIFICATION_QUEUE } from '../src/modules/private-tracks/private-track-identification.job.js';
+import { PrivateTrackIdentificationProcessor } from '../src/modules/private-tracks/private-track-identification.processor.js';
 import { PRIVATE_TRACK_PROCESSING_QUEUE } from '../src/modules/private-tracks/private-track-processing.job.js';
 import { PrivateTrackProcessingProcessor } from '../src/modules/private-tracks/private-track-processing.processor.js';
 import { STREAK_REMINDER_QUEUE } from '../src/modules/streaks/streak-reminder.job.js';
@@ -53,6 +55,7 @@ const QUEUES = [
   PRIVATE_TRACK_ASSET_CLEANUP_QUEUE,
   PRICE_CHANGE_QUEUE,
   PRIVATE_TRACK_PROCESSING_QUEUE,
+  PRIVATE_TRACK_IDENTIFICATION_QUEUE,
 ] as const;
 /** Every BullMQ processor; overriding one keeps its worker from starting. */
 const PROCESSORS = [
@@ -72,6 +75,7 @@ const PROCESSORS = [
   PrivateTrackAssetCleanupProcessor,
   PriceChangeProcessor,
   PrivateTrackProcessingProcessor,
+  PrivateTrackIdentificationProcessor,
 ] as const;
 
 export type FakeQueue = {

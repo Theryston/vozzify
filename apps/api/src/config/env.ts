@@ -1,14 +1,9 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { acoustidEnvSchema } from './acoustid-env.js';
+import { optional } from './env-values.js';
 import { parseLegacyCatalogMapEnv } from './legacy-catalog-map-env.js';
-
-// Blank counts as unset, so `KEY=` in a .env file doesn't fail the boot.
-const optional = <T extends z.ZodType>(schema: T) =>
-  z.preprocess(
-    (value) => (value === '' ? undefined : value),
-    schema.optional(),
-  );
 
 // Only for NODE_ENV=test, so test runners (e.g. the e2e suite) boot without a
 // secret. Never used anywhere else: the schema requires a real one.
@@ -287,7 +282,8 @@ const envSchema = z
       SWAGGER_ENABLED: env.SWAGGER_ENABLED ?? env.NODE_ENV !== 'production',
       BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET ?? TEST_AUTH_SECRET,
     };
-  });
+  })
+  .and(acoustidEnvSchema);
 
 export type Env = z.output<typeof envSchema>;
 
