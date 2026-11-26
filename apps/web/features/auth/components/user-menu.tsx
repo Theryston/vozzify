@@ -141,7 +141,7 @@ function UserDropdown({ user, currentPath, links }: MenuItemsProps) {
       <DropdownMenuContent
         align="end"
         sideOffset={8}
-        className={menuSurfaceClassName}
+        className={`${menuSurfaceClassName} w-72`}
       >
         <UserSummary user={user} />
         <DropdownMenuSeparator />
