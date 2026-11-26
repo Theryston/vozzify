@@ -4,12 +4,13 @@ import {
   type ReactNode,
   useContext,
   useEffect,
-  useRef,
   useState,
 } from 'react';
+import { MobileHttpError } from '../api/mobile-api-error';
 import { restoreAuthSession, saveUsername } from './auth-api';
 import type { AuthContinuation } from './auth-continuation';
 import { readAuth, type StoredAuth, writeAuth } from './auth-storage';
+import { useAuthRecord } from './use-auth-record';
 import { recordCodeSent } from './use-code-cooldown';
 
 type RestoredAuth = {
@@ -29,19 +30,16 @@ async function restore(): Promise<RestoredAuth> {
   return { stored: updated, user: data?.user ?? null };
 }
 
-function useRestoreAuth() {
+function useRestoreAuth(replaceRecord: (record: StoredAuth) => void) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<AuthSessionUser | null>(null);
-  const [record, setRecord] = useState<StoredAuth>({});
-  const stored = useRef<StoredAuth>({});
   useEffect(() => {
     if (status !== 'loading') return;
     let active = true;
     void restore().then(
       (result) => {
         if (!active) return;
-        stored.current = result.stored;
-        setRecord(result.stored);
+        replaceRecord(result.stored);
         setUser(result.user);
         setStatus('ready');
       },
@@ -52,84 +50,74 @@ function useRestoreAuth() {
     return () => {
       active = false;
     };
-  }, [status]);
+  }, [replaceRecord, status]);
 
-  async function consumeContinuation() {
-    const { continuation, ...next } = stored.current;
-    if (!continuation) return undefined;
-    stored.current = next;
-    setRecord(next);
+  return { status, user, setUser, retry: () => setStatus('loading') };
+}
+
+function useUsernameSelection(
+  storage: ReturnType<typeof useAuthRecord>,
+  setUser: ReturnType<typeof useRestoreAuth>['setUser'],
+) {
+  return async (body: SetUsernameBody, signal: AbortSignal) => {
+    const { token } = storage.current.current;
+    if (!token) return;
     try {
-      await writeAuth(next);
-      return continuation;
-    } catch {
-      return undefined;
+      const nextUser = await saveUsername(body, token, signal);
+      if (!signal.aborted) {
+        setUser(
+          (current) => current && { ...current, username: nextUser.username },
+        );
+      }
+    } catch (error) {
+      if (!(error instanceof MobileHttpError) || error.statusCode !== 401)
+        throw error;
+      await storage.update(({ continuation }) => ({ continuation }), signal);
+      if (!signal.aborted) setUser(null);
     }
-  }
-
-  return {
-    status,
-    user,
-    setUser,
-    record,
-    setRecord,
-    stored,
-    retry: () => setStatus('loading'),
-    consumeContinuation,
   };
 }
 
+function clearOnboarding(previous: StoredAuth): StoredAuth {
+  const { token, verification, continuation } = previous;
+  return verification || continuation ? { token } : previous;
+}
+
 function useAuthOperations() {
-  const {
-    status,
-    user,
-    setUser,
-    record,
-    setRecord,
-    stored,
-    retry,
-    consumeContinuation,
-  } = useRestoreAuth();
-  async function persist(next: StoredAuth) {
-    await writeAuth(next);
-    stored.current = next;
-    setRecord(next);
-  }
+  const storage = useAuthRecord();
+  const { status, user, setUser, retry } = useRestoreAuth(storage.replace);
+  const chooseUsername = useUsernameSelection(storage, setUser);
+  const { update, record } = storage;
 
   async function beginVerification(
     verification: NonNullable<StoredAuth['verification']>,
     continuation: AuthContinuation,
+    signal: AbortSignal,
   ) {
-    if (verification.email) {
+    const saved = await update(
+      (previous) => ({ ...previous, verification, continuation }),
+      signal,
+    );
+    if (saved && verification.email) {
       recordCodeSent(
         verification.email,
         'email-verification',
         verification.sentAt,
       );
     }
-    await persist({ ...stored.current, verification, continuation });
-  }
-
-  async function cancelOnboarding() {
-    const { token, verification, continuation } = stored.current;
-    if (verification || continuation) await persist({ token });
+    return saved;
   }
 
   async function completeAuth(
     session: { user: AuthSessionUser; token: string },
     continuation: AuthContinuation,
+    signal: AbortSignal,
   ) {
-    await persist({ token: session.token, continuation });
-    setUser(session.user);
-  }
-
-  async function chooseUsername(body: SetUsernameBody) {
-    const { token } = stored.current;
-    if (!token) return;
-    const nextUser = await saveUsername(body, token);
-    setUser(
-      (current) => current && { ...current, username: nextUser.username },
+    const saved = await update(
+      () => ({ token: session.token, continuation }),
+      signal,
     );
+    if (saved) setUser(session.user);
   }
 
   return {
@@ -138,11 +126,36 @@ function useAuthOperations() {
     retry,
     ...record,
     beginVerification,
-    cancelOnboarding,
     completeAuth,
     chooseUsername,
-    consumeContinuation,
+    cancelOnboarding: () => update(clearOnboarding),
+    rememberContinuation: (
+      continuation: AuthContinuation,
+      signal: AbortSignal,
+    ) =>
+      update(
+        (previous) =>
+          previous.continuation ? previous : { ...previous, continuation },
+        signal,
+      ),
+    consumeContinuation: () => consumeContinuation(update),
   };
+}
+
+async function consumeContinuation(
+  update: ReturnType<typeof useAuthRecord>['update'],
+) {
+  let continuation: AuthContinuation | undefined;
+  try {
+    await update((previous) => {
+      const { continuation: pending, ...next } = previous;
+      continuation = pending;
+      return pending ? next : previous;
+    });
+    return continuation;
+  } catch {
+    return undefined;
+  }
 }
 
 const MobileAuthContext = createContext<ReturnType<

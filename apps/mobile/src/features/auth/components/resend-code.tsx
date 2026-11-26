@@ -13,7 +13,7 @@ type ResendCodeProps = {
   email: string;
   purpose: AuthCodePurpose;
   sentAt?: number;
-  onSent?: (email: string, time: number) => Promise<void>;
+  onSent?: (email: string, time: number, signal: AbortSignal) => Promise<void>;
 };
 
 export function ResendCode({
@@ -26,10 +26,11 @@ export function ResendCode({
   const errors = useTranslations('authErrors');
   const locale = useLocale();
   const { seconds, restart } = useCodeCooldown(email, purpose, sentAt);
-  const form = useAuthSubmit(sendAuthCodeBodySchema, async (values) => {
-    await sendAuthCode(values.email, values.type, locale);
+  const form = useAuthSubmit(sendAuthCodeBodySchema, async (values, signal) => {
+    await sendAuthCode(values.email, values.type, locale, signal);
+    if (signal.aborted) return;
     const at = restart();
-    await onSent?.(values.email, at);
+    await onSent?.(values.email, at, signal);
   });
   return (
     <>

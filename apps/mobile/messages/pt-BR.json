@@ -18,6 +18,7 @@
     "buttonLabel": "Botão de exemplo",
     "inputLabel": "Campo de texto de exemplo",
     "inputPlaceholder": "Digite algo",
+    "signInOverlay": "Entrar e abrir sobreposição",
     "openOverlay": "Abrir sobreposição",
     "dismissOverlay": "Fechar sobreposição",
     "overlayTitle": "Uma sobreposição nativa",

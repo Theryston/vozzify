@@ -1,5 +1,5 @@
-import { apiErrorSchema } from '@vozzify/contracts';
-import { z } from 'zod';
+import { apiErrorSchema, authErrorResponseSchema } from '@vozzify/contracts';
+import type { z } from 'zod';
 import {
   MobileApiError,
   MobileAuthError,
@@ -39,8 +39,6 @@ function createUrl(
   return url;
 }
 
-const authErrorSchema = z.object({ code: z.string() });
-
 async function parseFailure(
   response: Response,
   path: string,
@@ -54,7 +52,7 @@ async function parseFailure(
   if (path.startsWith('/auth/')) {
     return new MobileAuthError(
       response.status,
-      authErrorSchema.safeParse(responseBody).data?.code,
+      authErrorResponseSchema.safeParse(responseBody).data?.code,
     );
   }
   const parsed = apiErrorSchema.safeParse(responseBody);

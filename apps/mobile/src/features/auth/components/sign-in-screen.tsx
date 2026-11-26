@@ -18,16 +18,21 @@ function useSignIn() {
   const router = useRouter();
   const continuation = useAuthContinuation();
 
-  return useAuthSubmit(signInBodySchema, async (values: SignInBody) => {
+  return useAuthSubmit(signInBodySchema, async (values: SignInBody, signal) => {
     try {
-      const session = await signIn(values, locale);
-      await auth.completeAuth(session, continuation);
+      const session = await signIn(values, locale, signal);
+      await auth.completeAuth(session, continuation, signal);
     } catch (error) {
       if (authErrorKey(error) !== 'EMAIL_NOT_VERIFIED') throw error;
       const email = values.emailOrUsername.includes('@')
         ? values.emailOrUsername
         : null;
-      await auth.beginVerification({ email, sentAt: Date.now() }, continuation);
+      const saved = await auth.beginVerification(
+        { email, sentAt: Date.now() },
+        continuation,
+        signal,
+      );
+      if (!saved) return;
       router.replace({
         pathname: '/verify-email',
         params: authRouteParams(continuation),

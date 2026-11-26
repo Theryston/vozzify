@@ -1,21 +1,24 @@
 import {
   type AuthCodePurpose,
-  authSessionUserSchema,
+  authCodeResponseSchema,
+  authSessionResponseSchema,
   currentUserSchema,
   type SetUsernameBody,
   type SignInBody,
   type SignUpBody,
   sendAuthCodeBodySchema,
   setUsernameBodySchema,
+  signInEmailBodySchema,
+  signInUsernameBodySchema,
   signUpBodySchema,
+  usernameAvailabilityResponseSchema,
   type VerifyEmailBody,
   verifyEmailBodySchema,
 } from '@vozzify/contracts';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { type MobileApiOptions, mobileApi } from '../api/mobile-api';
-import { MobileApiError } from '../api/mobile-api-error';
+import { MobileApiError, MobileHttpError } from '../api/mobile-api-error';
 
-const sessionSchema = z.object({ user: authSessionUserSchema });
 const bearerHeader = 'set-auth-token';
 
 function authHeaders(token: string): HeadersInit {
@@ -41,11 +44,17 @@ async function requestAuthSession<T extends z.ZodType>(
 
 async function establishAuthSession<TBody extends z.ZodType>(
   path: `/auth/${string}`,
-  options: { bodySchema: TBody; body: z.input<TBody>; locale: string },
+  options: {
+    bodySchema: TBody;
+    body: z.input<TBody>;
+    locale: string;
+    signal: AbortSignal;
+  },
 ) {
   const { data, token } = await requestAuthSession(path, {
     method: 'POST',
-    schema: sessionSchema,
+    schema: authSessionResponseSchema,
+    signal: options.signal,
     bodySchema: options.bodySchema,
     body: options.body,
     headers: { 'accept-language': options.locale },
@@ -56,21 +65,30 @@ async function establishAuthSession<TBody extends z.ZodType>(
   return { user: data.user, token };
 }
 
-export function signIn(body: SignInBody, locale: string) {
+export function signIn(body: SignInBody, locale: string, signal: AbortSignal) {
   const { emailOrUsername, password } = body;
-  const field = emailOrUsername.includes('@') ? 'email' : 'username';
-  return establishAuthSession(`/auth/sign-in/${field}`, {
-    bodySchema: z.object({ [field]: z.string(), password: z.string() }),
-    body: { [field]: emailOrUsername, password },
+  if (emailOrUsername.includes('@')) {
+    return establishAuthSession('/auth/sign-in/email', {
+      bodySchema: signInEmailBodySchema,
+      body: { email: emailOrUsername, password },
+      locale,
+      signal,
+    });
+  }
+  return establishAuthSession('/auth/sign-in/username', {
+    bodySchema: signInUsernameBodySchema,
+    body: { username: emailOrUsername, password },
     locale,
+    signal,
   });
 }
 
-export function signUp(body: SignUpBody, locale: string) {
+export function signUp(body: SignUpBody, locale: string, signal: AbortSignal) {
   return mobileApi('/auth/sign-up/email', {
     method: 'POST',
-    schema: sessionSchema,
+    schema: authSessionResponseSchema,
     bodySchema: signUpBodySchema,
+    signal,
     body,
     headers: { 'accept-language': locale },
   });
@@ -80,19 +98,26 @@ export function sendAuthCode(
   email: string,
   type: AuthCodePurpose,
   locale: string,
+  signal: AbortSignal,
 ) {
   return mobileApi('/auth/email-otp/send-verification-otp', {
     method: 'POST',
-    schema: z.object({ success: z.boolean() }),
+    schema: authCodeResponseSchema,
+    signal,
     bodySchema: sendAuthCodeBodySchema,
     body: { email, type },
     headers: { 'accept-language': locale },
   });
 }
 
-export function verifyEmail(body: VerifyEmailBody, locale: string) {
+export function verifyEmail(
+  body: VerifyEmailBody,
+  locale: string,
+  signal: AbortSignal,
+) {
   return establishAuthSession('/auth/email-otp/verify-email', {
     bodySchema: verifyEmailBodySchema,
+    signal,
     body,
     locale,
   });
@@ -100,7 +125,7 @@ export function verifyEmail(body: VerifyEmailBody, locale: string) {
 
 export function restoreAuthSession(token: string) {
   return requestAuthSession('/auth/get-session', {
-    schema: sessionSchema.nullable(),
+    schema: authSessionResponseSchema.nullable(),
     headers: authHeaders(token),
   });
 }
@@ -108,19 +133,41 @@ export function restoreAuthSession(token: string) {
 export function checkUsername(username: string, signal: AbortSignal) {
   return mobileApi('/auth/is-username-available', {
     method: 'POST',
-    schema: z.object({ available: z.boolean() }),
+    schema: usernameAvailabilityResponseSchema,
     bodySchema: setUsernameBodySchema,
     body: { username },
     signal,
   });
 }
 
-export function saveUsername(body: SetUsernameBody, token: string) {
-  return mobileApi('/me/username', {
-    method: 'PUT',
-    schema: currentUserSchema,
-    bodySchema: setUsernameBodySchema,
-    body,
-    headers: authHeaders(token),
-  });
+export async function saveUsername(
+  body: SetUsernameBody,
+  token: string,
+  signal: AbortSignal,
+) {
+  const headers = authHeaders(token);
+  const schema = currentUserSchema;
+  try {
+    return await mobileApi('/me/username', {
+      method: 'PUT',
+      schema,
+      bodySchema: setUsernameBodySchema,
+      body,
+      headers,
+      signal,
+    });
+  } catch (error) {
+    if (!(error instanceof MobileHttpError) || error.code !== 'CONFLICT') {
+      throw error;
+    }
+    const user = await mobileApi('/me', { schema, headers, signal }).catch(
+      (failure: unknown) => {
+        if (failure instanceof MobileHttpError && failure.statusCode === 401)
+          throw failure;
+        throw error;
+      },
+    );
+    if (!user.username) throw error;
+    return user;
+  }
 }

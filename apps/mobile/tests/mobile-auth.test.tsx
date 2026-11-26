@@ -1,4 +1,4 @@
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { renderRouter } from 'expo-router/testing-library';
 import * as SecureStore from 'expo-secure-store';
 
@@ -38,6 +38,25 @@ const stillNeedsUsername = {
   emailVerified: true,
   username: null,
 };
+
+function currentUser(username: string | null) {
+  return {
+    ...stillNeedsUsername,
+    username,
+    role: 'USER',
+    name: 'Ana',
+    image: null,
+    createdAt: '2026-11-26T00:00:00Z',
+  };
+}
+
+function deferResponse() {
+  let respond: (response: Response) => void = () => undefined;
+  const promise = new Promise<Response>((resolve) => {
+    respond = resolve;
+  });
+  return { promise, respond };
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status });
@@ -123,20 +142,15 @@ describe('mobile email onboarding', () => {
           409,
         ),
       )
+      .mockResolvedValueOnce(json(currentUser(null)))
       .mockResolvedValueOnce(json({ available: true }))
-      .mockResolvedValueOnce(
-        json({
-          ...stillNeedsUsername,
-          username: 'second_choice',
-          role: 'USER',
-          name: 'Ana',
-          image: null,
-          createdAt: '2026-11-26T00:00:00Z',
-        }),
-      );
-    await renderRouter('./app', {
-      initialUrl: '/sign-up?redirectTo=%2Fcomponents&action=open-overlay',
-    });
+      .mockResolvedValueOnce(json(currentUser('second_choice')));
+    await renderRouter('./app');
+    await userEvent.press(await screen.findByTestId('open-components'));
+    await userEvent.press(await screen.findByTestId('gallery-sign-in-overlay'));
+    await userEvent.press(
+      await screen.findByRole('link', { name: 'Create account' }),
+    );
     await press('Create account');
     expect(screen.getAllByRole('alert')).toHaveLength(3);
     expect(request).not.toHaveBeenCalled();
@@ -369,5 +383,106 @@ it('can leave email verification and return to the original screen without reope
   ).toBeOnTheScreen();
   await userEvent.press(screen.getByRole('link', { name: 'Return to app' }));
   expect(await screen.findByText('Foundation components')).toBeOnTheScreen();
+  expect(screen.queryByText('Verify your email')).toBeNull();
+});
+
+it('gates a cold-open gallery during restoration and retains it through Username setup', async () => {
+  const session = deferResponse();
+  readSecureStore.mockResolvedValueOnce(
+    JSON.stringify({ token: 'signed.session' }),
+  );
+  request
+    .mockReturnValueOnce(session.promise)
+    .mockResolvedValueOnce(json({ available: true }))
+    .mockResolvedValueOnce(json(currentUser('ana')));
+  const router = await renderRouter('./app', { initialUrl: '/components' });
+  expect(screen.getByLabelText('Restoring your session')).toBeOnTheScreen();
+  expect(screen.queryByTestId('overlay-open')).toBeNull();
+  await act(async () => session.respond(json({ user: stillNeedsUsername })));
+
+  expect(await screen.findByText('Choose your Username')).toBeOnTheScreen();
+  expect(screen.queryByText('Foundation components')).toBeNull();
+  expect(writeSecureStore).toHaveBeenCalledWith(
+    expect.any(String),
+    JSON.stringify({
+      token: 'signed.session',
+      continuation: { destination: '/components' },
+    }),
+    expect.any(Object),
+  );
+  await fill('Username', 'ana');
+  expect(await screen.findByText('Username available')).toBeOnTheScreen();
+  await press('Save Username');
+  expect(await screen.findByText('Foundation components')).toBeOnTheScreen();
+  await waitFor(() => expect(router.getPathname()).toBe('/components'));
+});
+
+it('reconciles a Username already saved on another device after a conflict', async () => {
+  readSecureStore.mockResolvedValueOnce(
+    JSON.stringify({ token: 'signed.session' }),
+  );
+  request
+    .mockResolvedValueOnce(json({ user: stillNeedsUsername }))
+    .mockResolvedValueOnce(json({ available: true }))
+    .mockResolvedValueOnce(
+      json(
+        { statusCode: 409, code: 'CONFLICT', message: 'Username already set' },
+        409,
+      ),
+    )
+    .mockResolvedValueOnce(json(currentUser('already_set')));
+  await renderRouter('./app');
+  await fill('Username', 'try_this');
+  expect(await screen.findByText('Username available')).toBeOnTheScreen();
+  await press('Save Username');
+  expect(
+    await screen.findByText('Signed in as @already_set'),
+  ).toBeOnTheScreen();
+  expect(String(request.mock.calls[3]?.[0])).toMatch(/\/v1\/me$/);
+  expect(
+    new Headers(request.mock.calls[3]?.[1]?.headers).get('authorization'),
+  ).toBe('Bearer signed.session');
+});
+
+it('clears a revoked session during Username setup and keeps the requested destination for sign-in', async () => {
+  readSecureStore.mockResolvedValueOnce(
+    JSON.stringify({ token: 'signed.session' }),
+  );
+  request
+    .mockResolvedValueOnce(json({ user: stillNeedsUsername }))
+    .mockResolvedValueOnce(json({ available: true }))
+    .mockResolvedValueOnce(
+      json(
+        { statusCode: 401, code: 'UNAUTHORIZED', message: 'Session revoked' },
+        401,
+      ),
+    )
+    .mockResolvedValueOnce(authResponse());
+  await renderRouter('./app', { initialUrl: '/components' });
+  await fill('Username', 'available');
+  expect(await screen.findByText('Username available')).toBeOnTheScreen();
+  await press('Save Username');
+  expect(await screen.findByText('Sign in to Vozzify')).toBeOnTheScreen();
+  await fill('Email or Username', 'ana');
+  await fill('Password', 'old');
+  await press('Sign in');
+  expect(await screen.findByText('Foundation components')).toBeOnTheScreen();
+});
+
+it('ignores a successful sign-up response after leaving the form', async () => {
+  const submission = deferResponse();
+  request.mockReturnValueOnce(submission.promise);
+  const router = await renderRouter('./app', { initialUrl: '/sign-up' });
+  await fill('Name', 'Ana');
+  await fill('Email', 'abandoned@example.com');
+  await fill('Password', 'abcdef');
+  await press('Create account');
+  await userEvent.press(screen.getByRole('link', { name: 'Sign in' }));
+  expect(await screen.findByText('Sign in to Vozzify')).toBeOnTheScreen();
+
+  await act(async () => submission.respond(json({ user: stillNeedsUsername })));
+  expect(request.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+  expect(writeSecureStore).not.toHaveBeenCalled();
+  expect(router.getPathname()).toBe('/sign-in');
   expect(screen.queryByText('Verify your email')).toBeNull();
 });

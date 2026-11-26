@@ -103,3 +103,25 @@ export const sendAuthCodeBodySchema = z.object({
 });
 
 export type AuthCodePurpose = z.infer<typeof sendAuthCodeBodySchema>['type'];
+
+/** The two Better Auth credential requests accepted by the same sign-in form. */
+const credentialPassword = signInBodySchema.pick({ password: true });
+export const signInEmailBodySchema = credentialPassword.extend({
+  email: signInBodySchema.shape.emailOrUsername,
+});
+export const signInUsernameBodySchema = credentialPassword.extend({
+  username: signInBodySchema.shape.emailOrUsername,
+});
+
+/** Native clients read the session User and the signed token header. */
+export const authSessionResponseSchema = z.object({
+  user: authSessionUserSchema,
+});
+
+export const authCodeResponseSchema = z.object({ success: z.literal(true) });
+export const usernameAvailabilityResponseSchema = z.object({
+  available: z.boolean(),
+});
+
+/** The Better Auth error format under /v1/auth. */
+export const authErrorResponseSchema = z.object({ code: z.string() });

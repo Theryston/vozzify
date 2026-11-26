@@ -26,33 +26,57 @@ function requiredAuthRoute(auth: MobileAuth, path: string) {
   return undefined;
 }
 
-export function AuthNavigation() {
+function useOnboardingRoute() {
   const path = usePathname();
   const router = useRouter();
   const params = useGlobalSearchParams();
   const auth = useMobileAuth();
-  const continuation = auth.continuation ?? authContinuationFromParams(params);
+  const isAuthRoute = authRoutes.has(path);
+  const continuation =
+    auth.continuation ??
+    authContinuationFromParams(isAuthRoute ? params : { redirectTo: path });
+  const required =
+    auth.status === 'ready' ? requiredAuthRoute(auth, path) : undefined;
 
   useEffect(() => {
-    if (auth.status !== 'ready') return;
-    const required = requiredAuthRoute(auth, path);
-    if (required === path) return;
-    if (required) {
-      router.replace({
-        pathname: required,
-        params: authRouteParams(continuation),
-      });
-      return;
-    }
-    if (!auth.user) return;
+    if (!required || required === path) return;
+    const controller = new AbortController();
+    const navigate = () => {
+      if (!controller.signal.aborted) {
+        router.replace({
+          pathname: required,
+          params: authRouteParams(continuation),
+        });
+      }
+    };
+    // Retain a cold-open destination if the app is closed during onboarding.
+    if (isAuthRoute || auth.continuation) navigate();
+    else
+      void auth
+        .rememberContinuation(continuation, controller.signal)
+        .then(navigate, navigate);
+    return () => {
+      controller.abort();
+    };
+  }, [auth, continuation, isAuthRoute, path, required, router]);
+
+  return { path, router, auth, continuation, isAuthRoute, required };
+}
+
+export function AuthNavigation() {
+  const { path, router, auth, continuation, isAuthRoute, required } =
+    useOnboardingRoute();
+
+  useEffect(() => {
+    if (auth.status !== 'ready' || !auth.user || required) return;
     const hasArrival = auth.continuation !== undefined;
     const needsArrival = hasArrival && path !== continuation.destination;
-    if (authRoutes.has(path) || needsArrival) {
+    if (isAuthRoute || needsArrival) {
       router.dismissTo(continuation.destination);
     } else if (hasArrival && path === '/') {
       void auth.consumeContinuation();
     }
-  }, [auth, continuation, path, router]);
+  }, [auth, continuation, isAuthRoute, path, required, router]);
 
   return null;
 }

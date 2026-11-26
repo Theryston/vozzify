@@ -21,9 +21,9 @@ function useVerifyEmail(initialEmail: string) {
   const [otp, setOtp] = useState('');
   const form = useAuthSubmit(
     verifyEmailBodySchema,
-    async (values) => {
-      const session = await verifyEmail(values, locale);
-      await auth.completeAuth(session, continuation);
+    async (values, signal) => {
+      const session = await verifyEmail(values, locale, signal);
+      await auth.completeAuth(session, continuation, signal);
     },
     (key) => {
       if (isCodeError(key)) setOtp('');
@@ -92,9 +92,13 @@ function VerifyEmailForm({
         email={email}
         purpose="email-verification"
         sentAt={sentAt}
-        onSent={(address, time) =>
-          auth.beginVerification({ email: address, sentAt: time }, continuation)
-        }
+        onSent={async (address, time, signal) => {
+          await auth.beginVerification(
+            { email: address, sentAt: time },
+            continuation,
+            signal,
+          );
+        }}
       />
     </>
   );

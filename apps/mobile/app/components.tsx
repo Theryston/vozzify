@@ -7,10 +7,12 @@ import { Text } from '../src/components/text';
 import { Button } from '../src/components/ui/button';
 import { Input } from '../src/components/ui/input';
 import { Overlay } from '../src/components/ui/overlay';
+import { AuthDestination } from '../src/features/auth/components/auth-destination';
+import { GalleryAuthAction } from '../src/features/auth/components/gallery-auth-action';
 import { useGalleryContinuation } from '../src/features/auth/components/use-gallery-continuation';
 import { useMobileLocale } from '../src/lib/i18n/mobile-locale-provider';
 
-export default function ComponentsScreen() {
+function GalleryContent() {
   const translate = useTranslations('components');
   const preferenceTranslate = useTranslations('preferences');
   const { locale, setLocale } = useMobileLocale();
@@ -69,6 +71,7 @@ export default function ComponentsScreen() {
       >
         {translate('openOverlay')}
       </Button>
+      <GalleryAuthAction />
       <Overlay
         onOpenChange={setOverlayOpen}
         open={overlayOpen}
@@ -84,5 +87,13 @@ export default function ComponentsScreen() {
         </Button>
       </Link>
     </Screen>
+  );
+}
+
+export default function ComponentsScreen() {
+  return (
+    <AuthDestination path="/components">
+      <GalleryContent />
+    </AuthDestination>
   );
 }

@@ -23,12 +23,14 @@ function useSignUp() {
   const router = useRouter();
   const continuation = useAuthContinuation();
 
-  return useAuthSubmit(signUpBodySchema, async (values) => {
-    await signUp(values, locale);
-    await auth.beginVerification(
+  return useAuthSubmit(signUpBodySchema, async (values, signal) => {
+    await signUp(values, locale, signal);
+    const saved = await auth.beginVerification(
       { email: values.email, sentAt: Date.now() },
       continuation,
+      signal,
     );
+    if (!saved) return;
     router.replace({
       pathname: '/verify-email',
       params: authRouteParams(continuation),

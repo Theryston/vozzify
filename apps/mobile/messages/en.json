@@ -18,6 +18,7 @@
     "buttonLabel": "Example button",
     "inputLabel": "Sample text input",
     "inputPlaceholder": "Type something",
+    "signInOverlay": "Sign in and open overlay",
     "openOverlay": "Open overlay",
     "dismissOverlay": "Dismiss overlay",
     "overlayTitle": "A native overlay",
