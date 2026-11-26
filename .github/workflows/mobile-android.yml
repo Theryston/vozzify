@@ -86,6 +86,9 @@ jobs:
       - name: Install dependencies
         run: nub install --frozen-lockfile
 
+      - name: Build shared contracts
+        run: nub run --filter=@vozzify/contracts build
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:

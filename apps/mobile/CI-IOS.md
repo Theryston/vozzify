@@ -8,7 +8,8 @@ start the simulator job. It also supports manual runs from the Actions tab
 with `workflow_dispatch`.
 
 The workflow uses a standard `macos-26` GitHub-hosted runner. It installs the
-locked workspace with Nub, generates the iOS project, installs CocoaPods,
+locked workspace with Nub, builds the shared contracts, generates the iOS
+project, installs CocoaPods,
 compiles the preview variant for an iOS simulator, boots the selected
 available iPhone simulator, installs and launches the app, then runs Maestro
 2.12.0. Separate workflow
@@ -36,6 +37,7 @@ repository root run:
 
 ```sh
 nub install --frozen-lockfile
+nub run --filter=@vozzify/contracts build
 cd apps/mobile
 export APP_VARIANT=preview
 export EXPO_PUBLIC_API_URL=http://127.0.0.1:3333

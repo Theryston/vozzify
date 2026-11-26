@@ -78,6 +78,9 @@ jobs:
       - name: Install locked workspace dependencies
         run: nub install --frozen-lockfile
 
+      - name: Build shared contracts
+        run: nub run --filter=@vozzify/contracts build
+
       - name: Generate iOS project
         working-directory: apps/mobile
         run: nub exec expo prebuild --clean --no-install --platform ios
