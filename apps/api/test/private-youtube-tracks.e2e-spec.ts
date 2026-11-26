@@ -3,6 +3,7 @@ import {
   myPrivateTracksPageSchema,
   privateTrackDetailSchema,
   privateTrackSchema,
+  trackDetailSchema,
 } from '@vozzify/contracts';
 import type { Job, Queue } from 'bullmq';
 import { eq } from 'drizzle-orm';
@@ -24,7 +25,11 @@ import { createAuthClient, signIn } from './utils/auth.js';
 import { billingCatalog } from './utils/billing-fixture.js';
 import { createTestApp, type TestApp } from './utils/create-test-app.js';
 import { resetDatabase } from './utils/database.js';
-import { createPasswordUser, DEFAULT_PASSWORD } from './utils/factories.js';
+import {
+  createPasswordUser,
+  createTrack,
+  DEFAULT_PASSWORD,
+} from './utils/factories.js';
 import {
   FAKE_CATALOG_API_KEY,
   startFakeMusicCatalog,
@@ -108,6 +113,10 @@ describe('Private YouTube tracks (e2e)', () => {
   }
 
   it('canonicalizes concurrent submissions and keeps identical videos separate across owners', async () => {
+    const publicTrack = await createTrack(app.db, {
+      title: 'Catalog recording',
+      youtubeVideoId: VIDEO_ID,
+    });
     const owner = await signInUser();
     const other = await signInUser();
     const accepted = await Promise.all(
@@ -125,6 +134,7 @@ describe('Private YouTube tracks (e2e)', () => {
       processing: { status: 'QUEUED', progress: 0 },
     });
     expect(duplicate?.id).toBe(first?.id);
+    expect(first?.id).not.toBe(publicTrack.id);
     const listing = await owner.client.get(ROOT).expect(200);
     expect(myPrivateTracksPageSchema.parse(listing.body).items).toHaveLength(1);
 
@@ -142,6 +152,16 @@ describe('Private YouTube tracks (e2e)', () => {
       .expect(201);
     expect(privateTrackSchema.parse(another.body).id).not.toBe(first?.id);
     await other.client.get(`${ROOT}/${first?.id}`).expect(404);
+    const visitor = request(app.app.getHttpServer());
+    await visitor.get(`/v1/tracks/${first?.id}`).expect(404);
+    const publicDetail = await visitor
+      .get(`/v1/tracks/${publicTrack.id}`)
+      .expect(200);
+    expect(trackDetailSchema.parse(publicDetail.body)).toMatchObject({
+      id: publicTrack.id,
+      title: 'Catalog recording',
+      youtubeVideoId: VIDEO_ID,
+    });
   });
 
   it('requires Pro and rejects non-video URLs and videos longer than 30 minutes', async () => {
