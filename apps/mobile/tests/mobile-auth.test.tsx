@@ -2,6 +2,9 @@ import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { renderRouter } from 'expo-router/testing-library';
 import * as SecureStore from 'expo-secure-store';
 
+// Load the native shell before spying on fetch so Expo has installed its transport.
+import '../app/_layout';
+
 jest.mock('expo-network', () => ({
   getNetworkStateAsync: jest.fn().mockResolvedValue({
     isConnected: true,
