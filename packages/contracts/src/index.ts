@@ -6,6 +6,7 @@ export * from './albums.js';
 export * from './artists.js';
 export * from './auth.js';
 export * from './auth-rules.js';
+export * from './avatar-identity.js';
 export * from './avatar-rules.js';
 export * from './cache-tags.js';
 export * from './daily-target-rules.js';

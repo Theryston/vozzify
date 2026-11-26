@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import { and, asc, count, eq, sql } from 'drizzle-orm';
+import { avatarIdentityColumns } from '../../database/avatar-identity-columns.js';
 import type { DatabaseAdapter } from '../../database/database.js';
+import { subscriptions } from '../../database/schema/subscriptions.js';
 import {
   trackContributionKind,
   trackContributions,
@@ -9,6 +11,7 @@ import {
 } from '../../database/schema/track-contributors.js';
 import { userFollows } from '../../database/schema/user-follows.js';
 import { users } from '../../database/schema/users.js';
+import type { AvatarIdentityInputs } from '../plans/subscription-membership.service.js';
 import type { TrackContributorCursor } from './track-contributor-cursor.js';
 
 /** A Contribution's kind, as the schema stores it. */
@@ -153,7 +156,7 @@ export class TrackContributorRepository {
       viewerId?: string;
     },
   ): Promise<{
-    rows: {
+    rows: ({
       id: string;
       userId: string;
       username: string | null;
@@ -162,7 +165,7 @@ export class TrackContributorRepository {
       isFollowing: boolean;
       contributedAt: Date;
       cursorTimestamp?: string;
-    }[];
+    } & AvatarIdentityInputs)[];
     total: number;
   }> {
     const { cursor, limit, query, viewerId } = options;
@@ -175,12 +178,14 @@ export class TrackContributorRepository {
           username: users.username,
           name: users.name,
           image: users.image,
+          ...avatarIdentityColumns,
           isFollowing: TrackContributorRepository.followingColumn(viewerId),
           contributedAt: trackContributors.createdAt,
           cursorTimestamp: sql<string>`to_char(${trackContributors.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
         })
         .from(trackContributors)
         .innerJoin(users, eq(users.id, trackContributors.userId))
+        .leftJoin(subscriptions, eq(subscriptions.userId, users.id))
         .where(where)
         .orderBy(asc(trackContributors.createdAt), asc(trackContributors.id))
         .limit(limit + 1),

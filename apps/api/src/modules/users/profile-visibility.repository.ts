@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import { eq, inArray } from 'drizzle-orm';
+import { avatarIdentityColumns } from '../../database/avatar-identity-columns.js';
 import type { DatabaseAdapter } from '../../database/database.js';
+import { subscriptions } from '../../database/schema/subscriptions.js';
 import { users } from '../../database/schema/users.js';
+import type { AvatarIdentityInputs } from '../plans/subscription-membership.service.js';
 
 /** The section visibility flags of a User, with the username that addresses it. */
 export type ProfileVisibilityRow = {
@@ -14,6 +17,9 @@ export type ProfileVisibilityRow = {
 };
 
 /** The section flags to set in one statement: only those given change. */
+type SocialProfileRow = ProfileVisibilityRow &
+  AvatarIdentityInputs & { name?: string; image?: string | null };
+
 export type ProfileVisibilityValues = Partial<
   Pick<
     ProfileVisibilityRow,
@@ -57,11 +63,17 @@ export class ProfileVisibilityRepository {
   }
 
   /** The current section flags for a bounded set of public Profile owners. */
-  async findManyByIds(ids: string[]): Promise<ProfileVisibilityRow[]> {
+  async findManyByIds(ids: string[]): Promise<SocialProfileRow[]> {
     if (ids.length === 0) return [];
     return this.txHost.tx
-      .select(profileVisibilityColumns)
+      .select({
+        ...profileVisibilityColumns,
+        ...avatarIdentityColumns,
+        name: users.name,
+        image: users.image,
+      })
       .from(users)
+      .leftJoin(subscriptions, eq(subscriptions.userId, users.id))
       .where(inArray(users.id, ids));
   }
 

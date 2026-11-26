@@ -31,6 +31,7 @@ const toPeople = (items: SocialCandidate[]) =>
     username: person.username,
     name: person.name,
     image: person.image,
+    ...(person.avatarIdentity && { avatarIdentity: person.avatarIdentity }),
     commonTracks: person.commonTracks,
   }));
 

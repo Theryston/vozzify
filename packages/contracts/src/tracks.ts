@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { avatarIdentitySchema } from './avatar-identity.js';
 
 import { localeSchema } from './locales.js';
 import { mbidSchema } from './music-catalog.js';
@@ -85,6 +86,7 @@ export const trackContributorSchema = z.object({
   username: z.string().min(1).max(100).nullable(),
   name: z.string().min(1).max(200),
   image: z.string().min(1).max(2000).nullable(),
+  avatarIdentity: avatarIdentitySchema.optional(),
 });
 
 export type TrackContributor = z.infer<typeof trackContributorSchema>;

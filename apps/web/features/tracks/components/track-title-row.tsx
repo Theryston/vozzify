@@ -3,6 +3,7 @@ import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { Fragment, type ReactNode, useState } from 'react';
 
+import { useAvatarStatusText } from '@/features/auth/components/avatar-status';
 import { Link } from '@/lib/i18n/navigation';
 
 import { ContributorAvatar } from './contributor-avatar';
@@ -57,6 +58,7 @@ function Contributors({
   trackId: string;
 }) {
   const t = useTranslations('tracks.practice');
+  const statusText = useAvatarStatusText();
   const [opening, setOpening] = useState(0);
   const [open, setOpen] = useState(false);
   const shown = contributors.slice(0, 3);
@@ -67,6 +69,14 @@ function Contributors({
       <button
         type="button"
         aria-label={t('contributorsOpen', { count: total })}
+        aria-description={
+          shown
+            .flatMap((person) => {
+              const status = statusText(person.avatarIdentity);
+              return status ? [`${person.name}, ${status}`] : [];
+            })
+            .join('; ') || undefined
+        }
         aria-haspopup="dialog"
         onClick={() => {
           setOpening((value) => value + 1);

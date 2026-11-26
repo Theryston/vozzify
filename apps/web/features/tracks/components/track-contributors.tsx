@@ -1,5 +1,6 @@
 import type { TrackContributor } from '@vozzify/contracts';
 import { useTranslations } from 'next-intl';
+import { UserIdentityMarks } from '@/features/auth/components/user-identity-marks';
 
 import { Link } from '@/lib/i18n/navigation';
 
@@ -13,6 +14,7 @@ function ContributorLabel({ contributor }: { contributor: TrackContributor }) {
     <>
       <ContributorAvatar contributor={contributor} className="size-8" />
       <span className="font-medium text-sm">{contributor.name}</span>
+      <UserIdentityMarks identity={contributor.avatarIdentity} />
     </>
   );
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { avatarIdentitySchema } from './avatar-identity.js';
 import { localeSchema } from './locales.js';
 import {
   trackArtistCreditEntrySchema,
@@ -213,6 +214,7 @@ export const homePersonSchema = z.object({
   name: z.string().min(1).max(200),
   image: z.string().min(1).max(2000).nullable(),
   commonTracks: z.number().int().min(3),
+  avatarIdentity: avatarIdentitySchema.optional(),
 });
 
 export type HomePerson = z.infer<typeof homePersonSchema>;

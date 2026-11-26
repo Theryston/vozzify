@@ -1,7 +1,7 @@
 import type { HomePeopleRow } from '@vozzify/contracts';
-import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/features/auth/components/user-avatar';
+import { UserIdentityMarks } from '@/features/auth/components/user-identity-marks';
 
 import { Link } from '@/lib/i18n/navigation';
 import { CarouselScroller } from '../components/carousel-scroller';
@@ -42,32 +42,11 @@ export function PeopleLayout({
               href={`/users/${person.username}`}
               className="group flex h-full flex-col items-center gap-2 rounded-2xl p-2 text-center outline-none transition-colors duration-150 ease-out hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              <Avatar className="size-20 border border-border md:size-24">
-                {/* Stored Google and legacy Avatar URLs may not match the optimizer hosts. */}
-                {person.image ? (
-                  <AvatarImage
-                    keepMounted
-                    render={
-                      <Image
-                        fill
-                        unoptimized
-                        sizes="(max-width: 768px) 80px, 96px"
-                        src={person.image}
-                        alt=""
-                      />
-                    }
-                    src={person.image}
-                    alt=""
-                    referrerPolicy="no-referrer"
-                  />
-                ) : null}
-                <AvatarFallback className="bg-primary/15 font-semibold text-primary">
-                  {person.name.slice(0, 1).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              <UserAvatar user={person} className="size-20 md:size-24" />
               <span className="w-full truncate font-medium text-sm">
                 {person.name}
               </span>
+              <UserIdentityMarks identity={person.avatarIdentity} />
               <span className="text-muted-foreground text-xs">
                 {t('home.people.commonTracks', { count: person.commonTracks })}
               </span>

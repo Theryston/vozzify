@@ -4,13 +4,14 @@ import type { TrackContributorEntry } from '@vozzify/contracts';
 import { SearchIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { type RefObject, useEffect, useRef, useState } from 'react';
-
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useAvatarStatusText } from '@/features/auth/components/avatar-status';
+import { UserIdentityMarks } from '@/features/auth/components/user-identity-marks';
 import { Link } from '@/lib/i18n/navigation';
 
 import { useContributors } from '../hooks/use-contributors';
@@ -104,12 +105,16 @@ function ContributorRow({
   contributor: TrackContributorEntry;
 }) {
   const tp = useTranslations('tracks.practice');
+  const statusText = useAvatarStatusText();
   const body = (
     <>
       <ContributorAvatar contributor={contributor} className={AVATAR_CLASS} />
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate font-semibold text-sm">
-          {contributor.name}
+        <span className="flex min-w-0 flex-wrap items-center gap-1">
+          <span className="truncate font-semibold text-sm">
+            {contributor.name}
+          </span>
+          <UserIdentityMarks identity={contributor.avatarIdentity} />
         </span>
         {contributor.username === null ? null : (
           <span className="truncate text-muted-foreground text-xs">
@@ -134,6 +139,7 @@ function ContributorRow({
       ) : (
         <Link
           href={`/users/${contributor.username}`}
+          aria-description={statusText(contributor.avatarIdentity)}
           aria-label={tp('contributorLink', { name: contributor.name })}
           className={className}
         >

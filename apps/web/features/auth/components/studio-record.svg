@@ -1,0 +1,14 @@
+<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="vinyl" x2="1" y2=".65" gradientUnits="objectBoundingBox">
+      <stop stop-color="#101012"/><stop offset=".30" stop-color="#39393e"/><stop offset=".46" stop-color="#151517"/><stop offset=".72" stop-color="#101012"/><stop offset=".87" stop-color="#343438"/><stop offset="1" stop-color="#171719"/>
+    </linearGradient>
+  </defs>
+  <circle cx="50" cy="50" r="50" fill="url(#vinyl)"/>
+  <g fill="none" stroke="white" stroke-opacity=".2" stroke-width=".5">
+    <circle cx="50" cy="50" r="22"/><circle cx="50" cy="50" r="25"/><circle cx="50" cy="50" r="28"/><circle cx="50" cy="50" r="31"/><circle cx="50" cy="50" r="34"/><circle cx="50" cy="50" r="37"/><circle cx="50" cy="50" r="40"/><circle cx="50" cy="50" r="44"/><circle cx="50" cy="50" r="47"/>
+  </g>
+  <circle cx="50" cy="50" r="17" fill="#f3f3f5"/>
+  <path d="M33.75 55h32.5a17 17 0 0 1-32.5 0" fill="#fa4900"/>
+  <circle cx="50" cy="50" r="1.4" fill="#18181b"/>
+</svg>

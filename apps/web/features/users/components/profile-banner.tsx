@@ -1,6 +1,5 @@
 import type { PublicProfile } from '@vozzify/contracts';
 import { getFormatter, getTranslations } from 'next-intl/server';
-
 import {
   entityBannerClass,
   entityBannerRowClass,
@@ -8,6 +7,7 @@ import {
   entityVisualClass,
 } from '@/components/entity-header';
 import { UserAvatar } from '@/features/auth/components/user-avatar';
+import { UserIdentityMarks } from '@/features/auth/components/user-identity-marks';
 import { ProfileChips } from '@/features/users/components/profile-chips';
 
 import { followCountsOf } from '../follow-state';
@@ -37,11 +37,8 @@ export async function ProfileBanner({ profile }: { profile: PublicProfile }) {
       <section aria-labelledby="profile-name" className={entityBannerClass}>
         <div className={entityBannerRowClass}>
           <UserAvatar
-            user={{
-              name: profile.name,
-              username: profile.username,
-              image: profile.image ?? undefined,
-            }}
+            user={profile}
+            size="full"
             className={`${entityVisualClass} *:data-[slot=avatar-fallback]:bg-primary-foreground *:data-[slot=avatar-fallback]:text-2xl *:data-[slot=avatar-fallback]:text-primary md:*:data-[slot=avatar-fallback]:text-3xl`}
           />
           <div className="flex min-w-0 flex-col gap-3 sm:flex-1">
@@ -49,6 +46,10 @@ export async function ProfileBanner({ profile }: { profile: PublicProfile }) {
               <h1 id="profile-name" className={entityTitleClass}>
                 {profile.name}
               </h1>
+              <UserIdentityMarks
+                identity={profile.avatarIdentity}
+                recordLabel
+              />
               <p className="font-semibold text-lg leading-none opacity-80 md:text-xl">
                 @{profile.username}
               </p>

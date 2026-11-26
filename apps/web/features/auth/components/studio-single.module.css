@@ -1,0 +1,103 @@
+.frame {
+  container-type: inline-size;
+  isolation: isolate;
+  background: transparent;
+  box-shadow: none;
+}
+.frame[data-format="full"] {
+  aspect-ratio: 1.61;
+  width: auto;
+  align-self: center;
+  max-width: 100%;
+}
+.single {
+  width: 100%;
+  aspect-ratio: 1.61;
+  position: relative;
+  display: block;
+  pointer-events: none;
+}
+.record {
+  position: absolute;
+  inset: 0 0 0 auto;
+  aspect-ratio: 1;
+  background: url("./studio-record.svg") center / contain no-repeat;
+}
+.record > span {
+  position: absolute;
+  inset: 36% 0 auto;
+  color: #131316;
+  text-align: center;
+  font-size: 6.2cqw;
+  font-weight: 800;
+  line-height: 1;
+}
+.sleeve {
+  position: absolute;
+  left: 2%;
+  top: 0;
+  height: 100%;
+  aspect-ratio: 1;
+  padding: 3%;
+  border-radius: 3%;
+  color: #131316;
+  background: #fafafb;
+  box-shadow: 1px 2px 4px rgb(0 0 0 / 20%);
+  transform: rotate(-5deg);
+}
+.sleeve [data-slot="avatar"] {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 2%;
+}
+.sleeve [data-slot="avatar"]::after {
+  display: none;
+}
+.sleeve [data-slot="avatar-image"],
+.sleeve [data-slot="avatar-fallback"] {
+  border-radius: 0;
+}
+.sleeve [data-slot="avatar-fallback"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 30cqw;
+  font-weight: 800;
+  letter-spacing: -0.065em;
+  isolation: isolate;
+}
+.sleeve [data-slot="avatar-fallback"]::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 94%;
+  aspect-ratio: 1;
+  right: -36%;
+  top: -48%;
+  border: 5cqw solid rgb(0 0 0 / 13%);
+  border-radius: 50%;
+}
+.frame[data-format="full"] [data-slot="avatar"] {
+  height: 82%;
+}
+.credit {
+  display: flex;
+  height: 18%;
+  gap: 2%;
+  align-items: end;
+  justify-content: space-between;
+  font-weight: 800;
+  font-size: 7.5cqw;
+  line-height: 1;
+  letter-spacing: -0.06em;
+}
+.credit > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.credit > svg {
+  flex: none;
+  width: 10%;
+  height: 76%;
+}

@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import type { PublicProfileSummary } from '@vozzify/contracts';
+import type { AvatarIdentity, PublicProfileSummary } from '@vozzify/contracts';
 
 import { json } from './fake-api-http.ts';
 import {
@@ -15,6 +15,7 @@ import {
  * nothing for is `null`, as the API sends it; unset ones default to `null`.
  */
 type FakeProfile = {
+  avatarIdentity?: AvatarIdentity;
   name: string;
   image: string | null;
   createdAt: string;
@@ -28,6 +29,34 @@ type FakeProfile = {
 
 /** Profiles by lowercased username, as the API stores them. */
 const profiles = new Map<string, FakeProfile>([
+  [
+    'studio_admin',
+    {
+      name: 'Lia Costa',
+      image: null,
+      createdAt: '2026-01-02T03:04:05.000Z',
+      avatarIdentity: { pro: true, admin: true },
+    },
+  ],
+  [
+    'studio_missing',
+    {
+      name: 'Lia Costa',
+      image: 'http://127.0.0.1:3333/missing-avatar.png',
+      createdAt: '2026-01-02T03:04:05.000Z',
+      avatarIdentity: { pro: true },
+    },
+  ],
+  [
+    'studio_portrait',
+    {
+      name: 'Lia Costa',
+      image:
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWMQWbAdjhiI4wAARAIWsbApZEkAAAAASUVORK5CYII=',
+      createdAt: '2026-01-02T03:04:05.000Z',
+      avatarIdentity: { pro: true },
+    },
+  ],
   [
     'ada_lovelace',
     {

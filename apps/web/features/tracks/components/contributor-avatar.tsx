@@ -10,15 +10,5 @@ export function ContributorAvatar({
   contributor: TrackContributor;
   className?: string;
 }) {
-  return (
-    <UserAvatar
-      user={{
-        name: contributor.name,
-        username: contributor.username,
-        // The session type leaves a missing photo out rather than null.
-        image: contributor.image ?? undefined,
-      }}
-      className={className}
-    />
-  );
+  return <UserAvatar user={contributor} className={className} />;
 }

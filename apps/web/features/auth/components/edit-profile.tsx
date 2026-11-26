@@ -3,13 +3,14 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CurrentUser } from '@vozzify/contracts';
 import { useEffect } from 'react';
-
+import { SubscriptionNavigation } from '@/features/plans/components/subscription-navigation';
 import { useRouter } from '@/lib/i18n/navigation';
 import type { StoredDailyTarget } from '../current-user-query';
 import { currentUserQueryOptions } from '../current-user-query';
 import { authKeys } from '../query-keys';
 import { authHref } from '../redirect-to';
 import { type SessionUser, sessionUserOptions } from '../session';
+import { sessionAvatarIdentity } from './avatar-status';
 import { EditProfileForm } from './edit-profile-form';
 import { EditProfileSkeleton } from './edit-profile-skeleton';
 
@@ -66,11 +67,20 @@ export function EditProfile() {
     });
   };
 
-  return (
+  const profileUser = { ...user, username: user.username };
+  const form = (subscribed?: boolean) => (
     <EditProfileForm
-      user={{ ...user, username: user.username }}
+      user={{
+        ...profileUser,
+        avatarIdentity: sessionAvatarIdentity(user, subscribed),
+      }}
       dailyTargetSeconds={currentUser?.dailyPracticeTargetSeconds ?? null}
       onSaved={showSaved}
     />
+  );
+  return user.id ? (
+    <SubscriptionNavigation userId={user.id} render={form} />
+  ) : (
+    form()
   );
 }

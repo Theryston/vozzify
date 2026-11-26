@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { UserIdentityMarks } from '@/features/auth/components/user-identity-marks';
 
 import type { SessionUser } from '../session';
 import { UserAvatar } from './user-avatar';
@@ -22,9 +23,11 @@ export function ProfileAvatar({
   return (
     <div className="flex flex-col items-center gap-3 sm:flex-row sm:gap-4">
       <UserAvatar
+        size="full"
         user={{ ...user, image: previewUrl ?? user.image }}
         className="size-24 *:data-[slot=avatar-fallback]:text-2xl sm:size-20"
       />
+      <UserIdentityMarks identity={user.avatarIdentity} recordLabel />
       {children}
     </div>
   );

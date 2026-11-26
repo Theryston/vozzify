@@ -4,6 +4,7 @@ import {
   type PublicProfile,
 } from '@vozzify/contracts';
 import { AppException } from '../../common/errors/app-exception.js';
+import { avatarIdentityFields } from '../plans/subscription-membership.service.js';
 import { UsersRepository } from './users.repository.js';
 
 /**
@@ -16,6 +17,7 @@ export type PublicProfileBanner = Pick<
   | 'username'
   | 'name'
   | 'image'
+  | 'avatarIdentity'
   | 'createdAt'
   | 'followersCount'
   | 'followingCount'
@@ -63,6 +65,7 @@ export class UserProfileService {
         username: normalized,
         name: row.name,
         image: row.image,
+        ...avatarIdentityFields(row),
         createdAt: row.createdAt.toISOString(),
         followersCount: row.followersCount,
         followingCount: row.followingCount,

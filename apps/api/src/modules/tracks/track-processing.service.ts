@@ -5,6 +5,7 @@ import type {
   TrackContributorsPage,
   TrackProcessingState,
 } from '@vozzify/contracts';
+import { avatarIdentityFields } from '../plans/subscription-membership.service.js';
 import { TrackContributorRepository } from './track-contributor.repository.js';
 import {
   decodeTrackContributorCursor,
@@ -84,6 +85,7 @@ export class TrackProcessingService {
         username: row.username,
         name: row.name,
         image: row.image,
+        ...avatarIdentityFields(row),
         ...(viewerId === undefined ? {} : { isFollowing: row.isFollowing }),
       }),
     );

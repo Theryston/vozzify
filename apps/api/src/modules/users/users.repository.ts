@@ -2,10 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import type { CurrentUser, Locale } from '@vozzify/contracts';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { avatarIdentityColumns } from '../../database/avatar-identity-columns.js';
 import type { DatabaseAdapter } from '../../database/database.js';
+import { subscriptions } from '../../database/schema/subscriptions.js';
 import { userFollows } from '../../database/schema/user-follows.js';
 import { users } from '../../database/schema/users.js';
 import { isUniqueViolation } from '../../database/unique-violation.js';
+import type { AvatarIdentityInputs } from '../plans/subscription-membership.service.js';
 
 // The follow counts of a Profile, as correlated subqueries of its User row, so
 // the banner is read in one query. Friends are the follows answered by a
@@ -48,7 +51,7 @@ export type PublicProfileRow = {
   followersCount: number;
   followingCount: number;
   friendsCount: number;
-};
+} & AvatarIdentityInputs;
 
 /** The fields a notification email needs about a User: where it goes and in what language. */
 export type EmailRecipientRow = {
@@ -264,8 +267,10 @@ export class UsersRepository {
         createdAt: users.createdAt,
         dailyPracticeTargetSeconds: users.dailyPracticeTargetSeconds,
         ...followCountColumns,
+        ...avatarIdentityColumns,
       })
       .from(users)
+      .leftJoin(subscriptions, eq(subscriptions.userId, users.id))
       .where(eq(users.username, username))
       .limit(1);
     return row;

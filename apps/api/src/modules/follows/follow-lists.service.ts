@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { FollowListPage } from '@vozzify/contracts';
+import { avatarIdentityFields } from '../plans/subscription-membership.service.js';
 import { UsersService } from '../users/users.service.js';
 import {
   decodeFollowListCursor,
@@ -56,9 +57,16 @@ export class FollowListsService {
   }
 }
 
-const toListUser = ({ id, username, name, image }: FollowListPageRow) => ({
+const toListUser = ({
   id,
   username,
   name,
   image,
+  ...identity
+}: FollowListPageRow) => ({
+  id,
+  username,
+  name,
+  image,
+  ...avatarIdentityFields(identity),
 });

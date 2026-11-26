@@ -2,9 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import { and, desc, eq, exists, lt, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
+import { avatarIdentityColumns } from '../../database/avatar-identity-columns.js';
 import type { DatabaseAdapter } from '../../database/database.js';
+import { subscriptions } from '../../database/schema/subscriptions.js';
 import { userFollows } from '../../database/schema/user-follows.js';
 import { users } from '../../database/schema/users.js';
+import type { AvatarIdentityInputs } from '../plans/subscription-membership.service.js';
 
 /** Which list of a Profile's User is read. */
 export type FollowListSide = 'followers' | 'following' | 'friends';
@@ -17,7 +20,7 @@ export type FollowListPageRow = {
   image: string | null;
   followId: string;
   followedAt: Date;
-};
+} & AvatarIdentityInputs;
 
 /** The follow a list resumes after: its time (in ms) and its row ID. */
 export type FollowListPosition = {
@@ -88,11 +91,13 @@ export class FollowListsRepository {
         username: users.username,
         name: users.name,
         image: users.image,
+        ...avatarIdentityColumns,
         followId: userFollows.id,
         followedAt: followedAtMs,
       })
       .from(userFollows)
       .innerJoin(users, eq(users.id, config.listed))
+      .leftJoin(subscriptions, eq(subscriptions.userId, users.id))
       .where(
         and(
           eq(config.owner, ownerId),

@@ -541,6 +541,25 @@ sans-serif` and `ui-monospace, Menlo, Consolas, monospace`).
 `glass`, `rounded-xl`, 4px padding, items `rounded-lg` `px-3 py-2` with an
 icon at 16px, hover `bg-accent` (in glass: `bg-foreground/10`).
 
+### User identity and the studio single
+
+An active Pro membership turns a User’s Avatar into a studio single. A black
+record peeks from the right of a slightly counterclockwise-tilted, near-white
+sleeve. Its light center label reads Pro above the spindle, with orange below.
+The composition spans about 1.6 sleeve widths. The full sleeve has the Avatar
+above the Name and orange brand mark. When the Avatar is absent or cannot
+load, use large white initials on orange with one tonal ring. The miniature
+uses the entire sleeve for the picture or initials. Fit it inside the existing
+Avatar slot, keeping the account trigger and Contributor stack operable.
+
+A Free User keeps the ordinary round Avatar or initials. An Admin of either
+membership has a monochrome pill with the Vozzify note and localized Admin
+label beside their Name. In compact named rows Pro has a separate text chip;
+in the large Profile the record label carries Pro. Treat the record, sleeve,
+and printed ink as artwork with the same colors in both themes. All Users,
+including visitors, see the displayed person’s identity. Share images use
+the same composition.
+
 ## Note timeline
 
 The core of the product. It has two modes, with the same geometry (time on

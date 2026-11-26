@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  type AvatarIdentity,
   cacheTags,
   type ProfileSection,
   type ProfileVisibility,
@@ -8,6 +9,7 @@ import {
 } from '@vozzify/contracts';
 import { AppException } from '../../common/errors/app-exception.js';
 import { WebRevalidationService } from '../../integrations/web-revalidation/web-revalidation.service.js';
+import { avatarIdentityFields } from '../plans/subscription-membership.service.js';
 import {
   ProfileVisibilityRepository,
   type ProfileVisibilityRow,
@@ -30,6 +32,16 @@ const EVERY_SECTION: ProfileVisibility = {
 
 /** A Profile as one viewer may read it: its User, and the sections shown to them. */
 export type ProfileView = { userId: string; shown: ProfileVisibility };
+
+export type SocialProfile = {
+  username: string | null;
+  shown: ProfileVisibility;
+  appearance?: {
+    name: string;
+    image: string | null;
+    avatarIdentity?: AvatarIdentity;
+  };
+};
 
 const toVisibility = (row: ProfileVisibilityRow): ProfileVisibility => ({
   summary: row.showSummarySection,
@@ -116,14 +128,24 @@ export class ProfileVisibilityService {
   /** Live section visibility for several public Profiles, keyed by User ID. */
   async getShownSectionsByUserIds(
     userIds: string[],
-  ): Promise<
-    Map<string, { username: string | null; shown: ProfileVisibility }>
-  > {
+  ): Promise<Map<string, SocialProfile>> {
     const rows = await this.repository.findManyByIds(userIds);
     return new Map(
       rows.map((row) => [
         row.id,
-        { username: row.username, shown: toVisibility(row) },
+        {
+          username: row.username,
+          shown: toVisibility(row),
+          ...(row.name === undefined
+            ? {}
+            : {
+                appearance: {
+                  name: row.name,
+                  image: row.image ?? null,
+                  ...avatarIdentityFields(row),
+                },
+              }),
+        },
       ]),
     );
   }

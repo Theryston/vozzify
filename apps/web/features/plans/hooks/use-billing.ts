@@ -14,7 +14,8 @@ export function useSubscription(userId: string, locale: string) {
         query: { locale },
       });
     },
+    // The account Avatar uses this query even away from the billing page.
     refetchInterval: (query) =>
-      query.state.data?.subscription?.status === 'pending' ? 5000 : false,
+      query.state.data?.subscription?.status === 'pending' ? 5000 : 60_000,
   });
 }

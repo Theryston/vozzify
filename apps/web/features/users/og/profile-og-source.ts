@@ -15,6 +15,7 @@ export type ProfileOgSource = Pick<
   | 'username'
   | 'name'
   | 'image'
+  | 'avatarIdentity'
   | 'dailyPracticeTargetSeconds'
   | 'vocalRange'
   | 'mostSungArtist'
@@ -37,6 +38,7 @@ export async function getProfileOgSource(
     username: profile.username,
     name: profile.name,
     image: profile.image,
+    avatarIdentity: profile.avatarIdentity,
     dailyPracticeTargetSeconds: profile.dailyPracticeTargetSeconds,
     vocalRange: profile.vocalRange,
     mostSungArtist: profile.mostSungArtist,
