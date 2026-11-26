@@ -71,6 +71,29 @@
       "description": "Start with your Name and email. You’ll choose a Username after verifying your email.",
       "submit": "Create account"
     },
+    "recovery": {
+      "link": "Forgot your password?",
+      "complete": "Password changed. Sign in with your new password.",
+      "request": {
+        "title": "Reset your password",
+        "description": "Enter the email linked to your account to request a reset code.",
+        "submit": "Send reset code"
+      },
+      "reset": {
+        "title": "Set a new password",
+        "description": "If an account exists for {email}, we sent it a six-digit code.",
+        "code": "Reset code",
+        "password": "New password",
+        "submit": "Reset password",
+        "differentEmail": "Use a different email",
+        "resent": "A new code was requested. Check your email."
+      },
+      "missing": {
+        "title": "Request a reset code first",
+        "description": "Enter the email linked to your account to start password recovery.",
+        "submit": "Request a code"
+      }
+    },
     "verifyEmail": {
       "enterEmail": "Enter the email linked to your account and the six-digit code.",
       "title": "Verify your email",

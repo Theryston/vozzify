@@ -16,7 +16,8 @@ function useSignIn() {
   const auth = useMobileAuth();
   const locale = useLocale();
   const router = useRouter();
-  const continuation = useAuthContinuation();
+  const routeContinuation = useAuthContinuation();
+  const continuation = auth.passwordReset ?? routeContinuation;
 
   return useAuthSubmit(signInBodySchema, async (values: SignInBody, signal) => {
     try {
@@ -90,9 +91,12 @@ function SignInForm() {
 
 export function SignInScreen() {
   const t = useTranslations('auth');
+  const { passwordReset } = useMobileAuth();
   return (
     <AuthFrame title={t('signIn.title')} description={t('signIn.description')}>
+      {passwordReset ? <AuthNotice>{t('recovery.complete')}</AuthNotice> : null}
       <SignInForm />
+      <AuthLink to="/forgot-password">{t('recovery.link')}</AuthLink>
       <AuthLink to="/sign-up">{t('signUp.submit')}</AuthLink>
     </AuthFrame>
   );

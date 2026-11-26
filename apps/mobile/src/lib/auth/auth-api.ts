@@ -5,6 +5,9 @@ import {
   authCodeResponseSchema,
   authSessionResponseSchema,
   currentUserSchema,
+  forgotPasswordBodySchema,
+  type ResetPasswordBody,
+  resetPasswordBodySchema,
   type SetUsernameBody,
   type SignInBody,
   type SignInEmailBody,
@@ -105,12 +108,37 @@ export function sendAuthCode(
   locale: string,
   signal: AbortSignal,
 ): Promise<AuthCodeResponse> {
+  if (type === 'forget-password') {
+    return mobileApi('/auth/email-otp/request-password-reset', {
+      method: 'POST',
+      schema: authCodeResponseSchema,
+      signal,
+      bodySchema: forgotPasswordBodySchema,
+      body: { email },
+      headers: { 'accept-language': locale },
+    });
+  }
   return mobileApi('/auth/email-otp/send-verification-otp', {
     method: 'POST',
     schema: authCodeResponseSchema,
     signal,
     bodySchema: sendAuthCodeBodySchema,
     body: { email, type },
+    headers: { 'accept-language': locale },
+  });
+}
+
+export function resetPassword(
+  body: ResetPasswordBody,
+  locale: string,
+  signal: AbortSignal,
+) {
+  return mobileApi('/auth/email-otp/reset-password', {
+    method: 'POST',
+    schema: authCodeResponseSchema,
+    bodySchema: resetPasswordBodySchema,
+    signal,
+    body,
     headers: { 'accept-language': locale },
   });
 }

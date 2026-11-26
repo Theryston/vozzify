@@ -98,25 +98,39 @@ function useUsernameSelection(
 }
 
 function clearOnboarding(previous: StoredAuth): StoredAuth {
-  const { token, verification, continuation } = previous;
-  return verification || continuation ? { token } : previous;
+  const { token, verification, continuation, passwordReset } = previous;
+  return verification || continuation || passwordReset ? { token } : previous;
 }
 
-function useAuthOperations() {
-  const storage = useAuthRecord();
-  const { status, session, setSession, retry } = useRestoreAuth(
-    storage.replace,
-  );
-  const chooseUsername = useUsernameSelection(storage, setSession);
-  const { update, record } = storage;
+function afterPasswordReset(
+  previous: StoredAuth,
+  email: string,
+  continuation: AuthContinuation,
+): StoredAuth {
+  const pendingEmail = previous.verification?.email?.toLowerCase();
+  return {
+    ...previous,
+    verification:
+      pendingEmail === email.toLowerCase() ? undefined : previous.verification,
+    passwordReset: continuation,
+  };
+}
 
-  async function beginVerification(
+function createBeginVerification(
+  update: ReturnType<typeof useAuthRecord>['update'],
+) {
+  return async (
     verification: NonNullable<StoredAuth['verification']>,
     continuation: AuthContinuation,
     signal: AbortSignal,
-  ) {
+  ) => {
     const saved = await update(
-      (previous) => ({ ...previous, verification, continuation }),
+      (previous) => ({
+        ...previous,
+        verification,
+        continuation,
+        passwordReset: undefined,
+      }),
       signal,
     );
     if (saved && verification.email) {
@@ -127,18 +141,27 @@ function useAuthOperations() {
       );
     }
     return saved;
-  }
+  };
+}
+
+function useAuthOperations() {
+  const storage = useAuthRecord();
+  const { status, session, setSession, retry } = useRestoreAuth(
+    storage.replace,
+  );
+  const chooseUsername = useUsernameSelection(storage, setSession);
+  const { update, record } = storage;
 
   async function completeAuth(
-    session: ActiveSession,
+    nextSession: ActiveSession,
     continuation: AuthContinuation,
     signal: AbortSignal,
   ) {
     const saved = await update(
-      () => ({ token: session.token, continuation }),
+      () => ({ token: nextSession.token, continuation }),
       signal,
     );
-    if (saved) setSession(session);
+    if (saved) setSession(nextSession);
   }
 
   return {
@@ -147,7 +170,16 @@ function useAuthOperations() {
     ...record,
     user: session?.user ?? null,
     token: session?.token,
-    beginVerification,
+    finishPasswordReset: (
+      email: string,
+      continuation: AuthContinuation,
+      signal: AbortSignal,
+    ) =>
+      update(
+        (previous) => afterPasswordReset(previous, email, continuation),
+        signal,
+      ),
+    beginVerification: createBeginVerification(update),
     completeAuth,
     chooseUsername,
     cancelOnboarding: () => update(clearOnboarding),

@@ -12,6 +12,8 @@ const authRoutes = new Set([
   '/sign-up',
   '/verify-email',
   '/setup-username',
+  '/forgot-password',
+  '/forgot-password/reset',
 ]);
 
 type MobileAuth = ReturnType<typeof useMobileAuth>;
@@ -22,7 +24,10 @@ function requiredAuthRoute(auth: MobileAuth, path: string) {
     if (!auth.user.username) return '/setup-username';
     return undefined;
   }
-  if (auth.verification && !authRoutes.has(path)) return '/verify-email';
+  if (!authRoutes.has(path)) {
+    if (auth.passwordReset) return '/sign-in';
+    if (auth.verification) return '/verify-email';
+  }
   if (path === '/setup-username') return '/sign-in';
   return undefined;
 }
@@ -34,6 +39,7 @@ function useOnboardingRoute() {
   const auth = useMobileAuth();
   const isAuthRoute = authRoutes.has(path);
   const continuation =
+    auth.passwordReset ??
     auth.continuation ??
     authContinuationFromParams(isAuthRoute ? params : { redirectTo: path });
   const required =
@@ -51,7 +57,7 @@ function useOnboardingRoute() {
       }
     };
     // Retain a cold-open destination if the app is closed during onboarding.
-    if (isAuthRoute || auth.continuation) navigate();
+    if (isAuthRoute || auth.continuation || auth.passwordReset) navigate();
     else
       void auth
         .rememberContinuation(continuation, controller.signal)
@@ -83,7 +89,7 @@ export function AuthNavigation() {
   const eligible = Boolean(user?.emailVerified && user.username);
   const atDestination =
     (path === '/' || path === '/components') &&
-    (!auth.continuation || path === auth.continuation.destination);
+    (!auth.continuation || path === continuation.destination);
   const arrival = !eligible
     ? 'onboarding'
     : atDestination

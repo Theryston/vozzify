@@ -1,9 +1,5 @@
 import { signUpBodySchema } from '@vozzify/contracts';
-import {
-  NAME_MAX_LENGTH,
-  PASSWORD_MAX_LENGTH,
-  PASSWORD_MIN_LENGTH,
-} from '@vozzify/contracts/auth-rules';
+import { NAME_MAX_LENGTH } from '@vozzify/contracts/auth-rules';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useLocale, useTranslations } from 'use-intl';
@@ -14,8 +10,7 @@ import { useMobileAuth } from '../../../lib/auth/mobile-auth-provider';
 import { useAuthSubmit } from '../use-auth-submit';
 import { AuthField, AuthNotice } from './auth-field';
 import { AuthFrame, AuthLink, useAuthContinuation } from './auth-frame';
-import { EmailField, PasswordField } from './credential-fields';
-import { PasswordStrengthMeter } from './password-strength-meter';
+import { EmailField, NewPasswordField } from './credential-fields';
 
 function useSignUp() {
   const auth = useMobileAuth();
@@ -70,22 +65,14 @@ function SignUpForm() {
           form.clear('email');
         }}
       />
-      <PasswordField
+      <NewPasswordField
         value={password}
-        error={
-          form.invalid.has('password')
-            ? t('passwordInvalid', {
-                min: PASSWORD_MIN_LENGTH,
-                max: PASSWORD_MAX_LENGTH,
-              })
-            : undefined
-        }
+        invalid={form.invalid.has('password')}
         onChangeText={(value) => {
           setPassword(value);
           form.clear('password');
         }}
       />
-      <PasswordStrengthMeter password={password} />
       {form.error ? <AuthNotice error>{errors(form.error)}</AuthNotice> : null}
       <Button
         disabled={form.pending}
