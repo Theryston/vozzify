@@ -58,17 +58,20 @@ export function usePrivateTracks(userId: string) {
         signal,
       }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
-    refetchInterval: (query) =>
-      query.state.data?.pages.some((page) =>
+    refetchInterval: (query) => {
+      const pages = query.state.data?.pages;
+      if (!pages) return false;
+      const processing = pages.some((page) =>
         page.items.some(
           (track) =>
             track.processing &&
             track.processing.status !== 'FAILED' &&
             track.processing.status !== 'COMPLETED',
         ),
-      )
-        ? 5_000
-        : false,
+      );
+      // Refetching an infinite query requests every page loaded so far.
+      return processing ? pages.length * 5_000 : false;
+    },
   });
 }
 

@@ -71,12 +71,12 @@ describe('PrivateTracksService', () => {
       .mockResolvedValueOnce({ processingStatus: 'FAILED' });
     subscriptions.hasPaidMembership.mockResolvedValue(false);
 
-    await expect(service.prepareRetry('u1', 'other-track')).rejects.toMatchObject(
-      { code: 'NOT_FOUND' },
-    );
-    await expect(service.prepareRetry('u1', 'owned-track')).rejects.toMatchObject(
-      { code: 'FORBIDDEN' },
-    );
+    await expect(
+      service.prepareRetry('u1', 'other-track'),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(
+      service.prepareRetry('u1', 'owned-track'),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(repository.resetFailedProcessing).not.toHaveBeenCalled();
   });
 

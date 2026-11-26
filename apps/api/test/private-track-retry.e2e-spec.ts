@@ -94,6 +94,13 @@ describe('Private track retry (e2e)', () => {
     const { user, client } = await proOwner();
     const other = await proOwner();
     const processing = testApp.app.get(PrivateTrackProcessingService);
+    const invalidId = await client
+      .post(`${TRACKS}/${'x'.repeat(129)}/retry`)
+      .expect(400);
+    expect(invalidId.body).toMatchObject({
+      code: 'VALIDATION_FAILED',
+      details: { location: 'param' },
+    });
     const upload = await client
       .post(TRACKS)
       .attach('audio', AUDIO, { filename: 'rehearsal.wav' })
