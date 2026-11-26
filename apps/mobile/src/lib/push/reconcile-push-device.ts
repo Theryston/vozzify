@@ -62,7 +62,7 @@ export async function reconcilePushDevice(context: PushContext) {
   if (signal.aborted || arrival !== 'arrived') return;
 
   const allowed = await hasPushPermission({
-    asked: installation?.permissionSeen ?? false,
+    state: installation?.permission ?? 'new',
     signal,
   });
   if (signal.aborted) return;

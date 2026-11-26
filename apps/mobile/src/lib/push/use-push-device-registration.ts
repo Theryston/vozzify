@@ -1,4 +1,5 @@
 import { onlineManager } from '@tanstack/react-query';
+import { pushPlatformSchema } from '@vozzify/contracts';
 import { addPushTokenListener } from 'expo-notifications';
 import { useEffect } from 'react';
 import { AppState, Platform } from 'react-native';
@@ -99,14 +100,14 @@ export function usePushDeviceRegistration(
   arrival: Target['arrival'],
 ) {
   useEffect(() => {
-    const platform = Platform.OS;
-    if (
-      !userId ||
-      !sessionToken ||
-      (platform !== 'android' && platform !== 'ios')
-    )
-      return;
+    const platform = pushPlatformSchema.safeParse(Platform.OS);
+    if (!userId || !sessionToken || !platform.success) return;
 
-    return subscribeToPushChanges({ userId, sessionToken, platform, arrival });
+    return subscribeToPushChanges({
+      userId,
+      sessionToken,
+      platform: platform.data,
+      arrival,
+    });
   }, [userId, sessionToken, arrival]);
 }

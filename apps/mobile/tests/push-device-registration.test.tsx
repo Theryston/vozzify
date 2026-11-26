@@ -16,6 +16,7 @@ import * as SecureStore from 'expo-secure-store';
 import { AppState, type AppStateStatus, Platform } from 'react-native';
 import '../app/_layout';
 import { createAppConfig } from '../app.config';
+import type { PushContext } from '../src/lib/push/reconcile-push-device';
 import { usePushDeviceRegistration } from '../src/lib/push/use-push-device-registration';
 
 jest.mock('expo-notifications', () => ({
@@ -308,6 +309,41 @@ it('honours the system denial when permission changes during a failed native req
   expect(posted()).toHaveLength(0);
 });
 
+async function restoreAfterInterruptedPrompt() {
+  // A new process has the durable reservation but no in-flight native call.
+  await SecureStore.setItemAsync(
+    'vozzify.push-installation',
+    JSON.stringify({
+      installationId: '2565ee17-1ef7-4b50-be40-536a19cb6a68',
+      installationSecret: '0c'.repeat(32),
+      revision: 0,
+      permission: 'pending',
+    }),
+  );
+  return renderHook(() =>
+    usePushDeviceRegistration(firstUser.id, 'first.session', 'arrived'),
+  );
+}
+
+it('recovers after the app died during a prompt if iOS still has no decision', async () => {
+  readPermission.mockResolvedValue(undetermined);
+  await restoreAfterInterruptedPrompt();
+  await waitFor(() => expect(posted()[0]?.body.active).toBe(true));
+  expect(requestPermission).toHaveBeenCalledTimes(1);
+});
+
+it('does not repeat an interrupted prompt if Android reports a possibly final refusal', async () => {
+  jest.replaceProperty(Platform, 'OS', 'android');
+  jest.spyOn(Platform, 'Version', 'get').mockReturnValue('35');
+  readPermission.mockResolvedValue(denied);
+  await restoreAfterInterruptedPrompt();
+  await waitFor(() => expect(readPermission).toHaveBeenCalledTimes(1));
+  await foreground();
+  await waitFor(() => expect(readPermission).toHaveBeenCalledTimes(2));
+  expect(requestPermission).not.toHaveBeenCalled();
+  expect(posted()).toHaveLength(0);
+});
+
 it('does not re-register when a native token read resolves after permission was revoked', async () => {
   const token = deferred<Notifications.DevicePushToken>();
   getToken
@@ -362,14 +398,21 @@ it('retries a transient failure but uses the rotation event payload and stops a 
 it('cleans up with the new session while it is onboarding, then registers only that User at arrival', async () => {
   const stale = deferred<Response>();
   request.mockReturnValueOnce(stale.promise);
-  const view = await renderHook(
+  const view = await renderHook<
+    void,
+    {
+      id: string;
+      session: string;
+      arrival: PushContext['arrival'];
+    }
+  >(
     ({ id, session, arrival }) =>
       usePushDeviceRegistration(id, session, arrival),
     {
       initialProps: {
         id: firstUser.id,
         session: 'first.session',
-        arrival: 'arrived' as 'arrived' | 'onboarding' | 'travelling',
+        arrival: 'arrived',
       },
     },
   );

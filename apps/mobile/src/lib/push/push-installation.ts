@@ -9,11 +9,12 @@ import { z } from 'zod';
 const installKey = 'vozzify.push-installation';
 const recordSchema = pushInstallationIdentitySchema.extend({
   revision: z.int().nonnegative(),
-  permissionSeen: z.boolean(),
+  permission: z.enum(['new', 'pending', 'decided']),
   ownerId: z.string().optional(),
 });
 
 type Installation = z.infer<typeof recordSchema>;
+export type PushPermissionState = Installation['permission'];
 type PushChange = { userId: string; token?: string; signal: AbortSignal };
 
 let storageQueue: Promise<unknown> = Promise.resolve();
@@ -31,7 +32,7 @@ async function create(): Promise<Installation> {
       byte.toString(16).padStart(2, '0'),
     ).join(''),
     revision: 0,
-    permissionSeen: false,
+    permission: 'new',
   };
 }
 
@@ -53,31 +54,34 @@ export function readPushInstallation() {
   return edit(async (record) => record);
 }
 
-export async function recordPermissionDecision<T>(
+export function setPushPermissionState(
+  state: PushPermissionState,
+  signal?: AbortSignal,
+) {
+  return edit(async (record) => {
+    if (record?.permission === state || signal?.aborted) return;
+    const installation = record ?? (await create());
+    if (!signal?.aborted) await save({ ...installation, permission: state });
+  });
+}
+
+export async function holdPermissionRequest<T>(
   signal: AbortSignal,
-  request?: () => Promise<T>,
+  request: () => Promise<T>,
 ) {
   const decision = await edit(async (record) => {
-    if (signal.aborted || record?.permissionSeen) return;
+    if (signal.aborted || record?.permission === 'decided') return;
     const installation = record ?? (await create());
     if (signal.aborted) return;
-    await save({ ...installation, permissionSeen: true });
-    if (request && signal.aborted) {
+    await save({ ...installation, permission: 'pending' });
+    if (signal.aborted) {
       await save(installation);
       return;
     }
-    // Release the storage queue while the user considers the system dialog.
-    return { permission: request?.() };
+    // Let installation writes continue while the system dialog is open.
+    return { permission: request() };
   });
   return decision?.permission;
-}
-
-export function releaseFailedPermissionRequest() {
-  return edit(async (record) => {
-    if (record?.permissionSeen) {
-      await save({ ...record, permissionSeen: false });
-    }
-  });
 }
 
 export function reservePushRevision({ userId, token, signal }: PushChange) {

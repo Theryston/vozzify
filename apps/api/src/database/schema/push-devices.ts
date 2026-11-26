@@ -59,9 +59,11 @@ export const pushDevices = pgView('push_devices').as((qb) => {
       userId: installation.userId,
       revision: installation.revision,
       active: sql<boolean>`${sessions.id} is not null`.as('active'),
-      token: sql<string | null>`
-        case when ${sessions.id} is not null then ${installation.token} end
-      `.as('token'),
+      token: sql<
+        string | null
+      >`case when ${sessions.id} is not null then ${installation.token} end`.as(
+        'token',
+      ),
     })
     .from(installation)
     .leftJoin(

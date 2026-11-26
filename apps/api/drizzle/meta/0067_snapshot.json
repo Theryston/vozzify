@@ -7271,7 +7271,7 @@
           "notNull": true
         }
       },
-      "definition": "select \"push_device_installations\".\"id\", \"push_device_installations\".\"installation_id\", \"push_device_installations\".\"platform\", \"push_device_installations\".\"user_id\", \"push_device_installations\".\"revision\", \"sessions\".\"id\" is not null as \"active\", \n        case when \"sessions\".\"id\" is not null then \"push_device_installations\".\"token\" end\n       as \"token\" from \"push_device_installations\" left join \"sessions\" on (\"push_device_installations\".\"session_id\" = \"sessions\".\"id\" and \"push_device_installations\".\"user_id\" = \"sessions\".\"user_id\" and \"sessions\".\"expires_at\" > now())",
+      "definition": "select \"push_device_installations\".\"id\", \"push_device_installations\".\"installation_id\", \"push_device_installations\".\"platform\", \"push_device_installations\".\"user_id\", \"push_device_installations\".\"revision\", \"sessions\".\"id\" is not null as \"active\", case when \"sessions\".\"id\" is not null then \"push_device_installations\".\"token\" end as \"token\" from \"push_device_installations\" left join \"sessions\" on (\"push_device_installations\".\"session_id\" = \"sessions\".\"id\" and \"push_device_installations\".\"user_id\" = \"sessions\".\"user_id\" and \"sessions\".\"expires_at\" > now())",
       "name": "push_devices",
       "schema": "public",
       "isExisting": false,
