@@ -42,7 +42,7 @@ export class PrivateTracksRepository {
   }
 
   async save(
-    input: typeof privateTracks.$inferInsert,
+    input: typeof privateTracks.$inferInsert & { contentSha256: string },
   ): Promise<
     typeof privateTracks.$inferSelect & { discardedUploadKey?: string }
   > {

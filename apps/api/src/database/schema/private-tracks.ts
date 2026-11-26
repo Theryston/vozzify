@@ -18,7 +18,8 @@ export const privateTracks = pgTable(
     userId: text()
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    contentSha256: text().notNull(),
+    contentSha256: text(),
+    youtubeVideoId: text(),
     objectKey: text().notNull(),
     originalFilename: text().notNull(),
     title: text().notNull(),
@@ -43,6 +44,10 @@ export const privateTracks = pgTable(
     unique('private_tracks_user_id_content_sha256_unique').on(
       table.userId,
       table.contentSha256,
+    ),
+    unique('private_tracks_user_id_youtube_video_id_unique').on(
+      table.userId,
+      table.youtubeVideoId,
     ),
     index().on(table.userId, table.createdAt, table.id),
     index('private_tracks_processing_queue_idx').on(

@@ -42,6 +42,19 @@ const runningFfmpeg = (outcome: {
   });
 };
 
+function validationOutput(durationUs: number) {
+  spawnMock.mockImplementationOnce(() => {
+    const child = new EventEmitter() as ChildProcess & EventEmitter;
+    Object.assign(child, {
+      stdout: Readable.from([Buffer.from(`out_time_us=${durationUs}\n`)]),
+      stderr: Readable.from([]),
+      kill: vi.fn(),
+    });
+    setImmediate(() => child.emit('close', 0));
+    return child;
+  });
+}
+
 describe('FfmpegClient file conversion', () => {
   let dir: string;
   let input: string;
@@ -158,5 +171,46 @@ describe('FfmpegClient file conversion', () => {
     await expect(
       client.convertPrivateAudioFileToWav(input, output),
     ).rejects.toThrow('WAV is larger');
+  });
+
+  it('validates the decoded sample count of a YouTube source at the duration limit', async () => {
+    validationOutput(1_800_000_000);
+    await expect(client.validateYouTubeAudioFile(input, 1800)).resolves.toBe(
+      1800,
+    );
+    expect(spawnMock).toHaveBeenCalledOnce();
+    expect(spawnMock.mock.calls[0]?.[1]).toEqual(
+      expect.arrayContaining(['-af', 'asetpts=N/SR/TB']),
+    );
+  });
+
+  it('accepts an AAC decoder frame extending past a YouTube source’s exact duration limit', async () => {
+    validationOutput(1_800_011_000);
+    validationOutput(1_800_000_000);
+    await expect(client.validateYouTubeAudioFile(input, 1800)).resolves.toBe(
+      1800,
+    );
+    expect(spawnMock.mock.calls[1]?.[1]).toEqual(
+      expect.arrayContaining(['-c', 'copy']),
+    );
+  });
+
+  it('rejects a YouTube source whose encoded audio timeline also exceeds the limit', async () => {
+    validationOutput(1_800_021_000);
+    validationOutput(1_800_010_000);
+    await expect(client.validateYouTubeAudioFile(input, 1800)).rejects.toThrow(
+      'Media duration exceeds its limit',
+    );
+  });
+
+  it('omits decoder padding in the retained private WAV when converting against a duration limit', async () => {
+    runningFfmpeg({});
+    await client.convertPrivateAudioFileToWav(input, output, {
+      durationLimitSeconds: 1800,
+      normalizeTimestamps: true,
+    });
+    expect(spawnMock.mock.calls[0]?.[1]).toEqual(
+      expect.arrayContaining(['-t', '1800', '-af', 'asetpts=N/SR/TB']),
+    );
   });
 });

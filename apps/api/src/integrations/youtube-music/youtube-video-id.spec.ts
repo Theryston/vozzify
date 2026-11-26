@@ -43,4 +43,14 @@ describe('youtubeVideoIdOf', () => {
   it('refuses text that is not a URL', () => {
     expect(youtubeVideoIdOf('not a url')).toBeUndefined();
   });
+
+  it.each([
+    `ftp://youtube.com/watch?v=${ID}`,
+    `https://user@youtube.com/watch?v=${ID}`,
+    `https://youtube.com:8080/watch?v=${ID}`,
+    `https://youtu.be/${ID}/unexpected`,
+    `https://youtube.com/shorts/${ID}/unexpected`,
+  ])('refuses an unexpected video link form (%s)', (url) => {
+    expect(youtubeVideoIdOf(url)).toBeUndefined();
+  });
 });

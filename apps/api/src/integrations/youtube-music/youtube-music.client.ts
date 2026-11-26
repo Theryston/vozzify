@@ -15,6 +15,7 @@ import {
 const availabilitySchema = z.object({
   available_countries: z.array(z.string()),
 });
+const PRACTICE_METADATA_TIMEOUT_MS = 10_000;
 
 /**
  * Searches, video info and playback checks share one Brazilian SDK session
@@ -58,18 +59,8 @@ export class YouTubeMusicClient {
     videoId: string,
     signal: AbortSignal,
   ): Promise<ReadableStream<Uint8Array>> {
-    signal.throwIfAborted();
     Platform.shim.eval = evaluatePlayerScript;
-    const yt = await this.createSession((input, init) => {
-      const requestSignal =
-        init?.signal ?? (input instanceof Request ? input.signal : undefined);
-      return this.fetchImplementation(input, {
-        ...init,
-        signal: requestSignal
-          ? AbortSignal.any([signal, requestSignal])
-          : signal,
-      });
-    });
+    const yt = await this.sessionWithSignal(signal);
     return yt.download(videoId, {
       type: 'audio',
       quality: 'best',
@@ -88,6 +79,18 @@ export class YouTubeMusicClient {
     const yt = await this.innertube();
     const info = await yt.music.getInfo(videoId);
     return youtubeVideoOfInfo(videoId, info.basic_info);
+  }
+
+  /** User-submitted videos include uploads outside the YouTube Music catalog. */
+  async getPracticeVideo(videoId: string): Promise<YouTubeVideo | undefined> {
+    const yt = await this.sessionWithSignal(
+      AbortSignal.timeout(PRACTICE_METADATA_TIMEOUT_MS),
+    );
+    const { basic_info: info } = await yt.getBasicInfo(videoId, {
+      client: 'WEB',
+    });
+    if (info.is_live || info.is_upcoming || info.is_private) return undefined;
+    return youtubeVideoOfInfo(videoId, info);
   }
 
   /** Music search metadata does not establish browser playback eligibility. */
@@ -138,6 +141,20 @@ export class YouTubeMusicClient {
       },
     );
     return this.session;
+  }
+
+  private sessionWithSignal(signal: AbortSignal): Promise<Innertube> {
+    signal.throwIfAborted();
+    return this.createSession((input, init) => {
+      const requestSignal =
+        init?.signal ?? (input instanceof Request ? input.signal : undefined);
+      return this.fetchImplementation(input, {
+        ...init,
+        signal: requestSignal
+          ? AbortSignal.any([signal, requestSignal])
+          : signal,
+      });
+    });
   }
 
   private createSession(fetchImplementation: typeof fetch): Promise<Innertube> {

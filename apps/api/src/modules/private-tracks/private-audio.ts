@@ -71,11 +71,9 @@ export class PrivateAudioInspector {
 
   async extractVideoAudio(filePath: string, outputPath: string): Promise<void> {
     try {
-      await this.ffmpeg.convertPrivateAudioFileToWav(
-        filePath,
-        outputPath,
-        PRIVATE_AUDIO_MAX_DURATION_SECONDS,
-      );
+      await this.ffmpeg.convertPrivateAudioFileToWav(filePath, outputPath, {
+        durationLimitSeconds: PRIVATE_AUDIO_MAX_DURATION_SECONDS,
+      });
     } catch {
       throw invalidPrivateAudio('Audio could not be extracted from the video');
     }

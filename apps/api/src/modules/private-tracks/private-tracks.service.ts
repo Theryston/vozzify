@@ -76,6 +76,9 @@ export class PrivateTracksService {
       ownerId: row.userId,
       processing: processingOf(row),
       locked: !canPractice,
+      ...(canPractice && row.youtubeVideoId
+        ? { youtubeVideoId: row.youtubeVideoId }
+        : {}),
       notes,
     };
   }
@@ -211,7 +214,7 @@ function processingOf(row: {
   };
 }
 
-const toPrivateTrack = (row: {
+export const toPrivateTrack = (row: {
   id: string;
   title: string;
   artist: string;

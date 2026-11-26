@@ -18,14 +18,11 @@ import { ScoringPreferences } from '@/features/practice/components/scoring-prefe
 import { SingTimeline } from '@/features/practice/components/sing-timeline';
 import { SingingAids } from '@/features/practice/components/singing-aids';
 import { creditText } from '@/lib/track-credit';
-import { useDirectAudio } from '../hooks/use-direct-audio';
-import { usePlayback } from '../hooks/use-playback';
-import { usePlaybackShortcuts } from '../hooks/use-playback-shortcuts';
+import { usePracticeController } from '../hooks/use-practice-controller';
 import { useTimelineFocus } from '../hooks/use-shared-link';
 import { useSubmitAttempt } from '../hooks/use-submit-attempt';
 import { loopRange } from '../listening/listening-math';
 import { useLoop } from '../listening/loop-store';
-import { useListeningTools } from '../listening/use-listening-tools';
 import { noteRangeOf } from '../note-summary';
 import { playbackClock } from '../playback/playback-clock';
 import type { PlaybackController } from '../playback/playback-controller';
@@ -38,11 +35,7 @@ import {
 } from '../track-view-session';
 import { ListeningActions } from './listening-actions';
 import { PendingAttemptSubmitter } from './pending-attempt-submitter';
-import {
-  durationSecondsOf,
-  NoVoice,
-  useTransposedNotes,
-} from './practice-body-support';
+import { NoVoice, useTransposedNotes } from './practice-body-support';
 import { PracticeDock } from './practice-dock';
 import { SharedMomentSeek } from './shared-moment-seek';
 import { TIMELINE_BOX_CLASS } from './timeline-box-class';
@@ -181,46 +174,19 @@ type PracticeBodyProps = {
   fakePlayer: boolean;
 };
 
-function usePracticeController({
-  header,
-  notes,
-  fakePlayer,
-  admin,
-  directAudio: privateAudio,
-}: Pick<
-  PracticeBodyProps,
-  'header' | 'notes' | 'fakePlayer' | 'admin' | 'directAudio'
->) {
-  const audio = useDirectAudio(header.id, admin);
-  const directAudio = privateAudio ?? (admin ? audio.data : undefined);
-  const expectDirectAudio =
-    privateAudio !== undefined || (admin && !audio.isError);
-  const hostRef = useRef<HTMLDivElement>(null);
-  const controller = usePlayback({
-    hostRef,
-    videoId: directAudio
-      ? (header.youtubeVideoId ?? `private-${header.id}`)
-      : header.youtubeVideoId,
-    durationSeconds: durationSecondsOf(header, notes),
-    fake: fakePlayer,
-    directAudio,
-  });
-  usePlaybackShortcuts(controller);
-  useListeningTools(controller);
-  return { controller, directAudio, expectDirectAudio, hostRef };
-}
-
 function TrackPracticeDock({
   header,
   controller,
   directAudio,
   expectDirectAudio,
+  audioFallback,
   hostRef,
 }: {
   header: TrackDetail;
   controller: PlaybackController | null;
   directAudio: boolean;
   expectDirectAudio: boolean;
+  audioFallback: boolean;
   hostRef: RefObject<HTMLDivElement | null>;
 }) {
   if (header.youtubeVideoId === null && !directAudio) return null;
@@ -231,6 +197,7 @@ function TrackPracticeDock({
       videoId={header.youtubeVideoId}
       directAudio={directAudio}
       expectDirectAudio={expectDirectAudio}
+      audioFallback={audioFallback}
       trackKey={header.key}
       trackTitle={header.title}
       artistText={creditText(header.artistCredit)}
@@ -241,7 +208,7 @@ function TrackPracticeDock({
 
 function PracticeBodyContent(props: PracticeBodyProps & { signedIn: boolean }) {
   const { header, notes, lyrics, lyricsLoading, failed, signedIn } = props;
-  const { controller, directAudio, expectDirectAudio, hostRef } =
+  const { controller, directAudio, expectDirectAudio, audioFallback, hostRef } =
     usePracticeController(props);
   const fullscreenRef = useRef<HTMLDivElement>(null);
   const guideNotes = useTransposedNotes(notes);
@@ -292,8 +259,9 @@ function PracticeBodyContent(props: PracticeBodyProps & { signedIn: boolean }) {
       <TrackPracticeDock
         header={header}
         controller={controller}
-        directAudio={directAudio !== undefined}
+        directAudio={directAudio}
         expectDirectAudio={expectDirectAudio}
+        audioFallback={audioFallback}
         hostRef={hostRef}
       />
     </div>

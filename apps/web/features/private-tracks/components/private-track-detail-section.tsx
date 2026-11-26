@@ -9,7 +9,7 @@ import type {
 } from '@vozzify/contracts';
 import { LockKeyhole } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SessionUserBoundary } from '@/features/auth/components/session-user';
@@ -92,7 +92,7 @@ function privateTrackHeader(track: PrivateTrackDetailData): TrackDetail {
       ? [{ name: track.artist, joinPhrase: '', artistId: null }]
       : [],
     durationMs: track.durationMs,
-    youtubeVideoId: null,
+    youtubeVideoId: track.youtubeVideoId ?? null,
     contributors: [],
     contributorCount: 0,
     hasNotes: track.notes.length > 0,
@@ -175,11 +175,10 @@ function PrivateTrackPractice({
   notes: PrivateTrackDetailData['notes'];
   fakePlayer: boolean;
 }) {
-  const media = `/api/private-tracks/${encodeURIComponent(header.id)}`;
-  const audio: TrackAudio = {
-    musicMp3Url: `${media}/music`,
-    vocalsMp3Url: `${media}/vocals`,
-  };
+  const audio = useMemo<TrackAudio>(() => {
+    const media = `/api/private-tracks/${encodeURIComponent(header.id)}`;
+    return { musicMp3Url: `${media}/music`, vocalsMp3Url: `${media}/vocals` };
+  }, [header.id]);
   return (
     <PracticeBody
       header={header}

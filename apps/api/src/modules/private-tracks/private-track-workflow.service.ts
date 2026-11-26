@@ -20,7 +20,7 @@ export class PrivateTrackWorkflowService {
     upload: { path: string; originalname: string },
   ): Promise<PrivateTrack> {
     const track = await this.tracks.submit(userId, upload);
-    await this.enqueue(userId, track.id);
+    await this.queueProcessing(userId, track.id);
     return track;
   }
 
@@ -32,11 +32,11 @@ export class PrivateTrackWorkflowService {
       userId,
       privateTrackId,
     );
-    if (retryId) await this.enqueue(userId, privateTrackId, retryId);
+    if (retryId) await this.queueProcessing(userId, privateTrackId, retryId);
     return processing;
   }
 
-  private async enqueue(
+  async queueProcessing(
     ...args: Parameters<PrivateTrackProcessingService['enqueue']>
   ): Promise<void> {
     const [, privateTrackId] = args;

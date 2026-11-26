@@ -12,12 +12,19 @@ const YOUTUBE_HOSTS: ReadonlySet<string> = new Set([
 ]);
 
 /** The path of a YouTube page that carries the video ID as its next segment. */
-const VIDEO_PATH = /^\/(?:shorts|embed|live)\/([^/]+)/;
+const VIDEO_PATH = /^\/(?:shorts|embed|live)\/([^/]+)\/?$/;
+const SHORT_LINK_PATH = /^\/([^/]+)\/?$/;
 
 /** The video ID a URL names, or undefined when it is not a YouTube video. */
 export function youtubeVideoIdOf(url: string): string | undefined {
   const parsed = parseUrl(url);
-  if (parsed === undefined) {
+  if (
+    parsed === undefined ||
+    (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') ||
+    parsed.port ||
+    parsed.username ||
+    parsed.password
+  ) {
     return undefined;
   }
   const host = parsed.hostname.replace(/^www\./, '');
@@ -37,7 +44,7 @@ function parseUrl(url: string): URL | undefined {
 
 function idFromHost(host: string, url: URL): string | undefined {
   if (host === 'youtu.be') {
-    return url.pathname.slice(1).split('/')[0];
+    return SHORT_LINK_PATH.exec(url.pathname)?.[1];
   }
   if (!YOUTUBE_HOSTS.has(host)) {
     return undefined;

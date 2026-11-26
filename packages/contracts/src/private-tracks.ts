@@ -3,6 +3,7 @@ import { cursorPageSchema, cursorPaginationQuerySchema } from './pagination.js';
 
 export const PRIVATE_AUDIO_MAX_BYTES = 250 * 1024 * 1024;
 export const PRIVATE_AUDIO_MAX_DURATION_SECONDS = 30 * 60;
+export const PRIVATE_YOUTUBE_URL_MAX_LENGTH = 2048;
 export const MISSING_PRIVATE_VIDEO_AUDIO = 'MISSING_VIDEO_AUDIO';
 
 export const privateTrackUploadErrorDetailsSchema = z.object({
@@ -51,6 +52,10 @@ export const privateTrackDetailSchema = privateTrackSchema.extend({
   ownerId: z.string().min(1),
   processing: privateTrackProcessingStateSchema,
   locked: z.boolean(),
+  youtubeVideoId: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{11}$/)
+    .optional(),
   notes: z.array(
     z.object({
       pitch: z.number(),
@@ -86,4 +91,11 @@ export const createPrivateTrackBodySchema = z.strictObject({
 });
 export type CreatePrivateTrackBody = z.infer<
   typeof createPrivateTrackBodySchema
+>;
+
+export const createPrivateYouTubeTrackBodySchema = z.strictObject({
+  url: z.string().trim().max(PRIVATE_YOUTUBE_URL_MAX_LENGTH).url(),
+});
+export type CreatePrivateYouTubeTrackBody = z.infer<
+  typeof createPrivateYouTubeTrackBodySchema
 >;
