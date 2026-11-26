@@ -84,6 +84,7 @@
       "description": "As pessoas encontram seu perfil pelo nome de usuário. Você só pode escolhê-lo uma vez.",
       "submit": "Salvar nome de usuário",
       "checking": "Verificando disponibilidade…",
+      "checkFailed": "Não foi possível verificar a disponibilidade. Você ainda pode tentar salvar.",
       "available": "Nome de usuário disponível"
     },
     "strength": {

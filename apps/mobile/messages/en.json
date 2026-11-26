@@ -84,6 +84,7 @@
       "description": "Your Username is how people find your Profile. You can choose it once.",
       "submit": "Save Username",
       "checking": "Checking availability…",
+      "checkFailed": "Could not check availability. You can still try saving.",
       "available": "Username available"
     },
     "strength": {

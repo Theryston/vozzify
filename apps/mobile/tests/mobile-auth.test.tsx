@@ -1,3 +1,4 @@
+import { onlineManager } from '@tanstack/react-query';
 import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { renderRouter } from 'expo-router/testing-library';
 import * as SecureStore from 'expo-secure-store';
@@ -5,11 +6,13 @@ import * as SecureStore from 'expo-secure-store';
 // Load the native shell before spying on fetch so Expo has installed its transport.
 import '../app/_layout';
 
+let mockInternetReachable = true;
+
 jest.mock('expo-network', () => ({
-  getNetworkStateAsync: jest.fn().mockResolvedValue({
+  getNetworkStateAsync: jest.fn().mockImplementation(async () => ({
     isConnected: true,
-    isInternetReachable: true,
-  }),
+    isInternetReachable: mockInternetReachable,
+  })),
   addNetworkStateListener: jest.fn(() => ({ remove: jest.fn() })),
 }));
 
@@ -22,6 +25,7 @@ const writeSecureStore = jest.spyOn(SecureStore, 'setItemAsync');
 const removeSecureStore = jest.spyOn(SecureStore, 'deleteItemAsync');
 
 beforeEach(() => {
+  mockInternetReachable = true;
   let saved: string | null = null;
   readSecureStore.mockReset();
   writeSecureStore.mockReset();
@@ -146,7 +150,7 @@ describe('mobile email onboarding', () => {
         ),
       )
       .mockResolvedValueOnce(json(currentUser(null)))
-      .mockResolvedValueOnce(json({ available: true }))
+      .mockRejectedValueOnce(new Error('Availability request failed'))
       .mockResolvedValueOnce(json(currentUser('second_choice')));
     await renderRouter('./app');
     await userEvent.press(await screen.findByTestId('open-components'));
@@ -197,7 +201,11 @@ describe('mobile email onboarding', () => {
     const input = screen.getByLabelText('Username');
     await userEvent.clear(input);
     await fill('Username', 'Second_Choice');
-    expect(await screen.findByText('Username available')).toBeOnTheScreen();
+    expect(
+      await screen.findByText(
+        'Could not check availability. You can still try saving.',
+      ),
+    ).toBeOnTheScreen();
     await press('Save Username');
     expect(await screen.findByText('A native overlay')).toBeOnTheScreen();
     await userEvent.press(screen.getByTestId('overlay-dismiss'));
@@ -389,7 +397,8 @@ it('can leave email verification and return to the original screen without reope
   expect(screen.queryByText('Verify your email')).toBeNull();
 });
 
-it('gates a cold-open gallery during restoration and retains it through Username setup', async () => {
+it('gates a cold-open gallery and completes Username setup when the API is reachable without internet', async () => {
+  mockInternetReachable = false;
   const session = deferResponse();
   readSecureStore.mockResolvedValueOnce(
     JSON.stringify({ token: 'signed.session' }),
@@ -413,6 +422,7 @@ it('gates a cold-open gallery during restoration and retains it through Username
     }),
     expect.any(Object),
   );
+  await waitFor(() => expect(onlineManager.isOnline()).toBe(false));
   await fill('Username', 'ana');
   expect(await screen.findByText('Username available')).toBeOnTheScreen();
   await press('Save Username');

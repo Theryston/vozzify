@@ -25,12 +25,24 @@ function useUsernameAvailability(username: string) {
     enabled:
       candidate === username &&
       setUsernameBodySchema.safeParse({ username }).success,
+    // Local APIs can remain reachable when Android cannot validate internet access.
+    networkMode: 'always',
     retry: false,
     staleTime: 30_000,
   });
   return candidate === username
     ? query
-    : { data: undefined, isFetching: false };
+    : { data: undefined, isFetching: false, isError: false };
+}
+
+function availabilityNotice(
+  availability: ReturnType<typeof useUsernameAvailability>,
+  taken: boolean,
+) {
+  if (availability.isFetching) return 'checking';
+  if (availability.isError) return 'checkFailed';
+  if (availability.data?.available && !taken) return 'available';
+  return undefined;
 }
 
 function UsernameForm() {
@@ -44,11 +56,7 @@ function UsernameForm() {
   const taken =
     availability.data?.available === false ||
     form.error === 'USERNAME_IS_ALREADY_TAKEN';
-  const notice = availability.isFetching
-    ? 'checking'
-    : availability.data?.available && !taken
-      ? 'available'
-      : undefined;
+  const notice = availabilityNotice(availability, taken);
   return (
     <>
       <AuthField
