@@ -12,6 +12,7 @@ import {
 } from '../home-rows-query';
 import { isHomeVisitRestartError } from '../home-visit-restart';
 import { useHomeRows } from '../hooks/use-home-rows';
+import { useLivePeopleRows } from '../hooks/use-live-people-rows';
 import { HomeFeedRows } from './home-feed-rows';
 import { CarouselRowSkeleton } from './home-feed-skeleton';
 
@@ -53,7 +54,7 @@ export function HomeRows({
     isFetchNextPageError,
   } = useHomeRows(locale, initialPage);
   const queryClient = useQueryClient();
-  const rows = data.pages.flatMap((page) => page.rows);
+  const rows = useLivePeopleRows(locale, data);
 
   useEffect(() => {
     if (!isHomeVisitRestartError(error)) return;

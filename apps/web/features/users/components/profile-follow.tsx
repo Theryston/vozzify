@@ -35,10 +35,11 @@ export async function ProfileFollowAction({ username }: { username: string }) {
 }
 
 async function FollowMessages({ children }: { children: ReactNode }) {
-  const { publicProfile, errors } = await getMessages();
+  const { avatarIdentity, publicProfile, errors } = await getMessages();
   return (
     <NextIntlClientProvider
       messages={{
+        avatarIdentity,
         publicProfile: {
           follow: publicProfile.follow,
           followList: publicProfile.followList,

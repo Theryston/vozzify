@@ -34,6 +34,17 @@ export class SubscriptionsRepository {
       .where(eq(subscriptions.userId, userId));
     return rows[0];
   }
+  async membershipForUsers(userIds: readonly string[]) {
+    return this.txHost.tx
+      .select({
+        userId: subscriptions.userId,
+        paidMembership: subscriptions.paidMembership,
+        currentPeriodEnd: subscriptions.currentPeriodEnd,
+        recoveryStartedAt: subscriptions.recoveryStartedAt,
+      })
+      .from(subscriptions)
+      .where(inArray(subscriptions.userId, userIds));
+  }
   async price(id: string) {
     const rows = await this.txHost.tx
       .select()

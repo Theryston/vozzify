@@ -1,7 +1,7 @@
 import { AppException } from '../../common/errors/app-exception.js';
 import type { StripeBillingService } from '../../integrations/stripe/stripe-billing.service.js';
 import { renewalFailure } from './renewal-failure.js';
-import { renewalRecovery } from './renewal-recovery.js';
+import { isPaidMembershipActive, renewalRecovery } from './renewal-recovery.js';
 import { confirmedSubscription } from './subscription-state.js';
 import type { SubscriptionsRepository } from './subscriptions.repository.js';
 import { isAgreedTrial } from './trial-terms.js';
@@ -15,11 +15,12 @@ export async function refreshSubscription(input: {
 }) {
   const { userId, customer, event, repository, stripe } = input;
   const row = await repository.current(userId);
-  if (!row) return;
+  if (!row) return false;
+  const wasPro = isPaidMembershipActive(row.contract);
   const session = row.contract.checkoutId
     ? await stripe.getCheckout(row.contract.checkoutId)
     : await stripe.findCheckout(customer, row.contract.id);
-  if (!session) return;
+  if (!session) return false;
   if (!row.contract.checkoutId)
     await repository.update(userId, {
       checkoutId: session.id,
@@ -43,6 +44,8 @@ export async function refreshSubscription(input: {
       paidMembership: false,
     });
   }
+  const current = (await repository.current(userId))?.contract;
+  return (current !== undefined && isPaidMembershipActive(current)) !== wasPro;
 }
 
 async function refreshConfirmed(input: {

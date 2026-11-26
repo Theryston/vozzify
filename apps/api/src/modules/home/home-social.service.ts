@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import type { HomePeopleRow } from '@vozzify/contracts';
 import { AttemptsProfileService } from '../attempts/attempts-profile.service.js';
-import { ProfileVisibilityService } from '../users/profile-visibility.service.js';
+import {
+  ProfileVisibilityService,
+  type SocialProfile,
+} from '../users/profile-visibility.service.js';
 import { HomeSocialRepository } from './home-social.repository.js';
 import { HomeSocialStore, type StoredSocialPair } from './home-social.store.js';
 import {
@@ -88,17 +91,7 @@ export class HomeSocialService {
 
   private visibleCandidates(
     pairs: StoredSocialPair[],
-    visibility: Map<
-      string,
-      {
-        username: string | null;
-        shown: {
-          practiceHistory: boolean;
-          favorites: boolean;
-          summary: boolean;
-        };
-      }
-    >,
+    visibility: Map<string, SocialProfile>,
   ): SocialCandidate[] {
     return pairs.flatMap((pair) => {
       const shown = visibility.get(pair.id);
@@ -121,6 +114,7 @@ export class HomeSocialService {
           username: shown.username,
           name: pair.name,
           image: pair.image,
+          ...shown.appearance,
           commonTracks,
           ownVisibleTracks: pair.viewerTrackCount ?? commonTracks,
           otherVisibleTracks: visibleTrackCount(

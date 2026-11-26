@@ -4,6 +4,7 @@ import {
   type HomeRow,
   LOCALES,
   type Locale,
+  refreshHomePeopleRow,
 } from '@vozzify/contracts';
 import { AppException } from '../../common/errors/app-exception.js';
 import { allHomeCompositionCandidates } from './home-composition-candidates.js';
@@ -177,13 +178,7 @@ export class HomeVisitService {
     return rows.map((row) => {
       if (row?.layout !== 'people') return row;
       const live = liveRows.get(row.id);
-      if (live?.layout !== 'people') return null;
-      const liveItems = new Map(live.items.map((item) => [item.id, item]));
-      const items = row.items.flatMap((item) => {
-        const visible = liveItems.get(item.id);
-        return visible ? [visible] : [];
-      });
-      return items.length >= 3 ? { ...row, items } : null;
+      return refreshHomePeopleRow(row, live);
     });
   }
 }

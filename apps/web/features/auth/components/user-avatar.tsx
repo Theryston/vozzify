@@ -1,32 +1,62 @@
+import type { PublicProfile } from '@vozzify/contracts';
+import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-
 import { initials } from '../initials';
-import type { SessionUser } from '../session';
+import { avatarTreatment } from './avatar-treatment';
+import { StudioSingle } from './studio-single';
 
-/**
- * A User's picture, or their initials without one. The email is only the last
- * resort for initials (when there is no name), so a page that shows other
- * Users, who are never sent with their email, leaves it out.
- */
+type AvatarUser = Pick<PublicProfile, 'name' | 'avatarIdentity'> & {
+  username: string | null;
+  image?: string | null;
+  email?: string;
+};
+
 export function UserAvatar({
   user,
   className,
+  size = 'compact',
+  loading = 'eager',
+  imageSizes = size === 'full' ? '(min-width: 768px) 192px, 96px' : '40px',
 }: {
-  user: Pick<SessionUser, 'name' | 'username' | 'image'> &
-    Partial<Pick<SessionUser, 'email'>>;
+  user: AvatarUser;
   className?: string;
+  loading?: 'eager' | 'lazy';
+  imageSizes?: string;
+  size?: 'compact' | 'full';
 }) {
-  return (
-    <Avatar className={cn('size-9', className)}>
+  const single = avatarTreatment(user.avatarIdentity) === 'studio-single';
+  const artwork = (
+    <Avatar className={single ? undefined : cn('size-9', className)}>
       {user.image ? (
-        // Decorative: the name is next to it or on the button. Google's photo
-        // host refuses some requests that carry a referrer.
-        <AvatarImage src={user.image} alt="" referrerPolicy="no-referrer" />
+        <AvatarImage
+          className="data-error:invisible data-loading:invisible"
+          render={
+            <Image
+              fill
+              unoptimized
+              loading={loading}
+              sizes={imageSizes}
+              src={user.image}
+              alt=""
+            />
+          }
+          keepMounted={loading === 'lazy'}
+          src={user.image}
+          alt=""
+          referrerPolicy="no-referrer"
+        />
       ) : null}
       <AvatarFallback className="bg-primary/15 font-semibold text-primary">
         {initials(user.name, user.username ?? user.email ?? '')}
       </AvatarFallback>
     </Avatar>
+  );
+  return single ? (
+    <StudioSingle name={user.name} size={size} className={className}>
+      {artwork}
+    </StudioSingle>
+  ) : (
+    artwork
   );
 }

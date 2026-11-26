@@ -87,11 +87,18 @@ export default async function TrackRoutePage({
   if (result.status === 'missing') {
     const privateTrack = await getPrivateTrackDetail(trackId);
     if (!privateTrack) notFound();
-    const { errors, practice, privateTracks, streaks, tracks } =
+    const { avatarIdentity, errors, practice, privateTracks, streaks, tracks } =
       await getMessages();
     return (
       <NextIntlClientProvider
-        messages={{ errors, practice, privateTracks, streaks, tracks }}
+        messages={{
+          avatarIdentity,
+          errors,
+          practice,
+          privateTracks,
+          streaks,
+          tracks,
+        }}
       >
         <PrivateTrackDetailSection
           initial={privateTrack}

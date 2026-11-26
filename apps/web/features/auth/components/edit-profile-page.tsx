@@ -10,7 +10,7 @@ import { EditProfile } from './edit-profile';
  */
 export async function EditProfilePage() {
   const t = await getTranslations('profile.edit');
-  const { errors, auth, profile } = await getMessages();
+  const { avatarIdentity, errors, auth, profile } = await getMessages();
 
   return (
     <AccountPageFrame
@@ -19,7 +19,12 @@ export async function EditProfilePage() {
       description={t('description')}
     >
       <NextIntlClientProvider
-        messages={{ errors, auth: { fields: auth.fields }, profile }}
+        messages={{
+          avatarIdentity,
+          errors,
+          auth: { fields: auth.fields },
+          profile,
+        }}
       >
         <EditProfile />
       </NextIntlClientProvider>

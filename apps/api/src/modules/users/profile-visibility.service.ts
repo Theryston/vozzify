@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import {
+  type AvatarIdentity,
   cacheTags,
   type ProfileSection,
   type ProfileVisibility,
@@ -8,11 +9,13 @@ import {
 } from '@vozzify/contracts';
 import { AppException } from '../../common/errors/app-exception.js';
 import { WebRevalidationService } from '../../integrations/web-revalidation/web-revalidation.service.js';
+import { SubscriptionMembershipService } from '../plans/subscription-membership.service.js';
 import {
   ProfileVisibilityRepository,
   type ProfileVisibilityRow,
   type ProfileVisibilityValues,
 } from './profile-visibility.repository.js';
+import { avatarIdentityFields } from './user-avatar-identity.service.js';
 
 /** The stored flag of each section of a Profile. */
 const SECTION_FLAG = {
@@ -30,6 +33,16 @@ const EVERY_SECTION: ProfileVisibility = {
 
 /** A Profile as one viewer may read it: its User, and the sections shown to them. */
 export type ProfileView = { userId: string; shown: ProfileVisibility };
+
+export type SocialProfile = {
+  username: string | null;
+  shown: ProfileVisibility;
+  appearance?: {
+    name: string;
+    image: string | null;
+    avatarIdentity?: AvatarIdentity;
+  };
+};
 
 const toVisibility = (row: ProfileVisibilityRow): ProfileVisibility => ({
   summary: row.showSummarySection,
@@ -80,6 +93,7 @@ export class ProfileVisibilityService {
   constructor(
     private readonly repository: ProfileVisibilityRepository,
     private readonly webRevalidation: WebRevalidationService,
+    @Optional() private readonly membership?: SubscriptionMembershipService,
   ) {}
 
   /** The owner's flags. */
@@ -113,17 +127,28 @@ export class ProfileVisibilityService {
     return (await this.viewOf(username, undefined)).shown;
   }
 
-  /** Live section visibility for several public Profiles, keyed by User ID. */
+  /** Live section visibility and public appearance for Home recommendations. */
   async getShownSectionsByUserIds(
     userIds: string[],
-  ): Promise<
-    Map<string, { username: string | null; shown: ProfileVisibility }>
-  > {
+  ): Promise<Map<string, SocialProfile>> {
     const rows = await this.repository.findManyByIds(userIds);
+    const paid = await this.membership?.paidMemberIds(rows.map(({ id }) => id));
     return new Map(
       rows.map((row) => [
         row.id,
-        { username: row.username, shown: toVisibility(row) },
+        {
+          username: row.username,
+          shown: toVisibility(row),
+          ...(row.name === undefined
+            ? {}
+            : {
+                appearance: {
+                  name: row.name,
+                  image: row.image ?? null,
+                  ...avatarIdentityFields(paid?.has(row.id), row.avatarRole),
+                },
+              }),
+        },
       ]),
     );
   }

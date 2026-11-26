@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { avatarIdentitySchema } from './avatar-identity.js';
 
 import { cursorPageSchema } from './pagination.js';
 
@@ -34,6 +35,7 @@ export const followListUserSchema = z.object({
   username: z.string().min(1).max(100).nullable(),
   name: z.string().min(1).max(200),
   image: z.string().min(1).max(2000).nullable(),
+  avatarIdentity: avatarIdentitySchema.optional(),
 });
 
 export type FollowListUser = z.infer<typeof followListUserSchema>;

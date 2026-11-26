@@ -3,7 +3,6 @@
 import type { FollowListUser } from '@vozzify/contracts';
 import { useTranslations } from 'next-intl';
 import { type RefObject, useEffect, useRef } from 'react';
-
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -12,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { UserAvatar } from '@/features/auth/components/user-avatar';
+import { UserIdentityMarks } from '@/features/auth/components/user-identity-marks';
 import { Link } from '@/lib/i18n/navigation';
 
 import {
@@ -236,16 +236,12 @@ function FollowListRow({
   const t = useTranslations('publicProfile.followList');
   const body = (
     <>
-      <UserAvatar
-        user={{
-          name: user.name,
-          username: user.username,
-          image: user.image ?? undefined,
-        }}
-        className={AVATAR_CLASS}
-      />
+      <UserAvatar user={user} className={AVATAR_CLASS} />
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate font-semibold text-sm">{user.name}</span>
+        <span className="flex min-w-0 flex-wrap items-center gap-1">
+          <span className="truncate font-semibold text-sm">{user.name}</span>
+          <UserIdentityMarks identity={user.avatarIdentity} />
+        </span>
         {user.username === null ? null : (
           <span className="truncate text-muted-foreground text-xs">
             @{user.username}

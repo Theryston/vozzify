@@ -15,17 +15,23 @@ import { serverApi } from '@/lib/api/server';
 
 /**
  * The practice header of a Track. The page only asks once the Processing has
- * completed, and the API revalidates the Track's tag at that moment, so the
- * longest life is correct: freshness comes from invalidation, not expiry.
+ * completed. The API revalidates the Track's tag on catalog changes. The
+ * bounded life keeps the displayed Contributors' identities fresh as well.
  */
 async function getTrackDetail(trackId: string): Promise<TrackDetail> {
   'use cache';
   cacheTag(cacheTags.track(trackId));
-  cacheLife('max');
+  cacheLife({ stale: 30, revalidate: 60, expire: 300 });
 
-  return serverApi(`/tracks/${encodeURIComponent(trackId)}`, {
+  const detail = await serverApi(`/tracks/${encodeURIComponent(trackId)}`, {
     schema: trackDetailSchema,
   });
+  for (const contributor of detail.contributors) {
+    if (contributor.username !== null) {
+      cacheTag(cacheTags.userProfile(contributor.username));
+    }
+  }
+  return detail;
 }
 
 /** The vocal notes of a Track in sung order, cached under their own tag. */

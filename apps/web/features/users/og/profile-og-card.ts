@@ -13,10 +13,13 @@ export type ProfileOgCard = {
   /** A `data:` URL of the Avatar, or undefined to draw the initials. */
   avatar: string | undefined;
   chips: ProfileChip[];
+  adminLabel?: string;
+  single?: { disc: string; label: string };
 };
 
 export type ProfileOgCardInput = {
   source: ProfileOgSource;
+  identity?: Pick<ProfileOgCard, 'adminLabel' | 'single'>;
   messages: ProfileChipMessages;
   /** The Avatar as a `data:` URL, when there is one to draw. */
   avatar: string | undefined;
@@ -40,10 +43,12 @@ export function profileOgCard({
   messages,
   avatar,
   initials,
+  identity,
 }: ProfileOgCardInput): ProfileOgCard {
   return {
     name: truncateText(source.name, MAX_NAME_CHARACTERS),
     username: source.username,
+    ...identity,
     initials,
     avatar,
     chips: profileChips(source, messages).map((chip) => ({

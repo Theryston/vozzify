@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { avatarIdentitySchema } from './avatar-identity.js';
 
 import { trackVocalRangeSchema } from './tracks.js';
 import { dailyPracticeTargetSecondsSchema } from './users.js';
@@ -50,6 +51,7 @@ export const publicProfileSchema = z.object({
   followingCount: z.number().int().nonnegative(),
   /** Mutual follows: Users this User follows who follow them back. */
   friendsCount: z.number().int().nonnegative(),
+  avatarIdentity: avatarIdentitySchema.optional(),
 });
 
 export type PublicProfile = z.infer<typeof publicProfileSchema>;

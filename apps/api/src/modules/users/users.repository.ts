@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
-import type { CurrentUser, Locale } from '@vozzify/contracts';
+import type { CurrentUser, Locale, UserRole } from '@vozzify/contracts';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
 import { userFollows } from '../../database/schema/user-follows.js';
@@ -48,6 +48,7 @@ export type PublicProfileRow = {
   followersCount: number;
   followingCount: number;
   friendsCount: number;
+  avatarRole?: UserRole;
 };
 
 /** The fields a notification email needs about a User: where it goes and in what language. */
@@ -249,6 +250,15 @@ export class UsersRepository {
       .where(inArray(users.id, ids));
   }
 
+  /** The role input for the public Avatar marks of a bounded set of Users. */
+  async findAvatarRoles(userIds: readonly string[]) {
+    if (userIds.length === 0) return [];
+    return this.txHost.tx
+      .select({ id: users.id, role: users.role })
+      .from(users)
+      .where(inArray(users.id, userIds));
+  }
+
   /**
    * The public banner fields of the User with this (lowercased) username, or
    * undefined when no User has it.
@@ -264,6 +274,7 @@ export class UsersRepository {
         createdAt: users.createdAt,
         dailyPracticeTargetSeconds: users.dailyPracticeTargetSeconds,
         ...followCountColumns,
+        avatarRole: users.role,
       })
       .from(users)
       .where(eq(users.username, username))

@@ -35,6 +35,6 @@ async function loadFirstPage(locale: Locale): Promise<HomeFeedPage> {
 }
 
 async function rowMessages() {
-  const { home, tracks } = await getMessages();
-  return { home, tracks: { card: tracks.card } };
+  const { avatarIdentity, home, tracks } = await getMessages();
+  return { avatarIdentity, home, tracks: { card: tracks.card } };
 }

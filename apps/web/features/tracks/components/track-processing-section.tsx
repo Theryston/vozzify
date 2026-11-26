@@ -25,10 +25,13 @@ export async function TrackProcessingSection({
   /** The e2e build's flag: the practice view plays with a fake clock. */
   fakePlayer: boolean;
 }) {
-  const { errors, practice, streaks, tracks } = await getMessages();
+  const { avatarIdentity, errors, practice, streaks, tracks } =
+    await getMessages();
 
   return (
-    <NextIntlClientProvider messages={{ errors, practice, streaks, tracks }}>
+    <NextIntlClientProvider
+      messages={{ avatarIdentity, errors, practice, streaks, tracks }}
+    >
       <TrackProcessingView
         initialState={initialState}
         initialPractice={initialPractice}

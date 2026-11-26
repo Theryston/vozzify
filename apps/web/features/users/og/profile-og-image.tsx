@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
-
 import type { ProfileChip } from '../profile-chips';
 import type { ProfileOgCard } from './profile-og-card';
+import { adminMark, studioSingleImage } from './profile-og-identity-image';
 
 /** The preview's size, the Open Graph and Twitter card standard. */
 export const PROFILE_OG_WIDTH = 1200;
@@ -46,7 +46,7 @@ export function profileOgImage(card: ProfileOgCard): ReactElement {
     >
       {decorationRing()}
       {textColumn(card)}
-      {avatarElement(card)}
+      {card.single ? studioSingleImage(card, card.single) : avatarElement(card)}
       {brandMark()}
     </div>
   );
@@ -83,12 +83,16 @@ function textColumn(card: ProfileOgCard): ReactElement {
       <div
         style={{
           display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
           fontSize: '76px',
           fontWeight: 800,
           lineHeight: 1.05,
         }}
       >
-        {card.name}
+        <span>{card.name}</span>
+        {card.adminLabel && adminMark(card.adminLabel)}
       </div>
       <div style={{ display: 'flex', fontSize: '34px', fontWeight: 600 }}>
         {`@${card.username}`}

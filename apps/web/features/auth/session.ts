@@ -1,9 +1,11 @@
 import { queryOptions } from '@tanstack/react-query';
+import type { AvatarIdentity } from '@vozzify/contracts';
 
 import { authKeys } from './query-keys';
 
 /** What the auth screens and the gate need to know about the user. */
 export type SessionUser = {
+  avatarIdentity?: AvatarIdentity;
   id?: string;
   role?: 'ADMIN' | 'USER';
   name: string;

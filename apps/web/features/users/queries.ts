@@ -19,14 +19,15 @@ import { serverApi } from '@/lib/api/server';
 /**
  * The public banner of a Profile, cached under the Profile tag the API
  * revalidates when the Name or Avatar changes. An unknown username is `null`
- * rather than an error: the page answers it with a 404.
+ * rather than an error: the page answers it with a 404. The bounded life
+ * also refreshes membership and role independently of profile edits.
  */
 export async function getPublicProfile(
   username: string,
 ): Promise<PublicProfile | null> {
   'use cache';
   cacheTag(cacheTags.userProfile(username));
-  cacheLife('max');
+  cacheLife({ stale: 30, revalidate: 60, expire: 300 });
 
   try {
     return await serverApi(`/users/${encodeURIComponent(username)}`, {

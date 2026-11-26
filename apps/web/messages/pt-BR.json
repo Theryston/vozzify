@@ -1,4 +1,8 @@
 {
+  "avatarIdentity": {
+    "pro": "Pro",
+    "admin": "Admin"
+  },
   "metadata": {
     "title": "Vozzify – veja as notas que o cantor canta",
     "titleTemplate": "%s | Vozzify",

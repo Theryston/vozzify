@@ -13,7 +13,7 @@ import { HeaderSearchFallback } from '@/features/search/components/header-search
 export default async function SiteLayout({
   children,
 }: LayoutProps<'/[locale]'>) {
-  const { errors, header, privateTracks } = await getMessages();
+  const { avatarIdentity, errors, header, privateTracks } = await getMessages();
   const {
     title,
     loading,
@@ -33,6 +33,7 @@ export default async function SiteLayout({
     // pay for them.
     <NextIntlClientProvider
       messages={{
+        avatarIdentity,
         errors,
         header,
         privateTracks: {

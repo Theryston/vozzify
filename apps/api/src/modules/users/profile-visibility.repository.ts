@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
+import type { UserRole } from '@vozzify/contracts';
 import { eq, inArray } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
 import { users } from '../../database/schema/users.js';
@@ -14,6 +15,12 @@ export type ProfileVisibilityRow = {
 };
 
 /** The section flags to set in one statement: only those given change. */
+type SocialProfileRow = ProfileVisibilityRow & {
+  name?: string;
+  image?: string | null;
+  avatarRole?: UserRole;
+};
+
 export type ProfileVisibilityValues = Partial<
   Pick<
     ProfileVisibilityRow,
@@ -57,10 +64,15 @@ export class ProfileVisibilityRepository {
   }
 
   /** The current section flags for a bounded set of public Profile owners. */
-  async findManyByIds(ids: string[]): Promise<ProfileVisibilityRow[]> {
+  async findManyByIds(ids: string[]): Promise<SocialProfileRow[]> {
     if (ids.length === 0) return [];
     return this.txHost.tx
-      .select(profileVisibilityColumns)
+      .select({
+        ...profileVisibilityColumns,
+        avatarRole: users.role,
+        name: users.name,
+        image: users.image,
+      })
       .from(users)
       .where(inArray(users.id, ids));
   }

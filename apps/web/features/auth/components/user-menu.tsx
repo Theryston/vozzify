@@ -10,7 +10,6 @@ import {
   UserIcon,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-
 import {
   MenuDrawer,
   MenuDrawerList,
@@ -33,11 +32,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { UserIdentityMarks } from '@/features/auth/components/user-identity-marks';
 import { SubscriptionNavigation } from '@/features/plans/components/subscription-navigation';
 import { usePrivateTracksMenu } from '@/features/private-tracks/components/private-tracks-menu';
 import { Link } from '@/lib/i18n/navigation';
-
 import type { SessionUser } from '../session';
+import { sessionAvatarIdentity, useAvatarStatusText } from './avatar-status';
 import { useSignOut } from './sign-out';
 import { UserAvatar } from './user-avatar';
 
@@ -100,8 +100,9 @@ function UserSummary({ user }: { user: SessionUser }) {
     <div className="flex min-w-0 items-center gap-3 px-3 py-2">
       <UserAvatar user={user} />
       <div className="min-w-0">
-        <p className="truncate font-semibold text-sm">
+        <p className="flex flex-wrap items-center gap-1 font-semibold text-sm">
           {user.name || user.username}
+          <UserIdentityMarks identity={user.avatarIdentity} />
         </p>
         {user.username ? (
           <p className="truncate text-muted-foreground text-xs">
@@ -121,6 +122,7 @@ type MenuItemsProps = Props & { links: MenuLink[] };
 function UserDropdown({ user, currentPath, links }: MenuItemsProps) {
   const t = useTranslations('header');
   const { signOut, pending } = useSignOut();
+  const statusText = useAvatarStatusText();
 
   return (
     <DropdownMenu>
@@ -130,6 +132,7 @@ function UserDropdown({ user, currentPath, links }: MenuItemsProps) {
             variant="ghost"
             size="icon"
             aria-label={t('account.accountMenu')}
+            aria-description={statusText(user.avatarIdentity)}
           />
         }
       >
@@ -138,7 +141,7 @@ function UserDropdown({ user, currentPath, links }: MenuItemsProps) {
       <DropdownMenuContent
         align="end"
         sideOffset={8}
-        className={menuSurfaceClassName}
+        className={`${menuSurfaceClassName} w-72`}
       >
         <UserSummary user={user} />
         <DropdownMenuSeparator />
@@ -180,6 +183,7 @@ function UserDropdown({ user, currentPath, links }: MenuItemsProps) {
 function UserDrawer({ user, currentPath, links }: MenuItemsProps) {
   const t = useTranslations('header');
   const { signOut, pending } = useSignOut();
+  const statusText = useAvatarStatusText();
 
   return (
     <MenuDrawer
@@ -189,6 +193,7 @@ function UserDrawer({ user, currentPath, links }: MenuItemsProps) {
           variant="ghost"
           size="icon"
           aria-label={t('account.accountMenu')}
+          aria-description={statusText(user.avatarIdentity)}
         >
           <UserAvatar user={user} />
         </Button>
@@ -259,7 +264,15 @@ export function UserMenu(props: Props) {
   );
 }
 
-function UserMenuContent({ user, currentPath, subscribed }: MenuProps) {
+function UserMenuContent({
+  user: session,
+  currentPath,
+  subscribed,
+}: MenuProps) {
+  const user = {
+    ...session,
+    avatarIdentity: sessionAvatarIdentity(session, subscribed),
+  };
   const { openLibrary, feedback } = usePrivateTracksMenu();
   const links = useMenuLinks(user, subscribed, openLibrary);
   return (

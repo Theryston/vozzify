@@ -4,6 +4,7 @@ import { EmailModule } from '../../integrations/email/email.module.js';
 import { StripeBillingService } from '../../integrations/stripe/stripe-billing.service.js';
 import { StripeCatalogService } from '../../integrations/stripe/stripe-catalog.service.js';
 import { WebRevalidationModule } from '../../integrations/web-revalidation/web-revalidation.module.js';
+import { UsersModule } from '../users/users.module.js';
 import {
   AdminBenefitsController,
   AdminPlanBenefitsController,
@@ -24,17 +25,19 @@ import { PriceChangeScheduleService } from './price-change-schedule.service.js';
 import { PriceChangesRepository } from './price-changes.repository.js';
 import { PriceChangesService } from './price-changes.service.js';
 import { SubscriptionChangesService } from './subscription-changes.service.js';
-import { SubscriptionMembershipService } from './subscription-membership.service.js';
+import { SubscriptionMembershipModule } from './subscription-membership.module.js';
+import { SubscriptionWebhookService } from './subscription-webhook.service.js';
 import {
   StripeWebhookController,
   SubscriptionsController,
 } from './subscriptions.controller.js';
-import { SubscriptionsRepository } from './subscriptions.repository.js';
 import { SubscriptionsService } from './subscriptions.service.js';
 
 @Module({
   imports: [
     WebRevalidationModule,
+    UsersModule,
+    SubscriptionMembershipModule,
     EmailModule,
     BullModule.registerQueue({ name: PRICE_CHANGE_QUEUE }),
   ],
@@ -55,9 +58,8 @@ import { SubscriptionsService } from './subscriptions.service.js';
     PriceChangeProcessor,
     PriceChangeReconcileService,
     PriceChangeRetryService,
-    SubscriptionsRepository,
     SubscriptionsService,
-    SubscriptionMembershipService,
+    SubscriptionWebhookService,
     SubscriptionChangesService,
     StripeBillingService,
     PlansService,
@@ -66,6 +68,6 @@ import { SubscriptionsService } from './subscriptions.service.js';
     AdminBenefitsRepository,
     AdminBenefitsService,
   ],
-  exports: [SubscriptionsService, SubscriptionMembershipService],
+  exports: [SubscriptionsService, SubscriptionMembershipModule],
 })
 export class PlansModule {}
