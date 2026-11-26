@@ -1,10 +1,9 @@
 import type { TrackHeader } from '@vozzify/contracts';
-import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 
 import { cn } from '@/lib/utils';
 
-import { TrackCoverPlaceholder } from './track-cover-placeholder';
+import { TrackCoverArt } from './track-cover-art';
 
 /**
  * The Track's cover, tilted like the album header's: the stored one once a
@@ -14,18 +13,12 @@ import { TrackCoverPlaceholder } from './track-cover-placeholder';
 function TrackRingCover({ track }: { track: TrackHeader }) {
   return (
     <span className="relative block size-24 rotate-3 overflow-hidden rounded-xl shadow-md md:size-44">
-      {track.coverUrl ? (
-        <Image
-          src={track.coverUrl}
-          alt=""
-          fill
-          unoptimized
-          sizes="(max-width: 768px) 96px, 176px"
-          className="object-cover"
-        />
-      ) : (
-        <TrackCoverPlaceholder seed={track.id} />
-      )}
+      <TrackCoverArt
+        coverArtUrl={track.coverUrl}
+        placeholderSeed={track.id}
+        sizes="(max-width: 768px) 96px, 176px"
+        unoptimized
+      />
     </span>
   );
 }
