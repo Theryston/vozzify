@@ -36,6 +36,8 @@ const NOTES = [{ pitch: 69, start: 0.1, end: 0.4 }];
 describe('Private track retry (e2e)', () => {
   let testApp: TestApp;
   let catalog: Awaited<ReturnType<typeof startFakeMusicCatalog>>;
+  let owner: Awaited<ReturnType<typeof proOwner>>;
+  let other: Awaited<ReturnType<typeof proOwner>>;
   const detector = {
     startJob: vi.fn<(input: NoteDetectionInput) => Promise<string>>(),
     checkJob: vi.fn<(jobId: string) => Promise<RunpodJobState>>(),
@@ -56,6 +58,13 @@ describe('Private track retry (e2e)', () => {
   afterAll(async () => {
     await testApp?.close();
     await catalog?.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(testApp.db);
+    await billingCatalog(testApp);
+    owner = await proOwner();
+    other = await proOwner();
   });
 
   async function proOwner() {
@@ -89,10 +98,7 @@ describe('Private track retry (e2e)', () => {
   }
 
   it('recovers the same track after failure with one retry and retained audio', async () => {
-    await resetDatabase(testApp.db);
-    await billingCatalog(testApp);
-    const { user, client } = await proOwner();
-    const other = await proOwner();
+    const { user, client } = owner;
     const processing = testApp.app.get(PrivateTrackProcessingService);
     const invalidId = await client
       .post(`${TRACKS}/${'x'.repeat(129)}/retry`)
