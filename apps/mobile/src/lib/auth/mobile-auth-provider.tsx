@@ -83,11 +83,69 @@ function clearOnboarding(previous: StoredAuth): StoredAuth {
   return verification || continuation ? { token } : previous;
 }
 
+function recordVerificationSent(verification: StoredAuth['verification']) {
+  if (verification?.email) {
+    recordCodeSent(
+      verification.email,
+      'email-verification',
+      verification.sentAt,
+    );
+  }
+}
+
+type CompletedAuth = {
+  user: AuthSessionUser;
+  token: string;
+  verificationSentAt?: number;
+};
+
+function verificationForSession({ user, verificationSentAt }: CompletedAuth) {
+  if (user.emailVerified || verificationSentAt === undefined) return undefined;
+  return { email: user.email, sentAt: verificationSentAt };
+}
+
+function retainVerification(
+  user: AuthSessionUser,
+  verification: StoredAuth['verification'],
+) {
+  if (user.emailVerified) return undefined;
+  return verification?.email?.toLowerCase() === user.email.toLowerCase()
+    ? verification
+    : undefined;
+}
+
+function useCompleteAuth(
+  update: ReturnType<typeof useAuthRecord>['update'],
+  setUser: ReturnType<typeof useRestoreAuth>['setUser'],
+) {
+  return async (
+    session: CompletedAuth,
+    continuation: AuthContinuation,
+    signal: AbortSignal,
+  ) => {
+    const { token, user } = session;
+    const issued = verificationForSession(session);
+    const saved = await update(
+      ({ verification }) => ({
+        token,
+        continuation,
+        verification: issued ?? retainVerification(user, verification),
+      }),
+      signal,
+    );
+    if (saved) {
+      recordVerificationSent(issued);
+      setUser(user);
+    }
+  };
+}
+
 function useAuthOperations() {
   const storage = useAuthRecord();
   const { status, user, setUser, retry } = useRestoreAuth(storage.replace);
   const chooseUsername = useUsernameSelection(storage, setUser);
   const { update, record } = storage;
+  const completeAuth = useCompleteAuth(update, setUser);
 
   async function beginVerification(
     verification: NonNullable<StoredAuth['verification']>,
@@ -98,26 +156,8 @@ function useAuthOperations() {
       (previous) => ({ ...previous, verification, continuation }),
       signal,
     );
-    if (saved && verification.email) {
-      recordCodeSent(
-        verification.email,
-        'email-verification',
-        verification.sentAt,
-      );
-    }
+    if (saved) recordVerificationSent(verification);
     return saved;
-  }
-
-  async function completeAuth(
-    session: { user: AuthSessionUser; token: string },
-    continuation: AuthContinuation,
-    signal: AbortSignal,
-  ) {
-    const saved = await update(
-      () => ({ token: session.token, continuation }),
-      signal,
-    );
-    if (saved) setUser(session.user);
   }
 
   return {

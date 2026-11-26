@@ -1,4 +1,5 @@
 import {
+  AUTH_VERIFICATION_CODE_ISSUED_HEADER,
   type AuthCodePurpose,
   type AuthCodeResponse,
   type AuthSessionResponse,
@@ -37,6 +38,7 @@ async function requestAuthSession<T extends z.ZodType>(
   options: MobileApiOptions<T>,
 ) {
   let token: string | null = null;
+  let verificationSentAt: number | undefined;
   const headers = new Headers(options.headers);
   headers.set('x-vozzify-auth', 'native');
   const data = await mobileApi(path, {
@@ -44,9 +46,12 @@ async function requestAuthSession<T extends z.ZodType>(
     headers,
     onResponseHeaders: (headers) => {
       token = headers.get(bearerHeader);
+      if (headers.get(AUTH_VERIFICATION_CODE_ISSUED_HEADER) === 'true') {
+        verificationSentAt = Date.now();
+      }
     },
   });
-  return { data, token };
+  return { data, token, verificationSentAt };
 }
 
 async function establishAuthSession<TBody extends z.ZodType>(
@@ -57,8 +62,10 @@ async function establishAuthSession<TBody extends z.ZodType>(
     locale: string;
     signal: AbortSignal;
   },
-): Promise<AuthSessionResponse & { token: string }> {
-  const { data, token } = await requestAuthSession(path, {
+): Promise<
+  AuthSessionResponse & { token: string; verificationSentAt?: number }
+> {
+  const { data, token, verificationSentAt } = await requestAuthSession(path, {
     method: 'POST',
     schema: authSessionResponseSchema,
     signal: options.signal,
@@ -69,7 +76,7 @@ async function establishAuthSession<TBody extends z.ZodType>(
   if (!token) {
     throw new MobileApiError('invalid-response', 'Signed session is missing');
   }
-  return { user: data.user, token };
+  return { user: data.user, token, verificationSentAt };
 }
 
 export function signIn(body: SignInBody, locale: string, signal: AbortSignal) {

@@ -127,6 +127,10 @@ export const signInGoogleBodySchema = z.object({
 
 export type SignInGoogleBody = z.infer<typeof signInGoogleBodySchema>;
 
+/** Native social sign-in signals that this response issued an email OTP. */
+export const AUTH_VERIFICATION_CODE_ISSUED_HEADER =
+  'x-vozzify-verification-code-issued';
+
 /** Native clients read the session User and the signed token header. */
 export const authSessionResponseSchema = z.object({
   user: authSessionUserSchema,

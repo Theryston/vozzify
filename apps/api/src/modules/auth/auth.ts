@@ -23,7 +23,11 @@ import {
 import { users } from '../../database/schema/users.js';
 import type { EmailService } from '../../integrations/email/email.service.js';
 import { AUTH_BASE_PATH, CLIENT_IP_HEADER } from './auth.constants.js';
-import { emailOtpPlugin, notifyExistingUserSignUp } from './auth-emails.js';
+import {
+  emailOtpPlugin,
+  nativeGoogleVerificationStatus,
+  notifyExistingUserSignUp,
+} from './auth-emails.js';
 import { googleProvider } from './google-provider.js';
 import { nativeBearer } from './native-bearer.js';
 import {
@@ -258,6 +262,7 @@ export const createAuth = ({
         displayUsername: false,
       }),
       emailOtpPlugin(emailService, logger),
+      nativeGoogleVerificationStatus,
     ],
     hooks: {
       before: enforceSignUpRules,

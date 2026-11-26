@@ -1,4 +1,5 @@
 import { generateKeyPairSync, sign } from 'node:crypto';
+import { AUTH_VERIFICATION_CODE_ISSUED_HEADER } from '@vozzify/contracts';
 import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { accounts } from '../src/database/schema/auth.js';
@@ -90,6 +91,9 @@ describe('native Google authentication', () => {
     });
     const session: unknown = response.headers['set-auth-token'];
     expect(session).toEqual(expect.any(String));
+    expect(
+      response.headers[AUTH_VERIFICATION_CODE_ISSUED_HEADER],
+    ).toBeUndefined();
 
     const me = await client()
       .get('/v1/me')
@@ -160,6 +164,13 @@ describe('native Google authentication', () => {
       username: null,
     });
 
+    expect(pending.headers[AUTH_VERIFICATION_CODE_ISSUED_HEADER]).toBe('true');
+    const repeatedSignIn = await exchange(
+      signGoogleToken({ email_verified: false }),
+    ).expect(200);
+    expect(
+      repeatedSignIn.headers[AUTH_VERIFICATION_CODE_ISSUED_HEADER],
+    ).toBeUndefined();
     const { otp } = await takeOtpEmail(spec.testApp, identity.email);
     const verified = await client()
       .post('/v1/auth/email-otp/verify-email')

@@ -3,7 +3,10 @@ import {
   type SignInSuccessResponse,
 } from '@react-native-google-signin/google-signin';
 import { screen, userEvent, waitFor } from '@testing-library/react-native';
-import type { CurrentUser } from '@vozzify/contracts';
+import {
+  AUTH_VERIFICATION_CODE_ISSUED_HEADER,
+  type CurrentUser,
+} from '@vozzify/contracts';
 import Constants from 'expo-constants';
 import { renderRouter } from 'expo-router/testing-library';
 import * as SecureStore from 'expo-secure-store';
@@ -65,10 +68,25 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-function sessionResponse(username: string | null, emailVerified = true) {
+function sessionResponse(
+  username: string | null,
+  options: {
+    email?: string;
+    emailVerified?: boolean;
+    codeIssued?: boolean;
+  } = {},
+) {
+  const { email = account.email, emailVerified = true, codeIssued } = options;
   return new Response(
-    JSON.stringify({ user: { ...account, username, emailVerified } }),
-    { headers: { 'set-auth-token': 'signed.session' } },
+    JSON.stringify({ user: { ...account, email, username, emailVerified } }),
+    {
+      headers: {
+        'set-auth-token': 'signed.session',
+        ...(codeIssued
+          ? { [AUTH_VERIFICATION_CODE_ISSUED_HEADER]: 'true' }
+          : {}),
+      },
+    },
   );
 }
 
@@ -100,10 +118,50 @@ describe('native Google auth screens', () => {
     });
   });
 
+  it('lets a pending Google User request a code when the exchange issued none', async () => {
+    selectAccount.mockResolvedValueOnce(googleResponse);
+    request.mockResolvedValueOnce(
+      sessionResponse(null, {
+        email: 'pending@example.com',
+        emailVerified: false,
+      }),
+    );
+    await renderRouter('./app', { initialUrl: '/sign-in' });
+
+    await pressGoogle();
+
+    expect(await screen.findByText('Verify your email')).toBeOnTheScreen();
+    expect(screen.getByTestId('resend-code')).toBeEnabled();
+  });
+
+  it('keeps an existing cooldown for the normalized email when Google issues no new code', async () => {
+    const sentAt = Date.now() - 10_000;
+    jest
+      .mocked(SecureStore.getItemAsync)
+      .mockResolvedValueOnce(
+        JSON.stringify({ verification: { email: 'Ada@Example.com', sentAt } }),
+      );
+    selectAccount.mockResolvedValueOnce(googleResponse);
+    request.mockResolvedValueOnce(
+      sessionResponse(null, { emailVerified: false }),
+    );
+    await renderRouter('./app', { initialUrl: '/sign-in' });
+
+    await pressGoogle();
+
+    expect(await screen.findByText('Verify your email')).toBeOnTheScreen();
+    expect(screen.getByTestId('resend-code')).toBeDisabled();
+    const writes = jest.mocked(SecureStore.setItemAsync).mock.calls;
+    const saved = JSON.parse(writes[writes.length - 1]?.[1] ?? '{}');
+    expect(saved).toMatchObject({ verification: { sentAt } });
+  });
+
   it('requires email verification and Username setup before resuming an action', async () => {
     selectAccount.mockResolvedValueOnce(googleResponse);
     request
-      .mockResolvedValueOnce(sessionResponse(null, false))
+      .mockResolvedValueOnce(
+        sessionResponse(null, { emailVerified: false, codeIssued: true }),
+      )
       .mockResolvedValueOnce(sessionResponse(null))
       .mockResolvedValueOnce(new Response(JSON.stringify({ available: true })))
       .mockResolvedValueOnce(
@@ -127,6 +185,13 @@ describe('native Google auth screens', () => {
     expect(await screen.findByText('Verify your email')).toBeOnTheScreen();
     expect(router.getPathname()).toBe('/verify-email');
     expect(screen.queryByText('A native overlay')).not.toBeOnTheScreen();
+    expect(screen.getByTestId('resend-code')).toBeDisabled();
+    const writes = jest.mocked(SecureStore.setItemAsync).mock.calls;
+    const saved = JSON.parse(writes[writes.length - 1]?.[1] ?? '{}');
+    expect(saved).toMatchObject({
+      verification: { email: account.email, sentAt: expect.any(Number) },
+      continuation: { destination: '/components', action: 'open-overlay' },
+    });
 
     await userEvent.type(screen.getByLabelText('Verification code'), '123456');
     await userEvent.press(screen.getByRole('button', { name: 'Verify email' }));
