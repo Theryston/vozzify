@@ -171,6 +171,24 @@ test('opens My tracks from the account menu and lists a submitted file at once',
   expect(consoleErrors.join('\n')).not.toContain('same key');
 });
 
+test('hydrates the account menu on a signed-in visit to My tracks', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await mockAuthApi(page, { user: { ...ADA, username: 'ada' } });
+  await mockPrivateTracksApi(page, true);
+  const response = await page.goto('/en/me/tracks');
+  expect(await response?.text()).toMatch(/<h1[^>]*>My tracks<\/h1>/);
+  await page
+    .getByRole('button', { name: messages.en.header.account.accountMenu })
+    .click();
+  await expect(
+    page.getByRole('menuitem', { name: messages.en.header.account.myTracks }),
+  ).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('shows the localized Pro modal for a free account with no private tracks', async ({
   page,
 }) => {
