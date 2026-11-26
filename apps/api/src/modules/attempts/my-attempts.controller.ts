@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Header, Query } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiOkResponse,
@@ -21,6 +21,7 @@ export class MyAttemptsController {
   constructor(private readonly attempts: AttemptsService) {}
 
   @Get()
+  @Header('Cache-Control', 'private, no-store')
   @ZodSerializerDto(practiceAttemptPageSchema)
   @ApiOkResponse({ description: "The User's own attempts, newest first." })
   @ApiBadRequestResponse({

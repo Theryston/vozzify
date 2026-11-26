@@ -189,7 +189,7 @@ function PrivateTrackPractice({
       failed={false}
       fakePlayer={fakePlayer}
       directAudio={audio}
-      recordAttempts={false}
+      privateTrack
     />
   );
 }

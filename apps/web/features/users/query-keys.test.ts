@@ -39,4 +39,10 @@ describe('practiceHistoryKey', () => {
       practiceHistoryKey('grace'),
     );
   });
+
+  it('keeps owner data out of the visitor history cache', () => {
+    expect(practiceHistoryKey('ada_lovelace', true)).not.toEqual(
+      practiceHistoryKey('ada_lovelace'),
+    );
+  });
 });

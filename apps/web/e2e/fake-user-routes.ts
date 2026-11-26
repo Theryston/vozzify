@@ -1,4 +1,7 @@
-import { userAttemptsRoute } from './fake-user-attempts.ts';
+import {
+  privateAttemptRoute,
+  userAttemptsRoute,
+} from './fake-user-attempts.ts';
 import { userFavoritesRoute } from './fake-user-favorites.ts';
 import { userProfileRoute } from './fake-user-profile.ts';
 import { userVisibilityRoutes } from './fake-user-visibility.ts';
@@ -11,5 +14,6 @@ export const userRoutes = [
   userProfileRoute,
   userFavoritesRoute,
   userAttemptsRoute,
+  privateAttemptRoute,
   ...userVisibilityRoutes,
 ];

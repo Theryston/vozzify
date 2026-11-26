@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -51,6 +53,10 @@ export class StreaksController {
   @ApiOkResponse({ description: 'The status after crediting the heartbeat.' })
   @ApiBadRequestResponse({
     description: 'The elapsed seconds are negative or the zone is unknown.',
+  })
+  @ApiForbiddenResponse({ description: 'The private Track owner needs Pro.' })
+  @ApiNotFoundResponse({
+    description: 'No playable private Track for the owner.',
   })
   @ApiUnauthorizedResponse({ description: 'No valid session.' })
   heartbeat(

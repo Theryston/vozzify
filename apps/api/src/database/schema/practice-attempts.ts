@@ -23,6 +23,28 @@ export const practiceDifficulty = pgEnum('practice_difficulty', [
 /** Whether the attempt counted other octaves as hits (`ANY`) or not (`EXACT`). */
 export const octaveMode = pgEnum('octave_mode', ['ANY', 'EXACT']);
 
+/** Shared by public and owner-only runs so both store the same scoring fields. */
+export const practiceAttemptColumns = () => ({
+  id: id(),
+  userId: text()
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  difficulty: practiceDifficulty().notNull(),
+  octaveMode: octaveMode().notNull(),
+  transposeSemitones: integer().notNull(),
+  speed: real().notNull(),
+  /** Hit notes divided by judged notes, from 0 to 1. */
+  accuracy: real().notNull(),
+  /** Judged notes divided by the Track's notes, from 0 to 1. */
+  coverage: real().notNull(),
+  forwardSkip: boolean().notNull().default(false),
+  /** A steady voiced pitch was detected while the Track had no vocal notes. */
+  bleedSuspected: boolean().notNull().default(false),
+  startedAt: timestamp({ withTimezone: true }).notNull(),
+  endedAt: timestamp({ withTimezone: true }).notNull(),
+  ...timestamps,
+});
+
 /**
  * A signed-in User's saved practice run on a Track: only runs that covered
  * at least 90% of the notes without skipping forward are saved (the API
@@ -32,31 +54,11 @@ export const octaveMode = pgEnum('octave_mode', ['ANY', 'EXACT']);
 export const practiceAttempts = pgTable(
   'practice_attempts',
   {
-    id: id(),
-    userId: text()
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+    ...practiceAttemptColumns(),
     trackId: text()
       .notNull()
       .references(() => tracks.id, { onDelete: 'cascade' }),
     viewId: text().references(() => trackViews.id, { onDelete: 'set null' }),
-    difficulty: practiceDifficulty().notNull(),
-    octaveMode: octaveMode().notNull(),
-    transposeSemitones: integer().notNull(),
-    speed: real().notNull(),
-    /** Hit notes divided by judged notes, from 0 to 1. */
-    accuracy: real().notNull(),
-    /** Judged notes divided by the Track's notes, from 0 to 1. */
-    coverage: real().notNull(),
-    forwardSkip: boolean().notNull().default(false),
-    /**
-     * A steady voiced pitch was detected while the Track had no vocal
-     * notes, which suggests the music leaked into the mic.
-     */
-    bleedSuspected: boolean().notNull().default(false),
-    startedAt: timestamp({ withTimezone: true }).notNull(),
-    endedAt: timestamp({ withTimezone: true }).notNull(),
-    ...timestamps,
   },
   (table) => [
     // The best score per difficulty of a User on a Track.

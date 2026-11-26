@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { AppException } from '../../common/errors/app-exception.js';
+import { PrivateTrackPracticeAccessService } from '../private-tracks/private-track-practice-access.service.js';
 import { UsersService } from '../users/users.service.js';
 import { AttemptsRepository } from './attempts.repository.js';
 import { encodeOwnAttemptCursor } from './own-attempt-cursor.js';
@@ -48,6 +49,7 @@ describe('UserAttemptsService', () => {
         UserAttemptsService,
         { provide: AttemptsRepository, useValue: attempts },
         { provide: UsersService, useValue: users },
+        { provide: PrivateTrackPracticeAccessService, useValue: {} },
       ],
     }).compile();
     service = moduleRef.get(UserAttemptsService);

@@ -97,10 +97,12 @@ function UserRing({
   singing,
   account,
   viewId,
+  privateTrackId,
 }: {
   singing: boolean;
   account: string;
   viewId?: () => string | undefined;
+  privateTrackId?: string;
 }) {
   const t = useTranslations('streaks');
   const status = useQuery(streakStatusQueryOptions(account));
@@ -128,7 +130,10 @@ function UserRing({
     },
     [t],
   );
-  useStreakHeartbeat(singing, celebrate, account, viewId);
+  useStreakHeartbeat(singing, celebrate, account, {
+    viewId,
+    privateTrackId,
+  });
 
   if (status.data === undefined) {
     return <StreakRingSkeleton />;
@@ -170,9 +175,11 @@ function UserRing({
 export function StreakRing({
   singing,
   viewId,
+  privateTrackId,
 }: {
   singing: boolean;
   viewId?: () => string | undefined;
+  privateTrackId?: string;
 }) {
   return (
     <SessionUserBoundary
@@ -184,6 +191,7 @@ export function StreakRing({
               singing={singing}
               account={user.email}
               viewId={viewId}
+              privateTrackId={privateTrackId}
             />
           );
         if (loading) return <StreakRingSkeleton />;

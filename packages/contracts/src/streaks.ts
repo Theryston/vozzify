@@ -35,6 +35,8 @@ export const streakHeartbeatBodySchema = z.object({
   timeZone: timeZoneSchema,
   /** The Track page view that produced this practice time. */
   viewId: z.string().min(1).max(128).optional(),
+  /** The private Track to authorize. Private heartbeats have no public view. */
+  privateTrackId: z.string().min(1).max(128).optional(),
 });
 
 export type StreakHeartbeatBody = z.infer<typeof streakHeartbeatBodySchema>;

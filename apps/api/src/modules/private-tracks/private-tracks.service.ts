@@ -10,7 +10,6 @@ import type {
   PrivateTrack,
   PrivateTrackDetail,
   PrivateTrackProcessingState,
-  PrivateTrackRecording,
 } from '@vozzify/contracts';
 import {
   decodeTupleCursor,
@@ -19,6 +18,10 @@ import {
 import { AppException } from '../../common/errors/app-exception.js';
 import { SubscriptionMembershipService } from '../plans/subscription-membership.service.js';
 import { PrivateAudioInspector } from './private-audio.js';
+import {
+  displayPrivateTrack,
+  type PrivateTrackDisplaySource,
+} from './private-track-display-metadata.js';
 import { privateTrackMediaKey } from './private-track-object-keys.js';
 import type { PrivateTrackSourceStoragePort } from './private-track-source-storage.js';
 import { PrivateTrackSourceStorage } from './private-track-source-storage.js';
@@ -72,7 +75,7 @@ export class PrivateTracksService {
       canPractice && row.processingStatus === 'COMPLETED'
         ? await this.repository.listNotes(row.id)
         : [];
-    const recording = linkedRecording(row);
+    const { recording } = displayPrivateTrack(row);
     return {
       ...toPrivateTrack(row),
       ownerId: row.userId,
@@ -217,44 +220,32 @@ function processingOf(row: {
   };
 }
 
-type PrivateTrackSourceMetadata = Pick<
-  NonNullable<Awaited<ReturnType<PrivateTracksRepository['findOwned']>>>,
-  'titleOverride' | 'artistOverride' | 'recordingLink'
->;
-
 export const toPrivateTrack = (
-  row: Partial<PrivateTrackSourceMetadata> & {
+  row: PrivateTrackDisplaySource & {
     id: string;
-    title: string;
-    artist: string;
     durationMs: number;
     createdAt: Date;
     processingStatus?: string;
     processingProgress?: number;
   },
-): PrivateTrack => ({
-  id: row.id,
-  title: row.titleOverride ?? linkedRecording(row)?.title ?? row.title,
-  artist: row.artistOverride ?? linkedRecording(row)?.artist ?? row.artist,
-  durationMs: row.durationMs,
-  createdAt: row.createdAt.toISOString(),
-  ...(row.processingStatus === undefined
-    ? {}
-    : {
-        processing: {
-          status: toProcessingStatus(row.processingStatus),
-          progress: row.processingProgress ?? 0,
-        },
-      }),
-});
-
-function linkedRecording(
-  row: Pick<Partial<PrivateTrackSourceMetadata>, 'recordingLink'>,
-): PrivateTrackRecording | undefined {
-  return row.recordingLink?.kind === 'linked'
-    ? row.recordingLink.recording
-    : undefined;
-}
+): PrivateTrack => {
+  const { title, artist } = displayPrivateTrack(row);
+  return {
+    id: row.id,
+    title,
+    artist,
+    durationMs: row.durationMs,
+    createdAt: row.createdAt.toISOString(),
+    ...(row.processingStatus === undefined
+      ? {}
+      : {
+          processing: {
+            status: toProcessingStatus(row.processingStatus),
+            progress: row.processingProgress ?? 0,
+          },
+        }),
+  };
+};
 
 const toProcessingStatus = (
   status: string,

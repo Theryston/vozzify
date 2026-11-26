@@ -23,6 +23,8 @@ import { PrivateTrackMediaService } from './private-track-media.service.js';
 import { PrivateTrackMetadataController } from './private-track-metadata.controller.js';
 import { PrivateTrackMetadataRepository } from './private-track-metadata.repository.js';
 import { PrivateTrackMetadataService } from './private-track-metadata.service.js';
+import { PrivateTrackPracticeRepository } from './private-track-practice.repository.js';
+import { PrivateTrackPracticeAccessService } from './private-track-practice-access.service.js';
 import { PRIVATE_TRACK_PROCESSING_QUEUE } from './private-track-processing.job.js';
 import { PrivateTrackProcessingProcessor } from './private-track-processing.processor.js';
 import { PrivateTrackProcessingService } from './private-track-processing.service.js';
@@ -74,12 +76,14 @@ import { PrivateYouTubeTracksService } from './private-youtube-tracks.service.js
     PrivateTrackProcessingIntegrations,
     PrivateTrackProcessingProcessor,
     PrivateTrackMediaService,
+    PrivateTrackPracticeAccessService,
+    PrivateTrackPracticeRepository,
     PrivateTrackWorkflowService,
     PrivateTrackAssetCleanupQueue,
     PrivateTrackAssetCleanupProcessor,
     PrivateYouTubeTracksRepository,
     PrivateYouTubeTracksService,
   ],
-  exports: [PrivateTrackAssetCleanupQueue],
+  exports: [PrivateTrackAssetCleanupQueue, PrivateTrackPracticeAccessService],
 })
 export class PrivateTracksModule {}

@@ -5,6 +5,7 @@ import type { PracticeAttemptHistoryPage } from '@vozzify/contracts';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
+import { SessionUserBoundary } from '@/features/auth/components/session-user';
 
 import { practiceHistoryQueryOptions } from '../practice-history-query';
 import { useBrowserTimeZone } from '../use-browser-time-zone';
@@ -14,6 +15,7 @@ import { PracticeHistoryRowSkeletons } from './practice-history-row-skeletons';
 type PracticeHistoryListProps = {
   username: string;
   initialPage?: PracticeAttemptHistoryPage;
+  owner?: boolean;
 };
 
 /**
@@ -27,11 +29,41 @@ type PracticeHistoryListProps = {
 export function PracticeHistoryList({
   username,
   initialPage,
+  owner,
+}: PracticeHistoryListProps) {
+  if (!owner)
+    return (
+      <PracticeHistoryPages username={username} initialPage={initialPage} />
+    );
+  return (
+    <SessionUserBoundary
+      render={(user, loading) => {
+        if (loading)
+          return (
+            <PracticeHistoryRowSkeletons rows={initialPage?.items ?? []} />
+          );
+        if (user?.username !== username) return null;
+        return (
+          <PracticeHistoryPages
+            username={username}
+            initialPage={initialPage}
+            owner
+          />
+        );
+      }}
+    />
+  );
+}
+
+function PracticeHistoryPages({
+  username,
+  initialPage,
+  owner,
 }: PracticeHistoryListProps) {
   const t = useTranslations('profileHistory');
   const timeZone = useBrowserTimeZone();
   const query = useInfiniteQuery(
-    practiceHistoryQueryOptions({ username, initialPage }),
+    practiceHistoryQueryOptions({ username, initialPage, owner }),
   );
 
   if (query.isPending) {

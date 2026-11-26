@@ -19,18 +19,27 @@ import { PRACTICE_HISTORY_PAGE_SIZE } from './practice-history-page-size';
 export function practiceHistoryQueryOptions({
   username,
   initialPage,
+  owner = false,
 }: {
   username: string;
   initialPage?: PracticeAttemptHistoryPage;
+  owner?: boolean;
 }) {
-  return cursorPagesQueryOptions<PracticeAttemptHistoryItem>({
-    queryKey: practiceHistoryKey(username),
+  const options = cursorPagesQueryOptions<PracticeAttemptHistoryItem>({
+    queryKey: practiceHistoryKey(username, owner),
     fetchPage: ({ cursor, signal }) =>
       browserApi(`/users/${encodeURIComponent(username)}/attempts`, {
         schema: practiceAttemptHistoryPageSchema,
-        query: { cursor, limit: PRACTICE_HISTORY_PAGE_SIZE },
+        query: {
+          cursor,
+          limit: PRACTICE_HISTORY_PAGE_SIZE,
+          ...(owner ? { includePrivate: true } : {}),
+        },
         signal,
       }),
     initialPage,
   });
+  return owner
+    ? { ...options, gcTime: 0, placeholderData: undefined }
+    : options;
 }

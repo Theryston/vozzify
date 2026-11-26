@@ -50,19 +50,19 @@ function TrackTimeline({
   failed,
   controller,
   signedIn,
-  recordAttempts,
+  privateTrack,
 }: {
   header: TrackDetail;
   notes: TrackNotes | undefined;
   failed: boolean;
   controller: PlaybackController | null;
   signedIn: boolean;
-  recordAttempts: boolean;
+  privateTrack: boolean;
 }) {
   const t = useTranslations('tracks.practice');
   const semitones = useTranspose();
   const rate = usePlaybackState((state) => state.rate);
-  const submit = useSubmitAttempt(header.id);
+  const submit = useSubmitAttempt(header.id, privateTrack);
   const shifted = useTransposedNotes(notes);
   if (notes === undefined) {
     return failed ? (
@@ -84,7 +84,10 @@ function TrackTimeline({
     : t('timeline.labelEmpty', { title: header.title });
 
   const handleAttempt = (body: SubmitPracticeAttemptBody) => {
-    if (!recordAttempts) return;
+    if (privateTrack) {
+      if (signedIn) submit.mutate(body);
+      return;
+    }
     reportAttempt({
       signedIn,
       trackId: header.id,
@@ -105,9 +108,9 @@ function TrackTimeline({
       rate={rate}
       onAttempt={handleAttempt}
       renderAttemptStatus={
-        recordAttempts
-          ? () => <TrackAttemptStatus trackId={header.id} />
-          : undefined
+        privateTrack
+          ? undefined
+          : () => <TrackAttemptStatus trackId={header.id} />
       }
       label={label}
       clock={controller ? playbackClock : undefined}
@@ -169,7 +172,7 @@ type PracticeBodyProps = {
   lyricsLoading: boolean;
   failed: boolean;
   directAudio?: TrackAudio;
-  recordAttempts?: boolean;
+  privateTrack?: boolean;
   /** The e2e build's flag: play with a clock instead of YouTube. */
   fakePlayer: boolean;
 };
@@ -181,6 +184,7 @@ function TrackPracticeDock({
   expectDirectAudio,
   audioFallback,
   hostRef,
+  privateTrack,
 }: {
   header: TrackDetail;
   controller: PlaybackController | null;
@@ -188,6 +192,7 @@ function TrackPracticeDock({
   expectDirectAudio: boolean;
   audioFallback: boolean;
   hostRef: RefObject<HTMLDivElement | null>;
+  privateTrack?: boolean;
 }) {
   if (header.youtubeVideoId === null && !directAudio) return null;
   return (
@@ -201,7 +206,8 @@ function TrackPracticeDock({
       trackKey={header.key}
       trackTitle={header.title}
       artistText={creditText(header.artistCredit)}
-      viewId={() => currentViewId(header.id)}
+      viewId={privateTrack ? undefined : () => currentViewId(header.id)}
+      privateTrackId={privateTrack ? header.id : undefined}
     />
   );
 }
@@ -237,7 +243,7 @@ function PracticeBodyContent(props: PracticeBodyProps & { signedIn: boolean }) {
             failed={failed}
             controller={controller}
             signedIn={signedIn}
-            recordAttempts={props.recordAttempts ?? true}
+            privateTrack={props.privateTrack ?? false}
           />
           {hasLyrics ? (
             <KaraokeLine lines={lyrics.lines} clock={playbackClock} />
@@ -263,6 +269,7 @@ function PracticeBodyContent(props: PracticeBodyProps & { signedIn: boolean }) {
         expectDirectAudio={expectDirectAudio}
         audioFallback={audioFallback}
         hostRef={hostRef}
+        privateTrack={props.privateTrack}
       />
     </div>
   );
