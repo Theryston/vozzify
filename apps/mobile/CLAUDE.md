@@ -88,7 +88,9 @@ selected appearance and language return. The credential smoke signs in
 against the API on the runner with a disposable User, restores the session
 mid-onboarding, sets the Username and exercises the Gallery continuation.
 The installed test APK allows HTTP only through the emulator loopback using
-`adb reverse`. Normal Android builds keep their existing network policy. The Maestro JUnit report is uploaded
+`adb reverse`. Normal Android builds keep their existing network policy. The
+runner opens the APK before Maestro and dismisses the known Pixel Launcher
+ANR dialog if it interrupts the emulator startup. The Maestro JUnit report is uploaded
 for seven days, including when the smoke test fails. Maestro failure logs,
 screenshots and screen hierarchy are uploaded in a separate artifact capped at
 10 MiB and retained for one day. It does not use EAS or produce a store-ready

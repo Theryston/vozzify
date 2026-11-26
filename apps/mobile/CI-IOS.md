@@ -10,7 +10,8 @@ with `workflow_dispatch`.
 The workflow uses a standard `macos-26` GitHub-hosted runner. It installs the
 locked workspace with Nub, builds the shared contracts, generates the iOS
 project, installs CocoaPods,
-compiles the preview variant for an iOS simulator, boots the selected
+compiles the preview variant for an iOS simulator, applies a local ad-hoc
+signature with a simulator Keychain access group, boots the selected
 available iPhone simulator, installs and launches the app, then runs Maestro
 2.12.0. Separate workflow
 steps report project generation, dependency installation, compilation,

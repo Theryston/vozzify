@@ -49,6 +49,7 @@ jobs:
               - '.github/scripts/test-mobile-native-path-filter.py'
               - '.github/scripts/allow-android-smoke-loopback.py'
               - '.github/scripts/seed-mobile-auth-smoke.py'
+              - '.github/scripts/prepare-android-smoke.py'
               - '.github/workflows/ci.yml'
               - '.github/workflows/mobile-android.yml'
               - '.github/workflows/mobile-ios.yml'
@@ -141,9 +142,11 @@ jobs:
             adb install apps/mobile/android/app/build/outputs/apk/release/app-release.apk
             echo '::endgroup::'
             echo '::group::Run installed app smoke flows'
+            python .github/scripts/prepare-android-smoke.py
             maestro test --format junit --output apps/mobile/maestro-results.xml --test-output-dir "$RUNNER_TEMP/maestro-artifacts" --debug-output "$RUNNER_TEMP/maestro-debug" apps/mobile/.maestro/flows
             echo '::endgroup::'
             echo '::group::Exercise authentication against the real API'
+            python .github/scripts/prepare-android-smoke.py
             maestro test --format junit --output apps/mobile/maestro-auth-results.xml --test-output-dir "$RUNNER_TEMP/maestro-auth-artifacts" --debug-output "$RUNNER_TEMP/maestro-auth-debug" -e AUTH_EMAIL="$AUTH_EMAIL" -e AUTH_PASSWORD="$AUTH_PASSWORD" -e AUTH_USERNAME="$AUTH_USERNAME" apps/mobile/.maestro/android/credential-onboarding.yaml
             echo '::endgroup::'
 

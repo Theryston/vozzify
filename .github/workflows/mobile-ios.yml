@@ -149,7 +149,7 @@ jobs:
           fi
           xcrun simctl bootstatus "$SIMULATOR_UDID" -b
 
-      - name: Install native app
+      - name: Sign and install native app
         working-directory: apps/mobile
         run: |
           app=$(find "$RUNNER_TEMP/ios-derived-data/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
@@ -157,6 +157,31 @@ jobs:
             echo '::error::The native build did not produce an iOS simulator app.'
             exit 1
           fi
+          bundle_id=$(plutil -extract CFBundleIdentifier raw "$app/Info.plist")
+          test "$bundle_id" = com.vozzify.app.preview
+          cat > "$RUNNER_TEMP/simulator-keychain.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <plist version="1.0">
+          <dict>
+            <key>application-identifier</key>
+            <string>VOZZIFYCI0.$bundle_id</string>
+            <key>keychain-access-groups</key>
+            <array><string>VOZZIFYCI0.$bundle_id</string></array>
+            <key>com.apple.developer.team-identifier</key>
+            <string>VOZZIFYCI0</string>
+          </dict>
+          </plist>
+          EOF
+          for nested_code in "$app"/Frameworks/*.framework "$app"/Frameworks/*.dylib; do
+            if [ -e "$nested_code" ]; then
+              codesign --force --sign - "$nested_code"
+            fi
+          done
+          codesign --force --sign - --generate-entitlement-der --entitlements "$RUNNER_TEMP/simulator-keychain.plist" "$app"
+          codesign --verify --deep "$app"
+          codesign --display --entitlements - "$app" > "$RUNNER_TEMP/signed-entitlements.plist"
+          test "$(plutil -extract application-identifier raw "$RUNNER_TEMP/signed-entitlements.plist")" = "VOZZIFYCI0.$bundle_id"
+          test "$(plutil -extract keychain-access-groups.0 raw "$RUNNER_TEMP/signed-entitlements.plist")" = "VOZZIFYCI0.$bundle_id"
           xcrun simctl install "$SIMULATOR_UDID" "$app"
           echo "IOS_APP_EXECUTABLE=$(plutil -extract CFBundleExecutable raw "$app/Info.plist")" >> "$GITHUB_ENV"
 
@@ -194,6 +219,9 @@ jobs:
           xcrun simctl spawn "$SIMULATOR_UDID" log show --last 8m --style compact \
             --predicate "process == \"$IOS_APP_EXECUTABLE\" OR eventMessage CONTAINS \"com.vozzify.app.preview\"" |
             tail -n 500 > "$RUNNER_TEMP/ios-launch-evidence/simulator.log"
+          xcrun simctl spawn "$SIMULATOR_UDID" log show --last 8m --style compact --info \
+            --predicate 'process == "securityd" AND (eventMessage CONTAINS "Vozzify" OR eventMessage CONTAINS "34018")' |
+            tail -n 200 > "$RUNNER_TEMP/ios-launch-evidence/keychain.log"
 
       - name: Upload iOS launch evidence
         if: ${{ always() && steps.maestro.outcome == 'failure' }}
