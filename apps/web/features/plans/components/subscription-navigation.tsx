@@ -9,9 +9,11 @@ export function SubscriptionNavigation({
   render,
 }: {
   userId: string;
-  render: (subscribed: boolean) => ReactNode;
+  render: (subscribed: boolean | undefined) => ReactNode;
 }) {
   const locale = useLocale();
   const { data } = useSubscription(userId, locale);
-  return render(Boolean(data?.subscription?.paidMembership));
+  return render(
+    data ? (data.subscription?.paidMembership ?? false) : undefined,
+  );
 }
