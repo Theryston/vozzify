@@ -3,6 +3,7 @@ import {
   type SignInSuccessResponse,
 } from '@react-native-google-signin/google-signin';
 import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import type { CurrentUser } from '@vozzify/contracts';
 import Constants from 'expo-constants';
 import { renderRouter } from 'expo-router/testing-library';
 import * as SecureStore from 'expo-secure-store';
@@ -110,11 +111,12 @@ describe('native Google auth screens', () => {
           JSON.stringify({
             ...account,
             username: 'ada',
+            emailVerified: true,
             name: 'Ada',
             role: 'USER',
             image: null,
             createdAt: '2026-11-26T00:00:00Z',
-          }),
+          } satisfies CurrentUser),
         ),
       );
     const router = await renderRouter('./app', {
