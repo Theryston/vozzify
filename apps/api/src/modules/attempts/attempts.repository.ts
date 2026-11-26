@@ -1,14 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
-import { and, count, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
+import type { TrackHeader } from '@vozzify/contracts';
+import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
 import { artists, trackArtists } from '../../database/schema/artists.js';
 import {
   practiceAttempts,
   type practiceDifficulty,
 } from '../../database/schema/practice-attempts.js';
+import { privatePracticeAttempts } from '../../database/schema/private-practice-attempts.js';
 import { tracks } from '../../database/schema/tracks.js';
-import type { OwnAttemptCursor } from './own-attempt-cursor.js';
+import {
+  type AttemptHistoryQuery,
+  attemptHistoryPage,
+  listPrivateHistory,
+} from './attempt-history.repository.js';
+import type { PracticeAttemptReadRow } from './attempt-view.js';
+import { mergeAttemptPages } from './own-attempt-cursor.js';
 
 type Difficulty = (typeof practiceDifficulty.enumValues)[number];
 
@@ -17,11 +25,8 @@ export type PracticeAttemptRow = typeof practiceAttempts.$inferSelect;
 
 /** A saved run with the header of the Track it was sung on. */
 export type PracticeAttemptHistoryRow = {
-  attempt: PracticeAttemptRow;
-  track: Pick<
-    typeof tracks.$inferSelect,
-    'id' | 'title' | 'coverUrl' | 'artistCredit'
-  >;
+  attempt: PracticeAttemptReadRow;
+  track: TrackHeader;
 };
 
 /**
@@ -67,21 +72,7 @@ export type ArtistActivityRow = {
 };
 
 /** The fields of a run the page scored, with its owner and Track. */
-export type NewPracticeAttempt = {
-  userId: string;
-  trackId: string;
-  difficulty: Difficulty;
-  octaveMode: 'ANY' | 'EXACT';
-  transposeSemitones: number;
-  speed: number;
-  accuracy: number;
-  coverage: number;
-  forwardSkip: boolean;
-  bleedSuspected: boolean;
-  startedAt: Date;
-  endedAt: Date;
-  viewId?: string;
-};
+type NewPracticeAttempt = typeof practiceAttempts.$inferInsert;
 
 @Injectable()
 export class AttemptsRepository {
@@ -99,13 +90,28 @@ export class AttemptsRepository {
     return row;
   }
 
+  async insertPrivate(attempt: typeof privatePracticeAttempts.$inferInsert) {
+    const [row] = await this.txHost.tx
+      .insert(privatePracticeAttempts)
+      .values(attempt)
+      .returning();
+    if (!row) throw new Error('Saving the private attempt returned no row');
+    return row;
+  }
+
   /**
    * How many runs the User saved that were not flagged as bleed: the runs
    * that count as sung.
    */
   async countSung(userId: string): Promise<number> {
     const [row] = await this.txHost.tx
-      .select({ value: count() })
+      .select({
+        value: sql`(${count()} + (
+          SELECT count(*) FROM ${privatePracticeAttempts}
+          WHERE ${privatePracticeAttempts.userId} = ${userId}
+            AND NOT ${privatePracticeAttempts.bleedSuspected}
+        ))`.mapWith(Number),
+      })
       .from(practiceAttempts)
       .where(
         and(
@@ -249,18 +255,27 @@ export class AttemptsRepository {
   }
 
   /** Up to `limit` attempts of the User after the cursor, newest first. */
-  listOwn(options: {
-    userId: string;
-    after: OwnAttemptCursor | undefined;
-    limit: number;
-  }): Promise<PracticeAttemptRow[]> {
-    const { userId, after, limit } = options;
-    return this.txHost.tx
+  async listOwn(
+    options: AttemptHistoryQuery,
+  ): Promise<PracticeAttemptReadRow[]> {
+    const db = this.txHost.tx;
+    const { filter, order } = attemptHistoryPage(practiceAttempts, options);
+    const publicRows = db
       .select()
       .from(practiceAttempts)
-      .where(ownedAfter(userId, after))
-      .orderBy(...NEWEST_FIRST)
-      .limit(limit);
+      .where(filter)
+      .orderBy(...order)
+      .limit(options.limit);
+    const [own, privateRows] = await Promise.all([
+      publicRows,
+      this.listOwnedPrivateAttempts(options),
+    ]);
+    return mergeAttemptPages<PracticeAttemptReadRow>(
+      own,
+      privateRows,
+      (row) => row,
+      options.limit,
+    );
   }
 
   /**
@@ -270,12 +285,10 @@ export class AttemptsRepository {
    * tracks table the same way. The join is inner: a run always has its Track
    * (the foreign key cascades).
    */
-  listHistory(options: {
-    userId: string;
-    after: OwnAttemptCursor | undefined;
-    limit: number;
-  }): Promise<PracticeAttemptHistoryRow[]> {
-    const { userId, after, limit } = options;
+  listHistory(
+    options: AttemptHistoryQuery,
+  ): Promise<PracticeAttemptHistoryRow[]> {
+    const { filter, order } = attemptHistoryPage(practiceAttempts, options);
     return this.txHost.tx
       .select({
         attempt: practiceAttempts,
@@ -288,65 +301,14 @@ export class AttemptsRepository {
       })
       .from(practiceAttempts)
       .innerJoin(tracks, eq(practiceAttempts.trackId, tracks.id))
-      .where(historyAfter(userId, after))
-      .orderBy(...HISTORY_NEWEST_FIRST)
-      .limit(limit);
+      .where(filter)
+      .orderBy(...order)
+      .limit(options.limit);
+  }
+
+  listOwnedPrivateAttempts(
+    options: AttemptHistoryQuery,
+  ): Promise<PracticeAttemptReadRow[]> {
+    return listPrivateHistory(this.txHost.tx, options);
   }
 }
-
-/**
- * The save time cut to the millisecond, which is what a cursor carries. The
- * column keeps microseconds, so comparing the raw column would skip or repeat
- * runs saved in the same millisecond: the cursor cannot tell them apart.
- */
-const savedAtMs = sql<Date>`date_trunc('milliseconds', ${practiceAttempts.createdAt})`;
-
-/** Newest first by the millisecond; the ID breaks ties within one. */
-const HISTORY_NEWEST_FIRST = [
-  desc(savedAtMs),
-  desc(practiceAttempts.id),
-] as const;
-
-/** The User's runs strictly after the cursor in the history order. */
-const historyAfter = (userId: string, after: OwnAttemptCursor | undefined) => {
-  const owned = eq(practiceAttempts.userId, userId);
-  if (!after) {
-    return owned;
-  }
-  const createdAt = new Date(after.createdAt);
-  return and(
-    owned,
-    or(
-      lt(savedAtMs, createdAt),
-      and(
-        sql`${savedAtMs} = ${createdAt}`,
-        lt(practiceAttempts.id, after.attemptId),
-      ),
-    ),
-  );
-};
-
-/** Newest first; the ID breaks ties between attempts saved in the same instant. */
-const NEWEST_FIRST = [
-  desc(practiceAttempts.createdAt),
-  desc(practiceAttempts.id),
-] as const;
-
-/** The User's attempts strictly after the cursor in the newest-first order. */
-const ownedAfter = (userId: string, after: OwnAttemptCursor | undefined) => {
-  const owned = eq(practiceAttempts.userId, userId);
-  if (!after) {
-    return owned;
-  }
-  const createdAt = new Date(after.createdAt);
-  return and(
-    owned,
-    or(
-      lt(practiceAttempts.createdAt, createdAt),
-      and(
-        eq(practiceAttempts.createdAt, createdAt),
-        lt(practiceAttempts.id, after.attemptId),
-      ),
-    ),
-  );
-};

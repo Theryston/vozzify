@@ -11,6 +11,11 @@ import { type HeartbeatLoop, startHeartbeatLoop } from '../heartbeat-loop';
 import { streakKeys } from '../query-keys';
 import { browserTimeZone, sendHeartbeat } from '../streak-queries';
 
+type HeartbeatAttribution = {
+  viewId?: () => string | undefined;
+  privateTrackId?: string;
+};
+
 /**
  * Reports practice time while the User is `singing` (the mic is on and a voice
  * is heard), writes each answer into the streak status the ring shows, and
@@ -24,7 +29,7 @@ export function useStreakHeartbeat(
   singing: boolean,
   onCompleted: (status: StreakStatus) => void,
   account?: string,
-  viewId?: () => string | undefined,
+  attribution?: HeartbeatAttribution,
 ) {
   const queryClient = useQueryClient();
   const heartbeat = useMutation({
@@ -43,8 +48,9 @@ export function useStreakHeartbeat(
   const singingRef = useRef(singing);
   singingRef.current = singing;
   const loop = useRef<HeartbeatLoop | null>(null);
-  const viewIdRef = useRef(viewId);
-  viewIdRef.current = viewId;
+  const viewIdRef = useRef(attribution?.viewId);
+  viewIdRef.current = attribution?.viewId;
+  const privateTrackId = attribution?.privateTrackId;
 
   useEffect(() => {
     let active = true;
@@ -52,6 +58,7 @@ export function useStreakHeartbeat(
       now: () => performance.now(),
       timeZone: browserTimeZone,
       viewId: () => viewIdRef.current?.(),
+      privateTrackId,
       send: (body) => send.current(body),
       beacon: (body) => {
         const { url, data } = heartbeatBeacon(
@@ -82,7 +89,7 @@ export function useStreakHeartbeat(
       started.stop();
       loop.current = null;
     };
-  }, []);
+  }, [privateTrackId]);
 
   useEffect(() => {
     loop.current?.setPlaying(singing);

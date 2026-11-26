@@ -13,6 +13,7 @@ export type HeartbeatLoopDeps = {
   now: () => number;
   timeZone: () => string;
   viewId?: () => string | undefined;
+  privateTrackId?: string;
   /** Reports the time and answers with the status (`POST` heartbeat). */
   send: (body: StreakHeartbeatBody) => Promise<StreakHeartbeatResult>;
   /** Reports the time in a way that survives the page closing. */
@@ -39,11 +40,15 @@ export function startHeartbeatLoop(deps: HeartbeatLoopDeps): HeartbeatLoop {
   const pending = (): StreakHeartbeatBody | null => {
     const elapsedSeconds = meter.take(deps.now());
     const viewId = deps.viewId?.();
+    const { privateTrackId } = deps;
     return elapsedSeconds >= 1
       ? {
           elapsedSeconds,
           timeZone: deps.timeZone(),
-          ...(viewId === undefined ? {} : { viewId }),
+          ...(privateTrackId === undefined ? {} : { privateTrackId }),
+          ...(privateTrackId === undefined && viewId !== undefined
+            ? { viewId }
+            : {}),
         }
       : null;
   };

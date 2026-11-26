@@ -30,11 +30,10 @@ export const getPracticeHistoryFirstPage = cache(
  * The same page as the signed-in owner reads it: the request's cookies identify
  * the owner, so a section the owner hid comes back too. Reads the request.
  */
-export async function getOwnPracticeHistoryFirstPage(
-  username: string,
-): Promise<PracticeAttemptHistoryPage | null | undefined> {
-  return readFirstPage(username, true);
-}
+export const getOwnPracticeHistoryFirstPage = cache(
+  (username: string): Promise<PracticeAttemptHistoryPage | null | undefined> =>
+    readFirstPage(username, true),
+);
 
 async function readFirstPage(
   username: string,
@@ -42,7 +41,10 @@ async function readFirstPage(
 ): Promise<PracticeAttemptHistoryPage | null | undefined> {
   return serverApi(`/users/${encodeURIComponent(username)}/attempts`, {
     schema: practiceAttemptHistoryPageSchema,
-    query: { limit: PRACTICE_HISTORY_PAGE_SIZE },
+    query: {
+      limit: PRACTICE_HISTORY_PAGE_SIZE,
+      ...(forwardCookies ? { includePrivate: true } : {}),
+    },
     forwardCookies,
   }).catch((error: unknown) =>
     isApiError(error) && error.code === 'NOT_FOUND' ? null : undefined,

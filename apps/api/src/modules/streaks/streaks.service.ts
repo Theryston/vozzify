@@ -6,6 +6,7 @@ import {
   type StreakHeartbeatResult,
   type StreakStatus,
 } from '@vozzify/contracts';
+import { PrivateTrackPracticeAccessService } from '../private-tracks/private-track-practice-access.service.js';
 import { UsersService } from '../users/users.service.js';
 import {
   creditHeartbeat,
@@ -36,6 +37,7 @@ export class StreaksService {
   constructor(
     private readonly streaks: StreaksRepository,
     private readonly users: UsersService,
+    private readonly privateTrackAccess: PrivateTrackPracticeAccessService,
   ) {}
 
   /** Uses the User's practice-day boundary for ranking activity evidence. */
@@ -73,6 +75,12 @@ export class StreaksService {
     body: StreakHeartbeatBody,
   ): Promise<StreakHeartbeatResult> {
     const now = new Date();
+    if (body.privateTrackId !== undefined) {
+      await this.privateTrackAccess.assertCanPractice(
+        userId,
+        body.privateTrackId,
+      );
+    }
     const settings = await this.users.lockPracticeSettings(userId);
     const day = localDayOf(now, body.timeZone);
     const target = validTarget(settings.dailyPracticeTargetSeconds);
@@ -81,15 +89,7 @@ export class StreaksService {
       lastHeartbeatAt: settings.lastPracticeHeartbeatAt,
       now,
     });
-    if (body.viewId !== undefined && body.elapsedSeconds >= 1) {
-      const elapsedSeconds = Math.floor(body.elapsedSeconds);
-      await this.streaks.recordAttributedHeartbeat({
-        userId,
-        viewId: body.viewId,
-        elapsedSeconds,
-        creditedSeconds: credit.creditedSeconds,
-      });
-    }
+    await this.recordPublicView(userId, body, credit.creditedSeconds);
     if (body.elapsedSeconds < 1) {
       return {
         status: await this.statusOf(
@@ -125,6 +125,25 @@ export class StreaksService {
       justCompleted,
       creditedSeconds: credit.creditedSeconds,
     };
+  }
+
+  private async recordPublicView(
+    userId: string,
+    body: StreakHeartbeatBody,
+    creditedSeconds: number,
+  ) {
+    if (
+      body.privateTrackId !== undefined ||
+      body.viewId === undefined ||
+      body.elapsedSeconds < 1
+    )
+      return;
+    await this.streaks.recordAttributedHeartbeat({
+      userId,
+      viewId: body.viewId,
+      elapsedSeconds: Math.floor(body.elapsedSeconds),
+      creditedSeconds,
+    });
   }
 
   private async statusOf(

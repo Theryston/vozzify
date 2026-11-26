@@ -56,6 +56,13 @@ export type SubmitPracticeAttemptBody = z.infer<
   typeof submitPracticeAttemptBodySchema
 >;
 
+/** Private practice has no public Track view to attribute the attempt to. */
+export const submitPrivatePracticeAttemptBodySchema =
+  submitPracticeAttemptBodySchema.omit({ viewId: true }).strict();
+export type SubmitPrivatePracticeAttemptBody = z.infer<
+  typeof submitPrivatePracticeAttemptBodySchema
+>;
+
 /** A saved attempt, as the history reads it. */
 export const practiceAttemptSchema = submitPracticeAttemptBodySchema
   .omit({ viewId: true })
@@ -63,6 +70,7 @@ export const practiceAttemptSchema = submitPracticeAttemptBodySchema
     id: z.string().min(1).max(128),
     trackId: z.string().min(1).max(128),
     createdAt: z.iso.datetime({ offset: true }),
+    isPrivate: z.literal(true).optional(),
   });
 
 export type PracticeAttempt = z.infer<typeof practiceAttemptSchema>;
@@ -92,7 +100,10 @@ export type PracticeAttemptHistoryItem = z.infer<
 >;
 
 /** `GET /v1/users/:username/attempts`: the User's history, newest first. */
-export const listUserAttemptsQuerySchema = cursorPaginationQuerySchema;
+export const listUserAttemptsQuerySchema = cursorPaginationQuerySchema.extend({
+  /** Opts into private attempts when the session owns the Profile. */
+  includePrivate: z.literal('true').optional(),
+});
 
 export type ListUserAttemptsQuery = z.infer<typeof listUserAttemptsQuerySchema>;
 

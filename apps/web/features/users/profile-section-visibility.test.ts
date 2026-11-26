@@ -93,14 +93,17 @@ describe('a section read as its owner', () => {
     );
   });
 
-  it('forwards the request cookies for the first page of the history', async () => {
+  it('forwards the request cookies and includes private runs in the owner history', async () => {
     mockServerApi.mockResolvedValueOnce({ items: [], nextCursor: null });
 
     await getOwnPracticeHistoryFirstPage('ada_lovelace');
 
     expect(mockServerApi).toHaveBeenCalledWith(
       '/users/ada_lovelace/attempts',
-      expect.objectContaining({ forwardCookies: true }),
+      expect.objectContaining({
+        forwardCookies: true,
+        query: expect.objectContaining({ includePrivate: true }),
+      }),
     );
   });
 

@@ -23,5 +23,7 @@ export const profileKeys = {
 };
 
 /** The cache key of a Profile's practice history; the cursor travels as the page param. */
-export const practiceHistoryKey = (username: string) =>
-  ['users', username, 'practice-history'] as const;
+export const practiceHistoryKey = (username: string, owner = false) => {
+  const key = ['users', username, 'practice-history'] as const;
+  return owner ? ([...key, 'owner'] as const) : key;
+};

@@ -29,20 +29,17 @@ export async function PracticeHistorySection({
 }: {
   username: string;
 }) {
-  const visitorPage = await getPracticeHistoryFirstPage(username);
-  // An empty history is absent, as an empty favorites grid is: the owner is
-  // invited to fill it below the sections instead.
-  if (visitorPage?.items.length === 0) {
-    return null;
-  }
-  if (visitorPage === null && !(await viewerOwnsProfile(username))) {
-    return null;
-  }
-  const hiddenForVisitors = visitorPage === null;
-  const initialPage = hiddenForVisitors
+  const [visitorPage, owner] = await Promise.all([
+    getPracticeHistoryFirstPage(username),
+    viewerOwnsProfile(username),
+  ]);
+  if (visitorPage === null && !owner) return null;
+  const initialPage = owner
     ? await getOwnPracticeHistoryFirstPage(username)
     : visitorPage;
-  if (initialPage === null) {
+  // An empty history is absent, as an empty favorites grid is: the owner is
+  // invited to fill it below the sections instead.
+  if (initialPage === null || initialPage?.items.length === 0) {
     return null;
   }
 
@@ -50,7 +47,8 @@ export async function PracticeHistorySection({
     <PracticeHistoryBody
       username={username}
       initialPage={initialPage}
-      hiddenForVisitors={hiddenForVisitors}
+      hiddenForVisitors={visitorPage === null}
+      owner={owner}
     />
   );
 }
@@ -59,11 +57,13 @@ async function PracticeHistoryBody({
   username,
   initialPage,
   hiddenForVisitors,
+  owner,
 }: {
   username: string;
   // `undefined` when the API could not answer: the list then reads in the browser.
   initialPage: PracticeAttemptHistoryPage | undefined;
   hiddenForVisitors: boolean;
+  owner: boolean;
 }) {
   const [t, { profileHistory }, labels] = await Promise.all([
     getTranslations('profileHistory'),
@@ -89,7 +89,11 @@ async function PracticeHistoryBody({
           <SectionVisibilityToggle />
         </header>
         <NextIntlClientProvider messages={{ profileHistory }}>
-          <PracticeHistoryList username={username} initialPage={initialPage} />
+          <PracticeHistoryList
+            username={username}
+            initialPage={initialPage}
+            owner={owner}
+          />
         </NextIntlClientProvider>
       </section>
     </ProfileSectionScope>

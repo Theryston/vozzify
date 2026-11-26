@@ -1,10 +1,14 @@
 import type { PracticeAttempt } from '@vozzify/contracts';
 import { practiceSpeedSchema } from '@vozzify/contracts';
-import type { PracticeAttemptRow } from './attempts.repository.js';
+
+export type PracticeAttemptReadRow = Omit<
+  PracticeAttempt,
+  'speed' | 'startedAt' | 'endedAt' | 'createdAt'
+> & { speed: number; startedAt: Date; endedAt: Date; createdAt: Date };
 
 /** A saved run as the API answers it, timestamps as ISO 8601 text. */
 export const toPracticeAttempt = (
-  row: PracticeAttemptRow,
+  row: PracticeAttemptReadRow,
 ): PracticeAttempt => ({
   id: row.id,
   trackId: row.trackId,
@@ -21,4 +25,5 @@ export const toPracticeAttempt = (
   startedAt: row.startedAt.toISOString(),
   endedAt: row.endedAt.toISOString(),
   createdAt: row.createdAt.toISOString(),
+  ...(row.isPrivate === true ? { isPrivate: true } : {}),
 });

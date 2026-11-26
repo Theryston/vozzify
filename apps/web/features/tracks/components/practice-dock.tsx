@@ -102,6 +102,7 @@ export function PracticeDock({
   trackTitle,
   artistText,
   viewId,
+  privateTrackId,
   directAudio = false,
   expectDirectAudio = false,
   audioFallback = false,
@@ -117,6 +118,7 @@ export function PracticeDock({
   trackTitle: string;
   artistText: string;
   viewId?: () => string | undefined;
+  privateTrackId?: string;
 }) {
   const t = useTranslations('tracks.practice.dock');
   const status = usePlaybackState((state) => state.status);
@@ -171,7 +173,11 @@ export function PracticeDock({
             }
           />
         )}
-        <StreakRing singing={singing} viewId={viewId} />
+        <StreakRing
+          singing={singing}
+          viewId={viewId}
+          privateTrackId={privateTrackId}
+        />
         <DockSettings controller={controller} videoId={videoId} />
         <TrackKeyContext value={trackKey}>
           <TransposePopover directAudio={audioLayout} />

@@ -34,7 +34,7 @@ type VisibilityMock = {
 let state: VisibilityMock = { visibility: {} };
 
 /** The username the request is signed in as the owner of, if any. */
-const ownerOf = (request: IncomingMessage): string | undefined =>
+export const ownerOf = (request: IncomingMessage): string | undefined =>
   /(?:^|;\s*)vozzify-e2e-owner=([^;]+)/.exec(request.headers.cookie ?? '')?.[1];
 
 const flagsOf = (username: string): ProfileVisibility =>

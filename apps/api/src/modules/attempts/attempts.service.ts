@@ -7,12 +7,10 @@ import type {
   SubmitPracticeAttemptBody,
   TrackVocalRange,
 } from '@vozzify/contracts';
-import { AppException } from '../../common/errors/app-exception.js';
 import { TracksService } from '../tracks/tracks.service.js';
 import { toPracticeAttempt } from './attempt-view.js';
 import type {
   ArtistGroupRow,
-  NewPracticeAttempt,
   VocalRangeGroupRow,
 } from './attempts.repository.js';
 import { AttemptsRepository } from './attempts.repository.js';
@@ -20,6 +18,7 @@ import {
   decodeOwnAttemptCursor,
   nextOwnAttemptCursor,
 } from './own-attempt-cursor.js';
+import { qualifyingAttempt } from './practice-attempt-rules.js';
 import {
   type ArtistGroup,
   deriveMostSungArtist,
@@ -28,9 +27,6 @@ import {
   type VocalRangeGroup,
 } from './profile-chips.js';
 import { type MostSungArtistActivity } from './profile-chips-ranking.js';
-
-/** A run must cover this share of the Track's notes to be saved. */
-const MIN_ATTEMPT_COVERAGE = 0.9;
 
 const noScores: BestPracticeScores = {
   EASY: null,
@@ -85,32 +81,10 @@ export class AttemptsService {
     body: SubmitPracticeAttemptBody,
   ): Promise<PracticeAttempt> {
     await this.tracks.assertTrackExists(trackId);
-    if (body.forwardSkip) {
-      throw new AppException('ATTEMPT_REJECTED', 'The run skipped forward', {
-        reason: 'FORWARD_SKIP',
-      });
-    }
-    if (body.coverage < MIN_ATTEMPT_COVERAGE) {
-      throw new AppException(
-        'ATTEMPT_REJECTED',
-        'The run covered under 90% of the notes',
-        { reason: 'COVERAGE' },
-      );
-    }
-    const attempt: NewPracticeAttempt = {
+    const attempt = {
       userId,
       trackId,
-      difficulty: body.difficulty,
-      octaveMode: body.octaveMode,
-      transposeSemitones: body.transposeSemitones,
-      speed: body.speed,
-      accuracy: body.accuracy,
-      coverage: body.coverage,
-      forwardSkip: body.forwardSkip,
-      bleedSuspected: body.bleedSuspected,
-      startedAt: new Date(body.startedAt),
-      endedAt: new Date(body.endedAt),
-      ...(body.viewId === undefined ? {} : { viewId: body.viewId }),
+      ...qualifyingAttempt(body),
     };
     return toPracticeAttempt(await this.attempts.insert(attempt));
   }
