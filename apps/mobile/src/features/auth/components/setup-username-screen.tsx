@@ -54,6 +54,7 @@ function UsernameForm() {
       <AuthField
         label={t('username')}
         autoComplete="username"
+        testID="setup-username-input"
         autoCapitalize="none"
         spellCheck={false}
         value={raw}

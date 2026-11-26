@@ -33,6 +33,7 @@ export function PasswordField({
       label={t('password')}
       password
       spellCheck={false}
+      testID="auth-password"
       {...props}
     />
   );

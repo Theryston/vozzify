@@ -59,6 +59,7 @@ function SignInForm() {
         autoCapitalize="none"
         autoComplete="username"
         keyboardType="email-address"
+        testID="sign-in-identifier"
         spellCheck={false}
         value={emailOrUsername}
         onChangeText={(value) => {

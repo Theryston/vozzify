@@ -84,7 +84,11 @@ variant and a locally compiled release APK with its JavaScript bundle
 included. It builds the shared contracts, starts an Android emulator and runs
 the Maestro smoke flows against the installed APK. It checks gallery navigation, input, overlay,
 appearance and language selection, then restarts the app to verify that the
-selected appearance and language return. The Maestro JUnit report is uploaded
+selected appearance and language return. The credential smoke signs in
+against the API on the runner with a disposable User, restores the session
+mid-onboarding, sets the Username and exercises the Gallery continuation.
+The installed test APK allows HTTP only through the emulator loopback using
+`adb reverse`. Normal Android builds keep their existing network policy. The Maestro JUnit report is uploaded
 for seven days, including when the smoke test fails. Maestro failure logs,
 screenshots and screen hierarchy are uploaded in a separate artifact capped at
 10 MiB and retained for one day. It does not use EAS or produce a store-ready
