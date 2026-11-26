@@ -1,6 +1,7 @@
 'use client';
 
 import type { PracticeAttemptHistoryItem } from '@vozzify/contracts';
+import { LockKeyhole } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { TrackCoverArt } from '@/features/tracks/components/track-cover-art';
@@ -50,6 +51,12 @@ export function PracticeHistoryRow({
         >
           {track.title}
         </Link>
+        {attempt.isPrivate && (
+          <span className="flex items-center gap-1 text-muted-foreground text-xs">
+            <LockKeyhole aria-hidden="true" className="size-3" />
+            {t('privateTrack')}
+          </span>
+        )}
         <p className="break-words text-muted-foreground text-sm">
           {creditText(track.artistCredit)}
         </p>

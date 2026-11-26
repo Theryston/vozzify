@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
+import type { TimedLyricLine } from '../../integrations/elevenlabs/track-lyrics-lines.js';
 import { TrackLyricsRepository } from './track-lyrics.repository.js';
-import type { TimedLyricLine } from './track-lyrics-lines.js';
 import { TrackProcessingRepository } from './track-processing.repository.js';
 import type { ProcessingRef } from './track-processing-outputs.js';
 

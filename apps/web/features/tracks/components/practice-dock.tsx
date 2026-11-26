@@ -102,19 +102,23 @@ export function PracticeDock({
   trackTitle,
   artistText,
   viewId,
+  privateTrackId,
   directAudio = false,
   expectDirectAudio = false,
+  audioFallback = false,
 }: {
   directAudio?: boolean;
   /** Stored audio is on its way: paint its layout before the URLs land. */
   expectDirectAudio?: boolean;
+  audioFallback?: boolean;
   controller: PlaybackController | null;
   hostRef: RefObject<HTMLDivElement | null>;
-  videoId: string;
+  videoId: string | null;
   trackKey: TrackKey | undefined;
   trackTitle: string;
   artistText: string;
   viewId?: () => string | undefined;
+  privateTrackId?: string;
 }) {
   const t = useTranslations('tracks.practice.dock');
   const status = usePlaybackState((state) => state.status);
@@ -152,13 +156,28 @@ export function PracticeDock({
           <p className="line-clamp-2 text-muted-foreground text-xs">
             {artistText}
           </p>
+          {audioFallback && (
+            <p role="status" className="text-muted-foreground text-xs">
+              {t('usingSavedAudio')}
+            </p>
+          )}
         </div>
         <DockPlayButton controller={controller} />
       </div>
       <div className="flex min-w-0 items-center justify-between gap-1 [grid-area:actions] md:gap-3">
         <DockMicButton playback={playbackStore} />
-        {audioLayout && <VocalsToggle controller={controller} />}
-        <StreakRing singing={singing} viewId={viewId} />
+        {audioLayout && (
+          <VocalsToggle
+            controller={
+              audioFallback && status === 'loading' ? null : controller
+            }
+          />
+        )}
+        <StreakRing
+          singing={singing}
+          viewId={viewId}
+          privateTrackId={privateTrackId}
+        />
         <DockSettings controller={controller} videoId={videoId} />
         <TrackKeyContext value={trackKey}>
           <TransposePopover directAudio={audioLayout} />

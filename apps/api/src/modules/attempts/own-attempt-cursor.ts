@@ -64,3 +64,24 @@ export const nextOwnAttemptCursor = (
         attemptId: lastRun.id,
       })
     : null;
+
+/** Merges the first results from two separately scoped queries. */
+export function mergeAttemptPages<T>(
+  publicRows: T[],
+  privateRows: T[],
+  attempt: (row: T) => { createdAt: Date; id: string },
+  limit: number,
+): T[] {
+  if (privateRows.length === 0) return publicRows;
+  if (publicRows.length === 0) return privateRows;
+  return [...publicRows, ...privateRows]
+    .sort((first, second) => {
+      const one = attempt(first);
+      const two = attempt(second);
+      return (
+        two.createdAt.getTime() - one.createdAt.getTime() ||
+        two.id.localeCompare(one.id)
+      );
+    })
+    .slice(0, limit);
+}

@@ -15,6 +15,12 @@ import { PERSONAL_HOME_FEED_QUEUE } from '../src/modules/home/home-personal.job.
 import { PersonalHomeProcessor } from '../src/modules/home/home-personal.processor.js';
 import { PRICE_CHANGE_QUEUE } from '../src/modules/plans/price-change.job.js';
 import { PriceChangeProcessor } from '../src/modules/plans/price-change.processor.js';
+import { PRIVATE_TRACK_ASSET_CLEANUP_QUEUE } from '../src/modules/private-tracks/private-track-asset-cleanup.job.js';
+import { PrivateTrackAssetCleanupProcessor } from '../src/modules/private-tracks/private-track-asset-cleanup.processor.js';
+import { PRIVATE_TRACK_IDENTIFICATION_QUEUE } from '../src/modules/private-tracks/private-track-identification.job.js';
+import { PrivateTrackIdentificationProcessor } from '../src/modules/private-tracks/private-track-identification.processor.js';
+import { PRIVATE_TRACK_PROCESSING_QUEUE } from '../src/modules/private-tracks/private-track-processing.job.js';
+import { PrivateTrackProcessingProcessor } from '../src/modules/private-tracks/private-track-processing.processor.js';
 import { STREAK_REMINDER_QUEUE } from '../src/modules/streaks/streak-reminder.job.js';
 import { StreakReminderProcessor } from '../src/modules/streaks/streak-reminder.processor.js';
 import { TrackMetadataProcessor } from '../src/modules/track-metadata/track-metadata.processor.js';
@@ -46,7 +52,10 @@ const QUEUES = [
   PERSONAL_HOME_FEED_QUEUE,
   EDITORIAL_PIN_QUEUE,
   EVENTS_QUEUE,
+  PRIVATE_TRACK_ASSET_CLEANUP_QUEUE,
   PRICE_CHANGE_QUEUE,
+  PRIVATE_TRACK_PROCESSING_QUEUE,
+  PRIVATE_TRACK_IDENTIFICATION_QUEUE,
 ] as const;
 /** Every BullMQ processor; overriding one keeps its worker from starting. */
 const PROCESSORS = [
@@ -63,7 +72,10 @@ const PROCESSORS = [
   PersonalHomeProcessor,
   EditorialPinsProcessor,
   EventsProcessor,
+  PrivateTrackAssetCleanupProcessor,
   PriceChangeProcessor,
+  PrivateTrackProcessingProcessor,
+  PrivateTrackIdentificationProcessor,
 ] as const;
 
 export type FakeQueue = {

@@ -9,7 +9,7 @@ const variants = cva(
       variant: {
         default: 'bg-primary text-primary-foreground hover:bg-primary/90',
         outline:
-          'border-foreground/10 bg-foreground/3 hover:bg-foreground/6 aria-expanded:bg-foreground/6 dark:border-input dark:bg-input/30 dark:aria-expanded:bg-input/50 dark:hover:bg-input/50',
+          'border-foreground/10 featured:border-primary-foreground/50 bg-foreground/3 featured:bg-transparent featured:text-primary-foreground featured:hover:bg-primary-foreground/10 hover:bg-foreground/6 featured:focus-visible:border-primary-foreground featured:focus-visible:ring-primary-foreground/50 aria-expanded:bg-foreground/6 featured:aria-expanded:bg-primary-foreground/10 dark:border-input dark:bg-input/30 dark:aria-expanded:bg-input/50 dark:hover:bg-input/50',
         secondary:
           'bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground',
         ghost:

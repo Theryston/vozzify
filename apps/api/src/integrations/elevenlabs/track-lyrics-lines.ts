@@ -1,4 +1,4 @@
-import type { Transcription } from '../../integrations/elevenlabs/scribe-output.js';
+import type { Transcription } from './scribe-output.js';
 
 // The Timed lyrics of a transcription (CONTEXT.md "Timed lyrics"), built from
 // word timestamps only. Provider segments are ignored: a long provider segment

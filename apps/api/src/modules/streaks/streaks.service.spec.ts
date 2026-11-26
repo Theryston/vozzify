@@ -2,6 +2,7 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { fakeTransactionalDatabase } from '../../../test/utils/fake-transactional-db.js';
 import { DATABASE, DATABASE_POOL } from '../../database/database.js';
 import { DatabaseModule } from '../../database/database.module.js';
+import { PrivateTrackPracticeAccessService } from '../private-tracks/private-track-practice-access.service.js';
 import { UsersService } from '../users/users.service.js';
 import { StreaksRepository } from './streaks.repository.js';
 import { StreaksService } from './streaks.service.js';
@@ -51,6 +52,7 @@ describe('StreaksService', () => {
         StreaksService,
         { provide: StreaksRepository, useValue: repository },
         { provide: UsersService, useValue: users },
+        { provide: PrivateTrackPracticeAccessService, useValue: {} },
       ],
     })
       .overrideProvider(DATABASE_POOL)

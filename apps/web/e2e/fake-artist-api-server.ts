@@ -16,6 +16,7 @@ import {
   serveAlbumSitemap,
   serveArtistSitemap,
 } from './fake-entity-sitemaps.ts';
+import { servePrivateTrackRequest } from './fake-private-track-api.ts';
 import {
   tracks as fakeTracks,
   serveSession,
@@ -25,12 +26,7 @@ import { serveSitemap, sitemapTracks } from './fake-track-sitemap.ts';
 import { serveUserSitemap } from './fake-user-sitemap.ts';
 
 /**
- * Fake API for the artist Playwright suite and the legacy-routes suite.
- *
- * Server Components fetch from the Next server, not the browser, so
- * `page.route` cannot mock them. Instead Playwright starts this server on
- * the same `API_URL` the e2e Next server uses (`webServerEnv`) and tests
- * drive it through `POST /__artist-mock/set`.
+ * Fake API for server-rendered entity, private-track and legacy-route tests.
  *
  * Run directly: `node e2e/fake-artist-api-server.ts` (Node 26 strips
  * types). Specs import {@link defaultArtist} and
@@ -275,6 +271,7 @@ const serveRequest = async (
     await route.serve(request, response, url.pathname);
     return;
   }
+  if (await servePrivateTrackRequest(request, response, url.pathname)) return;
   const tracksMatch = /^\/v1\/artists\/([^/]+)\/tracks$/.exec(url.pathname);
   if (tracksMatch?.[1] && request.method === 'GET') {
     serveArtistTracks(
@@ -333,6 +330,4 @@ const startFakeArtistApi = (
 
 const isMain = (process.argv[1] ?? '').endsWith('fake-artist-api-server.ts');
 
-if (isMain) {
-  await startFakeArtistApi();
-}
+if (isMain) await startFakeArtistApi(Number(process.argv[2] ?? 3333));

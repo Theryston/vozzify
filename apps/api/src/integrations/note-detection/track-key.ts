@@ -1,5 +1,4 @@
-import { nearestKey, type TrackKey } from '@vozzify/contracts';
-import type { NoteSpan } from './track-note-span.js';
+import { nearestKey, type TrackKey, type TrackNote } from '@vozzify/contracts';
 
 // Key estimation as the legacy app does it (`estimateKey` in its
 // `components/timeline/utils.ts`): the seconds each pitch class is sung form a
@@ -24,7 +23,7 @@ const PROFILES = [
 const PITCH_CLASSES = 12;
 
 /** The normalized seconds each pitch class is sung, from C (0) to B (11). */
-function pitchClassHistogram(notes: readonly NoteSpan[]): number[] {
+function pitchClassHistogram(notes: readonly TrackNote[]): number[] {
   const histogram = Array.from({ length: PITCH_CLASSES }, () => 0);
   for (const note of notes) {
     const pitchClass =
@@ -59,7 +58,7 @@ function rotated(profile: readonly number[], tonic: number): number[] {
 }
 
 /** The key a set of vocal notes is most likely in, or null without notes. */
-export function estimateKey(notes: readonly NoteSpan[]): TrackKey | null {
+export function estimateKey(notes: readonly TrackNote[]): TrackKey | null {
   if (notes.length === 0) {
     return null;
   }

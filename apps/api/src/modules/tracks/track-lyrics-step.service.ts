@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ElevenLabsTranscriptionClient } from '../../integrations/elevenlabs/elevenlabs-transcription.client.js';
-import { timedLyricsOf } from './track-lyrics-lines.js';
+import { timedLyricsOf } from '../../integrations/elevenlabs/track-lyrics-lines.js';
 import { TrackMp3Service } from './track-mp3.service.js';
 import type { ProcessingForStep } from './track-processing.repository.js';
 import { DONE, STOPPED, type StepOutcome } from './track-step-outcome.js';

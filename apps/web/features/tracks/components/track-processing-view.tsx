@@ -1,7 +1,6 @@
 'use client';
 
 import type { TrackProcessingState } from '@vozzify/contracts';
-import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
 import { Toaster } from '@/components/ui/sonner';
@@ -10,12 +9,13 @@ import { useElapsedSince } from '../hooks/use-step-elapsed';
 import { useTrackProcessing } from '../hooks/use-track-processing';
 import type { InitialPractice } from '../practice-queries';
 import { displayedPercent } from '../processing-steps';
+import { isRetryOffered } from '../retry-offer';
 import { RefreshPracticeOnCompletion } from './refresh-practice-on-completion';
 import { TrackChosenVideo } from './track-chosen-video';
 import { TrackContributors } from './track-contributors';
 import { TrackPracticeView } from './track-practice-view';
-import { TrackProcessingBanner } from './track-processing-banner';
-import { TrackProcessingStatus } from './track-processing-status';
+import { TrackProcessingPanel } from './track-processing-panel';
+import { TrackRetry } from './track-retry';
 
 /** How far a toast sits from the bottom: the dock's height plus some room. */
 const DOCK_CLEARANCE = { bottom: 'calc(var(--dock-height, 0px) + 1.5rem)' };
@@ -38,7 +38,6 @@ export function TrackProcessingView({
   fakePlayer: boolean;
   recommendations?: ReactNode;
 }) {
-  const t = useTranslations('tracks.processing');
   const { data: state } = useTrackProcessing(
     initialState.track.id,
     initialState,
@@ -81,35 +80,37 @@ export function TrackProcessingView({
   const hasAside = processing?.video != null || state.contributors.length > 0;
 
   return (
-    <div className="flex flex-col gap-10 pb-6 md:gap-12 md:pb-8">
+    <>
       {/* Outlives the retry button, which leaves the page once the retry starts. */}
       <Toaster />
-      <TrackProcessingBanner
+      <TrackProcessingPanel
         track={state.track}
         processing={processing}
         percent={percent}
+        statusOptions={{
+          elapsedMs,
+          failure: processing
+            ? {
+                code: processing.failureCode,
+                action: isRetryOffered(processing) ? (
+                  <TrackRetry trackId={state.track.id} />
+                ) : null,
+              }
+            : undefined,
+        }}
+        aside={
+          hasAside ? (
+            <div className="flex flex-col gap-6">
+              {processing?.video == null ? null : (
+                <TrackChosenVideo video={processing.video} />
+              )}
+              {state.contributors.length > 0 ? (
+                <TrackContributors contributors={state.contributors} />
+              ) : null}
+            </div>
+          ) : null
+        }
       />
-      <div className="grid gap-10 md:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] md:gap-12">
-        {processing === null ? (
-          <p className="text-muted-foreground text-sm">{t('none')}</p>
-        ) : (
-          <TrackProcessingStatus
-            trackId={state.track.id}
-            processing={processing}
-            elapsedMs={elapsedMs}
-          />
-        )}
-        {hasAside ? (
-          <div className="flex flex-col gap-6">
-            {processing?.video == null ? null : (
-              <TrackChosenVideo video={processing.video} />
-            )}
-            {state.contributors.length > 0 ? (
-              <TrackContributors contributors={state.contributors} />
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-    </div>
+    </>
   );
 }

@@ -1,14 +1,9 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { acoustidEnvSchema } from './acoustid-env.js';
+import { optional } from './env-values.js';
 import { parseLegacyCatalogMapEnv } from './legacy-catalog-map-env.js';
-
-// Blank counts as unset, so `KEY=` in a .env file doesn't fail the boot.
-const optional = <T extends z.ZodType>(schema: T) =>
-  z.preprocess(
-    (value) => (value === '' ? undefined : value),
-    schema.optional(),
-  );
 
 // Only for NODE_ENV=test, so test runners (e.g. the e2e suite) boot without a
 // secret. Never used anywhere else: the schema requires a real one.
@@ -118,6 +113,7 @@ const envSchema = z
     S3_ENDPOINT: optional(z.url({ protocol: /^https?$/ })),
     S3_REGION: optional(z.string().min(1)),
     S3_BUCKET: optional(z.string().regex(S3_BUCKET_NAME)),
+    S3_PRIVATE_BUCKET: optional(z.string().regex(S3_BUCKET_NAME)),
     S3_ACCESS_KEY_ID: optional(z.string().min(1)),
     S3_SECRET_ACCESS_KEY: optional(z.string().min(1)),
     // MinIO needs path-style addressing (`host/bucket/key`); AWS doesn't.
@@ -177,6 +173,7 @@ const envSchema = z
     // The ffmpeg binary that converts downloaded audio to WAV. Unset, the
     // client runs `ffmpeg` from the PATH (FfmpegClient).
     FFMPEG_PATH: optional(z.string().min(1)),
+    FFPROBE_PATH: optional(z.string().min(1)),
     // RunPod endpoint that separates the vocals and detects the notes of a
     // Processing (ADR 0004). Required in production (see the refinements
     // below); elsewhere a Processing without them fails its note detection.
@@ -285,7 +282,8 @@ const envSchema = z
       SWAGGER_ENABLED: env.SWAGGER_ENABLED ?? env.NODE_ENV !== 'production',
       BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET ?? TEST_AUTH_SECRET,
     };
-  });
+  })
+  .and(acoustidEnvSchema);
 
 export type Env = z.output<typeof envSchema>;
 

@@ -15,8 +15,10 @@ import { browserApi } from '@/lib/api/browser';
 export function submitPracticeAttempt(
   trackId: string,
   body: SubmitPracticeAttemptBody,
+  isPrivate = false,
 ): Promise<PracticeAttempt> {
-  return browserApi(`/tracks/${encodeURIComponent(trackId)}/attempts`, {
+  const tracks = isPrivate ? '/me/private-tracks' : '/tracks';
+  return browserApi(`${tracks}/${encodeURIComponent(trackId)}/attempts`, {
     method: 'POST',
     body,
     schema: practiceAttemptSchema,

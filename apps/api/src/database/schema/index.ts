@@ -15,6 +15,8 @@ export * from './legacy-user-imports.js';
 export * from './plans.js';
 export * from './practice-attempts.js';
 export * from './practice-heartbeats.js';
+export * from './private-practice-attempts.js';
+export * from './private-tracks.js';
 export * from './relations.js';
 export * from './subscriptions.js';
 export * from './track-association-events.js';

@@ -2,9 +2,12 @@ import * as NestTesting from '@nestjs/testing';
 import { fakeTransactionalDatabase } from '../../../test/utils/fake-transactional-db.js';
 import { DATABASE, DATABASE_POOL } from '../../database/database.js';
 import { DatabaseModule } from '../../database/database.module.js';
+import { PrivateTrackPracticeAccessService } from '../private-tracks/private-track-practice-access.service.js';
 import { UsersService } from '../users/users.service.js';
 import { StreaksRepository } from './streaks.repository.js';
 import { StreaksService } from './streaks.service.js';
+
+const access = { assertCanPractice: vi.fn() };
 
 const { repository, users } = vi.hoisted(() => ({
   repository: {
@@ -48,6 +51,7 @@ describe('StreaksService view attribution', () => {
         StreaksService,
         { provide: StreaksRepository, useValue: repository },
         { provide: UsersService, useValue: users },
+        { provide: PrivateTrackPracticeAccessService, useValue: access },
       ],
     });
     builder.overrideProvider(DATABASE_POOL).useValue(pool);
@@ -73,5 +77,21 @@ describe('StreaksService view attribution', () => {
       elapsedSeconds: 5,
       creditedSeconds: 5,
     });
+  });
+
+  it('checks private access and leaves its credited time unattributed', async () => {
+    const result = await service.heartbeat('user-1', {
+      elapsedSeconds: 5,
+      timeZone: 'UTC',
+      privateTrackId: 'private-track',
+      viewId: 'public-view',
+    });
+
+    expect(access.assertCanPractice).toHaveBeenCalledWith(
+      'user-1',
+      'private-track',
+    );
+    expect(result.creditedSeconds).toBe(5);
+    expect(repository.recordAttributedHeartbeat).not.toHaveBeenCalled();
   });
 });

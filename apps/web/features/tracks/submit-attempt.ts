@@ -16,12 +16,15 @@ export function submitAttemptMutation(
   queryClient: QueryClient,
   trackId: string,
   translate: (message: RequestErrorMessage) => string,
+  isPrivate = false,
 ) {
   return {
     mutationFn: (body: SubmitPracticeAttemptBody) =>
-      submitPracticeAttempt(trackId, body),
+      isPrivate
+        ? submitPracticeAttempt(trackId, body, true)
+        : submitPracticeAttempt(trackId, body),
     onSuccess: () => {
-      void invalidateTrackState(queryClient, trackId);
+      if (!isPrivate) void invalidateTrackState(queryClient, trackId);
     },
     onError: (error: unknown) => {
       toast.error(translate(requestErrorMessage(error)));

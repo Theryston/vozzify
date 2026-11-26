@@ -24,6 +24,7 @@ type UsePlaybackOptions = {
   durationSeconds: number;
   fake: boolean;
   directAudio?: TrackAudio;
+  onAudioFallback?: () => void;
 };
 
 const animationFrames = {
@@ -42,6 +43,7 @@ export function usePlayback({
   durationSeconds,
   fake,
   directAudio,
+  onAudioFallback,
 }: UsePlaybackOptions): PlaybackController | null {
   const [controller, setController] = useState<PlaybackController | null>(null);
   const session = useRef<PlaybackSession | null>(null);
@@ -58,14 +60,15 @@ export function usePlayback({
       durationHint: durationRef.current,
       store: playbackStore,
       frames: animationFrames,
-      makePlayer: (options) => createPlayer({ ...options, directAudio }),
+      makePlayer: (options) =>
+        createPlayer({ ...options, directAudio, onAudioFallback }),
       onController: setController,
     });
     return () => {
       session.current?.dispose();
       session.current = null;
     };
-  }, [hostRef, videoId, fake, directAudio]);
+  }, [hostRef, videoId, fake, directAudio, onAudioFallback]);
 
   useEffect(() => {
     if (!controller || !directAudio) return;

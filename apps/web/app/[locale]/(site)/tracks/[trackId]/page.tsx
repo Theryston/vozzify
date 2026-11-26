@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
-import { getTranslations } from 'next-intl/server';
+import { NextIntlClientProvider } from 'next-intl';
+import { getMessages, getTranslations } from 'next-intl/server';
 
 import { StructuredData } from '@/components/structured-data';
+import { PrivateTrackDetailSection } from '@/features/private-tracks/components/private-track-detail-section';
+import { getPrivateTrackDetail } from '@/features/private-tracks/queries';
 import { TrackProcessingSection } from '@/features/tracks/components/track-processing-section';
 import { practiceMetadata } from '@/features/tracks/practice-metadata';
 import {
@@ -38,7 +41,14 @@ export async function generateMetadata({
     permanentRedirect(`/${locale}/tracks/${result.newId}`);
   }
   if (result.status === 'missing') {
-    notFound();
+    const privateTrack = await getPrivateTrackDetail(trackId);
+    if (!privateTrack) notFound();
+    const t = await getTranslations('privateTracks.detail');
+    return {
+      title: privateTrack.title,
+      description: t('privateBadge'),
+      alternates: localeAlternates(locale, `/tracks/${privateTrack.id}`),
+    };
   }
   if (result.state.processing?.status === 'COMPLETED') {
     const practice = await getInitialPractice(trackId);
@@ -75,7 +85,20 @@ export default async function TrackRoutePage({
     );
   }
   if (result.status === 'missing') {
-    notFound();
+    const privateTrack = await getPrivateTrackDetail(trackId);
+    if (!privateTrack) notFound();
+    const { errors, practice, privateTracks, streaks, tracks } =
+      await getMessages();
+    return (
+      <NextIntlClientProvider
+        messages={{ errors, practice, privateTracks, streaks, tracks }}
+      >
+        <PrivateTrackDetailSection
+          initial={privateTrack}
+          fakePlayer={getServerEnv().E2E_FAKE_PLAYER}
+        />
+      </NextIntlClientProvider>
+    );
   }
   const initialPractice =
     result.state.processing?.status === 'COMPLETED'

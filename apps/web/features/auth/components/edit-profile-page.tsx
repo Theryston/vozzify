@@ -1,6 +1,6 @@
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, getTranslations } from 'next-intl/server';
-
+import { AccountPageFrame } from '../../../components/account-page-frame';
 import { EditProfile } from './edit-profile';
 
 /**
@@ -13,21 +13,16 @@ export async function EditProfilePage() {
   const { errors, auth, profile } = await getMessages();
 
   return (
-    <div className="flex flex-col gap-8 py-10 md:py-12">
-      <header className="flex flex-col gap-3">
-        <p className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-          {t('overline')}
-        </p>
-        <h1 className="font-extrabold text-3xl tracking-tight sm:text-4xl">
-          {t('title')}
-        </h1>
-        <p className="max-w-prose text-muted-foreground">{t('description')}</p>
-      </header>
+    <AccountPageFrame
+      overline={t('overline')}
+      title={t('title')}
+      description={t('description')}
+    >
       <NextIntlClientProvider
         messages={{ errors, auth: { fields: auth.fields }, profile }}
       >
         <EditProfile />
       </NextIntlClientProvider>
-    </div>
+    </AccountPageFrame>
   );
 }

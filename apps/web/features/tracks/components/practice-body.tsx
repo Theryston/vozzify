@@ -2,13 +2,13 @@
 
 import type {
   SubmitPracticeAttemptBody,
+  TrackAudio,
   TrackDetail,
   TrackLyrics,
   TrackNotes,
 } from '@vozzify/contracts';
-import { MicOffIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { type RefObject, useMemo, useRef } from 'react';
+import { type RefObject, useRef } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SessionUserBoundary } from '@/features/auth/components/session-user';
 import { KaraokeLine } from '@/features/lyrics/components/karaoke-line';
@@ -18,14 +18,11 @@ import { ScoringPreferences } from '@/features/practice/components/scoring-prefe
 import { SingTimeline } from '@/features/practice/components/sing-timeline';
 import { SingingAids } from '@/features/practice/components/singing-aids';
 import { creditText } from '@/lib/track-credit';
-import { useDirectAudio } from '../hooks/use-direct-audio';
-import { usePlayback } from '../hooks/use-playback';
-import { usePlaybackShortcuts } from '../hooks/use-playback-shortcuts';
+import { usePracticeController } from '../hooks/use-practice-controller';
 import { useTimelineFocus } from '../hooks/use-shared-link';
 import { useSubmitAttempt } from '../hooks/use-submit-attempt';
 import { loopRange } from '../listening/listening-math';
 import { useLoop } from '../listening/loop-store';
-import { useListeningTools } from '../listening/use-listening-tools';
 import { noteRangeOf } from '../note-summary';
 import { playbackClock } from '../playback/playback-clock';
 import type { PlaybackController } from '../playback/playback-controller';
@@ -36,36 +33,13 @@ import {
   readStoredView,
   sessionStorageOrUndefined,
 } from '../track-view-session';
-import { transposeNotes } from '../transpose/transpose';
 import { ListeningActions } from './listening-actions';
 import { PendingAttemptSubmitter } from './pending-attempt-submitter';
+import { NoVoice, useTransposedNotes } from './practice-body-support';
 import { PracticeDock } from './practice-dock';
 import { SharedMomentSeek } from './shared-moment-seek';
 import { TIMELINE_BOX_CLASS } from './timeline-box-class';
 import { TrackAttemptStatus } from './track-attempt-status';
-
-/** What a Track with no vocal notes shows in place of the timeline. */
-function NoVoice() {
-  const t = useTranslations('tracks.practice.noVoice');
-
-  return (
-    <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed px-6 py-12 text-center">
-      <MicOffIcon aria-hidden="true" className="size-6 text-muted-foreground" />
-      <h2 className="font-semibold">{t('title')}</h2>
-      <p className="max-w-md text-muted-foreground text-sm">
-        {t('description')}
-      </p>
-    </div>
-  );
-}
-
-function useTransposedNotes(notes: TrackNotes | undefined) {
-  const semitones = useTranspose();
-  return useMemo(
-    () => (notes ? transposeNotes(notes.notes, semitones) : []),
-    [notes, semitones],
-  );
-}
 
 const currentViewId = (trackId: string) =>
   readStoredView(sessionStorageOrUndefined(), trackId)?.viewId;
@@ -76,17 +50,19 @@ function TrackTimeline({
   failed,
   controller,
   signedIn,
+  privateTrack,
 }: {
   header: TrackDetail;
   notes: TrackNotes | undefined;
   failed: boolean;
   controller: PlaybackController | null;
   signedIn: boolean;
+  privateTrack: boolean;
 }) {
   const t = useTranslations('tracks.practice');
   const semitones = useTranspose();
   const rate = usePlaybackState((state) => state.rate);
-  const submit = useSubmitAttempt(header.id);
+  const submit = useSubmitAttempt(header.id, privateTrack);
   const shifted = useTransposedNotes(notes);
   if (notes === undefined) {
     return failed ? (
@@ -107,9 +83,11 @@ function TrackTimeline({
       })
     : t('timeline.labelEmpty', { title: header.title });
 
-  // A finished run is submitted at once signed in, and kept in the session
-  // for the sign-in to submit as a visitor.
   const handleAttempt = (body: SubmitPracticeAttemptBody) => {
+    if (privateTrack) {
+      if (signedIn) submit.mutate(body);
+      return;
+    }
     reportAttempt({
       signedIn,
       trackId: header.id,
@@ -129,7 +107,11 @@ function TrackTimeline({
       transpose={semitones}
       rate={rate}
       onAttempt={handleAttempt}
-      renderAttemptStatus={() => <TrackAttemptStatus trackId={header.id} />}
+      renderAttemptStatus={
+        privateTrack
+          ? undefined
+          : () => <TrackAttemptStatus trackId={header.id} />
+      }
       label={label}
       clock={controller ? playbackClock : undefined}
       onScrub={controller?.seek}
@@ -138,18 +120,6 @@ function TrackTimeline({
   );
 }
 
-/** The length the dock shows until the player knows it, in seconds. */
-function durationSecondsOf(header: TrackDetail, notes: TrackNotes | undefined) {
-  if (header.durationMs !== null) return header.durationMs / 1000;
-  const last = notes?.notes.at(-1);
-  return last ? last.end : 0;
-}
-
-/**
- * The Timed lyrics: the karaoke line goes under the timeline, the whole block
- * below it. Both follow the player and a click on a line seeks there. Nothing
- * shows for a Track without lyrics.
- */
 function TrackLyricsBlock({
   lyrics,
   controller,
@@ -201,80 +171,54 @@ type PracticeBodyProps = {
   /** The lyrics are still being read: their slot is held. */
   lyricsLoading: boolean;
   failed: boolean;
+  directAudio?: TrackAudio;
+  privateTrack?: boolean;
   /** The e2e build's flag: play with a clock instead of YouTube. */
   fakePlayer: boolean;
 };
-
-function usePracticeController({
-  header,
-  notes,
-  fakePlayer,
-  admin,
-}: Pick<PracticeBodyProps, 'header' | 'notes' | 'fakePlayer' | 'admin'>) {
-  const audio = useDirectAudio(header.id, admin);
-  const directAudio = admin ? audio.data : undefined;
-  // Admins almost always have stored audio: paint its layout (no video
-  // square, vocals toggle, waveform slot) while the URLs load, instead of
-  // flashing the YouTube layout first. A refusal falls back to YouTube.
-  const expectDirectAudio = admin && !audio.isError;
-  const hostRef = useRef<HTMLDivElement>(null);
-  const controller = usePlayback({
-    hostRef,
-    videoId: directAudio
-      ? (header.youtubeVideoId ?? '')
-      : header.youtubeVideoId,
-    durationSeconds: durationSecondsOf(header, notes),
-    fake: fakePlayer,
-    directAudio,
-  });
-  usePlaybackShortcuts(controller);
-  useListeningTools(controller);
-  return { controller, directAudio, expectDirectAudio, hostRef };
-}
 
 function TrackPracticeDock({
   header,
   controller,
   directAudio,
   expectDirectAudio,
+  audioFallback,
   hostRef,
+  privateTrack,
 }: {
   header: TrackDetail;
   controller: PlaybackController | null;
   directAudio: boolean;
   expectDirectAudio: boolean;
+  audioFallback: boolean;
   hostRef: RefObject<HTMLDivElement | null>;
+  privateTrack?: boolean;
 }) {
   if (header.youtubeVideoId === null && !directAudio) return null;
   return (
     <PracticeDock
       controller={controller}
       hostRef={hostRef}
-      videoId={header.youtubeVideoId ?? ''}
+      videoId={header.youtubeVideoId}
       directAudio={directAudio}
       expectDirectAudio={expectDirectAudio}
+      audioFallback={audioFallback}
       trackKey={header.key}
       trackTitle={header.title}
       artistText={creditText(header.artistCredit)}
-      viewId={() => currentViewId(header.id)}
+      viewId={privateTrack ? undefined : () => currentViewId(header.id)}
+      privateTrackId={privateTrack ? header.id : undefined}
     />
   );
 }
 
-/**
- * The practice view below the title row: the note timeline (or the "no voice"
- * message for a Track without notes), the lyrics and the dock that plays the
- * Track's video. The timeline follows the dock's player and can be dragged to
- * seek; the page leaves room under it for the dock, which floats.
- */
 function PracticeBodyContent(props: PracticeBodyProps & { signedIn: boolean }) {
   const { header, notes, lyrics, lyricsLoading, failed, signedIn } = props;
-  const { controller, directAudio, expectDirectAudio, hostRef } =
+  const { controller, directAudio, expectDirectAudio, audioFallback, hostRef } =
     usePracticeController(props);
   const fullscreenRef = useRef<HTMLDivElement>(null);
   const guideNotes = useTransposedNotes(notes);
   const timelineRef = useRef<HTMLDivElement>(null);
-  // The timeline block is on screen once its notes loaded or failed to.
   useTimelineFocus(
     timelineRef,
     header.hasNotes && (notes !== undefined || failed),
@@ -299,6 +243,7 @@ function PracticeBodyContent(props: PracticeBodyProps & { signedIn: boolean }) {
             failed={failed}
             controller={controller}
             signedIn={signedIn}
+            privateTrack={props.privateTrack ?? false}
           />
           {hasLyrics ? (
             <KaraokeLine lines={lyrics.lines} clock={playbackClock} />
@@ -320,9 +265,11 @@ function PracticeBodyContent(props: PracticeBodyProps & { signedIn: boolean }) {
       <TrackPracticeDock
         header={header}
         controller={controller}
-        directAudio={directAudio !== undefined}
+        directAudio={directAudio}
         expectDirectAudio={expectDirectAudio}
+        audioFallback={audioFallback}
         hostRef={hostRef}
+        privateTrack={props.privateTrack}
       />
     </div>
   );

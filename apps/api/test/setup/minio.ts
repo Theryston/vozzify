@@ -13,6 +13,7 @@ const MINIO_IMAGE = 'ghcr.io/coollabsio/minio:RELEASE.2025-10-15T17-29-55Z';
 // Covers pulling the image on a cold CI runner, not only the boot.
 const CONTAINER_STARTUP_TIMEOUT_MS = 120_000;
 const BUCKET = 'vozzify-e2e';
+const PRIVATE_BUCKET = 'vozzify-e2e-private';
 const REGION = 'us-east-1';
 const ROOT_USER = 'vozzify-e2e';
 const ROOT_PASSWORD = 'vozzify-e2e-secret';
@@ -62,6 +63,13 @@ const createPublicBucket = async (storage: E2eStorage): Promise<void> => {
         Policy: publicReadPolicy,
       }),
     );
+    await client
+      .send(new CreateBucketCommand({ Bucket: storage.privateBucket }))
+      .catch((error: unknown) => {
+        if (!(error instanceof BucketAlreadyOwnedByYou)) {
+          throw error;
+        }
+      });
   } finally {
     client.destroy();
   }
@@ -74,6 +82,7 @@ const settingsFor = (
   endpoint,
   region: REGION,
   bucket: BUCKET,
+  privateBucket: PRIVATE_BUCKET,
   ...credentials,
   publicUrl: `${endpoint}/${BUCKET}`,
 });

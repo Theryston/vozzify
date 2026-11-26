@@ -265,6 +265,56 @@
         ]
       }
     },
+    "/v1/me/private-tracks/{trackId}/attempts": {
+      "post": {
+        "operationId": "PrivateAttemptsController_submitAttempt_v1",
+        "parameters": [
+          {
+            "name": "trackId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitPrivateAttemptBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The saved private attempt."
+          },
+          "400": {
+            "description": "The run is not valid."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "403": {
+            "description": "The owner needs a Pro membership."
+          },
+          "404": {
+            "description": "No playable private Track for the owner."
+          },
+          "422": {
+            "description": "The run covered too little or skipped forward."
+          }
+        },
+        "tags": [
+          "attempts"
+        ]
+      }
+    },
     "/v1/users/{username}/attempts": {
       "get": {
         "operationId": "UserAttemptsController_listHistory_v1",
@@ -297,6 +347,17 @@
               "maximum": 100,
               "default": 20,
               "type": "integer"
+            }
+          },
+          {
+            "name": "includePrivate",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
             }
           }
         ],
@@ -931,90 +992,9 @@
         ]
       }
     },
-    "/v1/me/streak": {
+    "/v1/me/private-tracks": {
       "get": {
-        "operationId": "StreaksController_getStatus_v1",
-        "parameters": [
-          {
-            "name": "timeZone",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minLength": 1,
-              "maxLength": 64,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Today's practice against the daily target."
-          },
-          "400": {
-            "description": "The time zone is not an IANA zone."
-          },
-          "401": {
-            "description": "No valid session."
-          }
-        },
-        "tags": [
-          "streaks"
-        ]
-      }
-    },
-    "/v1/me/streak/heartbeat": {
-      "post": {
-        "operationId": "StreaksController_heartbeat_v1",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StreakHeartbeatBodyDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The status after crediting the heartbeat."
-          },
-          "400": {
-            "description": "The elapsed seconds are negative or the zone is unknown."
-          },
-          "401": {
-            "description": "No valid session."
-          }
-        },
-        "tags": [
-          "streaks"
-        ]
-      }
-    },
-    "/v1/admin/home-pins/metrics": {
-      "get": {
-        "operationId": "EditorialPinsController_pinMetrics_v1",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Stored impressions, clicks and click rates."
-          },
-          "401": {
-            "description": "No valid session."
-          },
-          "403": {
-            "description": "The User is not an admin."
-          }
-        },
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/v1/admin/home-pins": {
-      "get": {
-        "operationId": "EditorialPinsController_list_v1",
+        "operationId": "PrivateTracksController_list_v1",
         "parameters": [
           {
             "name": "cursor",
@@ -1039,57 +1019,48 @@
         ],
         "responses": {
           "200": {
-            "description": "The pins, newest first, paginated."
-          },
-          "400": {
-            "description": "The cursor or limit is bad."
+            "description": "The signed-in user's private audio entries."
           },
           "401": {
             "description": "No valid session."
-          },
-          "403": {
-            "description": "The User is not an admin."
           }
         },
         "tags": [
-          "admin"
+          "private tracks"
         ]
       },
       "post": {
-        "operationId": "EditorialPinsController_create_v1",
+        "operationId": "PrivateTracksController_submit_v1",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/CreateEditorialPinBodyDto"
+                "$ref": "#/components/schemas/CreatePrivateTrackBodyDto"
               }
             }
           }
         },
         "responses": {
-          "400": {
-            "description": "The pin is invalid, or it references a Track that cannot appear in it (`VALIDATION_FAILED`)."
+          "201": {
+            "description": "The private audio entry."
           },
           "401": {
             "description": "No valid session."
-          },
-          "403": {
-            "description": "The User is not an admin."
           }
         },
         "tags": [
-          "admin"
+          "private tracks"
         ]
       }
     },
-    "/v1/admin/home-pins/{pinId}": {
+    "/v1/me/private-tracks/{id}": {
       "get": {
-        "operationId": "EditorialPinsController_get_v1",
+        "operationId": "PrivateTracksController_detail_v1",
         "parameters": [
           {
-            "name": "pinId",
+            "name": "id",
             "required": true,
             "in": "path",
             "schema": {
@@ -1101,72 +1072,24 @@
         ],
         "responses": {
           "200": {
-            "description": "The pin."
+            "description": "The signed-in owner's private Track detail."
           },
           "401": {
             "description": "No valid session."
           },
-          "403": {
-            "description": "The User is not an admin."
-          },
           "404": {
-            "description": "No pin has this ID (`NOT_FOUND`)."
+            "description": "The private Track does not exist."
           }
         },
         "tags": [
-          "admin"
-        ]
-      },
-      "patch": {
-        "operationId": "EditorialPinsController_update_v1",
-        "parameters": [
-          {
-            "name": "pinId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "minLength": 1,
-              "maxLength": 128,
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateEditorialPinBodyDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The pin after the change."
-          },
-          "400": {
-            "description": "The change is invalid, or it references a Track that cannot appear in the pin (`VALIDATION_FAILED`)."
-          },
-          "401": {
-            "description": "No valid session."
-          },
-          "403": {
-            "description": "The User is not an admin."
-          },
-          "404": {
-            "description": "No pin has this ID (`NOT_FOUND`)."
-          }
-        },
-        "tags": [
-          "admin"
+          "private tracks"
         ]
       },
       "delete": {
-        "operationId": "EditorialPinsController_remove_v1",
+        "operationId": "PrivateTracksController_delete_v1",
         "parameters": [
           {
-            "name": "pinId",
+            "name": "id",
             "required": true,
             "in": "path",
             "schema": {
@@ -1178,29 +1101,27 @@
         ],
         "responses": {
           "204": {
-            "description": "The pin is removed."
+            "description": "The private audio entry is deleted."
+          },
+          "400": {
+            "description": "The private Track ID is invalid."
           },
           "401": {
             "description": "No valid session."
           },
-          "403": {
-            "description": "The User is not an admin."
-          },
           "404": {
-            "description": "No pin has this ID (`NOT_FOUND`)."
+            "description": "The private Track does not exist."
           }
         },
         "tags": [
-          "admin"
+          "private tracks"
         ]
-      }
-    },
-    "/v1/admin/home-pins/{pinId}/history": {
-      "get": {
-        "operationId": "EditorialPinsController_history_v1",
+      },
+      "patch": {
+        "operationId": "PrivateTrackMetadataController_update_v1",
         "parameters": [
           {
-            "name": "pinId",
+            "name": "id",
             "required": true,
             "in": "path",
             "schema": {
@@ -1208,110 +1129,162 @@
               "maxLength": 128,
               "type": "string"
             }
-          },
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20,
-              "type": "integer"
-            }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrivateTrackMetadataDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Every change of the pin, newest first, with who made it. Kept after the pin is removed."
+            "description": "The private Track with corrected metadata."
           },
           "400": {
-            "description": "The cursor or limit is bad."
+            "description": "Invalid metadata or Track ID."
           },
           "401": {
             "description": "No valid session."
           },
           "403": {
-            "description": "The User is not an admin."
+            "description": "A Pro membership is required."
+          },
+          "404": {
+            "description": "The private Track or Recording does not exist."
           }
         },
         "tags": [
-          "admin"
+          "private tracks"
         ]
       }
     },
-    "/v1/admin/tracks/search": {
-      "get": {
-        "operationId": "AdminTracksController_search_v1",
+    "/v1/me/private-tracks/{id}/retry": {
+      "post": {
+        "operationId": "PrivateTracksController_retry_v1",
         "parameters": [
           {
-            "name": "q",
-            "required": false,
-            "in": "query",
+            "name": "id",
+            "required": true,
+            "in": "path",
             "schema": {
               "minLength": 1,
-              "maxLength": 100,
+              "maxLength": 128,
               "type": "string"
             }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The current private Processing state."
           },
+          "400": {
+            "description": "The private Track ID is invalid."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "403": {
+            "description": "Active Pro membership is required."
+          },
+          "404": {
+            "description": "The private Track does not exist."
+          }
+        },
+        "tags": [
+          "private tracks"
+        ]
+      }
+    },
+    "/v1/me/private-tracks/{id}/media/{kind}": {
+      "get": {
+        "operationId": "PrivateTrackMediaController_audio_v1",
+        "parameters": [
           {
-            "name": "ids",
-            "required": false,
-            "in": "query",
+            "name": "id",
+            "required": true,
+            "in": "path",
             "schema": {
-              "maxLength": 6400,
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
             }
           },
           {
             "name": "kind",
-            "required": false,
-            "in": "query",
+            "required": true,
+            "in": "path",
             "schema": {
-              "type": "string",
               "enum": [
-                "hero",
-                "row"
-              ]
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minimum": 1,
-              "maximum": 20,
-              "default": 10,
-              "type": "integer"
+                "music",
+                "vocals"
+              ],
+              "type": "string"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Matching Tracks, hottest first."
+            "description": "A private audio byte range."
           },
-          "400": {
-            "description": "Neither `q` nor `ids` was provided, or both were."
+          "206": {
+            "description": "A partial private audio response."
           },
           "401": {
             "description": "No valid session."
           },
           "403": {
-            "description": "The User is not an admin."
+            "description": "An active Pro membership is required."
+          },
+          "404": {
+            "description": "The private Track does not exist."
+          },
+          "416": {
+            "description": "The byte range is not satisfiable."
           }
         },
         "tags": [
-          "admin"
+          "private tracks"
+        ]
+      }
+    },
+    "/v1/me/private-tracks/youtube": {
+      "post": {
+        "operationId": "PrivateYouTubeTracksController_submit_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePrivateYouTubeTrackBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The owner-scoped YouTube submission."
+          },
+          "400": {
+            "description": "The YouTube link or duration is invalid."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "403": {
+            "description": "A current Pro membership is required."
+          },
+          "503": {
+            "description": "The video could not be read."
+          }
+        },
+        "tags": [
+          "private tracks"
         ]
       }
     },
@@ -1819,6 +1792,396 @@
         "responses": {
           "200": {
             "description": ""
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "403": {
+            "description": "The User is not an admin."
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/me/streak": {
+      "get": {
+        "operationId": "StreaksController_getStatus_v1",
+        "parameters": [
+          {
+            "name": "timeZone",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Today's practice against the daily target."
+          },
+          "400": {
+            "description": "The time zone is not an IANA zone."
+          },
+          "401": {
+            "description": "No valid session."
+          }
+        },
+        "tags": [
+          "streaks"
+        ]
+      }
+    },
+    "/v1/me/streak/heartbeat": {
+      "post": {
+        "operationId": "StreaksController_heartbeat_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreakHeartbeatBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The status after crediting the heartbeat."
+          },
+          "400": {
+            "description": "The elapsed seconds are negative or the zone is unknown."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "403": {
+            "description": "The private Track owner needs Pro."
+          },
+          "404": {
+            "description": "No playable private Track for the owner."
+          }
+        },
+        "tags": [
+          "streaks"
+        ]
+      }
+    },
+    "/v1/admin/home-pins/metrics": {
+      "get": {
+        "operationId": "EditorialPinsController_pinMetrics_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Stored impressions, clicks and click rates."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "403": {
+            "description": "The User is not an admin."
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/home-pins": {
+      "get": {
+        "operationId": "EditorialPinsController_list_v1",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pins, newest first, paginated."
+          },
+          "400": {
+            "description": "The cursor or limit is bad."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "403": {
+            "description": "The User is not an admin."
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "EditorialPinsController_create_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEditorialPinBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "The pin is invalid, or it references a Track that cannot appear in it (`VALIDATION_FAILED`)."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "403": {
+            "description": "The User is not an admin."
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/home-pins/{pinId}": {
+      "get": {
+        "operationId": "EditorialPinsController_get_v1",
+        "parameters": [
+          {
+            "name": "pinId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pin."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "403": {
+            "description": "The User is not an admin."
+          },
+          "404": {
+            "description": "No pin has this ID (`NOT_FOUND`)."
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "operationId": "EditorialPinsController_update_v1",
+        "parameters": [
+          {
+            "name": "pinId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEditorialPinBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The pin after the change."
+          },
+          "400": {
+            "description": "The change is invalid, or it references a Track that cannot appear in the pin (`VALIDATION_FAILED`)."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "403": {
+            "description": "The User is not an admin."
+          },
+          "404": {
+            "description": "No pin has this ID (`NOT_FOUND`)."
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "delete": {
+        "operationId": "EditorialPinsController_remove_v1",
+        "parameters": [
+          {
+            "name": "pinId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The pin is removed."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "403": {
+            "description": "The User is not an admin."
+          },
+          "404": {
+            "description": "No pin has this ID (`NOT_FOUND`)."
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/home-pins/{pinId}/history": {
+      "get": {
+        "operationId": "EditorialPinsController_history_v1",
+        "parameters": [
+          {
+            "name": "pinId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every change of the pin, newest first, with who made it. Kept after the pin is removed."
+          },
+          "400": {
+            "description": "The cursor or limit is bad."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "403": {
+            "description": "The User is not an admin."
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/tracks/search": {
+      "get": {
+        "operationId": "AdminTracksController_search_v1",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "ids",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 6400,
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "hero",
+                "row"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 20,
+              "default": 10,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching Tracks, hottest first."
+          },
+          "400": {
+            "description": "Neither `q` nor `ids` was provided, or both were."
           },
           "401": {
             "description": "No valid session."
@@ -3123,6 +3486,73 @@
           "endedAt"
         ]
       },
+      "SubmitPrivateAttemptBodyDto": {
+        "type": "object",
+        "properties": {
+          "difficulty": {
+            "type": "string",
+            "enum": [
+              "EASY",
+              "NORMAL",
+              "HARD"
+            ]
+          },
+          "octaveMode": {
+            "type": "string",
+            "enum": [
+              "ANY",
+              "EXACT"
+            ]
+          },
+          "transposeSemitones": {
+            "type": "integer",
+            "minimum": -24,
+            "maximum": 24
+          },
+          "speed": {
+            "type": "number"
+          },
+          "accuracy": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "coverage": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "forwardSkip": {
+            "type": "boolean"
+          },
+          "bleedSuspected": {
+            "type": "boolean"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "difficulty",
+          "octaveMode",
+          "transposeSemitones",
+          "speed",
+          "accuracy",
+          "coverage",
+          "forwardSkip",
+          "bleedSuspected",
+          "startedAt",
+          "endedAt"
+        ],
+        "additionalProperties": false
+      },
       "CreateTrackBodyDto": {
         "type": "object",
         "properties": {
@@ -3379,347 +3809,56 @@
           }
         }
       },
-      "StreakHeartbeatBodyDto": {
+      "CreatePrivateTrackBodyDto": {
         "type": "object",
         "properties": {
-          "elapsedSeconds": {
-            "type": "number",
-            "minimum": 0
-          },
-          "timeZone": {
+          "audio": {
             "type": "string",
+            "format": "binary",
+            "contentEncoding": "binary",
             "minLength": 1,
-            "maxLength": 64
-          },
-          "viewId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128
+            "maxLength": 262144000
           }
         },
         "required": [
-          "elapsedSeconds",
-          "timeZone"
-        ]
+          "audio"
+        ],
+        "additionalProperties": false
       },
-      "CreateEditorialPinBodyDto": {
+      "CreatePrivateYouTubeTrackBodyDto": {
         "type": "object",
         "properties": {
-          "kind": {
+          "url": {
             "type": "string",
-            "enum": [
-              "hero",
-              "row"
-            ]
-          },
-          "layout": {
-            "type": "string",
-            "enum": [
-              "hero",
-              "standard"
-            ]
-          },
-          "source": {
-            "oneOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "tracks"
-                    ]
-                  },
-                  "trackIds": {
-                    "minItems": 1,
-                    "maxItems": 48,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128
-                    }
-                  }
-                },
-                "required": [
-                  "type",
-                  "trackIds"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "genre"
-                    ]
-                  },
-                  "genre": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100
-                  }
-                },
-                "required": [
-                  "type",
-                  "genre"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "artist"
-                    ]
-                  },
-                  "artistId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
-                  }
-                },
-                "required": [
-                  "type",
-                  "artistId"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "album"
-                    ]
-                  },
-                  "albumId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
-                  }
-                },
-                "required": [
-                  "type",
-                  "albumId"
-                ]
-              }
-            ]
-          },
-          "position": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 23
-          },
-          "priority": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 1000
-          },
-          "audience": {
-            "type": "string",
-            "enum": [
-              "everyone",
-              "visitors"
-            ]
-          },
-          "locale": {
-            "nullable": true,
-            "type": "string",
-            "enum": [
-              "en",
-              "pt-BR"
-            ]
-          },
-          "startsAt": {
-            "nullable": true,
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-          },
-          "endsAt": {
-            "nullable": true,
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-          },
-          "titles": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 120
-            }
-          },
-          "sponsored": {
-            "type": "boolean"
+            "maxLength": 2048,
+            "format": "uri"
           }
         },
         "required": [
-          "kind",
-          "layout",
-          "source",
-          "position",
-          "titles"
-        ]
+          "url"
+        ],
+        "additionalProperties": false
       },
-      "UpdateEditorialPinBodyDto": {
+      "PrivateTrackMetadataDto": {
         "type": "object",
         "properties": {
-          "kind": {
+          "title": {
             "type": "string",
-            "enum": [
-              "hero",
-              "row"
-            ]
+            "minLength": 1,
+            "maxLength": 512
           },
-          "layout": {
+          "artist": {
             "type": "string",
-            "enum": [
-              "hero",
-              "standard"
-            ]
+            "maxLength": 512
           },
-          "source": {
-            "oneOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "tracks"
-                    ]
-                  },
-                  "trackIds": {
-                    "minItems": 1,
-                    "maxItems": 48,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128
-                    }
-                  }
-                },
-                "required": [
-                  "type",
-                  "trackIds"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "genre"
-                    ]
-                  },
-                  "genre": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100
-                  }
-                },
-                "required": [
-                  "type",
-                  "genre"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "artist"
-                    ]
-                  },
-                  "artistId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
-                  }
-                },
-                "required": [
-                  "type",
-                  "artistId"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "album"
-                    ]
-                  },
-                  "albumId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
-                  }
-                },
-                "required": [
-                  "type",
-                  "albumId"
-                ]
-              }
-            ]
-          },
-          "position": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 23
-          },
-          "priority": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 1000
-          },
-          "audience": {
-            "type": "string",
-            "enum": [
-              "everyone",
-              "visitors"
-            ]
-          },
-          "locale": {
+          "recordingMbid": {
             "nullable": true,
             "type": "string",
-            "enum": [
-              "en",
-              "pt-BR"
-            ]
-          },
-          "startsAt": {
-            "nullable": true,
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-          },
-          "endsAt": {
-            "nullable": true,
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-          },
-          "titles": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 120
-            }
-          },
-          "sponsored": {
-            "type": "boolean"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "CreateCheckoutDto": {
         "type": "object",
@@ -4158,6 +4297,353 @@
           "benefitIds"
         ],
         "additionalProperties": false
+      },
+      "StreakHeartbeatBodyDto": {
+        "type": "object",
+        "properties": {
+          "elapsedSeconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "timeZone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "viewId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "privateTrackId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "elapsedSeconds",
+          "timeZone"
+        ]
+      },
+      "CreateEditorialPinBodyDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "hero",
+              "row"
+            ]
+          },
+          "layout": {
+            "type": "string",
+            "enum": [
+              "hero",
+              "standard"
+            ]
+          },
+          "source": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "tracks"
+                    ]
+                  },
+                  "trackIds": {
+                    "minItems": 1,
+                    "maxItems": 48,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    }
+                  }
+                },
+                "required": [
+                  "type",
+                  "trackIds"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "genre"
+                    ]
+                  },
+                  "genre": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "required": [
+                  "type",
+                  "genre"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "artist"
+                    ]
+                  },
+                  "artistId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "type",
+                  "artistId"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "album"
+                    ]
+                  },
+                  "albumId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "type",
+                  "albumId"
+                ]
+              }
+            ]
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 23
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "everyone",
+              "visitors"
+            ]
+          },
+          "locale": {
+            "nullable": true,
+            "type": "string",
+            "enum": [
+              "en",
+              "pt-BR"
+            ]
+          },
+          "startsAt": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "endsAt": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "titles": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          },
+          "sponsored": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "layout",
+          "source",
+          "position",
+          "titles"
+        ]
+      },
+      "UpdateEditorialPinBodyDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "hero",
+              "row"
+            ]
+          },
+          "layout": {
+            "type": "string",
+            "enum": [
+              "hero",
+              "standard"
+            ]
+          },
+          "source": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "tracks"
+                    ]
+                  },
+                  "trackIds": {
+                    "minItems": 1,
+                    "maxItems": 48,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    }
+                  }
+                },
+                "required": [
+                  "type",
+                  "trackIds"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "genre"
+                    ]
+                  },
+                  "genre": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "required": [
+                  "type",
+                  "genre"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "artist"
+                    ]
+                  },
+                  "artistId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "type",
+                  "artistId"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "album"
+                    ]
+                  },
+                  "albumId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "type",
+                  "albumId"
+                ]
+              }
+            ]
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 23
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "everyone",
+              "visitors"
+            ]
+          },
+          "locale": {
+            "nullable": true,
+            "type": "string",
+            "enum": [
+              "en",
+              "pt-BR"
+            ]
+          },
+          "startsAt": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "endsAt": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "titles": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          },
+          "sponsored": {
+            "type": "boolean"
+          }
+        }
       },
       "SearchResultDto": {
         "type": "object",

@@ -1,14 +1,20 @@
-import { createReadStream } from 'node:fs';
+import { createReadStream, createWriteStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
+import type { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import {
+  GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { OnModuleDestroy } from '@nestjs/common';
+import { S3PrivateObjects } from './s3-private-objects.js';
 import {
+  type PresignedPrivateGet,
   type PresignedPut,
+  type PrivateFile,
   type PublicFile,
   type PublicObject,
   StorageError,
@@ -25,7 +31,7 @@ type S3Sender = Pick<S3Client, 'send' | 'destroy'>;
 
 /** Signs a PUT of the command into a URL valid for `expiresIn` seconds. */
 export type UrlPresigner = (
-  command: PutObjectCommand,
+  command: PutObjectCommand | GetObjectCommand,
   expiresIn: number,
 ) => Promise<string>;
 
@@ -70,6 +76,10 @@ export class S3StorageService
     super();
   }
 
+  private get privateObjects(): S3PrivateObjects {
+    return new S3PrivateObjects(this.client, this.config.bucket);
+  }
+
   async presignPublicPut({
     key,
     contentType,
@@ -90,6 +100,42 @@ export class S3StorageService
     } catch (error) {
       throw new StorageError(`Could not presign "${key}"`, { cause: error });
     }
+  }
+
+  presignPrivatePut(put: PresignedPut): Promise<string> {
+    return this.presignPublicPut(put);
+  }
+
+  async presignPrivateGet({ key, expiresInSeconds }: PresignedPrivateGet) {
+    return this.presignPrivate(
+      new GetObjectCommand({ Bucket: this.config.bucket, Key: key }),
+      key,
+      expiresInSeconds,
+    );
+  }
+
+  private async presignPrivate(
+    command: PutObjectCommand | GetObjectCommand,
+    key: string,
+    expiresInSeconds: number,
+  ): Promise<string> {
+    if (this.presigner === undefined) {
+      throw new StorageError(
+        `Cannot presign private "${key}": no presigner is set`,
+      );
+    }
+    try {
+      return await this.presigner(command, expiresInSeconds);
+    } catch (error) {
+      throw new StorageError(`Could not presign private "${key}"`, {
+        cause: error,
+      });
+    }
+  }
+
+  privateObjectUrl(key: string): string {
+    const path = key.split('/').map(encodeURIComponent).join('/');
+    return `private://${path}`;
   }
 
   async putPublicObject({
@@ -153,6 +199,47 @@ export class S3StorageService
     } finally {
       body?.destroy();
     }
+  }
+
+  putPrivateFile(file: PrivateFile): Promise<void> {
+    return this.putPublicFile(file);
+  }
+
+  async deletePrivateObject(key: string): Promise<void> {
+    await this.privateObjects.delete(key);
+  }
+
+  async deletePrivateObjectsWithPrefix(prefix: string): Promise<void> {
+    await this.privateObjects.deletePrefix(prefix);
+  }
+
+  async downloadPrivateFile(key: string, filePath: string): Promise<void> {
+    try {
+      const response = await this.client.send(
+        new GetObjectCommand({ Bucket: this.config.bucket, Key: key }),
+        { abortSignal: AbortSignal.timeout(2 * 60_000) },
+      );
+      if (!response.Body) throw new Error('The private object has no body');
+      await pipeline(
+        response.Body.transformToWebStream(),
+        createWriteStream(filePath),
+      );
+    } catch (error) {
+      throw new StorageError(`Could not read private object "${key}"`, {
+        cause: error,
+      });
+    }
+  }
+
+  async headPrivateObject(key: string): Promise<{ size: number }> {
+    return this.privateObjects.head(key);
+  }
+
+  async getPrivateObject(
+    key: string,
+    range: string | undefined,
+  ): Promise<Readable> {
+    return this.privateObjects.get(key, range);
   }
 
   publicUrl(key: string): string {

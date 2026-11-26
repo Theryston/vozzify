@@ -23,7 +23,8 @@ export type TranscriptionInput = {
  */
 export type ScribeConvert = (
   request: {
-    file: Uint8Array<ArrayBuffer>;
+    file?: Uint8Array<ArrayBuffer>;
+    sourceUrl?: string;
     modelId: typeof SCRIBE_MODEL_ID;
     timestampsGranularity: 'word';
     diarize: true;
@@ -51,12 +52,16 @@ export class ElevenLabsTranscriptionClient {
     private readonly convert?: ScribeConvert,
   ) {}
 
-  async transcribe(input: TranscriptionInput): Promise<Transcription> {
+  async transcribe(
+    input: TranscriptionInput | { sourceUrl: string },
+  ): Promise<Transcription> {
     const apiKey = this.configuredKey();
     const convert = this.convert ?? convertOf(apiKey);
     const answer = await convert(
       {
-        file: input.audio,
+        ...('audio' in input
+          ? { file: input.audio }
+          : { sourceUrl: input.sourceUrl }),
         modelId: SCRIBE_MODEL_ID,
         timestampsGranularity: 'word',
         diarize: true,

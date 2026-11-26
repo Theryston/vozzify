@@ -1,4 +1,4 @@
-import type { TrackProcessing } from '@vozzify/contracts';
+import type { TrackProcessing, TrackProcessingStep } from '@vozzify/contracts';
 import { CheckIcon, XIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
@@ -53,11 +53,13 @@ function StepPill({ step, state }: StepView) {
 /** The steps of a Processing as a row of pills, in run order. */
 export function TrackProcessingSteps({
   processing,
+  stages,
 }: {
-  processing: TrackProcessing;
+  processing: Pick<TrackProcessing, 'status' | 'resumeFrom'>;
+  stages?: readonly TrackProcessingStep[];
 }) {
   const t = useTranslations('tracks.processing.steps');
-  const steps = stepStates(processing.status, processing.resumeFrom);
+  const steps = stepStates(processing.status, processing.resumeFrom, stages);
   return (
     <ol aria-label={t('label')} className="flex flex-wrap gap-2">
       {steps.map((view) => (

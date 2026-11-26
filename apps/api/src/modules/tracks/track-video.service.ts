@@ -6,6 +6,7 @@ import type {
   YouTubePlaybackAvailability,
   YouTubeVideo,
 } from '../../integrations/youtube-music/youtube-video.js';
+import { youtubeVideoIdOf } from '../../integrations/youtube-music/youtube-video-id.js';
 import { trackLimitsFrom } from './track-limits.js';
 import {
   messageOf,
@@ -19,7 +20,6 @@ import {
   recordingTargetOf,
   searchQueryOf,
 } from './track-video-matching.js';
-import { youtubeVideoIdOf } from './youtube-video-id.js';
 
 /** The video a Processing chose, and where it was found. */
 export type ChosenVideo = {

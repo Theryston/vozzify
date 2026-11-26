@@ -1,12 +1,24 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type {
+  PracticeAttemptHistoryItem,
+  SubmitPracticeAttemptBody,
+} from '@vozzify/contracts';
 
-import { json } from './fake-api-http.ts';
+import { json, readBody } from './fake-api-http.ts';
 import {
   canReadSection,
   hiddenSectionReply,
+  ownerOf,
   ownerReadFails,
   sectionDelay,
 } from './fake-user-visibility.ts';
+
+export const privatePracticeTrack = {
+  id: 'private-practice-rehearsal',
+  title: 'Rehearsal take with an A4',
+  artist: 'Studio rehearsal',
+};
+let privateRun: PracticeAttemptHistoryItem | undefined;
 
 /** The page size the API answers with by default (`limit` is 20 in the page). */
 const PAGE_SIZE = 20;
@@ -98,12 +110,18 @@ async function serveUserAttempts(
   const url = new URL(request.url ?? '/', 'http://fake.local');
   const limit = Number(url.searchParams.get('limit') ?? PAGE_SIZE);
   const offset = Number(url.searchParams.get('cursor') ?? 0);
-  const items = runs.slice(offset, offset + limit);
+  const visible =
+    privateRun &&
+    ownerOf(request) === username &&
+    url.searchParams.get('includePrivate') === 'true'
+      ? [privateRun, ...runs]
+      : runs;
+  const items = visible.slice(offset, offset + limit);
   const next = offset + limit;
   json(
     response,
     200,
-    { items, nextCursor: next < runs.length ? String(next) : null },
+    { items, nextCursor: next < visible.length ? String(next) : null },
     request,
   );
 }
@@ -113,4 +131,35 @@ export const userAttemptsRoute = {
   method: 'GET',
   pathname: isUserAttemptsPath,
   serve: serveUserAttempts,
+};
+
+/** Lets the browser spec save a practice run before visiting the Profile. */
+export const privateAttemptRoute = {
+  method: 'POST',
+  pathname: `/v1/me/private-tracks/${privatePracticeTrack.id}/attempts`,
+  async serve(request: IncomingMessage, response: ServerResponse) {
+    if (ownerOf(request) !== 'ada_lovelace') {
+      hiddenSectionReply(request, response);
+      return;
+    }
+    const body = (await readBody(request)) as SubmitPracticeAttemptBody;
+    const { id, title, artist } = privatePracticeTrack;
+    const attempt = {
+      ...body,
+      id: 'private-fixture-attempt',
+      trackId: id,
+      createdAt: new Date().toISOString(),
+      isPrivate: true as const,
+    };
+    privateRun = {
+      ...attempt,
+      track: {
+        id,
+        title,
+        coverUrl: null,
+        artistCredit: [{ name: artist, joinPhrase: '' }],
+      },
+    };
+    json(response, 201, attempt, request);
+  },
 };

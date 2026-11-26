@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Header, Param, Query } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiNotFoundResponse,
@@ -27,6 +27,7 @@ export class UserAttemptsController {
   ) {}
 
   @Get(':username/attempts')
+  @Header('Cache-Control', 'private, no-store')
   @ZodSerializerDto(practiceAttemptHistoryPageSchema)
   @ApiOkResponse({
     description: "The User's practice history, newest first.",
@@ -48,6 +49,6 @@ export class UserAttemptsController {
       'practiceHistory',
       viewer?.id,
     );
-    return this.userAttempts.listHistory(params.username, query);
+    return this.userAttempts.listHistory(params.username, query, viewer?.id);
   }
 }
