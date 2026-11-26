@@ -5,6 +5,7 @@ import { Transactional } from '@nestjs-cls/transactional';
 import type { Queue } from 'bullmq';
 import { z } from 'zod';
 import type { RunpodJobState } from '../../integrations/note-detection/runpod-job.js';
+import { PrivateTrackIdentificationQueue } from './private-track-identification.queue.js';
 import { ensurePrivateTrackMusicWav } from './private-track-music-conversion.js';
 import { privateTrackStagingKey } from './private-track-object-keys.js';
 import {
@@ -49,6 +50,7 @@ export class PrivateTrackProcessingService {
     >,
     private readonly tracks: PrivateTracksRepository,
     private readonly integrations: PrivateTrackProcessingIntegrations,
+    private readonly identification: PrivateTrackIdentificationQueue,
   ) {}
 
   async enqueue(
@@ -96,6 +98,9 @@ export class PrivateTrackProcessingService {
       );
     }
     if (musicKey === null) return;
+    if (job.poll === 0 && track.recordingLink === null) {
+      await this.identification.enqueue(track.id);
+    }
     const runpodJobId = track.processingJobId;
     const attemptId = track.processingAttemptId;
     if (runpodJobId === null) {

@@ -455,6 +455,26 @@
         "FAILED": "Processing failed"
       }
     },
+    "metadata": {
+      "edit": "Edit track details",
+      "description": "Change how this track appears in your library or choose the matching Recording.",
+      "close": "Close",
+      "title": "Title",
+      "artist": "Artist",
+      "linkedRecording": "Linked Recording · {title} · {artist}",
+      "noRecording": "No Recording linked",
+      "unlink": "Unlink",
+      "searchLabel": "Find a Recording",
+      "search": "Search the Music catalog",
+      "searching": "Searching…",
+      "searchError": "The Music catalog could not be searched. Try again.",
+      "noResults": "No Recordings found.",
+      "searchResults": "Matching Recordings",
+      "save": "Save changes",
+      "saving": "Saving…",
+      "saveError": "Your changes could not be saved. Try again.",
+      "invalidText": "Enter a valid title or artist name."
+    },
     "delete": "Delete track",
     "confirmDeleteTitle": "Delete this track?",
     "confirmDeleteDescription": "This permanently removes the private track and its processed audio.",

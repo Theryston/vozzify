@@ -138,6 +138,32 @@ export class FfmpegClient {
     }
   }
 
+  /** Chromaprint expects the first 120 seconds, alongside the full duration. */
+  async fingerprintWav(input: string, output: string): Promise<string | null> {
+    await this.run([
+      '-v',
+      'error',
+      '-protocol_whitelist',
+      'file',
+      '-f',
+      'wav',
+      '-i',
+      input,
+      '-t',
+      '120',
+      '-map',
+      '0:a:0',
+      '-f',
+      'chromaprint',
+      output,
+    ]);
+    const fingerprint = (await readFile(output, 'utf8')).trim();
+    // Chromaprint writes a four-byte header even when the sample is too short.
+    return Buffer.from(fingerprint, 'base64url').length > 4
+      ? fingerprint
+      : null;
+  }
+
   /** Decode only the first audio stream from the self-contained uploaded file. */
   async validateAudioFile(
     input: string,

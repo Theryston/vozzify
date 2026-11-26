@@ -1,4 +1,5 @@
 import type { Queue } from 'bullmq';
+import type { PrivateTrackIdentificationQueue } from './private-track-identification.queue.js';
 import type {
   CleanPrivateTrackAssetsJob,
   ProcessPrivateTrackJob,
@@ -7,6 +8,10 @@ import { PrivateTrackProcessingProcessor } from './private-track-processing.proc
 import { PrivateTrackProcessingService } from './private-track-processing.service.js';
 import type { PrivateTrackProcessingIntegrations } from './private-track-processing-integrations.js';
 import { PrivateTracksRepository } from './private-tracks.repository.js';
+
+const identification = {
+  enqueue: vi.fn(),
+} as unknown as PrivateTrackIdentificationQueue;
 
 const queued = [
   { id: 'queued-old', userId: 'owner-1' },
@@ -29,6 +34,7 @@ describe('PrivateTrackProcessingService recovery', () => {
       >,
       tracks as unknown as PrivateTracksRepository,
       integrations as PrivateTrackProcessingIntegrations,
+      identification,
     );
   });
 
@@ -143,6 +149,7 @@ describe('private track initial poll recovery', () => {
       { add: vi.fn() } as never,
       tracks as unknown as PrivateTracksRepository,
       integrations as unknown as PrivateTrackProcessingIntegrations,
+      identification,
     );
     const processor = new PrivateTrackProcessingProcessor(processing, {
       upsertJobScheduler: vi.fn(),

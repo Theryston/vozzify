@@ -1,9 +1,11 @@
 import { z } from 'zod';
+import { mbidSchema } from './music-catalog.js';
 import { cursorPageSchema, cursorPaginationQuerySchema } from './pagination.js';
 
 export const PRIVATE_AUDIO_MAX_BYTES = 250 * 1024 * 1024;
 export const PRIVATE_AUDIO_MAX_DURATION_SECONDS = 30 * 60;
 export const PRIVATE_YOUTUBE_URL_MAX_LENGTH = 2048;
+export const PRIVATE_TRACK_METADATA_MAX_LENGTH = 512;
 export const MISSING_PRIVATE_VIDEO_AUDIO = 'MISSING_VIDEO_AUDIO';
 
 export const privateTrackUploadErrorDetailsSchema = z.object({
@@ -48,6 +50,30 @@ export type PrivateTrackProcessingState = z.infer<
   typeof privateTrackProcessingStateSchema
 >;
 
+const privateTrackRecordingSchema = z.object({
+  mbid: mbidSchema,
+  title: z.string(),
+  artist: z.string(),
+  coverUrl: z.string().nullable(),
+});
+export type PrivateTrackRecording = z.infer<typeof privateTrackRecordingSchema>;
+
+export const updatePrivateTrackMetadataBodySchema = z
+  .strictObject({
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .max(PRIVATE_TRACK_METADATA_MAX_LENGTH)
+      .optional(),
+    artist: z.string().trim().max(PRIVATE_TRACK_METADATA_MAX_LENGTH).optional(),
+    recordingMbid: mbidSchema.nullable().optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, 'Provide a metadata change');
+export type UpdatePrivateTrackMetadataBody = z.infer<
+  typeof updatePrivateTrackMetadataBodySchema
+>;
+
 export const privateTrackDetailSchema = privateTrackSchema.extend({
   ownerId: z.string().min(1),
   processing: privateTrackProcessingStateSchema,
@@ -56,6 +82,7 @@ export const privateTrackDetailSchema = privateTrackSchema.extend({
     .string()
     .regex(/^[A-Za-z0-9_-]{11}$/)
     .optional(),
+  recording: privateTrackRecordingSchema.optional(),
   notes: z.array(
     z.object({
       pitch: z.number(),

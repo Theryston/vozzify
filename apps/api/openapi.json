@@ -1956,6 +1956,51 @@
         "tags": [
           "private tracks"
         ]
+      },
+      "patch": {
+        "operationId": "PrivateTrackMetadataController_update_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrivateTrackMetadataDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The private Track with corrected metadata."
+          },
+          "400": {
+            "description": "Invalid metadata or Track ID."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "403": {
+            "description": "A Pro membership is required."
+          },
+          "404": {
+            "description": "The private Track or Recording does not exist."
+          }
+        },
+        "tags": [
+          "private tracks"
+        ]
       }
     },
     "/v1/me/private-tracks/{id}/retry": {
@@ -4438,6 +4483,27 @@
         "required": [
           "url"
         ],
+        "additionalProperties": false
+      },
+      "PrivateTrackMetadataDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "artist": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "recordingMbid": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+          }
+        },
         "additionalProperties": false
       },
       "SearchResultDto": {

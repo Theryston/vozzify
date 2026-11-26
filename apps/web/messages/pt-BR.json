@@ -455,6 +455,26 @@
         "FAILED": "O processamento falhou"
       }
     },
+    "metadata": {
+      "edit": "Editar detalhes da faixa",
+      "description": "Altere como esta faixa aparece na sua biblioteca ou escolha a gravação correspondente.",
+      "close": "Fechar",
+      "title": "Título",
+      "artist": "Artista",
+      "linkedRecording": "Gravação vinculada · {title} · {artist}",
+      "noRecording": "Nenhuma gravação vinculada",
+      "unlink": "Desvincular",
+      "searchLabel": "Encontrar uma gravação",
+      "search": "Buscar no catálogo de músicas",
+      "searching": "Buscando…",
+      "searchError": "Não foi possível buscar no catálogo de músicas. Tente novamente.",
+      "noResults": "Nenhuma gravação encontrada.",
+      "searchResults": "Gravações encontradas",
+      "save": "Salvar alterações",
+      "saving": "Salvando…",
+      "saveError": "Não foi possível salvar suas alterações. Tente novamente.",
+      "invalidText": "Digite um título ou um nome de artista válido."
+    },
     "delete": "Excluir faixa",
     "confirmDeleteTitle": "Excluir esta faixa?",
     "confirmDeleteDescription": "Isso remove permanentemente a faixa privada e o áudio processado.",
