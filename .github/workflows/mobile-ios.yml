@@ -217,6 +217,8 @@ jobs:
       - name: Run installed app smoke flows
         id: maestro
         working-directory: apps/mobile
+        env:
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: '240000'
         run: |
           mkdir -p "$RUNNER_TEMP/maestro-artifacts" "$RUNNER_TEMP/maestro-debug"
           maestro test \

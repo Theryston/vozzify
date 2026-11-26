@@ -30,9 +30,11 @@ appId: com.vozzify.app.preview
 - assertVisible: Create your account
 - takeScreenshot: sign-up-light
 - openLink: vozzify-preview://verify-email
+- runFlow: ../helpers/confirm-ios-app-link.yaml
 - assertVisible: Verify your email
 - takeScreenshot: verify-email-light
 - openLink: vozzify-preview://components
+- runFlow: ../helpers/confirm-ios-app-link.yaml
 - scrollUntilVisible:
     element:
       id: appearance-dark
@@ -46,6 +48,7 @@ appId: com.vozzify.app.preview
 - tapOn:
     id: language-pt-BR
 - openLink: vozzify-preview://sign-in
+- runFlow: ../helpers/confirm-ios-app-link.yaml
 - assertVisible: Entre no Vozzify
 - takeScreenshot: sign-in-dark-pt-br
 - tapOn: Criar conta
