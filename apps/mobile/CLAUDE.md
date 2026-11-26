@@ -8,7 +8,8 @@ the Next.js app remains the web client.
 From the repository root, use `nub run <task> --filter=mobile` for `lint`,
 `check-types`, `test`, `test:cov`, and `build`. For native development, change
 to `apps/mobile` and run `nub run start` or the `android:variant` / `ios:variant`
-scripts. Those native scripts run a clean, platform-specific Expo prebuild with `--no-install` under the selected `APP_VARIANT` before compiling. Expo’s iOS run command synchronizes CocoaPods dependencies before launching the simulator.
+scripts. On a clean checkout, run `nub run --filter=@vozzify/contracts build`
+first so Metro can read the compiled contracts. Those native scripts run a clean, platform-specific Expo prebuild with `--no-install` under the selected `APP_VARIANT` before compiling. Expo’s iOS run command synchronizes CocoaPods dependencies before launching the simulator.
 
 Expo Go is not used: the app uses a development client so later native modules
 fit the same workflow. `nub run build --filter=mobile` exports production
@@ -62,8 +63,9 @@ in `app.config.ts`; select them with `APP_VARIANT`. Each EAS profile selects
 its corresponding EAS environment, which must define the public
 `EXPO_PUBLIC_API_URL`. Use `.env.example` for local API addressing. Never put
 secrets in public app configuration. Keep EAS builds manual and free. EAS custom worker configs install the pinned Nub CLI and use
-`nub install --filter=mobile... --frozen-lockfile`, then run platform-specific
-Expo prebuild with `--no-install` through Nub before native compilation. Before
+`nub install --filter=mobile... --frozen-lockfile`, build the shared contracts,
+then run platform-specific Expo prebuild with `--no-install` through Nub before
+native compilation. Before
 linking an EAS project, verify and reuse `@vozzify/vozzify`; do not create a
 second project. Development and preview iOS builds target the simulator only,
 which cannot be installed on an iPhone. A JavaScript export does not count as a
@@ -79,16 +81,23 @@ workflow run Android native validation on pull requests and pushes to `main`. Ot
 
 The workflow uses a standard GitHub-hosted Ubuntu runner, the preview app
 variant and a locally compiled release APK with its JavaScript bundle
-included. It starts an Android emulator, installs that APK and runs `apps/mobile/.maestro/flows/gallery-smoke.yaml`
-against the installed app. It checks gallery navigation, input, overlay,
+included. It builds the shared contracts, starts an Android emulator and runs
+the Maestro smoke flows against the installed APK. It checks gallery navigation, input, overlay,
 appearance and language selection, then restarts the app to verify that the
-selected appearance and language return. The Maestro JUnit report is uploaded
+selected appearance and language return. The credential smoke signs in
+against the API on the runner with a disposable User, restores the session
+mid-onboarding, sets the Username and exercises the Gallery continuation.
+The installed test APK allows HTTP only through the emulator loopback using
+`adb reverse`. Normal Android builds keep their existing network policy. The
+runner opens the APK before Maestro and dismisses the known Pixel Launcher
+ANR dialog if it interrupts the emulator startup. The Maestro JUnit report is uploaded
 for seven days, including when the smoke test fails. Maestro failure logs,
 screenshots and screen hierarchy are uploaded in a separate artifact capped at
 10 MiB and retained for one day. It does not use EAS or produce a store-ready
 signed build.
 
-To reproduce the build locally, run `APP_VARIANT=preview
+To reproduce the build locally, run `nub run --filter=@vozzify/contracts build`,
+then run `APP_VARIANT=preview
 EXPO_PUBLIC_API_URL=http://10.0.2.2:3333 nub exec expo prebuild --clean
 --no-install --platform android` from `apps/mobile`, then run
 `./gradlew --no-daemon assembleRelease -PreactNativeArchitectures=x86_64` from

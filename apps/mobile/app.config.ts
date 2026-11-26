@@ -34,6 +34,7 @@ export function createAppConfig(
     plugins: [
       ...(config.plugins ?? []),
       ['expo-dev-client', { addGeneratedScheme: false }],
+      'expo-secure-store',
     ],
     owner: config.owner ?? 'vozzify',
     ios: {

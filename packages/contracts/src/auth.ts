@@ -85,3 +85,60 @@ export const resetPasswordBodySchema = z.object({
 });
 
 export type ResetPasswordBody = z.infer<typeof resetPasswordBodySchema>;
+
+/** Session fields used for native navigation and onboarding. */
+export const authSessionUserSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  emailVerified: z.boolean(),
+  username: z.string().nullish(),
+});
+
+export type AuthSessionUser = z.infer<typeof authSessionUserSchema>;
+
+/** Better Auth's OTP purposes exposed by Vozzify. */
+export const sendAuthCodeBodySchema = z.object({
+  email: z.email(),
+  type: z.enum(['email-verification', 'forget-password']),
+});
+
+export type SendAuthCodeBody = z.infer<typeof sendAuthCodeBodySchema>;
+export type AuthCodePurpose = SendAuthCodeBody['type'];
+
+/** The two Better Auth credential requests accepted by the same sign-in form. */
+const credentialPassword = signInBodySchema.pick({ password: true });
+export const signInEmailBodySchema = credentialPassword.extend({
+  email: signInBodySchema.shape.emailOrUsername,
+});
+
+export type SignInEmailBody = z.infer<typeof signInEmailBodySchema>;
+
+export const signInUsernameBodySchema = credentialPassword.extend({
+  username: signInBodySchema.shape.emailOrUsername,
+});
+
+export type SignInUsernameBody = z.infer<typeof signInUsernameBodySchema>;
+
+/** Native clients read the session User and the signed token header. */
+export const authSessionResponseSchema = z.object({
+  user: authSessionUserSchema,
+});
+
+export type AuthSessionResponse = z.infer<typeof authSessionResponseSchema>;
+
+export const authCodeResponseSchema = z.object({ success: z.literal(true) });
+
+export type AuthCodeResponse = z.infer<typeof authCodeResponseSchema>;
+
+export const usernameAvailabilityResponseSchema = z.object({
+  available: z.boolean(),
+});
+
+export type UsernameAvailabilityResponse = z.infer<
+  typeof usernameAvailabilityResponseSchema
+>;
+
+/** The Better Auth error format under /v1/auth. */
+export const authErrorResponseSchema = z.object({ code: z.string() });
+
+export type AuthErrorResponse = z.infer<typeof authErrorResponseSchema>;

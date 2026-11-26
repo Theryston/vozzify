@@ -16,11 +16,13 @@ import { StatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useUniwind } from 'uniwind';
 import { useTranslations } from 'use-intl';
+import { AuthNavigation } from '../src/features/auth/auth-navigation';
 import { getMobileEnv } from '../src/lib/api/mobile-env';
 import {
   MobileAppearanceProvider,
   useMobileAppearance,
 } from '../src/lib/appearance/mobile-appearance-provider';
+import { MobileAuthProvider } from '../src/lib/auth/mobile-auth-provider';
 import { FontAvailabilityProvider } from '../src/lib/design/font-availability';
 import {
   MobileIntlProvider,
@@ -43,6 +45,12 @@ function NavigationStack({
 
   return (
     <Stack
+      layout={({ children }) => (
+        <>
+          {children}
+          <AuthNavigation />
+        </>
+      )}
       screenOptions={{
         headerShown: false,
         headerBackTitle: translate('back'),
@@ -84,9 +92,11 @@ function AppShell({
       />
       <NavigationBar style={statusBarStyle} />
       <MobileQueryProvider>
-        <View className="flex-1 bg-background">
-          <NavigationStack statusBarStyle={statusBarStyle} />
-        </View>
+        <MobileAuthProvider>
+          <View className="flex-1 bg-background">
+            <NavigationStack statusBarStyle={statusBarStyle} />
+          </View>
+        </MobileAuthProvider>
         <PortalHost />
       </MobileQueryProvider>
     </>

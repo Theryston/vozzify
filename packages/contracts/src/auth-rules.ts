@@ -36,3 +36,16 @@ export const isValidUsername = (value: string): boolean =>
   value.length >= USERNAME_MIN_LENGTH &&
   value.length <= USERNAME_MAX_LENGTH &&
   USERNAME_PATTERN.test(value);
+
+/** Informational only. Password acceptance is governed by the shared schema. */
+export type PasswordStrength = 0 | 1 | 2 | 3;
+
+export function passwordStrength(password: string): PasswordStrength {
+  if (password.length < PASSWORD_MIN_LENGTH) return 0;
+  const variety = [/[a-z]/, /[A-Z]/, /\d/, /[^a-zA-Z\d]/].filter((pattern) =>
+    pattern.test(password),
+  ).length;
+  const long = password.length >= 12;
+  if (long && variety >= 3) return 3;
+  return long || variety >= 3 ? 2 : 1;
+}

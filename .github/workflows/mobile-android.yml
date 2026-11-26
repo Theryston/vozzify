@@ -47,6 +47,9 @@ jobs:
               - 'vitest.config.ts'
               - 'vitest.config.*.ts'
               - '.github/scripts/test-mobile-native-path-filter.py'
+              - '.github/scripts/allow-android-smoke-loopback.py'
+              - '.github/scripts/seed-mobile-auth-smoke.py'
+              - '.github/scripts/prepare-android-smoke.py'
               - '.github/workflows/ci.yml'
               - '.github/workflows/mobile-android.yml'
               - '.github/workflows/mobile-ios.yml'
@@ -64,7 +67,7 @@ jobs:
       contents: read
     env:
       APP_VARIANT: preview
-      EXPO_PUBLIC_API_URL: http://10.0.2.2:3333
+      EXPO_PUBLIC_API_URL: http://127.0.0.1:3333
       MAESTRO_CLI_NO_ANALYTICS: '1'
     steps:
       - uses: actions/checkout@v4
@@ -86,6 +89,9 @@ jobs:
       - name: Install dependencies
         run: nub install --frozen-lockfile
 
+      - name: Build shared contracts
+        run: nub run --filter=@vozzify/contracts build
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
@@ -95,6 +101,9 @@ jobs:
       - name: Generate Android native project
         working-directory: apps/mobile
         run: nub exec expo prebuild --clean --no-install --platform android
+
+      - name: Allow HTTP only to the local smoke API
+        run: python .github/scripts/allow-android-smoke-loopback.py
 
       - name: Compile Android test APK
         working-directory: apps/mobile/android
@@ -108,6 +117,16 @@ jobs:
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/maestro/bin/maestro" --version
 
+      - name: Start the disposable authentication API
+        run: |
+          docker compose up -d --wait postgres redis
+          cp apps/api/.env.example apps/api/.env
+          nub run --filter=api build
+          nub run --filter=api db:migrate
+          setsid nub --cwd apps/api run start:prod > "$RUNNER_TEMP/native-auth-api.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/native-auth-api.pid"
+          python .github/scripts/seed-mobile-auth-smoke.py "$RUNNER_TEMP/native-auth-api.log"
+
       - name: Start emulator, install APK and run Maestro
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -119,11 +138,25 @@ jobs:
           script: |
             set -e
             echo '::group::Install test app'
+            adb reverse tcp:3333 tcp:3333
             adb install apps/mobile/android/app/build/outputs/apk/release/app-release.apk
             echo '::endgroup::'
-            echo '::group::Run installed app smoke flow'
-            maestro test --format junit --output apps/mobile/maestro-results.xml --test-output-dir "$RUNNER_TEMP/maestro-artifacts" --debug-output "$RUNNER_TEMP/maestro-debug" apps/mobile/.maestro/flows/gallery-smoke.yaml
+            echo '::group::Run installed app smoke flows'
+            python .github/scripts/prepare-android-smoke.py
+            maestro test --format junit --output apps/mobile/maestro-results.xml --test-output-dir "$RUNNER_TEMP/maestro-artifacts" --debug-output "$RUNNER_TEMP/maestro-debug" apps/mobile/.maestro/flows
             echo '::endgroup::'
+            echo '::group::Exercise authentication against the real API'
+            python .github/scripts/prepare-android-smoke.py
+            maestro test --format junit --output apps/mobile/maestro-auth-results.xml --test-output-dir "$RUNNER_TEMP/maestro-auth-artifacts" --debug-output "$RUNNER_TEMP/maestro-auth-debug" -e AUTH_EMAIL="$AUTH_EMAIL" -e AUTH_PASSWORD="$AUTH_PASSWORD" -e AUTH_USERNAME="$AUTH_USERNAME" apps/mobile/.maestro/android/credential-onboarding.yaml
+            echo '::endgroup::'
+
+      - name: Remove smoke API services
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/native-auth-api.pid" ]; then
+            kill -- "-$(cat "$RUNNER_TEMP/native-auth-api.pid")" || true
+          fi
+          docker compose down --volumes
 
       - name: Check Maestro diagnostics size
         if: always()
@@ -160,6 +193,19 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-maestro-results
-          path: apps/mobile/maestro-results.xml
+          path: apps/mobile/maestro*-results.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload rendered authentication screens
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-maestro-auth-screens
+          path: |
+            ${{ runner.temp }}/maestro-artifacts/**/sign-in-*.png
+            ${{ runner.temp }}/maestro-artifacts/**/sign-up-*.png
+            ${{ runner.temp }}/maestro-artifacts/**/verify-email-*.png
+            ${{ runner.temp }}/maestro-auth-artifacts/**/setup-username-*.png
           if-no-files-found: ignore
           retention-days: 7

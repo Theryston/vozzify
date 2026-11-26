@@ -127,7 +127,7 @@ jobs:
   # apps/music-catalog/test/setup/global-setup.ts).
   e2e-api:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ secrets.TURBO_TEAM }}

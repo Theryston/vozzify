@@ -12,6 +12,10 @@ build:
         working_directory: ../..
         command: "$HOME/.nub/bin/nub install --filter=mobile... --frozen-lockfile"
     - run:
+        name: Build shared contracts
+        working_directory: ../..
+        command: '"$HOME/.nub/bin/nub" run --filter=@vozzify/contracts build'
+    - run:
         name: Generate Ios native project with Nub
         command: '"$HOME/.nub/bin/nub" exec expo prebuild --no-install --platform ios'
     - run:

@@ -272,7 +272,8 @@ isn't obvious), so the import script can be written from those notes.
   test probe controllers) needs `@Public()`. Read the user with
   `@CurrentUser()` (set on `request.user`). Admin-only routes use
   `@Roles('ADMIN')` (legacy enum values). Guard order: throttler → auth →
-  roles. Mobile (bearer/Expo plugin) is not wired yet.
+  roles. Mobile sends the signed session token issued by Better Auth
+  in the Authorization header.
 - A signed-in user without a username (Google sign-up) gets
   `USERNAME_REQUIRED` on every private route except those marked
   `@AllowMissingUsername()`. They set it once with `PUT /v1/me/username`

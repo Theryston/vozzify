@@ -7,7 +7,8 @@
   "home": {
     "title": "Boas-vindas ao Vozzify",
     "description": "Sua voz, mapeada para cada nota.",
-    "openComponents": "Abrir galeria de componentes"
+    "openComponents": "Abrir galeria de componentes",
+    "signedIn": "Você entrou como @{username}"
   },
   "components": {
     "title": "Componentes da base",
@@ -17,6 +18,7 @@
     "buttonLabel": "Botão de exemplo",
     "inputLabel": "Campo de texto de exemplo",
     "inputPlaceholder": "Digite algo",
+    "signInOverlay": "Entrar e abrir sobreposição",
     "openOverlay": "Abrir sobreposição",
     "dismissOverlay": "Fechar sobreposição",
     "overlayTitle": "Uma sobreposição nativa",
@@ -32,5 +34,83 @@
     "language": "Idioma",
     "english": "Inglês",
     "brazilianPortuguese": "Português do Brasil"
+  },
+  "auth": {
+    "leave": "Voltar ao app",
+    "loading": "Restaurando sua sessão",
+    "restoreError": "Não foi possível restaurar sua sessão. Verifique sua conexão e tente de novo.",
+    "retry": "Tentar de novo",
+    "emailOrUsername": "E-mail ou nome de usuário",
+    "identifierRequired": "Informe seu e-mail ou nome de usuário.",
+    "password": "Senha",
+    "passwordRequired": "Informe sua senha.",
+    "name": "Nome",
+    "email": "E-mail",
+    "code": "Código de verificação",
+    "username": "Nome de usuário",
+    "nameInvalid": "Informe um nome entre 1 e {max} caracteres.",
+    "passwordInvalid": "Use entre {min} e {max} caracteres.",
+    "codeInvalid": "Informe o código de {count} dígitos.",
+    "usernameInvalid": "Use de {min} a {max} letras, números ou sublinhados.",
+    "showPasswordLabel": "Mostrar senha",
+    "hidePasswordLabel": "Ocultar senha",
+    "passwordHidden": "Senha oculta",
+    "passwordVisible": "Senha visível",
+    "showPassword": "Mostrar",
+    "hidePassword": "Ocultar",
+    "submitting": "Aguarde…",
+    "resend": "Enviar novo código",
+    "resendIn": "Enviar novo código em {seconds}s",
+    "signIn": {
+      "title": "Entre no Vozzify",
+      "description": "Use seu e-mail ou nome de usuário para acessar sua conta.",
+      "submit": "Entrar"
+    },
+    "signUp": {
+      "title": "Crie sua conta",
+      "description": "Comece com seu nome e e-mail. Você vai escolher um nome de usuário depois de verificar seu e-mail.",
+      "submit": "Criar conta"
+    },
+    "verifyEmail": {
+      "enterEmail": "Informe o e-mail da sua conta e o código de seis dígitos.",
+      "title": "Verifique seu e-mail",
+      "description": "Informe o código de seis dígitos que enviamos.",
+      "emailToVerify": "E-mail a verificar: {email}",
+      "sentTo": "Código enviado para {email}",
+      "submit": "Verificar e-mail"
+    },
+    "setupUsername": {
+      "title": "Escolha seu nome de usuário",
+      "description": "As pessoas encontram seu perfil pelo nome de usuário. Você só pode escolhê-lo uma vez.",
+      "submit": "Salvar nome de usuário",
+      "checking": "Verificando disponibilidade…",
+      "checkFailed": "Não foi possível verificar a disponibilidade. Você ainda pode tentar salvar.",
+      "available": "Nome de usuário disponível"
+    },
+    "strength": {
+      "label": "Força da senha: {level}",
+      "weak": "Fraca",
+      "fair": "Razoável",
+      "strong": "Forte"
+    }
+  },
+  "authErrors": {
+    "INVALID_EMAIL": "Informe um email válido.",
+    "PASSWORD_TOO_SHORT": "A senha é muito curta. Use pelo menos 6 caracteres.",
+    "PASSWORD_TOO_LONG": "A senha é muito longa. Use no máximo 128 caracteres.",
+    "INVALID_EMAIL_OR_PASSWORD": "Email ou senha incorretos.",
+    "INVALID_USERNAME_OR_PASSWORD": "Nome de usuário ou senha incorretos.",
+    "EMAIL_NOT_VERIFIED": "Verifique seu email para continuar. Enviamos um novo código.",
+    "INVALID_OTP": "Esse código não está certo. Confira e tente novamente.",
+    "OTP_EXPIRED": "Este código expirou. Peça um novo.",
+    "TOO_MANY_ATTEMPTS": "Muitas tentativas erradas. Peça um novo código.",
+    "USERNAME_IS_ALREADY_TAKEN": "Este nome de usuário já está em uso. Tente outro.",
+    "INVALID_USERNAME": "Use apenas letras, números e underscores.",
+    "USERNAME_TOO_SHORT": "O nome de usuário é muito curto. Use pelo menos 3 caracteres.",
+    "USERNAME_TOO_LONG": "O nome de usuário é muito longo. Use no máximo 50 caracteres.",
+    "RATE_LIMITED": "Muitas tentativas. Aguarde um momento e tente novamente.",
+    "UNAUTHORIZED": "Sua sessão expirou. Entre novamente.",
+    "UNKNOWN": "Algo deu errado. Tente novamente.",
+    "INVALID_NAME": "Informe um nome entre 1 e 100 caracteres."
   }
 }
