@@ -110,6 +110,42 @@ jobs:
           echo "SIMULATOR_UDID=$SIMULATOR_UDID" >> "$GITHUB_ENV"
           echo "Using $SIMULATOR_NAME ($SIMULATOR_UDID)"
 
+      - name: Embed the simulator Keychain access group
+        working-directory: apps/mobile
+        run: |
+          cat > "$RUNNER_TEMP/simulator-keychain.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <plist version="1.0">
+          <dict>
+            <key>application-identifier</key>
+            <string>VOZZIFYCI0.com.vozzify.app.preview</string>
+            <key>keychain-access-groups</key>
+            <array><string>VOZZIFYCI0.com.vozzify.app.preview</string></array>
+            <key>com.apple.developer.team-identifier</key>
+            <string>VOZZIFYCI0</string>
+          </dict>
+          </plist>
+          PLIST
+          node --input-type=commonjs - "$RUNNER_TEMP/simulator-keychain.plist" <<'NODE'
+          const fs = require("node:fs");
+          const { IOSConfig } = require("expo/config-plugins");
+          const { Paths, XcodeUtils } = IOSConfig;
+          const root = process.cwd();
+          const project = XcodeUtils.getPbxproj(root);
+          const { target } = project.getTarget("com.apple.product-type.application");
+          const [, release] = XcodeUtils.getBuildConfigurationForListIdAndName(project, {
+            configurationListId: target.buildConfigurationList,
+            buildConfiguration: "Release",
+          });
+          const current = release.buildSettings.OTHER_LDFLAGS ?? '"$(inherited)"';
+          release.buildSettings.OTHER_LDFLAGS = [
+            ...(Array.isArray(current) ? current : [current]),
+            ...["-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__entitlements", "-Xlinker", process.argv[2]]
+              .map((flag) => JSON.stringify(flag)),
+          ];
+          fs.writeFileSync(Paths.getPBXProjectPath(root), project.writeSync());
+          NODE
+
       - name: Compile iOS simulator app
         working-directory: apps/mobile
         run: |
@@ -149,7 +185,7 @@ jobs:
           fi
           xcrun simctl bootstatus "$SIMULATOR_UDID" -b
 
-      - name: Sign and install native app
+      - name: Verify linker entitlements and install native app
         working-directory: apps/mobile
         run: |
           app=$(find "$RUNNER_TEMP/ios-derived-data/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
@@ -159,31 +195,24 @@ jobs:
           fi
           bundle_id=$(plutil -extract CFBundleIdentifier raw "$app/Info.plist")
           test "$bundle_id" = com.vozzify.app.preview
-          cat > "$RUNNER_TEMP/simulator-keychain.plist" <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <plist version="1.0">
-          <dict>
-            <key>application-identifier</key>
-            <string>VOZZIFYCI0.$bundle_id</string>
-            <key>keychain-access-groups</key>
-            <array><string>VOZZIFYCI0.$bundle_id</string></array>
-            <key>com.apple.developer.team-identifier</key>
-            <string>VOZZIFYCI0</string>
-          </dict>
-          </plist>
-          EOF
-          for nested_code in "$app"/Frameworks/*.framework "$app"/Frameworks/*.dylib; do
-            if [ -e "$nested_code" ]; then
-              codesign --force --sign - "$nested_code"
-            fi
-          done
-          codesign --force --sign - --generate-entitlement-der --entitlements "$RUNNER_TEMP/simulator-keychain.plist" "$app"
-          codesign --verify --deep "$app"
-          codesign --display --entitlements - "$app" > "$RUNNER_TEMP/signed-entitlements.plist"
-          test "$(plutil -extract application-identifier raw "$RUNNER_TEMP/signed-entitlements.plist")" = "VOZZIFYCI0.$bundle_id"
-          test "$(plutil -extract keychain-access-groups.0 raw "$RUNNER_TEMP/signed-entitlements.plist")" = "VOZZIFYCI0.$bundle_id"
+          executable=$(plutil -extract CFBundleExecutable raw "$app/Info.plist")
+          # iOS Simulator reads its entitlements from the executable's __TEXT section.
+          xcrun otool -s __TEXT __entitlements "$app/$executable" | python3 -c '
+          import plistlib, re, sys
+          octets = bytearray()
+          for line in sys.stdin:
+              fields = line.split()
+              if fields and re.fullmatch(r"[0-9a-fA-F]{16}", fields[0]):
+                  for word in fields[1:]:
+                      octets.extend(bytes.fromhex(word)[::-1])
+          settings = plistlib.loads(octets.rstrip(b"\0"))
+          expected = f"VOZZIFYCI0.{sys.argv[1]}"
+          if settings["application-identifier"] != expected or settings["keychain-access-groups"] != [expected]:
+              raise RuntimeError("Missing simulator application identifier or Keychain access group")
+          print("Verified the linked simulator application identifier and Keychain access group")
+          ' "$bundle_id"
           xcrun simctl install "$SIMULATOR_UDID" "$app"
-          echo "IOS_APP_EXECUTABLE=$(plutil -extract CFBundleExecutable raw "$app/Info.plist")" >> "$GITHUB_ENV"
+          echo "IOS_APP_EXECUTABLE=$executable" >> "$GITHUB_ENV"
 
       - name: Install Maestro CLI
         run: |
