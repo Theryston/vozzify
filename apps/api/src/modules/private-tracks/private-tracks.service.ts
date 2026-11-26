@@ -16,6 +16,7 @@ import {
   encodeTupleCursor,
 } from '../../common/cursor/tuple-cursor.js';
 import { AppException } from '../../common/errors/app-exception.js';
+import { estimateKey } from '../../integrations/note-detection/track-key.js';
 import { SubscriptionMembershipService } from '../plans/subscription-membership.service.js';
 import { PrivateAudioInspector } from './private-audio.js';
 import {
@@ -73,6 +74,7 @@ export class PrivateTracksService {
     const canPractice = await this.membership.hasPaidMembership(userId);
     const completed = canPractice && row.processingStatus === 'COMPLETED';
     const notes = completed ? await this.repository.listNotes(row.id) : [];
+    const key = estimateKey(notes);
     const { recording } = displayPrivateTrack(row);
     return {
       ...toPrivateTrack(row),
@@ -92,6 +94,7 @@ export class PrivateTracksService {
           }
         : {}),
       ...(completed && row.lyrics ? { lyrics: row.lyrics } : {}),
+      ...(key && { key }),
       notes,
     };
   }

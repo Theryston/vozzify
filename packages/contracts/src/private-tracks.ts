@@ -2,8 +2,7 @@ import { z } from 'zod';
 import { mbidSchema } from './music-catalog.js';
 import { cursorPageSchema, cursorPaginationQuerySchema } from './pagination.js';
 import { trackAudioSchema } from './track-audio.js';
-
-import { trackLyricsSchema } from './tracks.js';
+import { trackKeySchema, trackLyricsSchema } from './tracks.js';
 
 export const PRIVATE_AUDIO_MAX_BYTES = 250 * 1024 * 1024;
 export const PRIVATE_AUDIO_MAX_DURATION_SECONDS = 30 * 60;
@@ -89,6 +88,7 @@ export const privateTrackDetailSchema = privateTrackSchema.extend({
   recording: privateTrackRecordingSchema.optional(),
   audio: trackAudioSchema.optional(),
   lyrics: trackLyricsSchema.optional(),
+  key: trackKeySchema.optional(),
   notes: z.array(
     z.object({
       pitch: z.number(),

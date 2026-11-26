@@ -106,6 +106,7 @@ function privateTrackHeader(track: PrivateTrackDetailData): TrackDetail {
     contributors: [],
     contributorCount: 0,
     hasNotes: track.notes.length > 0,
+    key: track.key,
   };
 }
 

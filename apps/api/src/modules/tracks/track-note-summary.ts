@@ -1,5 +1,5 @@
 import type { TrackKeyMode } from '@vozzify/contracts';
-import { estimateKey } from './track-key.js';
+import { estimateKey } from '../../integrations/note-detection/track-key.js';
 import type { NoteSpan } from './track-note-span.js';
 import { vocalRangeOf } from './track-vocal-range.js';
 
