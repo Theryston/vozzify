@@ -5,11 +5,11 @@ import type {
 import { AudioLinesIcon, ChevronRightIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
-import { Skeleton } from '@/components/ui/skeleton';
 import { TrackCoverArt } from '@/features/tracks/components/track-cover-art';
 import { TrackDuration } from '@/features/tracks/components/track-duration';
 import { Link } from '@/lib/i18n/navigation';
 import { cn } from '@/lib/utils';
+import { PrivateTrackRowsSkeleton } from './private-tracks-frame';
 
 const LIST_SURFACE = 'rounded-2xl bg-card shadow-sm';
 
@@ -25,19 +25,7 @@ export function PrivateTrackRows({
   const t = useTranslations('privateTracks');
   return (
     <>
-      {loading ? (
-        <div
-          role="status"
-          className={cn(LIST_SURFACE, 'flex items-center gap-4 p-4')}
-        >
-          <span className="sr-only">{t('loading')}</span>
-          <Skeleton className="size-12 shrink-0 rounded-md" />
-          <div className="flex w-1/2 max-w-60 flex-col gap-2">
-            <Skeleton className="h-4" />
-            <Skeleton className="h-3 w-1/3" />
-          </div>
-        </div>
-      ) : null}
+      {loading ? <PrivateTrackRowsSkeleton /> : null}
       {loadError ? (
         <p role="alert" className="text-destructive text-sm">
           {t('loadError')}

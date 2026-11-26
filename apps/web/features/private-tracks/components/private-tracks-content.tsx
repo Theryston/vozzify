@@ -1,12 +1,11 @@
 'use client';
 
 import type { PrivateTrack } from '@vozzify/contracts';
-import { LockKeyholeIcon, UploadIcon } from 'lucide-react';
+import { UploadIcon } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
-import { AccountPageFrame } from '@/components/account-page-frame';
 import { Button } from '@/components/ui/button';
 import { SessionUserBoundary } from '@/features/auth/components/session-user';
 import { useRouter } from '@/lib/i18n/navigation';
@@ -14,6 +13,10 @@ import { useRouter } from '@/lib/i18n/navigation';
 import { usePrivateTracks } from '../hooks/use-private-tracks';
 import { PrivateAudioDialog } from './private-audio-dialog';
 import { PrivateTrackRows } from './private-track-rows';
+import {
+  PrivateTracksFrame,
+  PrivateTracksLoading,
+} from './private-tracks-frame';
 
 type AccountUser = {
   id?: string;
@@ -38,7 +41,6 @@ function PrivateTracksLibrary({
   user: AccountUser | null;
   loading: boolean;
 }) {
-  const t = useTranslations('privateTracks');
   const canView = Boolean(user?.username && user.emailVerified);
   const userId = canView ? (user?.id ?? '') : '';
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -52,15 +54,10 @@ function PrivateTracksLibrary({
     setPaywallOpen,
   });
 
+  if (loading) return <PrivateTracksLoading />;
+
   return (
-    <AccountPageFrame
-      title={t('title')}
-      description={
-        <span className="inline-flex items-center gap-2">
-          <LockKeyholeIcon aria-hidden="true" className="size-4 shrink-0" />
-          {t('description')}
-        </span>
-      }
+    <PrivateTracksFrame
       action={
         canView ? (
           <PrivateTracksAction
@@ -82,7 +79,7 @@ function PrivateTracksLibrary({
         />
       ) : null}
       <ProDialog open={paywallOpen} onPaywallOpenChange={setPaywallOpen} />
-    </AccountPageFrame>
+    </PrivateTracksFrame>
   );
 }
 
