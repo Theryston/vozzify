@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Inject, Injectable } from '@nestjs/common';
 import { ENV, type Env } from '../../config/env.js';
+import { readFfmpegProgress } from './ffmpeg-progress.js';
 import { PRIVATE_AUDIO_FORMAT_WHITELIST } from './private-audio-formats.js';
 
 // The ffmpeg binary that converts the downloaded audio (ADR 0014). It is the
@@ -11,7 +12,7 @@ import { PRIVATE_AUDIO_FORMAT_WHITELIST } from './private-audio-formats.js';
 // it at this boundary.
 const DEFAULT_FFMPEG_PATH = 'ffmpeg';
 const DEFAULT_FFPROBE_PATH = 'ffprobe';
-const PRIVATE_AUDIO_DECODE_ARGS = [
+const PRIVATE_AUDIO_INPUT_ARGS = [
   '-v',
   'error',
   '-protocol_whitelist',
@@ -20,6 +21,8 @@ const PRIVATE_AUDIO_DECODE_ARGS = [
   PRIVATE_AUDIO_FORMAT_WHITELIST,
   '-i',
   '/proc/self/fd/3',
+];
+const FIRST_AUDIO_STREAM_ARGS = [
   '-map',
   '0:a:0',
   '-vn',
@@ -27,6 +30,8 @@ const PRIVATE_AUDIO_DECODE_ARGS = [
   '-dn',
   '-threads',
   '1',
+];
+const PRIVATE_AUDIO_PROGRESS_ARGS = [
   '-nostats',
   '-stats_period',
   '0.25',
@@ -42,6 +47,14 @@ const CONVERSION_TIMEOUT_MS = 2 * 60_000;
 const STDERR_TAIL_CHARS = 2_000;
 const MAX_WAV_BYTES = 256 * 1024 * 1024;
 const MAX_PRIVATE_WAV_BYTES = 320 * 1024 * 1024;
+// A full decoder frame may include padding past the last timed AAC sample.
+const AUDIO_FRAME_MARGIN_SECONDS = 0.15;
+const DECODED_AUDIO_TIMESTAMPS = 'asetpts=N/SR/TB';
+
+type PrivateWavOptions = {
+  durationLimitSeconds?: number;
+  normalizeTimestamps?: boolean;
+};
 
 @Injectable()
 export class FfmpegClient {
@@ -64,6 +77,7 @@ export class FfmpegClient {
   async convertPrivateAudioFileToWav(
     input: string,
     output: string,
+    { durationLimitSeconds, normalizeTimestamps }: PrivateWavOptions = {},
   ): Promise<void> {
     const file = await open(input, 'r');
     try {
@@ -85,12 +99,16 @@ export class FfmpegClient {
           '-dn',
           '-threads',
           '1',
+          ...(normalizeTimestamps ? ['-af', DECODED_AUDIO_TIMESTAMPS] : []),
           '-acodec',
           'pcm_s16le',
           '-ac',
           '2',
           '-ar',
           '44100',
+          ...(durationLimitSeconds === undefined
+            ? []
+            : ['-t', String(durationLimitSeconds)]),
           '-fs',
           String(MAX_PRIVATE_WAV_BYTES + 1),
           output,
@@ -136,22 +154,59 @@ export class FfmpegClient {
     input: string,
     maxDurationSeconds: number,
   ): Promise<number> {
+    return this.validateMediaDuration(
+      input,
+      maxDurationSeconds,
+      FIRST_AUDIO_STREAM_ARGS,
+    );
+  }
+
+  /** Validate decoded samples and distinguish AAC padding from excess duration. */
+  async validateYouTubeAudioFile(
+    input: string,
+    maxDurationSeconds: number,
+  ): Promise<number> {
+    // Opus can carry a negative initial timestamp even after decoder delay is removed.
+    const decodedDuration = await this.validateMediaDuration(
+      input,
+      maxDurationSeconds + AUDIO_FRAME_MARGIN_SECONDS,
+      [...FIRST_AUDIO_STREAM_ARGS, '-af', DECODED_AUDIO_TIMESTAMPS],
+    );
+    if (decodedDuration <= maxDurationSeconds) return decodedDuration;
+    return this.validateMediaDuration(input, maxDurationSeconds, [
+      '-map',
+      '0:a:0',
+      '-c',
+      'copy',
+    ]);
+  }
+
+  private async validateMediaDuration(
+    input: string,
+    maxDurationSeconds: number,
+    streams: string[],
+  ): Promise<number> {
     const file = await open(input, 'r');
     try {
-      return await this.decodeForValidation(file.fd, maxDurationSeconds);
+      return await this.readMediaDuration(file.fd, maxDurationSeconds, streams);
     } finally {
       await file.close();
     }
   }
 
-  private decodeForValidation(
+  private readMediaDuration(
     inputFd: number,
     maxDurationSeconds: number,
+    streams: string[],
   ): Promise<number> {
     return new Promise((resolve, reject) => {
       const child = spawn(
         this.env.FFMPEG_PATH ?? DEFAULT_FFMPEG_PATH,
-        PRIVATE_AUDIO_DECODE_ARGS,
+        [
+          ...PRIVATE_AUDIO_INPUT_ARGS,
+          ...streams,
+          ...PRIVATE_AUDIO_PROGRESS_ARGS,
+        ],
         {
           stdio: ['ignore', 'pipe', 'pipe', inputFd],
           signal: AbortSignal.timeout(CONVERSION_TIMEOUT_MS),
@@ -162,7 +217,7 @@ export class FfmpegClient {
       let durationUs = 0;
       let durationExceeded = false;
       child.stdout?.on('data', (chunk: Buffer) => {
-        const update = readProgress(
+        const update = readFfmpegProgress(
           progressBuffer,
           chunk.toString(),
           durationUs,
@@ -249,41 +304,4 @@ export class FfmpegClient {
       });
     });
   }
-}
-
-function readProgress(
-  buffer: string,
-  chunk: string,
-  currentDurationUs: number,
-  maxDurationSeconds: number,
-) {
-  const output = buffer + chunk;
-  if (output.length > 32_000) {
-    return {
-      buffer: '',
-      durationUs: currentDurationUs,
-      durationExceeded: false,
-      outputExceeded: true,
-    };
-  }
-  const lines = output.split('\n');
-  const remaining = lines.pop() ?? '';
-  let durationUs = currentDurationUs;
-  let durationExceeded = false;
-  for (const line of lines) {
-    if (!line.startsWith('out_time_us=')) continue;
-    const parsed = Number(line.slice('out_time_us='.length));
-    if (!Number.isFinite(parsed)) continue;
-    durationUs = Math.max(durationUs, parsed);
-    if (durationUs > maxDurationSeconds * 1_000_000) {
-      durationExceeded = true;
-      break;
-    }
-  }
-  return {
-    buffer: remaining,
-    durationUs,
-    durationExceeded,
-    outputExceeded: false,
-  };
 }

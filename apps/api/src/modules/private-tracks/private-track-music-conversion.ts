@@ -20,8 +20,7 @@ export async function ensurePrivateTrackMusicWav(
   try {
     const sourcePath = join(directory, 'source.audio');
     const wavPath = join(directory, 'music.wav');
-    await prepareSource(track, integrations, sourcePath);
-    await integrations.ffmpeg.convertPrivateAudioFileToWav(sourcePath, wavPath);
+    await convertSource(track, integrations, { sourcePath, wavPath });
     const key = privateTrackMediaKey(track.userId, track.id);
     await integrations.storage.putPrivateFile({
       key,
@@ -35,22 +34,27 @@ export async function ensurePrivateTrackMusicWav(
   }
 }
 
-async function prepareSource(
+async function convertSource(
   track: OwnedPrivateTrack,
   integrations: PrivateTrackProcessingIntegrations,
-  sourcePath: string,
+  { sourcePath, wavPath }: { sourcePath: string; wavPath: string },
 ): Promise<void> {
   if (!track.youtubeVideoId) {
     await integrations.storage.downloadPrivateFile(track.objectKey, sourcePath);
+    await integrations.ffmpeg.convertPrivateAudioFileToWav(sourcePath, wavPath);
     return;
   }
   await integrations.audioDownload.downloadToFile(
     track.youtubeVideoId,
     sourcePath,
   );
-  const duration = await integrations.ffmpeg.validateAudioFile(
+  const duration = await integrations.ffmpeg.validateYouTubeAudioFile(
     sourcePath,
     PRIVATE_AUDIO_MAX_DURATION_SECONDS,
   );
   if (duration <= 0) throw new Error('The YouTube audio has no duration');
+  await integrations.ffmpeg.convertPrivateAudioFileToWav(sourcePath, wavPath, {
+    durationLimitSeconds: PRIVATE_AUDIO_MAX_DURATION_SECONDS,
+    normalizeTimestamps: true,
+  });
 }
