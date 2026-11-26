@@ -71,6 +71,29 @@
       "description": "Comece com seu nome e e-mail. Você vai escolher um nome de usuário depois de verificar seu e-mail.",
       "submit": "Criar conta"
     },
+    "recovery": {
+      "link": "Esqueceu sua senha?",
+      "complete": "Senha alterada. Entre com sua nova senha.",
+      "request": {
+        "title": "Redefina sua senha",
+        "description": "Informe o e-mail da sua conta para solicitar um código.",
+        "submit": "Enviar código de redefinição"
+      },
+      "reset": {
+        "title": "Crie uma nova senha",
+        "description": "Se houver uma conta com o e-mail {email}, enviamos um código de seis dígitos para ele.",
+        "code": "Código de redefinição",
+        "password": "Nova senha",
+        "submit": "Redefinir senha",
+        "differentEmail": "Usar outro e-mail",
+        "resent": "Solicitamos um novo código. Confira seu e-mail."
+      },
+      "missing": {
+        "title": "Solicite um código de redefinição",
+        "description": "Informe o e-mail da sua conta para iniciar a recuperação da senha.",
+        "submit": "Solicitar código"
+      }
+    },
     "verifyEmail": {
       "enterEmail": "Informe o e-mail da sua conta e o código de seis dígitos.",
       "title": "Verifique seu e-mail",

@@ -10,7 +10,8 @@ export function AuthDestination({
   path: '/' | '/components';
   children: ReactNode;
 }) {
-  const { status, user, verification, continuation } = useMobileAuth();
+  const { status, user, verification, continuation, passwordReset } =
+    useMobileAuth();
   if (status !== 'ready') {
     return (
       <View className="flex-1 items-center justify-center gap-4 px-page-gutter-mobile">
@@ -18,7 +19,7 @@ export function AuthDestination({
       </View>
     );
   }
-  if (!user) return verification ? null : children;
+  if (!user) return verification || passwordReset ? null : children;
 
   const incomplete = !user.emailVerified || !user.username;
   const arrivingElsewhere = continuation && continuation.destination !== path;

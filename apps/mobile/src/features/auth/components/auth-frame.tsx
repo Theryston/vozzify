@@ -21,7 +21,7 @@ export function AuthLink({
   to,
   children,
 }: {
-  to: '/sign-in' | '/sign-up';
+  to: '/sign-in' | '/sign-up' | '/forgot-password';
   children: ReactNode;
 }) {
   const params = authRouteParams(useAuthContinuation());
