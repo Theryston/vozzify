@@ -1,16 +1,21 @@
 import {
   type AuthCodePurpose,
+  type AuthCodeResponse,
+  type AuthSessionResponse,
   authCodeResponseSchema,
   authSessionResponseSchema,
   currentUserSchema,
   type SetUsernameBody,
   type SignInBody,
+  type SignInEmailBody,
+  type SignInUsernameBody,
   type SignUpBody,
   sendAuthCodeBodySchema,
   setUsernameBodySchema,
   signInEmailBodySchema,
   signInUsernameBodySchema,
   signUpBodySchema,
+  type UsernameAvailabilityResponse,
   usernameAvailabilityResponseSchema,
   type VerifyEmailBody,
   verifyEmailBodySchema,
@@ -50,7 +55,7 @@ async function establishAuthSession<TBody extends z.ZodType>(
     locale: string;
     signal: AbortSignal;
   },
-) {
+): Promise<AuthSessionResponse & { token: string }> {
   const { data, token } = await requestAuthSession(path, {
     method: 'POST',
     schema: authSessionResponseSchema,
@@ -70,14 +75,14 @@ export function signIn(body: SignInBody, locale: string, signal: AbortSignal) {
   if (emailOrUsername.includes('@')) {
     return establishAuthSession('/auth/sign-in/email', {
       bodySchema: signInEmailBodySchema,
-      body: { email: emailOrUsername, password },
+      body: { email: emailOrUsername, password } satisfies SignInEmailBody,
       locale,
       signal,
     });
   }
   return establishAuthSession('/auth/sign-in/username', {
     bodySchema: signInUsernameBodySchema,
-    body: { username: emailOrUsername, password },
+    body: { username: emailOrUsername, password } satisfies SignInUsernameBody,
     locale,
     signal,
   });
@@ -99,7 +104,7 @@ export function sendAuthCode(
   type: AuthCodePurpose,
   locale: string,
   signal: AbortSignal,
-) {
+): Promise<AuthCodeResponse> {
   return mobileApi('/auth/email-otp/send-verification-otp', {
     method: 'POST',
     schema: authCodeResponseSchema,
@@ -130,7 +135,10 @@ export function restoreAuthSession(token: string) {
   });
 }
 
-export function checkUsername(username: string, signal: AbortSignal) {
+export function checkUsername(
+  username: string,
+  signal: AbortSignal,
+): Promise<UsernameAvailabilityResponse> {
   return mobileApi('/auth/is-username-available', {
     method: 'POST',
     schema: usernameAvailabilityResponseSchema,

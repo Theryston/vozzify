@@ -1,11 +1,6 @@
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, View } from 'react-native';
 import { useTranslations } from 'use-intl';
 import { Screen } from '../../../components/screen';
 import { Text } from '../../../components/text';
@@ -15,6 +10,7 @@ import {
   authRouteParams,
 } from '../../../lib/auth/auth-continuation';
 import { useMobileAuth } from '../../../lib/auth/mobile-auth-provider';
+import { AuthRestoreStatus } from './auth-restore-status';
 
 export function useAuthContinuation() {
   const params = useLocalSearchParams();
@@ -70,7 +66,6 @@ export function AuthFrame({
   children: ReactNode;
 }) {
   const auth = useMobileAuth();
-  const t = useTranslations('auth');
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -90,16 +85,9 @@ export function AuthFrame({
                 {children}
                 <AuthExit />
               </>
-            ) : null}
-            {auth.status === 'loading' ? (
-              <ActivityIndicator accessibilityLabel={t('loading')} />
-            ) : null}
-            {auth.status === 'error' ? (
-              <>
-                <Text accessibilityRole="alert">{t('restoreError')}</Text>
-                <Button onPress={auth.retry}>{t('retry')}</Button>
-              </>
-            ) : null}
+            ) : (
+              <AuthRestoreStatus />
+            )}
           </View>
         </View>
       </Screen>

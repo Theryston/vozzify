@@ -486,3 +486,20 @@ it('ignores a successful sign-up response after leaving the form', async () => {
   expect(router.getPathname()).toBe('/sign-in');
   expect(screen.queryByText('Verify your email')).toBeNull();
 });
+
+it('offers retry on a cold-open gallery when session restoration is offline', async () => {
+  readSecureStore.mockResolvedValue(
+    JSON.stringify({ token: 'signed.session' }),
+  );
+  request
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce(json({ user: stillNeedsUsername }));
+  await renderRouter('./app', { initialUrl: '/components' });
+  expect(
+    await screen.findByText(/could not restore your session/i),
+  ).toBeOnTheScreen();
+  expect(screen.queryByTestId('overlay-open')).toBeNull();
+  await press('Try again');
+  expect(await screen.findByText('Choose your Username')).toBeOnTheScreen();
+  expect(screen.queryByTestId('overlay-open')).toBeNull();
+});

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { ActivityIndicator, View } from 'react-native';
-import { useTranslations } from 'use-intl';
+import { View } from 'react-native';
 import { useMobileAuth } from '../../../lib/auth/mobile-auth-provider';
+import { AuthRestoreStatus } from './auth-restore-status';
 
 export function AuthDestination({
   path,
@@ -10,12 +10,11 @@ export function AuthDestination({
   path: '/' | '/components';
   children: ReactNode;
 }) {
-  const t = useTranslations('auth');
   const { status, user, verification, continuation } = useMobileAuth();
-  if (status === 'loading') {
+  if (status !== 'ready') {
     return (
-      <View className="flex-1 items-center justify-center">
-        <ActivityIndicator accessibilityLabel={t('loading')} />
+      <View className="flex-1 items-center justify-center gap-4 px-page-gutter-mobile">
+        <AuthRestoreStatus />
       </View>
     );
   }
