@@ -1,13 +1,12 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 
 import { usePathname } from '@/lib/i18n/navigation';
 
-import { sessionUserOptions } from '../session';
 import { useLocationSearch } from '../use-location-search';
 import { MenuSkeleton } from './menu-skeleton';
+import { SessionUserBoundary } from './session-user';
 import { SignedOutActions } from './signed-out-actions';
 
 // Loaded after the page (Base UI menu and drawer are heavy), and only for
@@ -23,13 +22,18 @@ const UserMenu = dynamic(
  * around it stays static.
  */
 export function AccountMenu() {
-  const { data: user, isPending } = useQuery(sessionUserOptions());
   const pathname = usePathname();
   const search = useLocationSearch();
   // Where sign in/up come back to, and where signing out stays.
   const currentPath = `${pathname}${search}`;
 
-  if (isPending) return <MenuSkeleton />;
-  if (!user) return <SignedOutActions currentPath={currentPath} />;
-  return <UserMenu user={user} currentPath={currentPath} />;
+  return (
+    <SessionUserBoundary
+      render={(user, loading) => {
+        if (loading) return <MenuSkeleton />;
+        if (!user) return <SignedOutActions currentPath={currentPath} />;
+        return <UserMenu user={user} currentPath={currentPath} />;
+      }}
+    />
+  );
 }

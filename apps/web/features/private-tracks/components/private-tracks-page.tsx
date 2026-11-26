@@ -1,6 +1,6 @@
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
-import { PrivateTracksContent } from './private-tracks-content';
+import { PrivateTracksEntry } from './private-tracks-entry';
 
 export async function PrivateTracksPage() {
   const { errors, privateTracks, tracks } = await getMessages();
@@ -13,7 +13,7 @@ export async function PrivateTracksPage() {
         tracks: { practice: { durationShort, durationLong, durationLabel } },
       }}
     >
-      <PrivateTracksContent />
+      <PrivateTracksEntry />
     </NextIntlClientProvider>
   );
 }
