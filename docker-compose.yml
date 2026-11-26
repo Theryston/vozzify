@@ -88,8 +88,7 @@ services:
       - |
         mc alias set storage http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
         mc mb --ignore-existing storage/vozzify &&
-        mc anonymous set download storage/vozzify &&
-        mc mb --ignore-existing storage/vozzify-private
+        mc anonymous set download storage/vozzify
 
 volumes:
   postgres-data:

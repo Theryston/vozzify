@@ -13,7 +13,7 @@ import { StorageError } from './storage.service.js';
 type S3Sender = Pick<S3Client, 'send'>;
 const REQUEST_TIMEOUT_MS = 15_000;
 
-/** Owns private bucket reads and cleanup for the S3 storage adapter. */
+/** Owns private track reads and cleanup in the shared asset bucket. */
 export class S3PrivateObjects {
   constructor(
     private readonly client: S3Sender,

@@ -7,12 +7,13 @@ import { PrivateTracksService } from './private-tracks.service.js';
 describe('PrivateTracksService', () => {
   const repository = {
     findOwned: vi.fn(),
+    listNotes: vi.fn(),
     listPage: vi.fn(),
     resetFailedProcessing: vi.fn(),
     save: vi.fn(),
   };
   const audio = { inspect: vi.fn(), hash: vi.fn() };
-  const storage = { putPrivateFile: vi.fn() };
+  const storage = { putPrivateFile: vi.fn(), publicUrl: vi.fn() };
   const subscriptions = { hasPaidMembership: vi.fn() };
   let service: PrivateTracksService;
 
@@ -63,6 +64,50 @@ describe('PrivateTracksService', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(audio.inspect).not.toHaveBeenCalled();
     expect(storage.putPrivateFile).not.toHaveBeenCalled();
+  });
+
+  it('returns public asset URLs only to the eligible owner of a completed track', async () => {
+    const row = {
+      id: 'entry-1',
+      userId: 'u1',
+      title: 'Song',
+      artist: 'Singer',
+      durationMs: 1000,
+      createdAt: new Date('2026-01-02T03:04:05.000Z'),
+      processingStatus: 'COMPLETED',
+      processingProgress: 100,
+      mediaObjectKey: 'shared/music.wav',
+      vocalsObjectKey: 'shared/vocals.wav',
+    };
+    repository.findOwned
+      .mockResolvedValueOnce(row)
+      .mockResolvedValueOnce({
+        ...row,
+        processingStatus: 'QUEUED',
+      })
+      .mockResolvedValueOnce(row)
+      .mockResolvedValueOnce(undefined);
+    repository.listNotes.mockResolvedValue([]);
+    subscriptions.hasPaidMembership
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+    storage.publicUrl.mockImplementation(
+      (key: string) => `https://assets.example/storage/${key}`,
+    );
+
+    await expect(service.getDetail('u1', row.id)).resolves.toMatchObject({
+      audio: {
+        musicMp3Url: 'https://assets.example/storage/shared/music.wav',
+        vocalsMp3Url: 'https://assets.example/storage/shared/vocals.wav',
+      },
+    });
+    expect(await service.getDetail('u1', row.id)).not.toHaveProperty('audio');
+    expect(await service.getDetail('u1', row.id)).not.toHaveProperty('audio');
+    await expect(service.getDetail('u2', row.id)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    expect(storage.publicUrl).toHaveBeenCalledTimes(2);
   });
 
   it('rejects retry for a missing or locked entry', async () => {

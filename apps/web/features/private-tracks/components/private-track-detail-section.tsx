@@ -158,6 +158,7 @@ function PrivateTrackView({
         <LockedPrivateTrack failed={status === 'FAILED'} />
       ) : (
         <PrivateTrackPractice
+          audio={track.audio}
           header={header}
           notes={track.notes}
           fakePlayer={fakePlayer}
@@ -168,18 +169,24 @@ function PrivateTrackView({
 }
 
 function PrivateTrackPractice({
+  audio,
   header,
   notes,
   fakePlayer,
 }: {
+  audio: PrivateTrackDetailData['audio'];
   header: TrackDetail;
   notes: PrivateTrackDetailData['notes'];
   fakePlayer: boolean;
 }) {
-  const audio = useMemo<TrackAudio>(() => {
+  const { musicMp3Url, vocalsMp3Url } = audio ?? {};
+  const playbackAudio = useMemo<TrackAudio>(() => {
     const media = `/api/private-tracks/${encodeURIComponent(header.id)}`;
-    return { musicMp3Url: `${media}/music`, vocalsMp3Url: `${media}/vocals` };
-  }, [header.id]);
+    return {
+      musicMp3Url: musicMp3Url ?? `${media}/music`,
+      vocalsMp3Url: vocalsMp3Url ?? `${media}/vocals`,
+    };
+  }, [header.id, musicMp3Url, vocalsMp3Url]);
   return (
     <PracticeBody
       header={header}
@@ -188,7 +195,7 @@ function PrivateTrackPractice({
       lyricsLoading={false}
       failed={false}
       fakePlayer={fakePlayer}
-      directAudio={audio}
+      directAudio={playbackAudio}
       privateTrack
     />
   );

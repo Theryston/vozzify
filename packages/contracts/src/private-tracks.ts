@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { mbidSchema } from './music-catalog.js';
 import { cursorPageSchema, cursorPaginationQuerySchema } from './pagination.js';
+import { trackAudioSchema } from './track-audio.js';
 
 export const PRIVATE_AUDIO_MAX_BYTES = 250 * 1024 * 1024;
 export const PRIVATE_AUDIO_MAX_DURATION_SECONDS = 30 * 60;
@@ -83,6 +84,7 @@ export const privateTrackDetailSchema = privateTrackSchema.extend({
     .regex(/^[A-Za-z0-9_-]{11}$/)
     .optional(),
   recording: privateTrackRecordingSchema.optional(),
+  audio: trackAudioSchema.optional(),
   notes: z.array(
     z.object({
       pitch: z.number(),

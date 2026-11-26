@@ -71,10 +71,8 @@ export class PrivateTracksService {
     const row = await this.repository.findOwned(userId, id);
     if (!row) throw new AppException('NOT_FOUND', 'Private track not found');
     const canPractice = await this.membership.hasPaidMembership(userId);
-    const notes =
-      canPractice && row.processingStatus === 'COMPLETED'
-        ? await this.repository.listNotes(row.id)
-        : [];
+    const completed = canPractice && row.processingStatus === 'COMPLETED';
+    const notes = completed ? await this.repository.listNotes(row.id) : [];
     const { recording } = displayPrivateTrack(row);
     return {
       ...toPrivateTrack(row),
@@ -85,6 +83,14 @@ export class PrivateTracksService {
         ? { youtubeVideoId: row.youtubeVideoId }
         : {}),
       ...(canPractice && recording ? { recording } : {}),
+      ...(completed && row.mediaObjectKey && row.vocalsObjectKey
+        ? {
+            audio: {
+              musicMp3Url: this.storage.publicUrl(row.mediaObjectKey),
+              vocalsMp3Url: this.storage.publicUrl(row.vocalsObjectKey),
+            },
+          }
+        : {}),
       notes,
     };
   }

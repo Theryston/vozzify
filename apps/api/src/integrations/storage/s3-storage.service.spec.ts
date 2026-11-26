@@ -146,13 +146,13 @@ describe('S3StorageService', () => {
   });
 
   describe('deletePrivateObject', () => {
-    it('deletes one private object from the private bucket', async () => {
+    it('deletes one private track object from the shared bucket', async () => {
       await service.deletePrivateObject('private-tracks/user-1/source');
 
       const command = send.mock.calls[0]?.[0];
       expect(command).toBeInstanceOf(DeleteObjectCommand);
       expect(command.input).toEqual({
-        Bucket: 'vozzify-private',
+        Bucket: 'vozzify',
         Key: 'private-tracks/user-1/source',
       });
     });
@@ -194,7 +194,7 @@ describe('S3StorageService', () => {
         expect.any(DeleteObjectsCommand),
       ]);
       expect(send.mock.calls[0]?.[0].input).toMatchObject({
-        Bucket: 'vozzify-private',
+        Bucket: 'vozzify',
         Prefix: 'private-tracks/u1/e1/',
       });
       expect(send.mock.calls[2]?.[0].input).toMatchObject({

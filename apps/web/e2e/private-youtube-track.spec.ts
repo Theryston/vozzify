@@ -9,7 +9,7 @@ const VIDEO_ID = 'aBcd1Efgh_2';
 const VIDEO_LINK = `https://youtu.be/${VIDEO_ID}?si=shared`;
 const TRACK_ID = 'private_youtube_e2e';
 const VIDEO_TITLE = 'Guitar rehearsal in São Paulo';
-const MEDIA_PATH = `/api/private-tracks/${TRACK_ID}/music`;
+const MEDIA_URL = `https://assets.vozzify.com/storage/private-tracks/${TRACK_ID}/music.wav`;
 const ROOT = '/v1/me/private-tracks';
 const copy = messages.en.privateTracks;
 const dock = messages.en.tracks.practice.dock;
@@ -52,6 +52,7 @@ test('plays the submitted video, then continues from the same point with saved a
     ownerId: ADA.id,
     locked: false,
     youtubeVideoId: VIDEO_ID,
+    audio: { musicMp3Url: MEDIA_URL, vocalsMp3Url: `${MEDIA_URL}?vocals` },
     processing: { status: 'COMPLETED', progress: 100 },
     notes: [{ pitch: 69, start: 5, end: 7 }],
   };
@@ -67,13 +68,17 @@ test('plays the submitted video, then continues from the same point with saved a
   const mediaRequests: string[] = [];
   const wav = practiceWav();
   await page.route(
-    (url) => url.pathname === MEDIA_PATH,
+    (url) => url.href === MEDIA_URL,
     async (route) => {
       mediaRequests.push(route.request().url());
       const match = /^bytes=(\d+)-(\d*)$/.exec(
         route.request().headers().range ?? '',
       );
-      const headers = { 'accept-ranges': 'bytes', 'content-type': 'audio/wav' };
+      const headers = {
+        'accept-ranges': 'bytes',
+        'access-control-allow-origin': '*',
+        'content-type': 'audio/wav',
+      };
       if (!match) {
         await route.fulfill({ headers, body: wav });
         return;
