@@ -20,6 +20,12 @@ export function recordCodeSent(
   timestamps.set(codeKey(email, purpose), time);
 }
 
+export function isCodeCoolingDown(email: string, purpose: AuthCodePurpose) {
+  return (
+    secondsLeft(timestamps.get(codeKey(email, purpose)) ?? 0, Date.now()) > 0
+  );
+}
+
 export function useCodeCooldown(
   email: string,
   purpose: AuthCodePurpose,

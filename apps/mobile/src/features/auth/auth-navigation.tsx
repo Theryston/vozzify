@@ -11,6 +11,8 @@ const authRoutes = new Set([
   '/sign-up',
   '/verify-email',
   '/setup-username',
+  '/forgot-password',
+  '/forgot-password/reset',
 ]);
 
 type MobileAuth = ReturnType<typeof useMobileAuth>;

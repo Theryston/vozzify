@@ -1,5 +1,5 @@
 import { type SignInBody, signInBodySchema } from '@vozzify/contracts';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useLocale, useTranslations } from 'use-intl';
 import { Button } from '../../../components/ui/button';
@@ -90,9 +90,12 @@ function SignInForm() {
 
 export function SignInScreen() {
   const t = useTranslations('auth');
+  const { reset } = useLocalSearchParams();
   return (
     <AuthFrame title={t('signIn.title')} description={t('signIn.description')}>
+      {reset === '1' ? <AuthNotice>{t('recovery.complete')}</AuthNotice> : null}
       <SignInForm />
+      <AuthLink to="/forgot-password">{t('recovery.link')}</AuthLink>
       <AuthLink to="/sign-up">{t('signUp.submit')}</AuthLink>
     </AuthFrame>
   );
