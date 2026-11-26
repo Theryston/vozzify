@@ -437,6 +437,7 @@
       "lockedDescription": "Reactivate Pro to play this recording and practice with its notes.",
       "reactivate": "Reactivate Pro",
       "closeNote": "You can close this page and come back to check the progress.",
+      "retryError": "Could not restart processing. Try again.",
       "processing": {
         "QUEUED": "Queued for processing",
         "EXTRACTING_VOCALS": "Separating vocals",

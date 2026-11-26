@@ -49,6 +49,29 @@ describe('PrivateTrackProcessingService recovery', () => {
       { jobId: 'queued-new', removeOnComplete: true },
     );
   });
+
+  it('reconciles a queued retry under its own stable start job ID', async () => {
+    tracks.listRecoverable.mockResolvedValue([
+      { id: 'track-1', userId: 'owner-1', processingRetryId: 'retry-1' },
+    ]);
+
+    await service.reconcileQueuedTracks();
+
+    expect(queue.add).toHaveBeenCalledWith(
+      'process-private-track',
+      {
+        userId: 'owner-1',
+        privateTrackId: 'track-1',
+        poll: 0,
+        retryId: 'retry-1',
+      },
+      {
+        jobId: 'track-1-retry-retry-1',
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
+    );
+  });
 });
 
 describe('private track processing reconciliation scheduler', () => {

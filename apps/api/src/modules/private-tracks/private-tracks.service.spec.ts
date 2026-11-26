@@ -5,7 +5,12 @@ import { PrivateTracksRepository } from './private-tracks.repository.js';
 import { PrivateTracksService } from './private-tracks.service.js';
 
 describe('PrivateTracksService', () => {
-  const repository = { listPage: vi.fn(), save: vi.fn() };
+  const repository = {
+    findOwned: vi.fn(),
+    listPage: vi.fn(),
+    resetFailedProcessing: vi.fn(),
+    save: vi.fn(),
+  };
   const audio = { inspect: vi.fn(), hash: vi.fn() };
   const storage = { putPrivateFile: vi.fn() };
   const subscriptions = { hasPaidMembership: vi.fn() };
@@ -58,6 +63,60 @@ describe('PrivateTracksService', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(audio.inspect).not.toHaveBeenCalled();
     expect(storage.putPrivateFile).not.toHaveBeenCalled();
+  });
+
+  it('rejects retry for a missing or locked entry', async () => {
+    repository.findOwned
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ processingStatus: 'FAILED' });
+    subscriptions.hasPaidMembership.mockResolvedValue(false);
+
+    await expect(
+      service.prepareRetry('u1', 'other-track'),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(
+      service.prepareRetry('u1', 'owned-track'),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(repository.resetFailedProcessing).not.toHaveBeenCalled();
+  });
+
+  it('returns a new Processing generation for a failed entry', async () => {
+    subscriptions.hasPaidMembership.mockResolvedValue(true);
+    repository.findOwned.mockResolvedValue({
+      processingStatus: 'FAILED',
+      processingRetryId: 'old-retry',
+    });
+    repository.resetFailedProcessing.mockResolvedValue(true);
+
+    const result = await service.prepareRetry('u1', 'entry-1');
+    expect(result).toEqual({
+      processing: { status: 'QUEUED', progress: 0 },
+      retryId: expect.any(String),
+    });
+    expect(repository.resetFailedProcessing).toHaveBeenCalledWith({
+      userId: 'u1',
+      id: 'entry-1',
+      previousRetryId: 'old-retry',
+      retryId: result.retryId,
+    });
+  });
+
+  it('returns the current Processing when a concurrent request retries first', async () => {
+    subscriptions.hasPaidMembership.mockResolvedValue(true);
+    repository.findOwned
+      .mockResolvedValueOnce({
+        processingStatus: 'FAILED',
+        processingRetryId: null,
+      })
+      .mockResolvedValueOnce({
+        processingStatus: 'EXTRACTING_VOCALS',
+        processingProgress: 10,
+      });
+    repository.resetFailedProcessing.mockResolvedValue(false);
+
+    await expect(service.prepareRetry('u1', 'entry-1')).resolves.toEqual({
+      processing: { status: 'EXTRACTING_VOCALS', progress: 10 },
+    });
   });
 
   it('stores a tagged source under an owner-scoped content hash', async () => {

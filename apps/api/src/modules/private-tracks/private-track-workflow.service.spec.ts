@@ -10,7 +10,7 @@ describe('PrivateTrackWorkflowService', () => {
     durationMs: 1_000,
     createdAt: '2026-01-02T03:04:05.000Z',
   };
-  const tracks = { submit: vi.fn() };
+  const tracks = { submit: vi.fn(), prepareRetry: vi.fn() };
   const processing = { enqueue: vi.fn() };
   let service: PrivateTrackWorkflowService;
 
@@ -46,5 +46,33 @@ describe('PrivateTrackWorkflowService', () => {
         originalname: 'audio.wav',
       }),
     ).resolves.toEqual(privateTrack);
+  });
+
+  it('accepts a persisted retry even if its immediate queue operation fails', async () => {
+    const state = { status: 'QUEUED', progress: 0 };
+    tracks.prepareRetry.mockResolvedValue({
+      processing: state,
+      retryId: 'retry-1',
+    });
+    processing.enqueue.mockRejectedValue(new Error('Redis unavailable'));
+
+    await expect(service.retry('user-1', privateTrack.id)).resolves.toEqual(
+      state,
+    );
+    expect(processing.enqueue).toHaveBeenCalledWith(
+      'user-1',
+      privateTrack.id,
+      'retry-1',
+    );
+  });
+
+  it('returns the active state without enqueueing a duplicate retry', async () => {
+    const state = { status: 'EXTRACTING_VOCALS', progress: 10 };
+    tracks.prepareRetry.mockResolvedValue({ processing: state });
+
+    await expect(service.retry('user-1', privateTrack.id)).resolves.toEqual(
+      state,
+    );
+    expect(processing.enqueue).not.toHaveBeenCalled();
   });
 });

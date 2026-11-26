@@ -12,10 +12,12 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBody,
   ApiConsumes,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -30,8 +32,10 @@ import {
   myPrivateTracksQuerySchema,
   type PrivateTrack,
   type PrivateTrackDetail,
+  type PrivateTrackProcessingState,
   privateTrackDetailSchema,
   privateTrackIdParamsSchema,
+  privateTrackProcessingStateSchema,
   privateTrackSchema,
 } from '@vozzify/contracts';
 import type { Request } from 'express';
@@ -87,6 +91,22 @@ export class PrivateTracksController {
     @Param() params: PrivateTrackIdParamDto,
   ): Promise<PrivateTrackDetail> {
     return this.privateTracks.getDetail(user.id, params.id);
+  }
+
+  @Post(':id/retry')
+  @HttpCode(202)
+  @Header('Cache-Control', 'private, no-store')
+  @ZodSerializerDto(privateTrackProcessingStateSchema)
+  @ApiAcceptedResponse({ description: 'The current private Processing state.' })
+  @ApiBadRequestResponse({ description: 'The private Track ID is invalid.' })
+  @ApiForbiddenResponse({ description: 'Active Pro membership is required.' })
+  @ApiNotFoundResponse({ description: 'The private Track does not exist.' })
+  @ApiUnauthorizedResponse({ description: 'No valid session.' })
+  retry(
+    @CurrentUser() user: AuthUser,
+    @Param() params: PrivateTrackIdParamDto,
+  ): Promise<PrivateTrackProcessingState> {
+    return this.workflow.retry(user.id, params.id);
   }
 
   @Delete(':id')

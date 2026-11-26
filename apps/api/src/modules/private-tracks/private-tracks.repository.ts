@@ -6,6 +6,11 @@ import {
   privateTrackNotes,
   privateTracks,
 } from '../../database/schema/private-tracks.js';
+import {
+  matchesPrivateTrackRetry,
+  type PrivateTrackRetry,
+  resetFailedPrivateTrackProcessing,
+} from './private-track-retry.repository.js';
 
 @Injectable()
 export class PrivateTracksRepository {
@@ -75,7 +80,14 @@ export class PrivateTracksRepository {
     });
   }
 
-  async saveMusicMedia(id: string, mediaObjectKey: string): Promise<boolean> {
+  resetFailedProcessing(retry: PrivateTrackRetry): Promise<boolean> {
+    return resetFailedPrivateTrackProcessing(this.txHost.tx, retry);
+  }
+
+  async saveMusicMedia(
+    track: { id: string; processingRetryId: string | null },
+    mediaObjectKey: string,
+  ): Promise<boolean> {
     const updated = await this.txHost.tx
       .update(privateTracks)
       .set({
@@ -85,7 +97,8 @@ export class PrivateTracksRepository {
       })
       .where(
         and(
-          eq(privateTracks.id, id),
+          eq(privateTracks.id, track.id),
+          matchesPrivateTrackRetry(track.processingRetryId),
           isNull(privateTracks.mediaObjectKey),
           notInArray(privateTracks.processingStatus, ['COMPLETED', 'FAILED']),
         ),
@@ -185,7 +198,11 @@ export class PrivateTracksRepository {
 
   listRecoverable(limit: number, staleBefore: Date) {
     return this.txHost.tx
-      .select({ id: privateTracks.id, userId: privateTracks.userId })
+      .select({
+        id: privateTracks.id,
+        userId: privateTracks.userId,
+        processingRetryId: privateTracks.processingRetryId,
+      })
       .from(privateTracks)
       .where(
         or(
