@@ -24,6 +24,7 @@ export class YouTubeFallbackPlayer extends BasePlayer implements PlayerPort {
   private disposed = false;
   private usingAudio = false;
   private playingRequested = false;
+  private playbackEnded = false;
   private failed = false;
   private position = 0;
   private rate = DEFAULT_RATE;
@@ -58,6 +59,7 @@ export class YouTubeFallbackPlayer extends BasePlayer implements PlayerPort {
   }
 
   seek(seconds: number): void {
+    this.playbackEnded = false;
     this.position = seconds;
     this.player?.seek(seconds);
   }
@@ -138,11 +140,14 @@ export class YouTubeFallbackPlayer extends BasePlayer implements PlayerPort {
       clearTimeout(this.timeout);
       this.startup?.resolve();
       this.startup = undefined;
-      this.emit(state);
+      this.emit(this.playbackEnded ? 'ended' : state);
       if (resume) this.player?.play();
       return;
     }
-    if (state === 'ended') this.playingRequested = false;
+    if (state === 'ended') {
+      this.playingRequested = false;
+      this.playbackEnded = true;
+    }
     this.emit(state);
   }
 

@@ -65,11 +65,29 @@ test('plays the submitted video, then continues from the same point with saved a
   await mockAuthApi(page, { user: { ...ADA, username: 'ada' } });
   await mockYouTubePlayer(page);
   const mediaRequests: string[] = [];
+  const wav = practiceWav();
   await page.route(
     (url) => url.pathname === MEDIA_PATH,
     async (route) => {
       mediaRequests.push(route.request().url());
-      await route.fulfill({ contentType: 'audio/wav', body: practiceWav() });
+      const match = /^bytes=(\d+)-(\d*)$/.exec(
+        route.request().headers().range ?? '',
+      );
+      const headers = { 'accept-ranges': 'bytes', 'content-type': 'audio/wav' };
+      if (!match) {
+        await route.fulfill({ headers, body: wav });
+        return;
+      }
+      const start = Number(match[1]);
+      const end = match[2] ? Number(match[2]) : wav.length - 1;
+      await route.fulfill({
+        status: 206,
+        headers: {
+          ...headers,
+          'content-range': `bytes ${start}-${end}/${wav.length}`,
+        },
+        body: wav.subarray(start, end + 1),
+      });
     },
   );
 

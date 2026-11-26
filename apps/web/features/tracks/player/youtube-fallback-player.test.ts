@@ -82,6 +82,80 @@ describe('YouTube practice with saved audio fallback', () => {
     player.destroy();
   });
 
+  it('honors a pause and a new seek while the saved audio is loading', async () => {
+    const { player, video, audio, createAudio, states } = makePlayers();
+    const pendingAudio = Promise.withResolvers<FakePlayer>();
+    createAudio.mockReturnValueOnce(pendingAudio.promise);
+    const shift = vi.fn();
+    const setVocalsOnly = vi.fn();
+    const peaks = [0.25, 0.75];
+    const playAudio = vi.spyOn(audio, 'play');
+    Object.assign(audio, {
+      setTranspose: shift,
+      setVocalsOnly,
+      waveform: () => peaks,
+    });
+
+    await player.load('submitted-id');
+    player.play();
+    video.fail();
+    player.seek(42);
+    player.setTranspose(2);
+    player.pause();
+    expect(player.currentTime()).toBe(42);
+    expect(player.waveform()).toEqual([]);
+    pendingAudio.resolve(audio);
+    await vi.waitFor(() => expect(states.at(-1)).toBe('ready'));
+
+    expect(player.currentTime()).toBe(42);
+    expect(player.duration()).toBe(90);
+    expect(playAudio).not.toHaveBeenCalled();
+    expect(shift).toHaveBeenCalledWith(2);
+    player.setTranspose(3);
+    expect(shift).toHaveBeenCalledWith(3);
+    player.setVocalsOnly(true);
+    expect(setVocalsOnly).toHaveBeenCalledWith(true);
+    expect(player.waveform()).toBe(peaks);
+    player.destroy();
+  });
+
+  it('reports a lost saved stream and disposes that source without starting YouTube again', async () => {
+    const { player, video, audio, states, createVideo } = makePlayers();
+    const destroy = vi.spyOn(audio, 'destroy');
+    await player.load('submitted-id');
+    video.fail();
+    await vi.waitFor(() => expect(states.at(-1)).toBe('ready'));
+
+    audio.fail();
+    expect(states.at(-1)).toBe('error');
+    expect(player.isReady()).toBe(false);
+    expect(destroy).toHaveBeenCalledOnce();
+    expect(createVideo).toHaveBeenCalledOnce();
+    player.destroy();
+  });
+
+  it('keeps playback ended if the video fails after reaching the end', async () => {
+    vi.useFakeTimers();
+    try {
+      const { player, video, audio, states } = makePlayers();
+      const playAudio = vi.spyOn(audio, 'play');
+      await player.load('submitted-id');
+      player.play();
+      await vi.advanceTimersByTimeAsync(90_000);
+      expect(states.at(-1)).toBe('ended');
+      expect(player.currentTime()).toBe(90);
+
+      video.fail();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(states.at(-1)).toBe('ended');
+      expect(player.currentTime()).toBe(90);
+      expect(playAudio).not.toHaveBeenCalled();
+      player.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('destroys a video that arrives after the practice page closes', async () => {
     const { player, video, onFallback } = makePlayers();
     const destroy = vi.spyOn(video, 'destroy');
