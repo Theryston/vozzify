@@ -167,17 +167,18 @@ jobs:
       - name: Launch installed app
         run: xcrun simctl launch "$SIMULATOR_UDID" com.vozzify.app.preview
 
-      - name: Run internal gallery smoke flow
+      - name: Run installed app smoke flows
         id: maestro
         working-directory: apps/mobile
         run: |
-          mkdir -p "$RUNNER_TEMP/maestro-artifacts" "$RUNNER_TEMP/maestro-debug"
+          mkdir -p "$RUNNER_TEMP/maestro-artifacts" "$RUNNER_TEMP/maestro-debug" "$RUNNER_TEMP/maestro-auth"
           maestro test \
             --format junit \
             --output "$RUNNER_TEMP/maestro-results.xml" \
             --test-output-dir "$RUNNER_TEMP/maestro-artifacts" \
             --debug-output "$RUNNER_TEMP/maestro-debug" \
-            .maestro/flows/gallery-smoke.yaml
+            -e AUTH_SCREENSHOT_DIR="$RUNNER_TEMP/maestro-auth" \
+            .maestro/flows
 
       - name: Capture iOS simulator screenshot on Maestro failure
         if: ${{ failure() && steps.maestro.outcome == 'failure' }}
@@ -220,3 +221,12 @@ jobs:
             ${{ runner.temp }}/maestro-debug/
           if-no-files-found: ignore
           retention-days: 1
+
+      - name: Upload rendered authentication screens
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-maestro-auth-screens
+          path: ${{ runner.temp }}/maestro-auth/*.png
+          if-no-files-found: ignore
+          retention-days: 7

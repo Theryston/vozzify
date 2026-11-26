@@ -121,8 +121,9 @@ jobs:
             echo '::group::Install test app'
             adb install apps/mobile/android/app/build/outputs/apk/release/app-release.apk
             echo '::endgroup::'
-            echo '::group::Run installed app smoke flow'
-            maestro test --format junit --output apps/mobile/maestro-results.xml --test-output-dir "$RUNNER_TEMP/maestro-artifacts" --debug-output "$RUNNER_TEMP/maestro-debug" apps/mobile/.maestro/flows/gallery-smoke.yaml
+            echo '::group::Run installed app smoke flows'
+            mkdir -p "$RUNNER_TEMP/maestro-auth"
+            maestro test --format junit --output apps/mobile/maestro-results.xml --test-output-dir "$RUNNER_TEMP/maestro-artifacts" --debug-output "$RUNNER_TEMP/maestro-debug" -e AUTH_SCREENSHOT_DIR="$RUNNER_TEMP/maestro-auth" apps/mobile/.maestro/flows
             echo '::endgroup::'
 
       - name: Check Maestro diagnostics size
@@ -161,5 +162,14 @@ jobs:
         with:
           name: android-maestro-results
           path: apps/mobile/maestro-results.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload rendered authentication screens
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-maestro-auth-screens
+          path: ${{ runner.temp }}/maestro-auth/*.png
           if-no-files-found: ignore
           retention-days: 7

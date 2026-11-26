@@ -1,0 +1,53 @@
+appId: com.vozzify.app.preview
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    id: open-components
+- tapOn:
+    id: language-en
+- scrollUntilVisible:
+    element:
+      id: appearance-light
+    direction: DOWN
+- tapOn:
+    id: appearance-light
+- scrollUntilVisible:
+    element:
+      id: return-home
+    direction: DOWN
+- tapOn:
+    id: return-home
+- tapOn:
+    id: open-sign-in
+- assertVisible: Sign in to Vozzify
+- tapOn:
+    id: submit-sign-in
+- assertVisible: Enter your email or Username.
+- assertVisible: Enter your password.
+- takeScreenshot: ${AUTH_SCREENSHOT_DIR}/sign-in-light
+- tapOn: Create account
+- assertVisible: Create your account
+- takeScreenshot: ${AUTH_SCREENSHOT_DIR}/sign-up-light
+- openLink: vozzify-preview://verify-email
+- assertVisible: Verify your email
+- takeScreenshot: ${AUTH_SCREENSHOT_DIR}/verify-email-light
+- openLink: vozzify-preview://components
+- scrollUntilVisible:
+    element:
+      id: appearance-dark
+    direction: DOWN
+- tapOn:
+    id: appearance-dark
+- scrollUntilVisible:
+    element:
+      id: language-pt-BR
+    direction: UP
+- tapOn:
+    id: language-pt-BR
+- openLink: vozzify-preview://sign-in
+- assertVisible: Entre no Vozzify
+- takeScreenshot: ${AUTH_SCREENSHOT_DIR}/sign-in-dark-pt-br
+- tapOn: Criar conta
+- assertVisible: Crie sua conta
+- takeScreenshot: ${AUTH_SCREENSHOT_DIR}/sign-up-dark-pt-br

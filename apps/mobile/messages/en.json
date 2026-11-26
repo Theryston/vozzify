@@ -7,7 +7,8 @@
   "home": {
     "title": "Welcome to Vozzify",
     "description": "Your voice, mapped to every note.",
-    "openComponents": "Open component gallery"
+    "openComponents": "Open component gallery",
+    "signedIn": "Signed in as @{username}"
   },
   "components": {
     "title": "Foundation components",
@@ -32,5 +33,82 @@
     "language": "Language",
     "english": "English",
     "brazilianPortuguese": "Brazilian Portuguese"
+  },
+  "auth": {
+    "leave": "Return to app",
+    "loading": "Restoring your session",
+    "restoreError": "We could not restore your session. Check your connection and try again.",
+    "retry": "Try again",
+    "emailOrUsername": "Email or Username",
+    "identifierRequired": "Enter your email or Username.",
+    "password": "Password",
+    "passwordRequired": "Enter your password.",
+    "name": "Name",
+    "email": "Email",
+    "code": "Verification code",
+    "username": "Username",
+    "nameInvalid": "Enter a Name between 1 and {max} characters.",
+    "passwordInvalid": "Use between {min} and {max} characters.",
+    "codeInvalid": "Enter the {count}-digit code.",
+    "usernameInvalid": "Use {min}–{max} letters, digits or underscores.",
+    "showPasswordLabel": "Show password",
+    "hidePasswordLabel": "Hide password",
+    "passwordHidden": "Password hidden",
+    "passwordVisible": "Password visible",
+    "showPassword": "Show",
+    "hidePassword": "Hide",
+    "submitting": "Please wait…",
+    "resend": "Send a new code",
+    "resendIn": "Send a new code in {seconds}s",
+    "signIn": {
+      "title": "Sign in to Vozzify",
+      "description": "Use your email or Username to access your account.",
+      "submit": "Sign in"
+    },
+    "signUp": {
+      "title": "Create your account",
+      "description": "Start with your Name and email. You’ll choose a Username after verifying your email.",
+      "submit": "Create account"
+    },
+    "verifyEmail": {
+      "enterEmail": "Enter the email linked to your account and the six-digit code.",
+      "title": "Verify your email",
+      "description": "Enter the six-digit code we sent you.",
+      "emailToVerify": "Email to verify: {email}",
+      "sentTo": "Code sent to {email}",
+      "submit": "Verify email"
+    },
+    "setupUsername": {
+      "title": "Choose your Username",
+      "description": "Your Username is how people find your Profile. You can choose it once.",
+      "submit": "Save Username",
+      "checking": "Checking availability…",
+      "available": "Username available"
+    },
+    "strength": {
+      "label": "Password strength: {level}",
+      "weak": "Weak",
+      "fair": "Fair",
+      "strong": "Strong"
+    }
+  },
+  "authErrors": {
+    "INVALID_EMAIL": "Enter a valid email address.",
+    "PASSWORD_TOO_SHORT": "The password is too short. Use at least 6 characters.",
+    "PASSWORD_TOO_LONG": "The password is too long. Use at most 128 characters.",
+    "INVALID_EMAIL_OR_PASSWORD": "Wrong email or password.",
+    "INVALID_USERNAME_OR_PASSWORD": "Wrong username or password.",
+    "EMAIL_NOT_VERIFIED": "Verify your email to continue. We sent you a new code.",
+    "INVALID_OTP": "That code isn't right. Check it and try again.",
+    "OTP_EXPIRED": "This code has expired. Request a new one.",
+    "TOO_MANY_ATTEMPTS": "Too many wrong attempts. Request a new code.",
+    "USERNAME_IS_ALREADY_TAKEN": "This username is already taken. Try another one.",
+    "INVALID_USERNAME": "Use only letters, numbers and underscores.",
+    "USERNAME_TOO_SHORT": "The username is too short. Use at least 3 characters.",
+    "USERNAME_TOO_LONG": "The username is too long. Use at most 50 characters.",
+    "RATE_LIMITED": "Too many attempts. Wait a moment and try again.",
+    "UNAUTHORIZED": "Your session has expired. Sign in again.",
+    "UNKNOWN": "Something went wrong. Please try again.",
+    "INVALID_NAME": "Enter a Name between 1 and 100 characters."
   }
 }

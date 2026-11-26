@@ -7,6 +7,7 @@ import { Text } from '../src/components/text';
 import { Button } from '../src/components/ui/button';
 import { Input } from '../src/components/ui/input';
 import { Overlay } from '../src/components/ui/overlay';
+import { useGalleryContinuation } from '../src/features/auth/components/use-gallery-continuation';
 import { useMobileLocale } from '../src/lib/i18n/mobile-locale-provider';
 
 export default function ComponentsScreen() {
@@ -15,6 +16,7 @@ export default function ComponentsScreen() {
   const { locale, setLocale } = useMobileLocale();
   const [input, setInput] = useState('');
   const [overlayOpen, setOverlayOpen] = useState(false);
+  useGalleryContinuation(() => setOverlayOpen(true));
 
   return (
     <Screen>

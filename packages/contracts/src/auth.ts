@@ -85,3 +85,21 @@ export const resetPasswordBodySchema = z.object({
 });
 
 export type ResetPasswordBody = z.infer<typeof resetPasswordBodySchema>;
+
+/** Session fields used for native navigation and onboarding. */
+export const authSessionUserSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  emailVerified: z.boolean(),
+  username: z.string().nullish(),
+});
+
+export type AuthSessionUser = z.infer<typeof authSessionUserSchema>;
+
+/** Better Auth's OTP purposes exposed by Vozzify. */
+export const sendAuthCodeBodySchema = z.object({
+  email: z.email(),
+  type: z.enum(['email-verification', 'forget-password']),
+});
+
+export type AuthCodePurpose = z.infer<typeof sendAuthCodeBodySchema>['type'];

@@ -33,3 +33,13 @@ export class MobileHttpError extends Error {
     this.details = details;
   }
 }
+
+export class MobileAuthError extends Error {
+  constructor(
+    readonly statusCode: number,
+    readonly code: string | undefined,
+  ) {
+    super('Authentication request failed');
+    this.name = 'MobileAuthError';
+  }
+}

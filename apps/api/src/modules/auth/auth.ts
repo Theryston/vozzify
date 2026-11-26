@@ -24,6 +24,7 @@ import { users } from '../../database/schema/users.js';
 import type { EmailService } from '../../integrations/email/email.service.js';
 import { AUTH_BASE_PATH, CLIENT_IP_HEADER } from './auth.constants.js';
 import { emailOtpPlugin, notifyExistingUserSignUp } from './auth-emails.js';
+import { nativeBearer } from './native-bearer.js';
 import {
   hashPassword,
   isLegacyPasswordHash,
@@ -259,6 +260,7 @@ export const createAuth = ({
     advanced: advancedOptions(env),
     logger: loggerOptions(env, logger),
     plugins: [
+      nativeBearer(),
       username({
         minUsernameLength: USERNAME_MIN_LENGTH,
         maxUsernameLength: USERNAME_MAX_LENGTH,
