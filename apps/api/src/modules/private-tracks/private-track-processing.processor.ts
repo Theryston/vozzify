@@ -53,7 +53,7 @@ export class PrivateTrackProcessingProcessor
       throw new Error(`Unknown private Track job ${job.name}`);
     }
     try {
-      await this.processing.process(job.data);
+      await this.processing.process(job.data, isFinalAttempt(job));
     } catch (error) {
       const failure = finalPrivateTrackFailure(job, error);
       if (failure) {

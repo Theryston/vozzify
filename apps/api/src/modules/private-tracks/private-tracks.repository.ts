@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
+import type { TrackLyrics } from '@vozzify/contracts';
 import { and, asc, desc, eq, isNull, lt, notInArray, or } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
 import {
@@ -11,6 +12,18 @@ import {
   type PrivateTrackRetry,
   resetFailedPrivateTrackProcessing,
 } from './private-track-retry.repository.js';
+
+const matchesAttempt = (attemptId: string | null) =>
+  attemptId === null
+    ? isNull(privateTracks.processingAttemptId)
+    : eq(privateTracks.processingAttemptId, attemptId);
+
+const detectionInProgress = () =>
+  notInArray(privateTracks.processingStatus, [
+    'EXTRACTING_LYRICS',
+    'COMPLETED',
+    'FAILED',
+  ]);
 
 @Injectable()
 export class PrivateTracksRepository {
@@ -29,16 +42,12 @@ export class PrivateTracksRepository {
           ),
         )
       : undefined;
-    return this.txHost.tx
-      .select()
-      .from(privateTracks)
-      .where(
-        cursor
-          ? and(eq(privateTracks.userId, userId), cursor)
-          : eq(privateTracks.userId, userId),
-      )
-      .orderBy(desc(privateTracks.createdAt), desc(privateTracks.id))
-      .limit(query.limit + 1);
+    return this.txHost.tx.query.privateTracks.findMany({
+      columns: { lyrics: false },
+      where: and(eq(privateTracks.userId, userId), cursor),
+      orderBy: [desc(privateTracks.createdAt), desc(privateTracks.id)],
+      limit: query.limit + 1,
+    });
   }
 
   async save(
@@ -54,16 +63,12 @@ export class PrivateTracksRepository {
       })
       .returning();
     if (inserted[0]) return inserted[0];
-    const existing = await this.txHost.tx
-      .select()
-      .from(privateTracks)
-      .where(
-        and(
-          eq(privateTracks.userId, input.userId),
-          eq(privateTracks.contentSha256, input.contentSha256),
-        ),
-      );
-    const row = existing[0];
+    const row = await this.txHost.tx.query.privateTracks.findFirst({
+      where: and(
+        eq(privateTracks.userId, input.userId),
+        eq(privateTracks.contentSha256, input.contentSha256),
+      ),
+    });
     if (!row) throw new Error('Private audio deduplication failed');
     return { ...row, discardedUploadKey: input.objectKey };
   }
@@ -112,16 +117,13 @@ export class PrivateTracksRepository {
     expectedAttemptId: string | null,
     attemptId: string,
   ): Promise<boolean> {
-    const expectedAttempt = expectedAttemptId
-      ? eq(privateTracks.processingAttemptId, expectedAttemptId)
-      : isNull(privateTracks.processingAttemptId);
     const claimed = await this.txHost.tx
       .update(privateTracks)
       .set({ processingAttemptId: attemptId, processingJobId: null })
       .where(
         and(
           eq(privateTracks.id, id),
-          expectedAttempt,
+          matchesAttempt(expectedAttemptId),
           isNull(privateTracks.processingJobId),
           notInArray(privateTracks.processingStatus, ['COMPLETED', 'FAILED']),
         ),
@@ -168,27 +170,41 @@ export class PrivateTracksRepository {
           eq(privateTracks.id, id),
           eq(privateTracks.processingAttemptId, attemptId),
           eq(privateTracks.processingJobId, jobId),
-          notInArray(privateTracks.processingStatus, ['COMPLETED', 'FAILED']),
+          detectionInProgress(),
         ),
       )
       .returning({ id: privateTracks.id });
     return updated.length > 0;
   }
 
+  async completeLyrics(
+    id: string,
+    attemptId: string,
+    lyrics: TrackLyrics | null,
+  ): Promise<void> {
+    await this.txHost.tx
+      .update(privateTracks)
+      .set({ processingStatus: 'COMPLETED', processingProgress: 100, lyrics })
+      .where(
+        and(
+          eq(privateTracks.id, id),
+          eq(privateTracks.processingAttemptId, attemptId),
+          eq(privateTracks.processingStatus, 'EXTRACTING_LYRICS'),
+        ),
+      );
+  }
+
   async markFailedForAttempt(
     id: string,
     attemptId: string | null,
   ): Promise<boolean> {
-    const expectedAttempt = attemptId
-      ? eq(privateTracks.processingAttemptId, attemptId)
-      : isNull(privateTracks.processingAttemptId);
     const updated = await this.txHost.tx
       .update(privateTracks)
       .set({ processingStatus: 'FAILED', processingProgress: 0 })
       .where(
         and(
           eq(privateTracks.id, id),
-          expectedAttempt,
+          matchesAttempt(attemptId),
           notInArray(privateTracks.processingStatus, ['COMPLETED', 'FAILED']),
         ),
       )
@@ -246,7 +262,7 @@ export class PrivateTracksRepository {
           eq(privateTracks.id, privateTrackId),
           eq(privateTracks.processingAttemptId, attemptId),
           eq(privateTracks.processingJobId, jobId),
-          notInArray(privateTracks.processingStatus, ['COMPLETED', 'FAILED']),
+          detectionInProgress(),
         ),
       )
       .returning({ id: privateTracks.id });

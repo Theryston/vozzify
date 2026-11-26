@@ -68,15 +68,20 @@ test('shows the localized file picker and shared processing banner on a phone', 
   const steps = banner.getByRole('list', {
     name: tracks.processing.steps.label,
   });
-  await expect(steps.getByRole('listitem')).toHaveCount(2);
+  await expect(steps.getByRole('listitem')).toHaveCount(3);
   await expect(steps.getByRole('listitem').first()).toHaveAttribute(
     'data-state',
     'done',
   );
-  await expect(steps.getByRole('listitem').last()).toHaveAttribute(
+  await expect(steps.getByRole('listitem').nth(1)).toHaveAttribute(
     'data-state',
     'current',
   );
+  const lyrics = steps.getByRole('listitem').last();
+  await expect(lyrics).toContainText(
+    tracks.processing.steps.short.EXTRACTING_LYRICS,
+  );
+  await expect(lyrics).toHaveAttribute('data-state', 'pending');
   await expect(page.getByRole('status')).toContainText(
     privateTracks.detail.closeNote,
   );

@@ -5,6 +5,7 @@ import type { App } from 'supertest/types.js';
 import { AppModule } from '../../src/app.module.js';
 import { ENV, type Env, loadEnv } from '../../src/config/env.js';
 import { DATABASE, type Database } from '../../src/database/database.js';
+import { ElevenLabsTranscriptionClient } from '../../src/integrations/elevenlabs/elevenlabs-transcription.client.js';
 import { configureApp } from '../../src/setup-app.js';
 import {
   type FakeQueue,
@@ -49,7 +50,12 @@ export const createTestApp = async (
       controllers: options.controllers ?? [],
     }),
   );
-  let builder = redisFree;
+  // Processing tests that submit audio must never reach the live Scribe API.
+  let builder = redisFree
+    .overrideProvider(ElevenLabsTranscriptionClient)
+    .useValue({
+      transcribe: async () => ({ segments: [], words: [] }),
+    });
   if (options.env) {
     builder = builder
       .overrideProvider(ENV)

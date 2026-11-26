@@ -451,6 +451,7 @@
         "QUEUED": "Na fila de processamento",
         "EXTRACTING_VOCALS": "Separando os vocais",
         "DETECTING_NOTES": "Detectando as notas",
+        "EXTRACTING_LYRICS": "Transcrevendo a letra",
         "COMPLETED": "Pronta para praticar",
         "FAILED": "O processamento falhou"
       }

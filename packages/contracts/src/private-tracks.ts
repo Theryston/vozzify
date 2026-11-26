@@ -3,6 +3,8 @@ import { mbidSchema } from './music-catalog.js';
 import { cursorPageSchema, cursorPaginationQuerySchema } from './pagination.js';
 import { trackAudioSchema } from './track-audio.js';
 
+import { trackLyricsSchema } from './tracks.js';
+
 export const PRIVATE_AUDIO_MAX_BYTES = 250 * 1024 * 1024;
 export const PRIVATE_AUDIO_MAX_DURATION_SECONDS = 30 * 60;
 export const PRIVATE_YOUTUBE_URL_MAX_LENGTH = 2048;
@@ -24,6 +26,7 @@ export const PRIVATE_TRACK_PROCESSING_STATES = [
   'QUEUED',
   'EXTRACTING_VOCALS',
   'DETECTING_NOTES',
+  'EXTRACTING_LYRICS',
   'COMPLETED',
   'FAILED',
 ] as const;
@@ -85,6 +88,7 @@ export const privateTrackDetailSchema = privateTrackSchema.extend({
     .optional(),
   recording: privateTrackRecordingSchema.optional(),
   audio: trackAudioSchema.optional(),
+  lyrics: trackLyricsSchema.optional(),
   notes: z.array(
     z.object({
       pitch: z.number(),

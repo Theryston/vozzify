@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 import type { Queue } from 'bullmq';
-import { z } from 'zod';
+import { noteDetectionOutputOf } from '../../integrations/note-detection/note-detection-output.js';
 import type { RunpodJobState } from '../../integrations/note-detection/runpod-job.js';
 import { PrivateTrackIdentificationQueue } from './private-track-identification.queue.js';
+import { PrivateTrackLyricsService } from './private-track-lyrics.service.js';
 import { ensurePrivateTrackMusicWav } from './private-track-music-conversion.js';
 import { privateTrackStagingKey } from './private-track-object-keys.js';
 import {
@@ -28,21 +29,12 @@ const NOTE_POLL_INTERVAL_MS = 5_000;
 const MAX_NOTE_POLL_ROUNDS = 120;
 const MAX_QUEUED_TRACKS_PER_RECONCILIATION = 100;
 const PRIVATE_TRACK_STALE_START_MS = 60_000;
-const DETECTOR_OUTPUT = z.object({
-  vocalsUrl: z.string().min(1),
-  pitchCurveUrl: z.string().min(1),
-  detectorVersion: z.string().min(1),
-  notes: z.array(
-    z.object({
-      pitch: z.number(),
-      start: z.number().nonnegative(),
-      end: z.number().nonnegative(),
-    }),
-  ),
-});
 
 @Injectable()
 export class PrivateTrackProcessingService {
+  @Inject(PrivateTrackLyricsService)
+  declare private readonly lyrics: PrivateTrackLyricsService;
+
   constructor(
     @InjectQueue(PRIVATE_TRACK_PROCESSING_QUEUE)
     private readonly queue: Queue<
@@ -80,7 +72,7 @@ export class PrivateTrackProcessingService {
     }
   }
 
-  async process(rawJob: unknown): Promise<void> {
+  async process(rawJob: unknown, finalAttempt = true): Promise<void> {
     const job = processPrivateTrackJobSchema.parse(rawJob);
     const track = await this.tracks.findOwned(job.userId, job.privateTrackId);
     if (!track || !isCurrentPrivateTrackJob(job, track)) return;
@@ -109,7 +101,18 @@ export class PrivateTrackProcessingService {
     }
     if (!attemptId) return;
     try {
-      await this.pollDetection(track.id, attemptId, runpodJobId, job.poll);
+      const vocalsKey =
+        track.processingStatus === 'EXTRACTING_LYRICS'
+          ? track.vocalsObjectKey
+          : await this.pollDetection(
+              track.id,
+              attemptId,
+              runpodJobId,
+              job.poll,
+            );
+      if (vocalsKey) {
+        await this.lyrics.finish(track.id, attemptId, vocalsKey, finalAttempt);
+      }
     } catch (error) {
       throw new PrivateTrackProcessingAttemptError(attemptId, error);
     }
@@ -185,7 +188,7 @@ export class PrivateTrackProcessingService {
     attemptId: string,
     runpodJobId: string,
     poll: number,
-  ): Promise<void> {
+  ): Promise<string | undefined> {
     const state = await this.integrations.detector.checkJob(runpodJobId);
     if (state.kind === 'failed') {
       await this.tracks.updateProcessingAttempt(
@@ -197,8 +200,7 @@ export class PrivateTrackProcessingService {
       return;
     }
     if (state.kind === 'completed') {
-      await this.saveOutput(privateTrackId, attemptId, runpodJobId, state);
-      return;
+      return this.saveOutput(privateTrackId, attemptId, runpodJobId, state);
     }
     if (poll >= MAX_NOTE_POLL_ROUNDS) {
       await this.tracks.updateProcessingAttempt(
@@ -232,8 +234,8 @@ export class PrivateTrackProcessingService {
     attemptId: string,
     runpodJobId: string,
     state: Extract<RunpodJobState, { kind: 'completed' }>,
-  ): Promise<void> {
-    const output = DETECTOR_OUTPUT.parse(state.output);
+  ): Promise<string | undefined> {
+    const output = noteDetectionOutputOf(state.output);
     const track = await this.tracks.findById(privateTrackId);
     if (!track) return;
     const vocalsKey = privateTrackStagingKey(
@@ -262,8 +264,8 @@ export class PrivateTrackProcessingService {
       jobId: runpodJobId,
       notes: output.notes,
       processingValues: {
-        processingStatus: 'COMPLETED',
-        processingProgress: 100,
+        processingStatus: 'EXTRACTING_LYRICS',
+        processingProgress: 90,
         vocalsObjectKey: vocalsKey,
         pitchCurveObjectKey: pitchCurveKey,
         detectorVersion: output.detectorVersion,
@@ -273,6 +275,7 @@ export class PrivateTrackProcessingService {
       await this.scheduleAssetCleanup(track.id, [vocalsKey, pitchCurveKey]);
       return;
     }
+    return vocalsKey;
   }
 
   private async enqueuePoll(

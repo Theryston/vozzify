@@ -7,7 +7,7 @@ import {
   trackLyricLines,
   trackLyricWords,
 } from '../../database/schema/track-lyrics.js';
-import type { TimedLyricLine } from './track-lyrics-lines.js';
+import type { TimedLyricLine } from '../../integrations/elevenlabs/track-lyrics-lines.js';
 
 /**
  * The Timed lyrics of Tracks (CONTEXT.md "Timed lyrics"): their lines and words.

@@ -91,6 +91,7 @@ export class PrivateTracksService {
             },
           }
         : {}),
+      ...(completed && row.lyrics ? { lyrics: row.lyrics } : {}),
       notes,
     };
   }
@@ -259,6 +260,7 @@ const toProcessingStatus = (
   if (
     status === 'EXTRACTING_VOCALS' ||
     status === 'DETECTING_NOTES' ||
+    status === 'EXTRACTING_LYRICS' ||
     status === 'COMPLETED' ||
     status === 'FAILED'
   ) {

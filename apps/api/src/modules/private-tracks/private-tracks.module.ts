@@ -2,6 +2,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { AcoustidModule } from '../../integrations/acoustid/acoustid.module.js';
 import { AudioDownloadModule } from '../../integrations/audio-download/audio-download.module.js';
+import { ElevenLabsTranscriptionModule } from '../../integrations/elevenlabs/elevenlabs-transcription.module.js';
 import { FfmpegModule } from '../../integrations/ffmpeg/ffmpeg.module.js';
 import { MusicCatalogModule } from '../../integrations/music-catalog/music-catalog.module.js';
 import { NoteDetectionModule } from '../../integrations/note-detection/note-detection.module.js';
@@ -18,6 +19,7 @@ import { PRIVATE_TRACK_IDENTIFICATION_QUEUE } from './private-track-identificati
 import { PrivateTrackIdentificationProcessor } from './private-track-identification.processor.js';
 import { PrivateTrackIdentificationQueue } from './private-track-identification.queue.js';
 import { PrivateTrackIdentificationService } from './private-track-identification.service.js';
+import { PrivateTrackLyricsService } from './private-track-lyrics.service.js';
 import { PrivateTrackMediaController } from './private-track-media.controller.js';
 import { PrivateTrackMediaService } from './private-track-media.service.js';
 import { PrivateTrackMetadataController } from './private-track-metadata.controller.js';
@@ -45,6 +47,7 @@ import { PrivateYouTubeTracksService } from './private-youtube-tracks.service.js
     BullModule.registerQueue({ name: PRIVATE_TRACK_ASSET_CLEANUP_QUEUE }),
     BullModule.registerQueue({ name: PRIVATE_TRACK_IDENTIFICATION_QUEUE }),
     AcoustidModule,
+    ElevenLabsTranscriptionModule,
     FfmpegModule,
     MusicCatalogModule,
     NoteDetectionModule,
@@ -75,6 +78,7 @@ import { PrivateYouTubeTracksService } from './private-youtube-tracks.service.js
     PrivateTrackProcessingService,
     PrivateTrackProcessingIntegrations,
     PrivateTrackProcessingProcessor,
+    PrivateTrackLyricsService,
     PrivateTrackMediaService,
     PrivateTrackPracticeAccessService,
     PrivateTrackPracticeRepository,

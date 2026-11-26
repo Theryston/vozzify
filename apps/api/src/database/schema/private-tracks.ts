@@ -1,4 +1,4 @@
-import type { PrivateTrackRecording } from '@vozzify/contracts';
+import type { PrivateTrackRecording, TrackLyrics } from '@vozzify/contracts';
 import {
   doublePrecision,
   index,
@@ -42,6 +42,7 @@ export const privateTracks = pgTable(
     processingJobId: text(),
     processingAttemptId: text(),
     processingRetryId: text(),
+    lyrics: jsonb().$type<TrackLyrics>(),
     detectorVersion: text(),
     mediaObjectKey: text(),
     vocalsObjectKey: text(),

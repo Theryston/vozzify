@@ -90,6 +90,7 @@ function PrivateTrackDetailContent({
 const PRIVATE_STEPS: readonly TrackProcessingStep[] = [
   'EXTRACTING_VOCALS',
   'DETECTING_NOTES',
+  'EXTRACTING_LYRICS',
 ];
 
 function privateTrackHeader(track: PrivateTrackDetailData): TrackDetail {
@@ -160,6 +161,7 @@ function PrivateTrackView({
         <PrivateTrackPractice
           audio={track.audio}
           header={header}
+          lyrics={track.lyrics}
           notes={track.notes}
           fakePlayer={fakePlayer}
         />
@@ -170,10 +172,12 @@ function PrivateTrackView({
 
 function PrivateTrackPractice({
   audio,
+  lyrics,
   header,
   notes,
   fakePlayer,
 }: {
+  lyrics: PrivateTrackDetailData['lyrics'];
   audio: PrivateTrackDetailData['audio'];
   header: TrackDetail;
   notes: PrivateTrackDetailData['notes'];
@@ -191,7 +195,7 @@ function PrivateTrackPractice({
     <PracticeBody
       header={header}
       notes={{ notes }}
-      lyrics={undefined}
+      lyrics={lyrics}
       lyricsLoading={false}
       failed={false}
       fakePlayer={fakePlayer}
