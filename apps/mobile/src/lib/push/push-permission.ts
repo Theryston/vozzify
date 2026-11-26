@@ -1,6 +1,9 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { recordPermissionDecision } from './push-installation';
+import {
+  recordPermissionDecision,
+  releaseFailedPermissionRequest,
+} from './push-installation';
 
 type Permission = Notifications.NotificationPermissionsStatus;
 type PermissionAttempt = { asked: boolean; signal: AbortSignal };
@@ -33,14 +36,28 @@ export async function ensureAndroidPushChannel() {
   }
 }
 
+async function openSystemDialog() {
+  try {
+    return await Notifications.requestPermissionsAsync({
+      ios: { allowAlert: true, allowBadge: true, allowSound: true },
+    });
+  } catch (error) {
+    const current = await Notifications.getPermissionsAsync().catch(
+      () => undefined,
+    );
+    if (current && (isGranted(current) || !canRequest(current, false)))
+      return current;
+    // A rejected native call may never have displayed the dialog. Recheck
+    // the OS before retrying; a successful refusal keeps the durable marker.
+    await releaseFailedPermissionRequest();
+    throw error;
+  }
+}
+
 function requestPermissions(signal: AbortSignal) {
   prompt ??= (async () => {
     await ensureAndroidPushChannel();
-    return recordPermissionDecision(signal, () =>
-      Notifications.requestPermissionsAsync({
-        ios: { allowAlert: true, allowBadge: true, allowSound: true },
-      }),
-    );
+    return recordPermissionDecision(signal, openSystemDialog);
   })().finally(() => {
     prompt = undefined;
   });

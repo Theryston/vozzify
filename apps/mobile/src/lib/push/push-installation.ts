@@ -1,4 +1,7 @@
-import { pushInstallationIdentitySchema } from '@vozzify/contracts';
+import {
+  type PushInstallationIdentity,
+  pushInstallationIdentitySchema,
+} from '@vozzify/contracts';
 import { getRandomBytesAsync, randomUUID } from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { z } from 'zod';
@@ -69,6 +72,14 @@ export async function recordPermissionDecision<T>(
   return decision?.permission;
 }
 
+export function releaseFailedPermissionRequest() {
+  return edit(async (record) => {
+    if (record?.permissionSeen) {
+      await save({ ...record, permissionSeen: false });
+    }
+  });
+}
+
 export function reservePushRevision({ userId, token, signal }: PushChange) {
   return edit(async (record) => {
     if (signal.aborted) return undefined;
@@ -83,7 +94,11 @@ export function reservePushRevision({ userId, token, signal }: PushChange) {
     await save(next);
     if (signal.aborted) return undefined;
     const { installationId, installationSecret, revision } = next;
-    return { installationId, installationSecret, revision };
+    return {
+      installationId,
+      installationSecret,
+      revision,
+    } satisfies PushInstallationIdentity & { revision: number };
   });
 }
 

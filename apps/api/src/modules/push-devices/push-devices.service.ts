@@ -5,26 +5,33 @@ import { AppException } from '../../common/errors/app-exception.js';
 import type { AuthUser } from '../auth/auth.js';
 import { PushDevicesRepository } from './push-devices.repository.js';
 
+type Session = {
+  user: Pick<AuthUser, 'id' | 'emailVerified' | 'username'>;
+  sessionId: string;
+};
+
 @Injectable()
 export class PushDevicesService {
   constructor(private readonly devices: PushDevicesRepository) {}
 
-  async sync(user: AuthUser, body: SyncPushDeviceBody): Promise<void> {
+  async sync(
+    { user, sessionId }: Session,
+    body: SyncPushDeviceBody,
+  ): Promise<void> {
     if (body.active && !user.emailVerified) {
       throw new AppException('FORBIDDEN', 'Email verification required');
     }
     if (body.active && !user.username) {
       throw new AppException('USERNAME_REQUIRED', 'Username required');
     }
-    const { active, installationId, installationSecret, platform, revision } =
-      body;
+    const { installationId, installationSecret, platform, revision } = body;
     const result = await this.devices.sync({
       installationId,
       secretHash: createHash('sha256').update(installationSecret).digest('hex'),
       platform,
       revision,
       userId: user.id,
-      active,
+      sessionId: body.active ? sessionId : null,
       token: body.active ? body.token : null,
     });
     if (result === 'not-owned') {

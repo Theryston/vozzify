@@ -3,10 +3,17 @@ import type { SyncPushDeviceBody } from '@vozzify/contracts';
 import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { sessions } from '../src/database/schema/auth.js';
-import { pushDevices } from '../src/database/schema/push-devices.js';
+import {
+  pushDeviceInstallations,
+  pushDevices,
+} from '../src/database/schema/push-devices.js';
 import { users } from '../src/database/schema/users.js';
 import { useAuthSpec } from './utils/auth-spec.js';
-import { createPasswordUser, DEFAULT_PASSWORD } from './utils/factories.js';
+import {
+  createPasswordUser,
+  DEFAULT_PASSWORD,
+  type User,
+} from './utils/factories.js';
 
 function installation(platform: SyncPushDeviceBody['platform'] = 'ios') {
   return {
@@ -25,6 +32,10 @@ describe('PUT /v1/me/push-devices', () => {
     const user = await createPasswordUser(spec.testApp.db, {
       ...(username === null && { username }),
     });
+    return signInUser(user);
+  }
+
+  async function signInUser(user: User) {
     const response = await client()
       .post('/v1/auth/sign-in/email')
       .set('x-vozzify-auth', 'native')
@@ -87,7 +98,11 @@ describe('PUT /v1/me/push-devices', () => {
         active: true,
       }),
     ]);
-    expect((await rows())[0]?.secretHash).not.toBe(device.installationSecret);
+    const [saved] = await spec.testApp.db
+      .select()
+      .from(pushDeviceInstallations);
+    expect(saved?.secretHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(saved?.secretHash).not.toBe(device.installationSecret);
 
     await sync(user.authorization, {
       ...activation,
@@ -240,4 +255,74 @@ describe('PUT /v1/me/push-devices', () => {
       }),
     ]);
   });
+
+  it.each(['expired', 'revoked'] as const)(
+    'deactivates a device with a %s session without a new login, preserving other devices',
+    async (reason) => {
+      const user = await createPasswordUser(spec.testApp.db);
+      const first = await signInUser(user);
+      const other = await signInUser(user);
+      const firstDevice = {
+        ...installation(),
+        active: true,
+        token: 'first-apns-token',
+        revision: 1,
+      } as const;
+      const otherDevice = {
+        ...installation(),
+        active: true,
+        token: 'other-apns-token',
+        revision: 1,
+      } as const;
+      await sync(first.authorization, firstDevice).expect(204);
+      await sync(other.authorization, otherDevice).expect(204);
+      const [ownRegistration] = await spec.testApp.db
+        .select({ sessionId: pushDeviceInstallations.sessionId })
+        .from(pushDeviceInstallations)
+        .where(
+          eq(
+            pushDeviceInstallations.installationId,
+            firstDevice.installationId,
+          ),
+        );
+      if (!ownRegistration?.sessionId)
+        throw new Error('Missing registration session');
+
+      if (reason === 'expired') {
+        await spec.testApp.db
+          .update(sessions)
+          .set({ expiresAt: new Date(0) })
+          .where(eq(sessions.id, ownRegistration.sessionId));
+      } else {
+        await client()
+          .post('/v1/auth/sign-out')
+          .set('Authorization', first.authorization)
+          .expect(200);
+      }
+
+      expect(await rows()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            installationId: firstDevice.installationId,
+            active: false,
+            token: null,
+            revision: 1,
+          }),
+          expect.objectContaining({
+            installationId: otherDevice.installationId,
+            active: true,
+            token: otherDevice.token,
+          }),
+        ]),
+      );
+      await sync(first.authorization, { ...firstDevice, revision: 2 }).expect(
+        401,
+      );
+      await sync(other.authorization, {
+        ...firstDevice,
+        installationSecret: otherDevice.installationSecret,
+        revision: 2,
+      }).expect(403);
+    },
+  );
 });

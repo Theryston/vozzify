@@ -5,7 +5,14 @@ export const pushInstallationIdentitySchema = z.object({
   installationSecret: z.string().regex(/^[a-f0-9]{64}$/),
 });
 
-export const pushPlatformSchema = z.enum(['android', 'ios']);
+export type PushInstallationIdentity = z.infer<
+  typeof pushInstallationIdentitySchema
+>;
+
+export const PUSH_PLATFORMS = ['android', 'ios'] as const;
+export const pushPlatformSchema = z.enum(PUSH_PLATFORMS);
+
+export type PushPlatform = z.infer<typeof pushPlatformSchema>;
 
 const pushInstallation = {
   ...pushInstallationIdentitySchema.shape,

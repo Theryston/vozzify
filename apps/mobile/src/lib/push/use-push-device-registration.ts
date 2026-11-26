@@ -41,7 +41,7 @@ function createSynchronizer(target: Target) {
         if (!signal.aborted) retryDelay = firstRetryMs;
       },
       (error: unknown) => {
-        if (!signal.aborted && shouldRetry(error) && onlineManager.isOnline()) {
+        if (!signal.aborted && shouldRetry(error)) {
           retry = setTimeout(() => run(rotatedToken), retryDelay);
           retryDelay = Math.min(retryDelay * 2, maxRetryMs);
         }
@@ -88,7 +88,7 @@ function subscribeToPushChanges(target: Target) {
     cancelAnimationFrame(frame);
     sync.stop();
     appState.remove();
-    token.remove();
+    if (typeof token?.remove === 'function') token.remove();
     network();
   };
 }

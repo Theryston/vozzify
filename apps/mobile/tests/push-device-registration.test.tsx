@@ -15,6 +15,7 @@ import { renderRouter } from 'expo-router/testing-library';
 import * as SecureStore from 'expo-secure-store';
 import { AppState, type AppStateStatus, Platform } from 'react-native';
 import '../app/_layout';
+import { createAppConfig } from '../app.config';
 import { usePushDeviceRegistration } from '../src/lib/push/use-push-device-registration';
 
 jest.mock('expo-notifications', () => ({
@@ -154,13 +155,15 @@ afterEach(() => {
 
 it('waits for an eligible User to arrive at their Gallery destination before showing the system prompt', async () => {
   jest.replaceProperty(Platform, 'OS', 'android');
-  jest.replaceProperty(Platform, 'Version', 35);
+  jest.spyOn(Platform, 'Version', 'get').mockReturnValue('35');
   // A fresh Android 13+ install can be reported as denied but askable.
   readPermission.mockResolvedValue(denied);
   const prompt = deferred<Notifications.NotificationPermissionsStatus>();
+  let galleryVisibleAtPrompt = false;
   requestPermission.mockImplementation(() => {
-    expect(screen.getByText('Foundation components')).toBeOnTheScreen();
-    expect(screen.queryByText('Choose your Username')).toBeNull();
+    galleryVisibleAtPrompt =
+      screen.queryByText('Foundation components') !== null &&
+      screen.queryByText('Choose your Username') === null;
     return prompt.promise;
   });
   await SecureStore.setItemAsync(
@@ -192,6 +195,7 @@ it('waits for an eligible User to arrive at their Gallery destination before sho
   await userEvent.press(screen.getByTestId('submit-username'));
   await waitFor(() => expect(requestPermission).toHaveBeenCalledTimes(1));
   expect(router.getPathname()).toBe('/components');
+  expect(galleryVisibleAtPrompt).toBe(true);
   expect(Notifications.setNotificationChannelAsync).toHaveBeenCalledWith(
     'vozzify',
     expect.objectContaining({ importance: 3 }),
@@ -239,7 +243,7 @@ it('registers after a first grant on Home and restores without prompting again',
   expect(requestPermission).toHaveBeenCalledTimes(1);
 });
 
-it('waits for connectivity and reconciles a settings grant and revocation without re-prompting', async () => {
+it('retries a failed write on reconnect and deactivates with an API reachable on unvalidated internet', async () => {
   onlineManager.setOnline(false);
   readPermission.mockResolvedValueOnce({ ...denied, canAskAgain: false });
   await renderHook(() =>
@@ -247,23 +251,61 @@ it('waits for connectivity and reconciles a settings grant and revocation withou
   );
   await waitFor(() => expect(readPermission).toHaveBeenCalledTimes(1));
   expect(requestPermission).not.toHaveBeenCalled();
-  await foreground();
-  await waitFor(() => expect(readPermission).toHaveBeenCalledTimes(2));
   expect(getToken).not.toHaveBeenCalled();
-  expect(posted()).toHaveLength(0);
+
+  request.mockRejectedValueOnce(new Error('Connection unavailable'));
+  await foreground();
+  await waitFor(() => expect(posted()[0]?.body.active).toBe(true));
 
   await act(() => onlineManager.setOnline(true));
-  await waitFor(() => expect(posted()).toHaveLength(1));
-  readPermission.mockResolvedValue(denied);
-  await foreground();
-  await waitFor(() => expect(posted()[1]?.body.active).toBe(false));
+  await waitFor(() => expect(posted()[1]?.body.active).toBe(true));
   expect(posted()[1]?.body.revision).toBeGreaterThan(
     posted()[0]?.body.revision ?? 0,
   );
+
+  await act(() => onlineManager.setOnline(false));
+  readPermission.mockResolvedValue({ ...denied, granted: true });
+  await foreground();
+  await waitFor(() => expect(posted()[2]?.body.active).toBe(false));
+  expect(posted()[2]?.body.revision).toBeGreaterThan(
+    posted()[1]?.body.revision ?? 0,
+  );
   expect(requestPermission).not.toHaveBeenCalled();
+
   readPermission.mockResolvedValue(granted);
   await foreground();
-  await waitFor(() => expect(posted()[2]?.body.active).toBe(true));
+  await waitFor(() => expect(posted()[3]?.body.active).toBe(true));
+});
+
+it('retries a native prompt error while the OS still has no decision, then registers after a grant', async () => {
+  jest.useFakeTimers();
+  readPermission.mockResolvedValue(undetermined);
+  requestPermission.mockRejectedValueOnce(new Error('Activity unavailable'));
+  await renderHook(() =>
+    usePushDeviceRegistration(firstUser.id, 'first.session', 'arrived'),
+  );
+  await waitFor(() => expect(requestPermission).toHaveBeenCalledTimes(1));
+  await act(() => jest.advanceTimersByTimeAsync(2_000));
+  await waitFor(() => expect(posted()[0]?.body.active).toBe(true));
+  expect(requestPermission).toHaveBeenCalledTimes(2);
+  expect(readPermission).toHaveBeenCalledTimes(3);
+});
+
+it('honours the system denial when permission changes during a failed native request', async () => {
+  jest.useFakeTimers();
+  readPermission.mockResolvedValueOnce(undetermined).mockResolvedValue(denied);
+  requestPermission.mockRejectedValueOnce(
+    new Error('Interrupted permission response'),
+  );
+  await renderHook(() =>
+    usePushDeviceRegistration(firstUser.id, 'first.session', 'arrived'),
+  );
+  await waitFor(() => expect(readPermission).toHaveBeenCalledTimes(2));
+  await act(() => jest.advanceTimersByTimeAsync(10_000));
+  await foreground();
+  await waitFor(() => expect(readPermission).toHaveBeenCalledTimes(3));
+  expect(requestPermission).toHaveBeenCalledTimes(1);
+  expect(posted()).toHaveLength(0);
 });
 
 it('does not re-register when a native token read resolves after permission was revoked', async () => {
@@ -362,4 +404,35 @@ it('cleans up with the new session while it is onboarding, then registers only t
     expect(posted()[2]?.body).toMatchObject({ active: true, revision: 3 }),
   );
   expect(posted()[2]?.authorization).toBe('Bearer second.session');
+});
+
+it('selects the APNs entitlement and Android FCM configuration for the build variant', () => {
+  const config = createAppConfig(
+    {},
+    {
+      APP_VARIANT: 'production',
+      EXPO_PUBLIC_API_URL: 'https://api.example.com',
+      GOOGLE_SERVICES_JSON: '/example/android/google-services.json',
+    },
+  );
+  expect(config.plugins).toContainEqual([
+    'expo-notifications',
+    { mode: 'production' },
+  ]);
+  expect(config.android?.googleServicesFile).toBe(
+    '/example/android/google-services.json',
+  );
+
+  const preview = createAppConfig(
+    {},
+    {
+      APP_VARIANT: 'preview',
+      EXPO_PUBLIC_API_URL: 'https://preview-api.example.com',
+    },
+  );
+  expect(preview.plugins).toContainEqual([
+    'expo-notifications',
+    { mode: 'development' },
+  ]);
+  expect(preview.android?.googleServicesFile).toBeUndefined();
 });

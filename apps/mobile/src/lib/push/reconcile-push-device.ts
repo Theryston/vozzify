@@ -1,5 +1,4 @@
-import { onlineManager } from '@tanstack/react-query';
-import type { SyncPushDeviceBody } from '@vozzify/contracts';
+import type { PushPlatform } from '@vozzify/contracts';
 import { getDevicePushTokenAsync } from 'expo-notifications';
 import { syncPushDevice } from './push-device-api';
 import {
@@ -7,7 +6,7 @@ import {
   readPushInstallation,
   reservePushRevision,
 } from './push-installation';
-import { hasPushPermission } from './push-permission';
+import { ensureAndroidPushChannel, hasPushPermission } from './push-permission';
 
 export type PushArrival = 'onboarding' | 'travelling' | 'arrived';
 
@@ -15,14 +14,14 @@ export type PushContext = {
   userId: string;
   sessionToken: string;
   arrival: PushArrival;
-  platform: SyncPushDeviceBody['platform'];
+  platform: PushPlatform;
   signal: AbortSignal;
   rotatedToken?: string;
 };
 
 async function writeRegistration(context: PushContext, token?: string) {
   const { signal, userId, platform, sessionToken } = context;
-  if (signal.aborted || !onlineManager.isOnline()) return;
+  if (signal.aborted) return;
   const identity = await reservePushRevision({ userId, token, signal });
   if (!identity) return;
   const body = { ...identity, platform };
@@ -38,7 +37,9 @@ async function writeRegistration(context: PushContext, token?: string) {
 
 async function register(context: PushContext) {
   const { rotatedToken, platform } = context;
-  if (!onlineManager.isOnline()) return;
+  if (context.signal.aborted) return;
+  if (rotatedToken === undefined) await ensureAndroidPushChannel();
+  if (context.signal.aborted) return;
   const nativeToken =
     rotatedToken === undefined
       ? await getDevicePushTokenAsync()

@@ -120,7 +120,12 @@ variable. The Firebase Android app in that file must match the variant's package
 On iOS, enable Push Notifications on the variant's App ID and sign with a
 provisioning profile that grants the matching APNs entitlement. Store the
 configuration in the build environment. The backend stores native FCM or APNs
-tokens, and that step requires neither Expo push delivery nor sender credentials.
+tokens. Registration only needs the native app's permission and token configuration.
+
+Use the API's `push_devices` database view to verify the effective registration.
+It exposes a token only while the session that registered it remains valid.
+The installation's proof and latest revision survive session expiry or revocation
+so a new session can reconcile the same device.
 
 On a fresh installation, verify the prompt appears after arriving at Home or
 the pending destination. Deny once, relaunch, and verify the app continues

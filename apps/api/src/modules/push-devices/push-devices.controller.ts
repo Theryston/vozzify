@@ -7,14 +7,25 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { syncPushDeviceBodySchema } from '@vozzify/contracts';
+import {
+  type SyncPushDeviceBody,
+  syncPushDeviceBodySchema,
+} from '@vozzify/contracts';
+import type { z } from 'zod';
 import { AllowMissingUsername } from '../../common/decorators/allow-missing-username.decorator.js';
-import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import {
+  CurrentSession,
+  CurrentUser,
+} from '../../common/decorators/current-user.decorator.js';
 import { createZodDto } from '../../common/zod/create-zod-dto.js';
-import type { AuthUser } from '../auth/auth.js';
+import type { AuthSession, AuthUser } from '../auth/auth.js';
 import { PushDevicesService } from './push-devices.service.js';
 
-class SyncPushDeviceBodyDto extends createZodDto(syncPushDeviceBodySchema) {}
+// TypeScript classes cannot extend a constructor typed as a union. The
+// Nest validation pipe still parses the original discriminated schema.
+class SyncPushDeviceBodyDto extends createZodDto<z.ZodType<object>>(
+  syncPushDeviceBodySchema,
+) {}
 
 @ApiTags('push-devices')
 @Controller('me/push-devices')
@@ -37,8 +48,12 @@ export class PushDevicesController {
   })
   sync(
     @CurrentUser() user: AuthUser,
+    @CurrentSession() session: AuthSession['session'],
     @Body() body: SyncPushDeviceBodyDto,
   ): Promise<void> {
-    return this.devices.sync(user, body);
+    return this.devices.sync(
+      { user, sessionId: session.id },
+      body as SyncPushDeviceBody,
+    );
   }
 }
