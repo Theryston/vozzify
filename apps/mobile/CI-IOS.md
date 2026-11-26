@@ -11,15 +11,17 @@ The workflow uses a standard `macos-26` GitHub-hosted runner. It installs the
 locked workspace with Nub, builds the shared contracts, generates the iOS
 project, installs CocoaPods,
 links the preview variant with an iOS Simulator Keychain access group,
-verifies the embedded entitlements in the executable, boots the selected
-available iPhone simulator, installs and launches the app, then runs Maestro
-2.12.0. Separate workflow
+boots an available iPhone simulator, installs and launches the app, runs
+Maestro 2.12.0 and verifies the executable's embedded entitlements for the
+runner architecture. Separate workflow
 steps report project generation, dependency installation, compilation,
 simulator startup, app installation and smoke execution. The JUnit result is
 retained for one day. On flow failure, Maestro's command data, hierarchy,
 screenshots and debug log are uploaded when their combined size is at most 10
 MiB, also for one day. On smoke failure a separate small artifact retains
-launch and failure screenshots, screen hierarchies and filtered simulator logs.
+launch and failure screenshots, screen hierarchies, filtered simulator logs
+and the linked entitlement section. The launch screenshot and linked section
+are also retained if the entitlement check fails.
 The shared flow in `.maestro/flows/gallery-smoke.yaml` checks app launch,
 gallery navigation, text entry, overlay interaction, appearance and language
 selection, and restoration of the selected appearance and language after an

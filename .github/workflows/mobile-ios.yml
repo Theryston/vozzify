@@ -185,7 +185,7 @@ jobs:
           fi
           xcrun simctl bootstatus "$SIMULATOR_UDID" -b
 
-      - name: Verify linker entitlements and install native app
+      - name: Install native app
         working-directory: apps/mobile
         run: |
           app=$(find "$RUNNER_TEMP/ios-derived-data/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
@@ -196,23 +196,9 @@ jobs:
           bundle_id=$(plutil -extract CFBundleIdentifier raw "$app/Info.plist")
           test "$bundle_id" = com.vozzify.app.preview
           executable=$(plutil -extract CFBundleExecutable raw "$app/Info.plist")
-          # iOS Simulator reads its entitlements from the executable's __TEXT section.
-          xcrun otool -s __TEXT __entitlements "$app/$executable" | python3 -c '
-          import plistlib, re, sys
-          octets = bytearray()
-          for line in sys.stdin:
-              fields = line.split()
-              if fields and re.fullmatch(r"[0-9a-fA-F]{16}", fields[0]):
-                  for word in fields[1:]:
-                      octets.extend(bytes.fromhex(word)[::-1])
-          settings = plistlib.loads(octets.rstrip(b"\0"))
-          expected = f"VOZZIFYCI0.{sys.argv[1]}"
-          if settings["application-identifier"] != expected or settings["keychain-access-groups"] != [expected]:
-              raise RuntimeError("Missing simulator application identifier or Keychain access group")
-          print("Verified the linked simulator application identifier and Keychain access group")
-          ' "$bundle_id"
-          xcrun simctl install "$SIMULATOR_UDID" "$app"
           echo "IOS_APP_EXECUTABLE=$executable" >> "$GITHUB_ENV"
+          echo "IOS_APP_BINARY=$app/$executable" >> "$GITHUB_ENV"
+          xcrun simctl install "$SIMULATOR_UDID" "$app"
 
       - name: Install Maestro CLI
         run: |
@@ -252,8 +238,33 @@ jobs:
             --predicate 'process == "securityd" AND (eventMessage CONTAINS "Vozzify" OR eventMessage CONTAINS "34018")' |
             tail -n 200 > "$RUNNER_TEMP/ios-launch-evidence/keychain.log"
 
+      - name: Verify linker entitlements for the running architecture
+        id: entitlements
+        if: ${{ always() && env.IOS_APP_BINARY != '' }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/ios-launch-evidence"
+          # iOS Simulator reads its entitlements from the executable's __TEXT section.
+          architecture=$(uname -m)
+          xcrun lipo -archs "$IOS_APP_BINARY" | tee "$RUNNER_TEMP/ios-launch-evidence/architectures.txt"
+          xcrun otool -arch "$architecture" -s __TEXT __entitlements "$IOS_APP_BINARY" \
+            > "$RUNNER_TEMP/ios-launch-evidence/keychain-entitlements.txt"
+          python3 -c '
+          import plistlib, re, sys
+          octets = bytearray()
+          for line in sys.stdin:
+              fields = line.split()
+              if fields and re.fullmatch(r"[0-9a-fA-F]{16}", fields[0]):
+                  for word in fields[1:]:
+                      octets.extend(bytes.fromhex(word)[::-1])
+          settings = plistlib.loads(octets.rstrip(b"\0"))
+          expected = f"VOZZIFYCI0.{sys.argv[1]}"
+          if settings["application-identifier"] != expected or settings["keychain-access-groups"] != [expected]:
+              raise RuntimeError("Missing simulator application identifier or Keychain access group")
+          print("Verified the linked simulator application identifier and Keychain access group")
+          ' com.vozzify.app.preview < "$RUNNER_TEMP/ios-launch-evidence/keychain-entitlements.txt"
+
       - name: Upload iOS launch evidence
-        if: ${{ always() && steps.maestro.outcome == 'failure' }}
+        if: ${{ always() && (steps.maestro.outcome == 'failure' || steps.entitlements.outcome == 'failure') }}
         uses: actions/upload-artifact@v4
         with:
           name: ios-maestro-launch-evidence
