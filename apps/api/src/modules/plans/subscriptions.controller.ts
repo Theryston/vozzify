@@ -30,7 +30,6 @@ import { ZodSerializerDto } from '../../common/zod/zod-serializer.interceptor.js
 import { ENV, type Env } from '../../config/env.js';
 import { verifyStripeEvent } from '../../integrations/stripe/stripe-webhook.js';
 import type { AuthUser } from '../auth/auth.js';
-import { SubscriptionWebhookService } from './subscription-webhook.service.js';
 import { SubscriptionsService } from './subscriptions.service.js';
 
 class CurrentSubscriptionDto extends createZodDto(currentSubscriptionSchema) {}
@@ -85,7 +84,7 @@ export class SubscriptionsController {
 @Controller('billing')
 export class StripeWebhookController {
   constructor(
-    private readonly subscriptions: SubscriptionWebhookService,
+    private readonly subscriptions: SubscriptionsService,
     @Inject(ENV) private readonly env: Env,
   ) {}
   @Public()
@@ -102,7 +101,7 @@ export class StripeWebhookController {
       secret: this.env.STRIPE_WEBHOOK_SECRET,
       apiKey: this.env.STRIPE_SECRET_KEY,
     });
-    await this.subscriptions.handle(event);
+    await this.subscriptions.webhook(event);
     return { received: true };
   }
 }

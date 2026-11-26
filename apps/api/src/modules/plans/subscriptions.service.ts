@@ -17,6 +17,10 @@ import {
 } from './renewal-recovery.js';
 import { replaceEndedContract } from './replace-ended-contract.js';
 import { SubscriptionChangesService } from './subscription-changes.service.js';
+import {
+  type BillingEvent,
+  SubscriptionWebhookService,
+} from './subscription-webhook.service.js';
 import { SubscriptionsRepository } from './subscriptions.repository.js';
 
 @Injectable()
@@ -25,7 +29,12 @@ export class SubscriptionsService {
     private readonly repository: SubscriptionsRepository,
     private readonly stripe: StripeBillingService,
     private readonly changes: SubscriptionChangesService,
+    private readonly webhooks: SubscriptionWebhookService,
   ) {}
+
+  webhook(event: BillingEvent): Promise<void> {
+    return this.webhooks.handle(event);
+  }
 
   async checkout(
     userId: string,

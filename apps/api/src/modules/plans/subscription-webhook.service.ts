@@ -6,7 +6,7 @@ import { UsersService } from '../users/users.service.js';
 import { refreshSubscription } from './refresh-subscription.js';
 import { SubscriptionsRepository } from './subscriptions.repository.js';
 
-type BillingEvent = ReturnType<typeof verifyStripeEvent>;
+export type BillingEvent = ReturnType<typeof verifyStripeEvent>;
 
 @Injectable()
 export class SubscriptionWebhookService {
