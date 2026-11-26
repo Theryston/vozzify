@@ -13,12 +13,43 @@ import { HeaderSearchFallback } from '@/features/search/components/header-search
 export default async function SiteLayout({
   children,
 }: LayoutProps<'/[locale]'>) {
-  const { errors, header } = await getMessages();
+  const { errors, header, privateTracks } = await getMessages();
+  const {
+    title,
+    loading,
+    loadError,
+    close,
+    proLabel,
+    proTitle,
+    proDescription,
+    proNotes,
+    proVocals,
+    proPitch,
+    viewPlans,
+  } = privateTracks;
 
   return (
     // The header's client components need its messages; only site pages
     // pay for them.
-    <NextIntlClientProvider messages={{ errors, header }}>
+    <NextIntlClientProvider
+      messages={{
+        errors,
+        header,
+        privateTracks: {
+          title,
+          loading,
+          loadError,
+          close,
+          proLabel,
+          proTitle,
+          proDescription,
+          proNotes,
+          proVocals,
+          proPitch,
+          viewPlans,
+        },
+      }}
+    >
       <SiteHeader
         search={
           <Suspense fallback={<HeaderSearchFallback />}>
