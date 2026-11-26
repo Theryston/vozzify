@@ -111,7 +111,12 @@ function PrivateTrackRowContent({
   return (
     <>
       <span className="relative size-12 shrink-0 overflow-hidden rounded-md bg-muted">
-        <TrackCoverArt placeholderSeed={track.id} sizes="48px" />
+        <TrackCoverArt
+          coverArtUrl={track.coverUrl}
+          placeholderSeed={track.id}
+          sizes="48px"
+          unoptimized
+        />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <span className="flex min-w-0 flex-col gap-0.5">

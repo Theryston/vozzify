@@ -239,11 +239,12 @@ export const toPrivateTrack = (
     processingProgress?: number;
   },
 ): PrivateTrack => {
-  const { title, artist } = displayPrivateTrack(row);
+  const { title, artist, recording } = displayPrivateTrack(row);
   return {
     id: row.id,
     title,
     artist,
+    ...(recording?.coverUrl && { coverUrl: recording.coverUrl }),
     durationMs: row.durationMs,
     createdAt: row.createdAt.toISOString(),
     ...(row.processingStatus === undefined

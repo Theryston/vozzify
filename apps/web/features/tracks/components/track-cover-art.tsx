@@ -16,26 +16,30 @@ export function TrackCoverArt({
   placeholderSeed,
   sizes,
   priority,
+  unoptimized,
 }: {
   coverArtUrl?: string | null;
   placeholderSeed: string;
   sizes: string;
   /** Loads the art eagerly; only for covers visible on first paint. */
   priority?: boolean;
+  unoptimized?: boolean;
 }) {
-  const [artFailed, setArtFailed] = useState(false);
-  if (!coverArtUrl || artFailed) {
+  const [failedUrl, setFailedUrl] = useState<string>();
+  if (!coverArtUrl || coverArtUrl === failedUrl) {
     return <TrackCoverPlaceholder seed={placeholderSeed} />;
   }
   return (
     <Image
+      key={coverArtUrl}
       src={coverArtUrl}
       alt=""
       fill
       priority={priority}
+      unoptimized={unoptimized}
       sizes={sizes}
       className="object-cover"
-      onError={() => setArtFailed(true)}
+      onError={() => setFailedUrl(coverArtUrl)}
     />
   );
 }
