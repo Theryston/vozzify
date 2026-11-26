@@ -175,7 +175,16 @@ describe('Private video uploads (e2e)', () => {
         .expect(400);
       expect(noAudio.body).toMatchObject({
         code: 'VALIDATION_FAILED',
-        details: { reason: 'MISSING_VIDEO_AUDIO' },
+        details: {
+          location: 'body',
+          issues: [
+            {
+              code: 'custom',
+              path: ['audio'],
+              params: { reason: 'MISSING_VIDEO_AUDIO' },
+            },
+          ],
+        },
       });
       await client.post(ROOT).attach('audio', longVideo).expect(400);
       await client
