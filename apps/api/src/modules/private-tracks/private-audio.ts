@@ -3,17 +3,35 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { Injectable } from '@nestjs/common';
-import { PRIVATE_AUDIO_MAX_DURATION_SECONDS } from '@vozzify/contracts';
+import {
+  MISSING_PRIVATE_VIDEO_AUDIO,
+  PRIVATE_AUDIO_MAX_DURATION_SECONDS,
+} from '@vozzify/contracts';
 import { z } from 'zod';
 import { ZodValidationException } from '../../common/zod/zod-validation.pipe.js';
 import { FfmpegClient } from '../../integrations/ffmpeg/ffmpeg.client.js';
 import { PRIVATE_AUDIO_FORMAT_WHITELIST } from '../../integrations/ffmpeg/private-audio-formats.js';
 
-type AudioMetadata = { durationMs: number; title: string; artist: string };
+type AudioMetadata = {
+  durationMs: number;
+  title: string;
+  artist: string;
+  hasVideo?: true;
+};
 
-export const invalidPrivateAudio = (message: string) =>
+export const invalidPrivateAudio = (
+  message: string,
+  reason?: typeof MISSING_PRIVATE_VIDEO_AUDIO,
+) =>
   new ZodValidationException(
-    new z.ZodError([{ code: 'custom', path: ['audio'], message }]),
+    new z.ZodError([
+      {
+        code: 'custom',
+        path: ['audio'],
+        message,
+        ...(reason && { params: { reason } }),
+      },
+    ]),
     'body',
   );
 
@@ -28,37 +46,37 @@ export class PrivateAudioInspector {
     } catch {
       throw invalidPrivateAudio('Audio could not be decoded');
     }
-    const stream = probe.streams?.[0];
-    if (stream?.codec_type !== 'audio') {
-      throw invalidPrivateAudio(
-        'Audio must be decodable and no longer than 30 minutes',
-      );
-    }
-    let duration: number;
-    try {
-      duration = await this.ffmpeg.validateAudioFile(
-        filePath,
-        PRIVATE_AUDIO_MAX_DURATION_SECONDS,
-      );
-    } catch {
-      throw invalidPrivateAudio('Audio could not be decoded');
-    }
-    if (
-      !Number.isFinite(duration) ||
-      duration <= 0 ||
-      duration > PRIVATE_AUDIO_MAX_DURATION_SECONDS
-    ) {
-      throw invalidPrivateAudio(
-        'Audio must be decodable and no longer than 30 minutes',
-      );
-    }
+    const stream = probe.streams?.find(
+      ({ codec_type }) => codec_type === 'audio',
+    );
+    const videoStreams = probe.streams?.filter(isVideoStream) ?? [];
+    const hasVideo = videoStreams.length > 0;
+    if (!stream) throw missingAudio(hasVideo);
+    const duration = await this.validateDuration(filePath, {
+      hasVideo,
+      declaredDuration: Math.max(
+        Number(probe.format?.duration) || 0,
+        ...videoStreams.map((video) => Number(video.duration) || 0),
+      ),
+    });
     const streamTags = stream.tags ?? {};
     const formatTags = probe.format?.tags ?? {};
     return {
       durationMs: Math.round(duration * 1000),
       title: tagValue(streamTags, 'title') || tagValue(formatTags, 'title'),
       artist: tagValue(streamTags, 'artist') || tagValue(formatTags, 'artist'),
+      ...(hasVideo && { hasVideo: true }),
     };
+  }
+
+  async extractVideoAudio(filePath: string, outputPath: string): Promise<void> {
+    try {
+      await this.ffmpeg.convertPrivateAudioFileToWav(filePath, outputPath, {
+        durationLimitSeconds: PRIVATE_AUDIO_MAX_DURATION_SECONDS,
+      });
+    } catch {
+      throw invalidPrivateAudio('Audio could not be extracted from the video');
+    }
   }
 
   async hash(filePath: string): Promise<string> {
@@ -67,6 +85,31 @@ export class PrivateAudioInspector {
       hash.update(chunk);
     }
     return hash.digest('hex');
+  }
+
+  private async validateDuration(
+    filePath: string,
+    {
+      hasVideo,
+      declaredDuration,
+    }: { hasVideo: boolean; declaredDuration: number },
+  ): Promise<number> {
+    const limit = PRIVATE_AUDIO_MAX_DURATION_SECONDS;
+    if (hasVideo && declaredDuration > limit) throw invalidDuration();
+    let duration: number;
+    try {
+      duration = await (hasVideo
+        ? this.ffmpeg.validateVideoFile(filePath, limit)
+        : this.ffmpeg.validateAudioFile(filePath, limit));
+    } catch {
+      throw invalidPrivateAudio(
+        'Audio or video could not be decoded within the duration limit',
+      );
+    }
+    if (!Number.isFinite(duration) || duration <= 0 || duration > limit) {
+      throw invalidDuration();
+    }
+    return duration;
   }
 
   private async probe(filePath: string): Promise<ProbeResult> {
@@ -82,10 +125,8 @@ export class PrivateAudioInspector {
             'file',
             '-format_whitelist',
             PRIVATE_AUDIO_FORMAT_WHITELIST,
-            '-select_streams',
-            'a:0',
             '-show_entries',
-            'stream=codec_type,duration:stream_tags=title,artist:format=duration:format_tags=title,artist',
+            'stream=codec_type,duration:stream_disposition=attached_pic:stream_tags=title,artist:format=duration:format_tags=title,artist',
             '-show_format',
             '-of',
             'json',
@@ -121,13 +162,32 @@ export class PrivateAudioInspector {
 }
 
 type ProbeResult = {
-  streams?: {
-    codec_type?: string;
-    duration?: string;
-    tags?: Record<string, string>;
-  }[];
+  streams?: ProbeStream[];
   format?: { duration?: string; tags?: Record<string, string> };
 };
+
+type ProbeStream = {
+  codec_type?: string;
+  duration?: string;
+  disposition?: { attached_pic?: number };
+  tags?: Record<string, string>;
+};
+
+const isVideoStream = (stream: ProbeStream): boolean =>
+  stream.codec_type === 'video' && stream.disposition?.attached_pic !== 1;
+
+const invalidDuration = () =>
+  invalidPrivateAudio(
+    'The source must contain decodable audio and be no longer than 30 minutes',
+  );
+
+const missingAudio = (hasVideo: boolean) =>
+  hasVideo
+    ? invalidPrivateAudio(
+        'Video must contain an audio track',
+        MISSING_PRIVATE_VIDEO_AUDIO,
+      )
+    : invalidDuration();
 
 const tagValue = (tags: Record<string, string>, name: string): string => {
   const match = Object.entries(tags).find(

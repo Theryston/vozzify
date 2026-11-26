@@ -50,6 +50,16 @@ const startJob = vi.fn(
 );
 const checkJob = vi.fn();
 
+async function downloadedFixture() {
+  const bytes = await readFile(DOWNLOAD_FIXTURE);
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  });
+}
+
 describe('Private YouTube tracks (e2e)', () => {
   let app: TestApp;
   let catalog: Awaited<ReturnType<typeof startFakeMusicCatalog>>;
@@ -215,15 +225,7 @@ describe('Private YouTube tracks (e2e)', () => {
       .send({ url: SHARE_URL })
       .expect(201);
     const { id } = privateTrackSchema.parse(submitted.body);
-    const bytes = await readFile(DOWNLOAD_FIXTURE);
-    downloadAudio.mockResolvedValue(
-      new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(bytes);
-          controller.close();
-        },
-      }),
-    );
+    downloadAudio.mockResolvedValue(await downloadedFixture());
     await runProcessing(id);
     expect(downloadAudio).toHaveBeenCalledWith(
       VIDEO_ID,
@@ -269,7 +271,7 @@ describe('Private YouTube tracks (e2e)', () => {
     ).toBeUndefined();
   });
 
-  it('keeps the entry with a failed Processing when the video download fails', async () => {
+  it('keeps the failed track and lets an equivalent link resume its queued retry', async () => {
     const owner = await signInUser();
     const submitted = await owner.client
       .post(`${ROOT}/youtube`)
@@ -286,6 +288,19 @@ describe('Private YouTube tracks (e2e)', () => {
     );
     expect(startJob).not.toHaveBeenCalled();
     await owner.client.get(`${ROOT}/${id}/media/music`).expect(404);
+
+    await owner.client.post(`${ROOT}/${id}/retry`).expect(202);
+    const repeated = await owner.client
+      .post(`${ROOT}/youtube`)
+      .send({ url: WATCH_URL })
+      .expect(201);
+    expect(privateTrackSchema.parse(repeated.body)).toMatchObject({
+      id,
+      processing: { status: 'QUEUED', progress: 0 },
+    });
+    downloadAudio.mockResolvedValue(await downloadedFixture());
+    await runProcessing(id);
+    expect(startJob).toHaveBeenCalledOnce();
   });
 
   function runProcessing(privateTrackId: string) {

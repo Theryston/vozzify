@@ -1,0 +1,1 @@
+ALTER TABLE "private_tracks" ADD COLUMN "processing_retry_id" text;

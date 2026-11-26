@@ -29,6 +29,7 @@ export const privateTracks = pgTable(
     processingProgress: integer().notNull().default(0),
     processingJobId: text(),
     processingAttemptId: text(),
+    processingRetryId: text(),
     detectorVersion: text(),
     mediaObjectKey: text(),
     vocalsObjectKey: text(),

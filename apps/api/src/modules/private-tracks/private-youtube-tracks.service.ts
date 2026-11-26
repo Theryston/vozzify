@@ -12,13 +12,13 @@ import { youtubeVideoIdOf } from '../../integrations/youtube-music/youtube-video
 import { SubscriptionMembershipService } from '../plans/subscription-membership.service.js';
 import { privateTrackMediaKey } from './private-track-object-keys.js';
 import { PrivateTrackWorkflowService } from './private-track-workflow.service.js';
-import { PrivateTracksRepository } from './private-tracks.repository.js';
 import { toPrivateTrack } from './private-tracks.service.js';
+import { PrivateYouTubeTracksRepository } from './private-youtube-tracks.repository.js';
 
 @Injectable()
 export class PrivateYouTubeTracksService {
   constructor(
-    private readonly tracks: PrivateTracksRepository,
+    private readonly tracks: PrivateYouTubeTracksRepository,
     private readonly membership: SubscriptionMembershipService,
     private readonly youtube: YouTubeMusicClient,
     private readonly workflow: PrivateTrackWorkflowService,
@@ -32,20 +32,23 @@ export class PrivateYouTubeTracksService {
     if (!videoId) {
       throw invalidYouTubeUrl('Use an individual YouTube video URL');
     }
-    const track = toPrivateTrack(
-      (await this.tracks.findOwnedYouTube(userId, videoId)) ??
-        (await this.reserveVideo(userId, videoId)),
-    );
-    if (track.processing?.status === 'QUEUED') {
-      await this.workflow.queueProcessing(userId, track.id);
+    const row =
+      (await this.tracks.findOwnedVideo(userId, videoId)) ??
+      (await this.reserveVideo(userId, videoId));
+    if (row.processingStatus === 'QUEUED') {
+      await this.workflow.queueProcessing(
+        userId,
+        row.id,
+        row.processingRetryId,
+      );
     }
-    return track;
+    return toPrivateTrack(row);
   }
 
   private async reserveVideo(userId: string, videoId: string) {
     const { title, durationMs } = await this.lookupVideo(videoId);
     const id = createId();
-    return this.tracks.reserveYouTube({
+    return this.tracks.reserve({
       id,
       userId,
       youtubeVideoId: videoId,

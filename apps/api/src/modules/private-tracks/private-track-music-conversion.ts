@@ -27,7 +27,7 @@ export async function ensurePrivateTrackMusicWav(
       filePath: wavPath,
       contentType: 'audio/wav',
     });
-    const saved = await tracks.saveMusicMedia(track.id, key);
+    const saved = await tracks.saveMusicMedia(track, key);
     return saved ? key : null;
   } finally {
     await rm(directory, { recursive: true, force: true });

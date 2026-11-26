@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { usePrivateTrackDetail } from '../hooks/use-private-tracks';
 import { privateTrackKeys } from '../query-keys';
 import { PrivateTrackDeleteButton } from './private-track-delete-button';
+import { PrivateTrackRetryButton } from './private-track-retry-button';
 
 function usePrivateTrackAccess(
   initial: PrivateTrackDetailData,
@@ -125,6 +126,16 @@ function PrivateTrackView({
           />
         }
         statusOptions={{
+          failure: {
+            code: null,
+            action:
+              status === 'FAILED' ? (
+                <PrivateTrackRetryButton
+                  privateTrackId={track.id}
+                  userId={userId}
+                />
+              ) : undefined,
+          },
           copy: {
             activeTitle: t(`processing.${status}`),
             closeNote: t('closeNote'),
@@ -143,7 +154,7 @@ function PrivateTrackView({
         }
       />
       {track.locked ? (
-        <LockedPrivateTrack />
+        <LockedPrivateTrack failed={status === 'FAILED'} />
       ) : (
         <PrivateTrackPractice
           header={header}
@@ -214,7 +225,7 @@ function PrivateTrackActions({
   );
 }
 
-function LockedPrivateTrack() {
+function LockedPrivateTrack({ failed }: { failed: boolean }) {
   const t = useTranslations('privateTracks.detail');
   return (
     <section className="flex flex-col items-start gap-3">
@@ -222,6 +233,11 @@ function LockedPrivateTrack() {
       <p className="max-w-prose text-muted-foreground text-sm">
         {t('lockedDescription')}
       </p>
+      {failed ? (
+        <p role="status" className="text-destructive text-sm">
+          {t('processing.FAILED')}
+        </p>
+      ) : null}
       <Link href="/plans" className={buttonVariants()}>
         {t('reactivate')}
       </Link>

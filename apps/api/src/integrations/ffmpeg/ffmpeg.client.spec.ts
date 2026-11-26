@@ -147,6 +147,10 @@ describe('FfmpegClient file conversion', () => {
       '-vn',
       '-sn',
       '-dn',
+      '-map_metadata',
+      '-1',
+      '-map_chapters',
+      '-1',
       '-threads',
       '1',
       '-acodec',
@@ -195,7 +199,7 @@ describe('FfmpegClient file conversion', () => {
     validationOutput(1_800_021_000);
     validationOutput(1_800_010_000);
     await expect(client.validateYouTubeAudioFile(input, 1800)).rejects.toThrow(
-      'Audio duration exceeds its limit',
+      'Media duration exceeds its limit',
     );
   });
 

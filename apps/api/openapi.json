@@ -1958,6 +1958,43 @@
         ]
       }
     },
+    "/v1/me/private-tracks/{id}/retry": {
+      "post": {
+        "operationId": "PrivateTracksController_retry_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The current private Processing state."
+          },
+          "400": {
+            "description": "The private Track ID is invalid."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "403": {
+            "description": "Active Pro membership is required."
+          },
+          "404": {
+            "description": "The private Track does not exist."
+          }
+        },
+        "tags": [
+          "private tracks"
+        ]
+      }
+    },
     "/v1/me/private-tracks/{id}/media/{kind}": {
       "get": {
         "operationId": "PrivateTrackMediaController_audio_v1",

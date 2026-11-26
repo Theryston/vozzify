@@ -17,6 +17,10 @@ import {
 } from '@vozzify/contracts';
 import { z } from 'zod';
 import { browserApi } from '@/lib/api/browser';
+import {
+  privateTrackListRefetchInterval,
+  privateTrackRetryMutation,
+} from '../private-track-processing-query';
 import { privateTrackKeys } from '../query-keys';
 
 export function usePrivateTrackDetail(
@@ -58,7 +62,16 @@ export function usePrivateTracks(userId: string) {
         signal,
       }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
+    refetchInterval: (query) =>
+      privateTrackListRefetchInterval(query.state.data?.pages),
   });
+}
+
+export function useRetryPrivateTrack(userId: string, privateTrackId: string) {
+  const queryClient = useQueryClient();
+  return useMutation(
+    privateTrackRetryMutation(queryClient, userId, privateTrackId),
+  );
 }
 
 export function useSubmitPrivateTrack(userId: string) {

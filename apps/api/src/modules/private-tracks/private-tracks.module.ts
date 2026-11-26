@@ -23,6 +23,7 @@ import { PrivateTracksController } from './private-tracks.controller.js';
 import { PrivateTracksRepository } from './private-tracks.repository.js';
 import { PrivateTracksService } from './private-tracks.service.js';
 import { PrivateYouTubeTracksController } from './private-youtube-tracks.controller.js';
+import { PrivateYouTubeTracksRepository } from './private-youtube-tracks.repository.js';
 import { PrivateYouTubeTracksService } from './private-youtube-tracks.service.js';
 
 @Module({
@@ -54,6 +55,7 @@ import { PrivateYouTubeTracksService } from './private-youtube-tracks.service.js
     PrivateTrackWorkflowService,
     PrivateTrackAssetCleanupQueue,
     PrivateTrackAssetCleanupProcessor,
+    PrivateYouTubeTracksRepository,
     PrivateYouTubeTracksService,
   ],
   exports: [PrivateTrackAssetCleanupQueue],

@@ -4,6 +4,18 @@ import { cursorPageSchema, cursorPaginationQuerySchema } from './pagination.js';
 export const PRIVATE_AUDIO_MAX_BYTES = 250 * 1024 * 1024;
 export const PRIVATE_AUDIO_MAX_DURATION_SECONDS = 30 * 60;
 export const PRIVATE_YOUTUBE_URL_MAX_LENGTH = 2048;
+export const MISSING_PRIVATE_VIDEO_AUDIO = 'MISSING_VIDEO_AUDIO';
+
+export const privateTrackUploadErrorDetailsSchema = z.object({
+  location: z.literal('body'),
+  issues: z
+    .array(
+      z.object({
+        params: z.object({ reason: z.literal(MISSING_PRIVATE_VIDEO_AUDIO) }),
+      }),
+    )
+    .min(1),
+});
 
 export const PRIVATE_TRACK_PROCESSING_STATES = [
   'QUEUED',

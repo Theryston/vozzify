@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { PrivateTrack } from '@vozzify/contracts';
+import type {
+  PrivateTrack,
+  PrivateTrackProcessingState,
+} from '@vozzify/contracts';
 import { PrivateTrackProcessingService } from './private-track-processing.service.js';
 import { PrivateTracksService } from './private-tracks.service.js';
 
@@ -21,12 +24,27 @@ export class PrivateTrackWorkflowService {
     return track;
   }
 
-  async queueProcessing(userId: string, trackId: string): Promise<void> {
+  async retry(
+    userId: string,
+    privateTrackId: string,
+  ): Promise<PrivateTrackProcessingState> {
+    const { processing, retryId } = await this.tracks.prepareRetry(
+      userId,
+      privateTrackId,
+    );
+    if (retryId) await this.queueProcessing(userId, privateTrackId, retryId);
+    return processing;
+  }
+
+  async queueProcessing(
+    ...args: Parameters<PrivateTrackProcessingService['enqueue']>
+  ): Promise<void> {
+    const [, privateTrackId] = args;
     try {
-      await this.processing.enqueue(userId, trackId);
+      await this.processing.enqueue(...args);
     } catch (error) {
       this.logger.warn(
-        `Could not enqueue processing for private Track ${trackId}: ${String(error)}`,
+        `Could not enqueue processing for private Track ${privateTrackId}: ${String(error)}`,
       );
     }
   }

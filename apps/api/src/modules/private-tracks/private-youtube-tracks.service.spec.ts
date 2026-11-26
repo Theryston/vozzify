@@ -3,7 +3,7 @@ import { ZodValidationException } from '../../common/zod/zod-validation.pipe.js'
 import { YouTubeMusicClient } from '../../integrations/youtube-music/youtube-music.client.js';
 import { SubscriptionMembershipService } from '../plans/subscription-membership.service.js';
 import { PrivateTrackWorkflowService } from './private-track-workflow.service.js';
-import { PrivateTracksRepository } from './private-tracks.repository.js';
+import { PrivateYouTubeTracksRepository } from './private-youtube-tracks.repository.js';
 import { PrivateYouTubeTracksService } from './private-youtube-tracks.service.js';
 
 const VIDEO_ID = 'aBcd1Efgh_2';
@@ -11,8 +11,8 @@ const LINK = `https://youtu.be/${VIDEO_ID}`;
 
 describe('PrivateYouTubeTracksService', () => {
   const repository = {
-    findOwnedYouTube: vi.fn(),
-    reserveYouTube: vi.fn(),
+    findOwnedVideo: vi.fn(),
+    reserve: vi.fn(),
   };
   const membership = { hasPaidMembership: vi.fn() };
   const youtube = { getPracticeVideo: vi.fn() };
@@ -24,7 +24,7 @@ describe('PrivateYouTubeTracksService', () => {
     module = await Test.createTestingModule({
       providers: [
         PrivateYouTubeTracksService,
-        { provide: PrivateTracksRepository, useValue: repository },
+        { provide: PrivateYouTubeTracksRepository, useValue: repository },
         { provide: SubscriptionMembershipService, useValue: membership },
         { provide: YouTubeMusicClient, useValue: youtube },
         { provide: PrivateTrackWorkflowService, useValue: workflow },
@@ -44,11 +44,12 @@ describe('PrivateYouTubeTracksService', () => {
       title: 'Rehearsal',
       durationSeconds: 1800,
     });
-    repository.reserveYouTube.mockImplementation((input) => ({
+    repository.reserve.mockImplementation((input) => ({
       ...input,
       artist: '',
       processingStatus: 'QUEUED',
       processingProgress: 0,
+      processingRetryId: null,
       createdAt: new Date('2026-11-26T00:00:00Z'),
     }));
   });
@@ -62,7 +63,11 @@ describe('PrivateYouTubeTracksService', () => {
       processing: { status: 'QUEUED', progress: 0 },
     });
     expect(youtube.getPracticeVideo).toHaveBeenCalledWith(VIDEO_ID);
-    expect(workflow.queueProcessing).toHaveBeenCalledWith('owner', track.id);
+    expect(workflow.queueProcessing).toHaveBeenCalledWith(
+      'owner',
+      track.id,
+      null,
+    );
   });
 
   it('denies a free user before fetching external data', async () => {
@@ -88,7 +93,7 @@ describe('PrivateYouTubeTracksService', () => {
 
   it('returns the existing entry even if the video is unavailable now', async () => {
     const original = await service.submit('owner', LINK);
-    repository.findOwnedYouTube.mockResolvedValue({
+    repository.findOwnedVideo.mockResolvedValue({
       ...original,
       createdAt: new Date(original.createdAt),
     });
@@ -117,6 +122,6 @@ describe('PrivateYouTubeTracksService', () => {
     await expect(service.submit('owner', LINK)).rejects.toMatchObject({
       code: 'SERVICE_UNAVAILABLE',
     });
-    expect(repository.reserveYouTube).not.toHaveBeenCalled();
+    expect(repository.reserve).not.toHaveBeenCalled();
   });
 });
