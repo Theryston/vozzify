@@ -161,6 +161,7 @@ test('a failed photo returns to the initials on the public record sleeve', async
 }) => {
   await page.goto('/en/users/studio_missing');
   const banner = page.getByRole('region', { name: 'Lia Costa' });
+  await expect(banner.locator('img')).toHaveCount(0);
   await expect(banner.getByText('LC', { exact: true })).toBeVisible();
   await expect(banner.getByText('Pro', { exact: true }).first()).toBeVisible();
 });

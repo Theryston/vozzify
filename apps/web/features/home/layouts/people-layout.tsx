@@ -44,6 +44,7 @@ export function PeopleLayout({
             >
               <UserAvatar
                 user={person}
+                loading="lazy"
                 imageSizes="(max-width: 768px) 80px, 96px"
                 className="size-20 md:size-24"
               />

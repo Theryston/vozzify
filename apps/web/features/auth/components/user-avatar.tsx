@@ -16,10 +16,12 @@ export function UserAvatar({
   user,
   className,
   size = 'compact',
+  loading = 'eager',
   imageSizes = size === 'full' ? '(min-width: 768px) 192px, 96px' : '40px',
 }: {
   user: AvatarUser;
   className?: string;
+  loading?: 'eager' | 'lazy';
   imageSizes?: string;
   size?: 'compact' | 'full';
 }) {
@@ -33,12 +35,13 @@ export function UserAvatar({
             <Image
               fill
               unoptimized
+              loading={loading}
               sizes={imageSizes}
               src={user.image}
               alt=""
             />
           }
-          keepMounted
+          keepMounted={loading === 'lazy'}
           src={user.image}
           alt=""
           referrerPolicy="no-referrer"
