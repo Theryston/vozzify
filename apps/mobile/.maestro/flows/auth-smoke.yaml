@@ -25,13 +25,13 @@ appId: com.vozzify.app.preview
     id: submit-sign-in
 - assertVisible: Enter your email or Username.
 - assertVisible: Enter your password.
-- takeScreenshot: ${AUTH_SCREENSHOT_DIR}/sign-in-light
+- takeScreenshot: sign-in-light
 - tapOn: Create account
 - assertVisible: Create your account
-- takeScreenshot: ${AUTH_SCREENSHOT_DIR}/sign-up-light
+- takeScreenshot: sign-up-light
 - openLink: vozzify-preview://verify-email
 - assertVisible: Verify your email
-- takeScreenshot: ${AUTH_SCREENSHOT_DIR}/verify-email-light
+- takeScreenshot: verify-email-light
 - openLink: vozzify-preview://components
 - scrollUntilVisible:
     element:
@@ -47,7 +47,7 @@ appId: com.vozzify.app.preview
     id: language-pt-BR
 - openLink: vozzify-preview://sign-in
 - assertVisible: Entre no Vozzify
-- takeScreenshot: ${AUTH_SCREENSHOT_DIR}/sign-in-dark-pt-br
+- takeScreenshot: sign-in-dark-pt-br
 - tapOn: Criar conta
 - assertVisible: Crie sua conta
-- takeScreenshot: ${AUTH_SCREENSHOT_DIR}/sign-up-dark-pt-br
+- takeScreenshot: sign-up-dark-pt-br

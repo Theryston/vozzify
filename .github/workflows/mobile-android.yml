@@ -141,11 +141,10 @@ jobs:
             adb install apps/mobile/android/app/build/outputs/apk/release/app-release.apk
             echo '::endgroup::'
             echo '::group::Run installed app smoke flows'
-            mkdir -p "$RUNNER_TEMP/maestro-auth"
-            maestro test --format junit --output apps/mobile/maestro-results.xml --test-output-dir "$RUNNER_TEMP/maestro-artifacts" --debug-output "$RUNNER_TEMP/maestro-debug" -e AUTH_SCREENSHOT_DIR="$RUNNER_TEMP/maestro-auth" apps/mobile/.maestro/flows
+            maestro test --format junit --output apps/mobile/maestro-results.xml --test-output-dir "$RUNNER_TEMP/maestro-artifacts" --debug-output "$RUNNER_TEMP/maestro-debug" apps/mobile/.maestro/flows
             echo '::endgroup::'
             echo '::group::Exercise authentication against the real API'
-            maestro test --format junit --output apps/mobile/maestro-auth-results.xml --test-output-dir "$RUNNER_TEMP/maestro-auth-artifacts" --debug-output "$RUNNER_TEMP/maestro-auth-debug" -e AUTH_SCREENSHOT_DIR="$RUNNER_TEMP/maestro-auth" -e AUTH_EMAIL="$AUTH_EMAIL" -e AUTH_PASSWORD="$AUTH_PASSWORD" -e AUTH_USERNAME="$AUTH_USERNAME" apps/mobile/.maestro/android/credential-onboarding.yaml
+            maestro test --format junit --output apps/mobile/maestro-auth-results.xml --test-output-dir "$RUNNER_TEMP/maestro-auth-artifacts" --debug-output "$RUNNER_TEMP/maestro-auth-debug" -e AUTH_EMAIL="$AUTH_EMAIL" -e AUTH_PASSWORD="$AUTH_PASSWORD" -e AUTH_USERNAME="$AUTH_USERNAME" apps/mobile/.maestro/android/credential-onboarding.yaml
             echo '::endgroup::'
 
       - name: Remove smoke API services
@@ -200,6 +199,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-maestro-auth-screens
-          path: ${{ runner.temp }}/maestro-auth/*.png
+          path: |
+            ${{ runner.temp }}/maestro-artifacts/**/sign-in-*.png
+            ${{ runner.temp }}/maestro-artifacts/**/sign-up-*.png
+            ${{ runner.temp }}/maestro-artifacts/**/verify-email-*.png
+            ${{ runner.temp }}/maestro-auth-artifacts/**/setup-username-*.png
           if-no-files-found: ignore
           retention-days: 7

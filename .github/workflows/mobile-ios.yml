@@ -178,14 +178,13 @@ jobs:
         id: maestro
         working-directory: apps/mobile
         run: |
-          mkdir -p "$RUNNER_TEMP/maestro-artifacts" "$RUNNER_TEMP/maestro-debug" "$RUNNER_TEMP/maestro-auth"
+          mkdir -p "$RUNNER_TEMP/maestro-artifacts" "$RUNNER_TEMP/maestro-debug"
           maestro test \
             --udid "$SIMULATOR_UDID" \
             --format junit \
             --output "$RUNNER_TEMP/maestro-results.xml" \
             --test-output-dir "$RUNNER_TEMP/maestro-artifacts" \
             --debug-output "$RUNNER_TEMP/maestro-debug" \
-            -e AUTH_SCREENSHOT_DIR="$RUNNER_TEMP/maestro-auth" \
             .maestro/flows
 
       - name: Capture iOS launch evidence on Maestro failure
@@ -250,6 +249,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ios-maestro-auth-screens
-          path: ${{ runner.temp }}/maestro-auth/*.png
+          path: |
+            ${{ runner.temp }}/maestro-artifacts/**/sign-in-*.png
+            ${{ runner.temp }}/maestro-artifacts/**/sign-up-*.png
+            ${{ runner.temp }}/maestro-artifacts/**/verify-email-*.png
           if-no-files-found: ignore
           retention-days: 7
