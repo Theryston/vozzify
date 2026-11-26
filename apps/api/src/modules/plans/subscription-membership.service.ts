@@ -1,20 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import type { AvatarIdentity, UserRole } from '@vozzify/contracts';
 import { isPaidMembershipActive } from './renewal-recovery.js';
 import { SubscriptionsRepository } from './subscriptions.repository.js';
-
-/** The two public marks drawn from independent roles and subscriptions. */
-export function avatarIdentityFields(
-  pro: boolean | undefined,
-  role?: UserRole,
-): {
-  avatarIdentity?: AvatarIdentity;
-} {
-  const admin = role === 'ADMIN';
-  return admin || pro
-    ? { avatarIdentity: { ...(pro && { pro }), ...(admin && { admin }) } }
-    : {};
-}
 
 @Injectable()
 export class SubscriptionMembershipService {

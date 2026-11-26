@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { WebRevalidationModule } from '../../integrations/web-revalidation/web-revalidation.module.js';
-import { SubscriptionMembershipModule } from '../plans/subscription-membership.module.js';
 import { UsersModule } from '../users/users.module.js';
 import { FollowListsController } from './follow-lists.controller.js';
 import { FollowListsRepository } from './follow-lists.repository.js';
@@ -13,7 +12,7 @@ import { ProfileFollowController } from './profile-follow.controller.js';
 
 /** Who follows whom: the follow writes, the counts and lists of a Profile. */
 @Module({
-  imports: [SubscriptionMembershipModule, UsersModule, WebRevalidationModule],
+  imports: [UsersModule, WebRevalidationModule],
   controllers: [
     FollowsController,
     ProfileFollowController,

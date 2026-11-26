@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
-import type { UserRole } from '@vozzify/contracts';
 import { and, asc, count, eq, sql } from 'drizzle-orm';
 import type { DatabaseAdapter } from '../../database/database.js';
 import {
@@ -160,7 +159,6 @@ export class TrackContributorRepository {
       username: string | null;
       name: string;
       image: string | null;
-      avatarRole?: UserRole;
       isFollowing: boolean;
       contributedAt: Date;
       cursorTimestamp?: string;
@@ -177,7 +175,6 @@ export class TrackContributorRepository {
           username: users.username,
           name: users.name,
           image: users.image,
-          avatarRole: users.role,
           isFollowing: TrackContributorRepository.followingColumn(viewerId),
           contributedAt: trackContributors.createdAt,
           cursorTimestamp: sql<string>`to_char(${trackContributors.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,

@@ -1,7 +1,11 @@
 'use client';
 
 import { type InfiniteData, useQueries } from '@tanstack/react-query';
-import type { HomeFeedPage, Locale } from '@vozzify/contracts';
+import {
+  type HomeFeedPage,
+  type Locale,
+  refreshHomePeopleRow,
+} from '@vozzify/contracts';
 import { fetchHomeRowsPage } from '../home-rows-query';
 import { isHomeVisitRestartError } from '../home-visit-restart';
 import { homeQueryKeys } from '../query-keys';
@@ -38,12 +42,16 @@ export function useLivePeopleRows(
       : (result?.data ?? page);
     // The visit owns ordering and pagination. Only replace matching People rows.
     return page.rows.flatMap((row) => {
-      if (row.layout !== 'people') return [row];
+      if (row.layout !== 'people' || refreshed === page) return [row];
       if (refreshed.audience !== page.audience) return [];
       const current = refreshed.rows.find(
         (candidate) => candidate.layout === 'people' && candidate.id === row.id,
       );
-      return current ? [current] : [];
+      const live = refreshHomePeopleRow(
+        row,
+        current?.layout === 'people' ? current : undefined,
+      );
+      return live ? [live] : [];
     });
   });
 }

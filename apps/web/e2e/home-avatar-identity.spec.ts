@@ -25,7 +25,7 @@ test('each Home People card links to its own Profile with its own picture and ma
         id,
         name: id,
         username: id,
-        commonTracks: 1,
+        commonTracks: 3,
         image,
         avatarIdentity: state,
       };

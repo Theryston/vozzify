@@ -5,10 +5,7 @@ import type {
   TrackContributorsPage,
   TrackProcessingState,
 } from '@vozzify/contracts';
-import {
-  avatarIdentityFields,
-  SubscriptionMembershipService,
-} from '../plans/subscription-membership.service.js';
+import { UserAvatarIdentityService } from '../users/user-avatar-identity.service.js';
 import { TrackContributorRepository } from './track-contributor.repository.js';
 import {
   decodeTrackContributorCursor,
@@ -31,7 +28,7 @@ export class TrackProcessingService {
     private readonly tracks: TracksRepository,
     private readonly processings: TrackProcessingRepository,
     private readonly contributors: TrackContributorRepository,
-    @Optional() private readonly membership?: SubscriptionMembershipService,
+    @Optional() private readonly avatars?: UserAvatarIdentityService,
   ) {}
 
   /**
@@ -83,20 +80,21 @@ export class TrackProcessingService {
     );
     const hasMore = rows.length > query.limit;
     const page = rows.slice(0, query.limit);
-    const paid = await this.membership?.paidMemberIds(
+    const identities = await this.avatars?.findByUserIds(
       page.map(({ userId }) => userId),
     );
-    const items = page.map(
-      (row): TrackContributorEntry => ({
+    const items = page.map((row): TrackContributorEntry => {
+      const avatarIdentity = identities?.get(row.userId);
+      return {
         id: row.id,
         userId: row.userId,
         username: row.username,
         name: row.name,
         image: row.image,
-        ...avatarIdentityFields(paid?.has(row.userId), row.avatarRole),
+        ...(avatarIdentity && { avatarIdentity }),
         ...(viewerId === undefined ? {} : { isFollowing: row.isFollowing }),
-      }),
-    );
+      };
+    });
     const anchor = hasMore ? rows[query.limit - 1] : undefined;
     return {
       items,

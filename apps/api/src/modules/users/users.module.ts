@@ -6,6 +6,7 @@ import { AcquisitionRepository } from './acquisition.repository.js';
 import { AcquisitionService } from './acquisition.service.js';
 import { ProfileVisibilityRepository } from './profile-visibility.repository.js';
 import { ProfileVisibilityService } from './profile-visibility.service.js';
+import { UserAvatarIdentityService } from './user-avatar-identity.service.js';
 import { UserProfileService } from './user-profile.service.js';
 import { UserSitemapController } from './user-sitemap.controller.js';
 import { UserSitemapRepository } from './user-sitemap.repository.js';
@@ -27,9 +28,15 @@ import { UsersService } from './users.service.js';
     UserSitemapService,
     UserSitemapRepository,
     UserProfileService,
+    UserAvatarIdentityService,
     ProfileVisibilityRepository,
     ProfileVisibilityService,
   ],
-  exports: [UsersService, UserProfileService, ProfileVisibilityService],
+  exports: [
+    UsersService,
+    UserProfileService,
+    ProfileVisibilityService,
+    UserAvatarIdentityService,
+  ],
 })
 export class UsersModule {}

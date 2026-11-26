@@ -1,8 +1,6 @@
 import { Test } from '@nestjs/testing';
-import {
-  avatarIdentityFields,
-  SubscriptionMembershipService,
-} from './subscription-membership.service.js';
+import { avatarIdentityFields } from '../users/user-avatar-identity.service.js';
+import { SubscriptionMembershipService } from './subscription-membership.service.js';
 import { SubscriptionsRepository } from './subscriptions.repository.js';
 
 describe('public Avatar identity membership', () => {

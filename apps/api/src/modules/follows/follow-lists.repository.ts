@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
-import type { UserRole } from '@vozzify/contracts';
 import { and, desc, eq, exists, lt, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { DatabaseAdapter } from '../../database/database.js';
@@ -16,7 +15,6 @@ export type FollowListPageRow = {
   username: string | null;
   name: string;
   image: string | null;
-  avatarRole?: UserRole;
   followId: string;
   followedAt: Date;
 };
@@ -90,7 +88,6 @@ export class FollowListsRepository {
         username: users.username,
         name: users.name,
         image: users.image,
-        avatarRole: users.role,
         followId: userFollows.id,
         followedAt: followedAtMs,
       })

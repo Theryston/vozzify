@@ -9,15 +9,13 @@ import {
 } from '@vozzify/contracts';
 import { AppException } from '../../common/errors/app-exception.js';
 import { WebRevalidationService } from '../../integrations/web-revalidation/web-revalidation.service.js';
-import {
-  avatarIdentityFields,
-  SubscriptionMembershipService,
-} from '../plans/subscription-membership.service.js';
+import { SubscriptionMembershipService } from '../plans/subscription-membership.service.js';
 import {
   ProfileVisibilityRepository,
   type ProfileVisibilityRow,
   type ProfileVisibilityValues,
 } from './profile-visibility.repository.js';
+import { avatarIdentityFields } from './user-avatar-identity.service.js';
 
 /** The stored flag of each section of a Profile. */
 const SECTION_FLAG = {

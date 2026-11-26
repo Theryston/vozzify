@@ -19,7 +19,7 @@ const people: HomePeopleRow = {
       id: 'user',
       username: 'user',
       name: 'User',
-      commonTracks: 1,
+      commonTracks: 3,
       image: null,
     },
   ],
@@ -71,20 +71,43 @@ it('starts with the People already rendered and fetches one batch for their page
 });
 
 it('takes the latest people and keeps the other rows of the visit', () => {
-  const fresh = { ...people, items: [] };
+  const member = (id: string) => ({
+    id,
+    username: id,
+    name: id,
+    commonTracks: 3,
+    image: null,
+  });
+  const original = { ...people, items: ['a', 'b', 'c', 'd'].map(member) };
+  const latest = {
+    ...people,
+    items: ['new', 'd', 'c', 'a'].map((id) => ({
+      ...member(id),
+      avatarIdentity: { pro: true },
+    })),
+  };
   const other = {
     id: 'tracks',
     layout: 'standard' as const,
     title: people.title,
     items: [],
   };
-  useQueries.mockReturnValue([{ data: { ...page, rows: [fresh] } }]);
+  useQueries.mockReturnValue([{ data: { ...page, rows: [latest] } }]);
   expect(
     useLivePeopleRows('en', {
       ...feed,
-      pages: [{ ...page, rows: [other, people] }],
+      pages: [{ ...page, rows: [other, original] }],
     }),
-  ).toEqual([other, fresh]);
+  ).toEqual([
+    other,
+    {
+      ...people,
+      items: ['a', 'c', 'd'].map((id) => ({
+        ...member(id),
+        avatarIdentity: { pro: true },
+      })),
+    },
+  ]);
 });
 
 it('removes people who disappeared and drops personal rows when the visitor signs out', () => {

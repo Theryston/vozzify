@@ -4,10 +4,8 @@ import {
   type PublicProfile,
 } from '@vozzify/contracts';
 import { AppException } from '../../common/errors/app-exception.js';
-import {
-  avatarIdentityFields,
-  SubscriptionMembershipService,
-} from '../plans/subscription-membership.service.js';
+import { SubscriptionMembershipService } from '../plans/subscription-membership.service.js';
+import { avatarIdentityFields } from './user-avatar-identity.service.js';
 import { UsersRepository } from './users.repository.js';
 
 /**
