@@ -12,11 +12,14 @@ import {
   myPrivateTracksPageSchema,
   type PrivateTrackDetail,
   privateTrackDetailSchema,
-  privateTrackProcessingStateSchema,
   privateTrackSchema,
 } from '@vozzify/contracts';
 import { z } from 'zod';
 import { browserApi } from '@/lib/api/browser';
+import {
+  privateTrackListRefetchInterval,
+  privateTrackRetryMutation,
+} from '../private-track-processing-query';
 import { privateTrackKeys } from '../query-keys';
 
 export function usePrivateTrackDetail(
@@ -58,51 +61,16 @@ export function usePrivateTracks(userId: string) {
         signal,
       }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
-    refetchInterval: (query) => {
-      const pages = query.state.data?.pages;
-      if (!pages) return false;
-      const processing = pages.some((page) =>
-        page.items.some(
-          (track) =>
-            track.processing &&
-            track.processing.status !== 'FAILED' &&
-            track.processing.status !== 'COMPLETED',
-        ),
-      );
-      // Refetching an infinite query requests every page loaded so far.
-      return processing ? pages.length * 5_000 : false;
-    },
+    refetchInterval: (query) =>
+      privateTrackListRefetchInterval(query.state.data?.pages),
   });
 }
 
 export function useRetryPrivateTrack(userId: string, privateTrackId: string) {
   const queryClient = useQueryClient();
-  const queryKey = privateTrackKeys.detail(userId, privateTrackId);
-  return useMutation({
-    mutationFn: () =>
-      browserApi(
-        `/me/private-tracks/${encodeURIComponent(privateTrackId)}/retry`,
-        {
-          method: 'POST',
-          schema: privateTrackProcessingStateSchema,
-        },
-      ),
-    onSuccess: async (processing) => {
-      await queryClient.cancelQueries({ queryKey, exact: true });
-      queryClient.setQueryData<PrivateTrackDetail>(queryKey, (track) =>
-        track ? { ...track, processing } : undefined,
-      );
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey, exact: true }),
-        queryClient.invalidateQueries({
-          queryKey: privateTrackKeys.list(userId),
-        }),
-      ]);
-    },
-    onError: async () => {
-      await queryClient.invalidateQueries({ queryKey, exact: true });
-    },
-  });
+  return useMutation(
+    privateTrackRetryMutation(queryClient, userId, privateTrackId),
+  );
 }
 
 export function useSubmitPrivateTrack(userId: string) {
