@@ -437,6 +437,7 @@
       "lockedDescription": "Reative o Pro para ouvir esta gravação e praticar com as notas.",
       "reactivate": "Reativar o Pro",
       "closeNote": "Você pode fechar esta página e voltar para acompanhar o progresso.",
+      "retryError": "Não foi possível reiniciar o processamento. Tente novamente.",
       "processing": {
         "QUEUED": "Na fila de processamento",
         "EXTRACTING_VOCALS": "Separando os vocais",

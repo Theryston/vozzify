@@ -11,6 +11,7 @@ import {
   CLEAN_PRIVATE_TRACK_ASSETS_JOB,
   type CleanPrivateTrackAssetsJob,
   cleanPrivateTrackAssetsJobSchema,
+  isCurrentPrivateTrackJob,
   PRIVATE_TRACK_PROCESSING_QUEUE,
   PROCESS_PRIVATE_TRACK_JOB,
   type ProcessPrivateTrackJob,
@@ -50,11 +51,20 @@ export class PrivateTrackProcessingService {
     private readonly integrations: PrivateTrackProcessingIntegrations,
   ) {}
 
-  async enqueue(userId: string, privateTrackId: string): Promise<void> {
+  async enqueue(
+    userId: string,
+    privateTrackId: string,
+    retryId?: string | null,
+  ): Promise<void> {
     await this.queue.add(
       PROCESS_PRIVATE_TRACK_JOB,
-      { userId, privateTrackId, poll: 0 },
-      { jobId: privateTrackId, removeOnComplete: true },
+      { userId, privateTrackId, poll: 0, ...(retryId ? { retryId } : {}) },
+      {
+        jobId: retryId ? `${privateTrackId}-retry-${retryId}` : privateTrackId,
+        removeOnComplete: true,
+        // Reconciliation can recover if the worker failed before updating the database.
+        ...(retryId ? { removeOnFail: true } : {}),
+      },
     );
   }
 
@@ -63,13 +73,15 @@ export class PrivateTrackProcessingService {
       MAX_QUEUED_TRACKS_PER_RECONCILIATION,
       new Date(Date.now() - PRIVATE_TRACK_STALE_START_MS),
     );
-    for (const track of recoverable) await this.enqueue(track.userId, track.id);
+    for (const track of recoverable) {
+      await this.enqueue(track.userId, track.id, track.processingRetryId);
+    }
   }
 
   async process(rawJob: unknown): Promise<void> {
     const job = processPrivateTrackJobSchema.parse(rawJob);
     const track = await this.tracks.findOwned(job.userId, job.privateTrackId);
-    if (!track || isTerminal(track.processingStatus)) return;
+    if (!track || !isCurrentPrivateTrackJob(job, track)) return;
     let musicKey: string | null;
     try {
       musicKey = await ensurePrivateTrackMusicWav(
@@ -88,12 +100,6 @@ export class PrivateTrackProcessingService {
     const attemptId = track.processingAttemptId;
     if (runpodJobId === null) {
       await this.startDetection(track.userId, track.id, musicKey, attemptId);
-      return;
-    }
-    if (
-      job.poll > 0 &&
-      (job.attemptId === undefined || job.attemptId !== attemptId)
-    ) {
       return;
     }
     if (!attemptId) return;
@@ -293,8 +299,4 @@ export class PrivateTrackProcessingService {
       },
     );
   }
-}
-
-function isTerminal(status: string): boolean {
-  return status === 'COMPLETED' || status === 'FAILED';
 }

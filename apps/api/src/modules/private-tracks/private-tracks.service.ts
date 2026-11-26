@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -8,6 +9,7 @@ import type {
   MyPrivateTracksQuery,
   PrivateTrack,
   PrivateTrackDetail,
+  PrivateTrackProcessingState,
 } from '@vozzify/contracts';
 import {
   decodeTupleCursor,
@@ -72,10 +74,7 @@ export class PrivateTracksService {
     return {
       ...toPrivateTrack(row),
       ownerId: row.userId,
-      processing: {
-        status: toProcessingStatus(row.processingStatus),
-        progress: row.processingProgress,
-      },
+      processing: processingOf(row),
       locked: !canPractice,
       notes,
     };
@@ -116,6 +115,37 @@ export class PrivateTracksService {
       await this.removeDiscardedUpload(row.discardedUploadKey, privateTrackId);
     }
     return toPrivateTrack(row);
+  }
+
+  async prepareRetry(
+    userId: string,
+    id: string,
+  ): Promise<{ processing: PrivateTrackProcessingState; retryId?: string }> {
+    const track = await this.repository.findOwned(userId, id);
+    if (!track) throw new AppException('NOT_FOUND', 'Private track not found');
+    if (!(await this.membership.hasPaidMembership(userId))) {
+      throw new AppException(
+        'FORBIDDEN',
+        'A Pro membership is required to retry private track processing',
+      );
+    }
+    if (track.processingStatus !== 'FAILED') {
+      return { processing: processingOf(track) };
+    }
+    const retryId = randomUUID();
+    const updated = await this.repository.resetFailedProcessing({
+      userId,
+      id,
+      previousRetryId: track.processingRetryId,
+      retryId,
+    });
+    if (updated) {
+      return { processing: { status: 'QUEUED', progress: 0 }, retryId };
+    }
+    const current = await this.repository.findOwned(userId, id);
+    if (!current)
+      throw new AppException('NOT_FOUND', 'Private track not found');
+    return { processing: processingOf(current) };
   }
 
   private async storeSource(
@@ -170,6 +200,16 @@ const decodePrivateTrackCursor = (cursor: string) => {
   }
   return { createdAt: date, id };
 };
+
+function processingOf(row: {
+  processingStatus: string;
+  processingProgress: number;
+}): PrivateTrackProcessingState {
+  return {
+    status: toProcessingStatus(row.processingStatus),
+    progress: row.processingProgress,
+  };
+}
 
 const toPrivateTrack = (row: {
   id: string;

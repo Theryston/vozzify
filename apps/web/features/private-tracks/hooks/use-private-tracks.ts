@@ -12,6 +12,7 @@ import {
   myPrivateTracksPageSchema,
   type PrivateTrackDetail,
   privateTrackDetailSchema,
+  privateTrackProcessingStateSchema,
   privateTrackSchema,
 } from '@vozzify/contracts';
 import { z } from 'zod';
@@ -57,6 +58,47 @@ export function usePrivateTracks(userId: string) {
         signal,
       }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
+    refetchInterval: (query) =>
+      query.state.data?.pages.some((page) =>
+        page.items.some(
+          (track) =>
+            track.processing &&
+            track.processing.status !== 'FAILED' &&
+            track.processing.status !== 'COMPLETED',
+        ),
+      )
+        ? 5_000
+        : false,
+  });
+}
+
+export function useRetryPrivateTrack(userId: string, privateTrackId: string) {
+  const queryClient = useQueryClient();
+  const queryKey = privateTrackKeys.detail(userId, privateTrackId);
+  return useMutation({
+    mutationFn: () =>
+      browserApi(
+        `/me/private-tracks/${encodeURIComponent(privateTrackId)}/retry`,
+        {
+          method: 'POST',
+          schema: privateTrackProcessingStateSchema,
+        },
+      ),
+    onSuccess: async (processing) => {
+      await queryClient.cancelQueries({ queryKey, exact: true });
+      queryClient.setQueryData<PrivateTrackDetail>(queryKey, (track) =>
+        track ? { ...track, processing } : undefined,
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey, exact: true }),
+        queryClient.invalidateQueries({
+          queryKey: privateTrackKeys.list(userId),
+        }),
+      ]);
+    },
+    onError: async () => {
+      await queryClient.invalidateQueries({ queryKey, exact: true });
+    },
   });
 }
 

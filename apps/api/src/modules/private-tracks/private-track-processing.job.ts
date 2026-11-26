@@ -14,11 +14,34 @@ export const processPrivateTrackJobSchema = z.object({
   userId: z.string().min(1).max(128),
   poll: z.number().int().min(0).default(0),
   attemptId: z.string().min(1).optional(),
+  retryId: z.string().min(1).optional(),
 });
 
 export type ProcessPrivateTrackJob = z.infer<
   typeof processPrivateTrackJobSchema
 >;
+
+export function isCurrentPrivateTrackJob(
+  job: ProcessPrivateTrackJob,
+  track: {
+    processingStatus: string;
+    processingRetryId: string | null;
+    processingAttemptId: string | null;
+  },
+): boolean {
+  if (
+    track.processingStatus === 'COMPLETED' ||
+    track.processingStatus === 'FAILED'
+  ) {
+    return false;
+  }
+  if (job.poll === 0) {
+    return (job.retryId ?? null) === (track.processingRetryId ?? null);
+  }
+  return (
+    job.attemptId !== undefined && job.attemptId === track.processingAttemptId
+  );
+}
 
 export const cleanPrivateTrackAssetsJobSchema = z.object({
   keys: z.array(z.string().min(1)),
