@@ -1,8 +1,10 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
+import { AudioDownloadModule } from '../../integrations/audio-download/audio-download.module.js';
 import { FfmpegModule } from '../../integrations/ffmpeg/ffmpeg.module.js';
 import { NoteDetectionModule } from '../../integrations/note-detection/note-detection.module.js';
 import { StorageModule } from '../../integrations/storage/storage.module.js';
+import { YouTubeMusicModule } from '../../integrations/youtube-music/youtube-music.module.js';
 import { PlansModule } from '../plans/plans.module.js';
 import { PrivateAudioInspector } from './private-audio.js';
 import { PRIVATE_TRACK_ASSET_CLEANUP_QUEUE } from './private-track-asset-cleanup.job.js';
@@ -20,6 +22,8 @@ import { PrivateTrackWorkflowService } from './private-track-workflow.service.js
 import { PrivateTracksController } from './private-tracks.controller.js';
 import { PrivateTracksRepository } from './private-tracks.repository.js';
 import { PrivateTracksService } from './private-tracks.service.js';
+import { PrivateYouTubeTracksController } from './private-youtube-tracks.controller.js';
+import { PrivateYouTubeTracksService } from './private-youtube-tracks.service.js';
 
 @Module({
   imports: [
@@ -29,8 +33,14 @@ import { PrivateTracksService } from './private-tracks.service.js';
     NoteDetectionModule,
     PlansModule,
     StorageModule,
+    AudioDownloadModule,
+    YouTubeMusicModule,
   ],
-  controllers: [PrivateTracksController, PrivateTrackMediaController],
+  controllers: [
+    PrivateTracksController,
+    PrivateTrackMediaController,
+    PrivateYouTubeTracksController,
+  ],
   providers: [
     PrivateAudioInspector,
     PrivateTracksRepository,
@@ -44,6 +54,7 @@ import { PrivateTracksService } from './private-tracks.service.js';
     PrivateTrackWorkflowService,
     PrivateTrackAssetCleanupQueue,
     PrivateTrackAssetCleanupProcessor,
+    PrivateYouTubeTracksService,
   ],
   exports: [PrivateTrackAssetCleanupQueue],
 })

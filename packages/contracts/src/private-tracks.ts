@@ -39,6 +39,10 @@ export const privateTrackDetailSchema = privateTrackSchema.extend({
   ownerId: z.string().min(1),
   processing: privateTrackProcessingStateSchema,
   locked: z.boolean(),
+  youtubeVideoId: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{11}$/)
+    .optional(),
   notes: z.array(
     z.object({
       pitch: z.number(),
@@ -74,4 +78,11 @@ export const createPrivateTrackBodySchema = z.strictObject({
 });
 export type CreatePrivateTrackBody = z.infer<
   typeof createPrivateTrackBodySchema
+>;
+
+export const createPrivateYouTubeTrackBodySchema = z.strictObject({
+  url: z.string().trim().max(2048).url(),
+});
+export type CreatePrivateYouTubeTrackBody = z.infer<
+  typeof createPrivateYouTubeTrackBodySchema
 >;

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AudioDownloadClient } from '../../integrations/audio-download/audio-download.client.js';
 import { FfmpegClient } from '../../integrations/ffmpeg/ffmpeg.client.js';
 import {
   NoteDetectionClient,
@@ -15,6 +16,7 @@ export class PrivateTrackProcessingIntegrations {
     readonly ffmpeg: FfmpegClient,
     readonly storage: StorageService,
     readonly detector: NoteDetectionClient,
+    readonly audioDownload: AudioDownloadClient,
   ) {}
 
   async detectorInput(

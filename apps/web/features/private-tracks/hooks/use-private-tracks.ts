@@ -8,6 +8,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import {
+  type CreatePrivateYouTubeTrackBody,
   type MyPrivateTracksPage,
   myPrivateTracksPageSchema,
   type PrivateTrackDetail,
@@ -63,9 +64,16 @@ export function usePrivateTracks(userId: string) {
 export function useSubmitPrivateTrack(userId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (audio: File) => {
+    mutationFn: (source: File | CreatePrivateYouTubeTrackBody) => {
+      if (!(source instanceof File)) {
+        return browserApi('/me/private-tracks/youtube', {
+          method: 'POST',
+          body: source,
+          schema: privateTrackSchema,
+        });
+      }
       const body = new FormData();
-      body.set('audio', audio);
+      body.set('audio', source);
       return browserApi('/me/private-tracks', {
         method: 'POST',
         body,

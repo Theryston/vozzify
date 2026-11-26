@@ -1,5 +1,8 @@
-import { createPrivateTrackBodySchema } from '@vozzify/contracts';
-import { UploadIcon } from 'lucide-react';
+import {
+  type CreatePrivateYouTubeTrackBody,
+  createPrivateTrackBodySchema,
+} from '@vozzify/contracts';
+import { LinkIcon, PlusIcon, UploadIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { type FormEvent, type RefObject, useRef, useState } from 'react';
 
@@ -16,6 +19,7 @@ import { Field, FieldError } from '@/components/ui/field';
 import { Spinner } from '@/components/ui/spinner';
 import { ApiError } from '@/lib/api/api-error';
 import { useSubmitPrivateTrack } from '../hooks/use-private-tracks';
+import { PrivateYouTubeForm } from './private-youtube-form';
 
 type AudioPickerProps = {
   pending: boolean;
@@ -25,38 +29,90 @@ type AudioPickerProps = {
   onSelected: (file: File | undefined) => void;
 };
 
+const SOURCES = [
+  { kind: 'file', label: 'fileSource', Icon: UploadIcon },
+  { kind: 'youtube', label: 'youtubeSource', Icon: LinkIcon },
+] as const;
+type Source = (typeof SOURCES)[number]['kind'];
+
 export function PrivateAudioDialog({ userId }: { userId: string }) {
   const t = useTranslations('privateTracks');
   const [open, setOpen] = useState(false);
+  const [source, setSource] = useState<Source>('file');
   const submit = useSubmitPrivateTrack(userId);
+  const addSource = async (source: File | CreatePrivateYouTubeTrackBody) => {
+    await submit.mutateAsync(source);
+    setOpen(false);
+  };
 
   return (
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
-        if (!submit.isPending) setOpen(nextOpen);
+        if (submit.isPending) return;
+        if (nextOpen) setSource('file');
+        setOpen(nextOpen);
       }}
     >
       <DialogTrigger render={<Button className="w-full sm:w-auto" />}>
-        <UploadIcon data-icon="inline-start" />
+        <PlusIcon data-icon="inline-start" />
         {t('newTrack')}
       </DialogTrigger>
       <DialogContent closeLabel={t('close')}>
         <DialogHeader>
           <DialogTitle>{t('newTrack')}</DialogTitle>
-          <DialogDescription id="private-audio-hint">
-            {t('audioLimits')}
+          <DialogDescription
+            id={
+              source === 'file' ? 'private-audio-hint' : 'private-youtube-hint'
+            }
+          >
+            {t(source === 'file' ? 'audioLimits' : 'youtubeLimits')}
           </DialogDescription>
         </DialogHeader>
-        <PrivateAudioForm
-          pending={submit.isPending}
-          onUpload={async (file) => {
-            await submit.mutateAsync(file);
-            setOpen(false);
-          }}
+        <PrivateSourcePicker
+          selected={source}
+          disabled={submit.isPending}
+          onSelect={setSource}
         />
+        {source === 'file' ? (
+          <PrivateAudioForm pending={submit.isPending} onUpload={addSource} />
+        ) : (
+          <PrivateYouTubeForm
+            pending={submit.isPending}
+            onSubmitLink={addSource}
+          />
+        )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PrivateSourcePicker({
+  selected,
+  disabled,
+  onSelect,
+}: {
+  selected: Source;
+  disabled: boolean;
+  onSelect: (source: Source) => void;
+}) {
+  const t = useTranslations('privateTracks');
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {SOURCES.map(({ kind, label, Icon }) => (
+        <Button
+          key={kind}
+          type="button"
+          variant={selected === kind ? 'secondary' : 'ghost'}
+          aria-pressed={selected === kind}
+          disabled={disabled}
+          onClick={() => onSelect(kind)}
+        >
+          <Icon data-icon="inline-start" />
+          {t(label)}
+        </Button>
+      ))}
+    </div>
   );
 }
 

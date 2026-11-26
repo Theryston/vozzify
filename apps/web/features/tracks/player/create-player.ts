@@ -9,6 +9,7 @@ export type CreatePlayerOptions = {
   /** The e2e build's env flag: a clock instead of YouTube. */
   fake: boolean;
   directAudio?: TrackAudio;
+  onAudioFallback?: () => void;
 };
 
 /**
@@ -20,7 +21,16 @@ export async function createPlayer({
   durationSeconds,
   fake,
   directAudio,
+  onAudioFallback,
 }: CreatePlayerOptions): Promise<PlayerPort> {
+  if (directAudio && onAudioFallback) {
+    const { YouTubeFallbackPlayer } = await import('./youtube-fallback-player');
+    return new YouTubeFallbackPlayer({
+      createVideo: () => createYouTubePlayer(host),
+      createAudio: () => createDirectAudioPlayer(directAudio),
+      onFallback: onAudioFallback,
+    });
+  }
   if (fake) {
     const { FakePlayer } = await import('./fake-player');
     const player = new FakePlayer({ durationSeconds });
@@ -33,10 +43,17 @@ export async function createPlayer({
       });
     return player;
   }
-  if (directAudio) {
-    const { DirectAudioPlayer } = await import('./direct-audio-player');
-    return new DirectAudioPlayer(directAudio);
-  }
+  return directAudio
+    ? createDirectAudioPlayer(directAudio)
+    : createYouTubePlayer(host);
+}
+
+async function createDirectAudioPlayer(audio: TrackAudio) {
+  const { DirectAudioPlayer } = await import('./direct-audio-player');
+  return new DirectAudioPlayer(audio);
+}
+
+async function createYouTubePlayer(host: HTMLElement) {
   const [{ YouTubePlayer }, { loadYouTubeApi }] = await Promise.all([
     import('./youtube-player'),
     import('./youtube-api'),

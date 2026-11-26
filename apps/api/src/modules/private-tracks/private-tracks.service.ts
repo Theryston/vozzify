@@ -74,6 +74,9 @@ export class PrivateTracksService {
         progress: row.processingProgress,
       },
       locked: !canPractice,
+      ...(canPractice && row.youtubeVideoId
+        ? { youtubeVideoId: row.youtubeVideoId }
+        : {}),
       notes,
     };
   }
@@ -138,7 +141,7 @@ const decodePrivateTrackCursor = (cursor: string) => {
   return { createdAt: date, id };
 };
 
-const toPrivateTrack = (row: {
+export const toPrivateTrack = (row: {
   id: string;
   title: string;
   artist: string;

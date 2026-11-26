@@ -17,13 +17,17 @@ export class PrivateTrackWorkflowService {
     upload: { path: string; originalname: string },
   ): Promise<PrivateTrack> {
     const track = await this.tracks.submit(userId, upload);
+    await this.queueProcessing(userId, track.id);
+    return track;
+  }
+
+  async queueProcessing(userId: string, trackId: string): Promise<void> {
     try {
-      await this.processing.enqueue(userId, track.id);
+      await this.processing.enqueue(userId, trackId);
     } catch (error) {
       this.logger.warn(
-        `Could not enqueue processing for private Track ${track.id}: ${String(error)}`,
+        `Could not enqueue processing for private Track ${trackId}: ${String(error)}`,
       );
     }
-    return track;
   }
 }

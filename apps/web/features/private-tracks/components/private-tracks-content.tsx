@@ -1,7 +1,7 @@
 'use client';
 
 import type { PrivateTrack } from '@vozzify/contracts';
-import { LockKeyholeIcon, UploadIcon } from 'lucide-react';
+import { LockKeyholeIcon, PlusIcon } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
@@ -134,7 +134,7 @@ function PrivateTracksAction({
       disabled={canSubmit === undefined}
       onClick={onPaywallOpen}
     >
-      <UploadIcon data-icon="inline-start" />
+      <PlusIcon data-icon="inline-start" />
       {t('newTrack')}
     </Button>
   );

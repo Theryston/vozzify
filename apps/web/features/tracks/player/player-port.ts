@@ -1,8 +1,14 @@
 /**
- * What a player reports about itself; buffering is not one of them. `error`
- * means the video cannot be played (removed, not embeddable, API blocked).
+ * Source changes may report loading. `error` means the active source cannot
+ * be played, and buffering inside a loaded source needs no state change.
  */
-export type PlayerState = 'ready' | 'playing' | 'paused' | 'ended' | 'error';
+export type PlayerState =
+  | 'loading'
+  | 'ready'
+  | 'playing'
+  | 'paused'
+  | 'ended'
+  | 'error';
 
 /**
  * The one interface the practice page plays through. YouTube is the

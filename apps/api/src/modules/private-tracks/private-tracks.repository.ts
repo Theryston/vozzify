@@ -37,7 +37,7 @@ export class PrivateTracksRepository {
   }
 
   async save(
-    input: typeof privateTracks.$inferInsert,
+    input: typeof privateTracks.$inferInsert & { contentSha256: string },
   ): Promise<
     typeof privateTracks.$inferSelect & { discardedUploadKey?: string }
   > {
@@ -61,6 +61,32 @@ export class PrivateTracksRepository {
     const row = existing[0];
     if (!row) throw new Error('Private audio deduplication failed');
     return { ...row, discardedUploadKey: input.objectKey };
+  }
+
+  findOwnedYouTube(userId: string, youtubeVideoId: string) {
+    return this.txHost.tx.query.privateTracks.findFirst({
+      where: and(
+        eq(privateTracks.userId, userId),
+        eq(privateTracks.youtubeVideoId, youtubeVideoId),
+      ),
+    });
+  }
+
+  async reserveYouTube(
+    input: typeof privateTracks.$inferInsert & { youtubeVideoId: string },
+  ) {
+    const [inserted] = await this.txHost.tx
+      .insert(privateTracks)
+      .values(input)
+      .onConflictDoNothing({
+        target: [privateTracks.userId, privateTracks.youtubeVideoId],
+      })
+      .returning();
+    const existing =
+      inserted ??
+      (await this.findOwnedYouTube(input.userId, input.youtubeVideoId));
+    if (!existing) throw new Error('Private YouTube deduplication failed');
+    return existing;
   }
 
   findOwned(userId: string, id: string) {
