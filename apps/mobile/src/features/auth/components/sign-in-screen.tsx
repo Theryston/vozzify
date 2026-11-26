@@ -1,5 +1,5 @@
 import { type SignInBody, signInBodySchema } from '@vozzify/contracts';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useLocale, useTranslations } from 'use-intl';
 import { Button } from '../../../components/ui/button';
@@ -16,7 +16,8 @@ function useSignIn() {
   const auth = useMobileAuth();
   const locale = useLocale();
   const router = useRouter();
-  const continuation = useAuthContinuation();
+  const routeContinuation = useAuthContinuation();
+  const continuation = auth.passwordReset ?? routeContinuation;
 
   return useAuthSubmit(signInBodySchema, async (values: SignInBody, signal) => {
     try {
@@ -90,10 +91,10 @@ function SignInForm() {
 
 export function SignInScreen() {
   const t = useTranslations('auth');
-  const { reset } = useLocalSearchParams();
+  const { passwordReset } = useMobileAuth();
   return (
     <AuthFrame title={t('signIn.title')} description={t('signIn.description')}>
-      {reset === '1' ? <AuthNotice>{t('recovery.complete')}</AuthNotice> : null}
+      {passwordReset ? <AuthNotice>{t('recovery.complete')}</AuthNotice> : null}
       <SignInForm />
       <AuthLink to="/forgot-password">{t('recovery.link')}</AuthLink>
       <AuthLink to="/sign-up">{t('signUp.submit')}</AuthLink>

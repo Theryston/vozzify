@@ -6,8 +6,8 @@ import { Button } from '../../../components/ui/button';
 import { sendAuthCode } from '../../../lib/auth/auth-api';
 import { authRouteParams } from '../../../lib/auth/auth-continuation';
 import {
-  isCodeCoolingDown,
-  recordCodeSent,
+  isRecoveryCodeCoolingDown,
+  recordRecoveryCodeSent,
 } from '../../../lib/auth/use-code-cooldown';
 import { useAuthSubmit } from '../use-auth-submit';
 import { AuthNotice } from './auth-field';
@@ -21,9 +21,11 @@ function useRecoveryRequest() {
 
   return useAuthSubmit(forgotPasswordBodySchema, async ({ email }, signal) => {
     const purpose = 'forget-password';
-    if (!isCodeCoolingDown(email, purpose)) {
+    const coolingDown = await isRecoveryCodeCoolingDown(email);
+    if (signal.aborted) return;
+    if (!coolingDown) {
       await sendAuthCode(email, purpose, locale, signal);
-      recordCodeSent(email, purpose, Date.now());
+      await recordRecoveryCodeSent(email, Date.now());
     }
     if (signal.aborted) return;
     router.replace({

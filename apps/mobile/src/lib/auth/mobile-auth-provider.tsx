@@ -79,23 +79,39 @@ function useUsernameSelection(
 }
 
 function clearOnboarding(previous: StoredAuth): StoredAuth {
-  const { token, verification, continuation } = previous;
-  return verification || continuation ? { token } : previous;
+  const { token, verification, continuation, passwordReset } = previous;
+  return verification || continuation || passwordReset ? { token } : previous;
 }
 
-function useAuthOperations() {
-  const storage = useAuthRecord();
-  const { status, user, setUser, retry } = useRestoreAuth(storage.replace);
-  const chooseUsername = useUsernameSelection(storage, setUser);
-  const { update, record } = storage;
+function afterPasswordReset(
+  previous: StoredAuth,
+  email: string,
+  continuation: AuthContinuation,
+): StoredAuth {
+  const pendingEmail = previous.verification?.email?.toLowerCase();
+  return {
+    ...previous,
+    verification:
+      pendingEmail === email.toLowerCase() ? undefined : previous.verification,
+    passwordReset: continuation,
+  };
+}
 
-  async function beginVerification(
+function createBeginVerification(
+  update: ReturnType<typeof useAuthRecord>['update'],
+) {
+  return async (
     verification: NonNullable<StoredAuth['verification']>,
     continuation: AuthContinuation,
     signal: AbortSignal,
-  ) {
+  ) => {
     const saved = await update(
-      (previous) => ({ ...previous, verification, continuation }),
+      (previous) => ({
+        ...previous,
+        verification,
+        continuation,
+        passwordReset: undefined,
+      }),
       signal,
     );
     if (saved && verification.email) {
@@ -106,7 +122,14 @@ function useAuthOperations() {
       );
     }
     return saved;
-  }
+  };
+}
+
+function useAuthOperations() {
+  const storage = useAuthRecord();
+  const { status, user, setUser, retry } = useRestoreAuth(storage.replace);
+  const chooseUsername = useUsernameSelection(storage, setUser);
+  const { update, record } = storage;
 
   async function completeAuth(
     session: { user: AuthSessionUser; token: string },
@@ -125,7 +148,16 @@ function useAuthOperations() {
     user,
     retry,
     ...record,
-    beginVerification,
+    finishPasswordReset: (
+      email: string,
+      continuation: AuthContinuation,
+      signal: AbortSignal,
+    ) =>
+      update(
+        (previous) => afterPasswordReset(previous, email, continuation),
+        signal,
+      ),
+    beginVerification: createBeginVerification(update),
     completeAuth,
     chooseUsername,
     cancelOnboarding: () => update(clearOnboarding),

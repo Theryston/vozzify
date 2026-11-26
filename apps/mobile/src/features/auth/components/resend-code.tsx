@@ -33,12 +33,13 @@ export function ResendCode({
   const errors = useTranslations('authErrors');
   const locale = useLocale();
   const [resent, setResent] = useState(false);
-  const { seconds, restart } = useCodeCooldown(email, purpose, sentAt);
+  const { seconds, ready, restart } = useCodeCooldown(email, purpose, sentAt);
   const form = useAuthSubmit(sendAuthCodeBodySchema, async (values, signal) => {
     setResent(false);
     await sendAuthCode(values.email, values.type, locale, signal);
     if (signal.aborted) return;
-    const at = restart();
+    const at = await restart();
+    if (signal.aborted) return;
     setResent(true);
     await onSent?.(values.email, at, signal);
   });
@@ -52,7 +53,7 @@ export function ResendCode({
         <AuthNotice>{successMessage}</AuthNotice>
       ) : null}
       <Button
-        disabled={form.pending || seconds > 0}
+        disabled={!ready || form.pending || seconds > 0}
         onPress={() => void form.submit({ email: email.trim(), type: purpose })}
         testID="resend-code"
         variant="outline"

@@ -9,6 +9,7 @@ import { useLocale, useTranslations } from 'use-intl';
 import { Button } from '../../../components/ui/button';
 import { resetPassword } from '../../../lib/auth/auth-api';
 import { authRouteParams } from '../../../lib/auth/auth-continuation';
+import { useMobileAuth } from '../../../lib/auth/mobile-auth-provider';
 import { isCodeError } from '../auth-errors';
 import { useAuthSubmit } from '../use-auth-submit';
 import { AuthField, AuthNotice } from './auth-field';
@@ -17,6 +18,7 @@ import { NewPasswordField } from './credential-fields';
 import { ResendCode } from './resend-code';
 
 function usePasswordReset(onBadCode: () => void) {
+  const auth = useMobileAuth();
   const router = useRouter();
   const continuation = useAuthContinuation();
   const locale = useLocale();
@@ -25,10 +27,15 @@ function usePasswordReset(onBadCode: () => void) {
     resetPasswordBodySchema,
     async (values, signal) => {
       await resetPassword(values, locale, signal);
-      if (signal.aborted) return;
+      const saved = await auth.finishPasswordReset(
+        values.email,
+        continuation,
+        signal,
+      );
+      if (!saved) return;
       router.replace({
         pathname: '/sign-in',
-        params: { ...authRouteParams(continuation), reset: '1' },
+        params: authRouteParams(continuation),
       });
     },
     (key) => {

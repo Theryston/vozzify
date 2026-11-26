@@ -16,9 +16,18 @@ const newPassword = 'New-password-123';
 
 beforeEach(async () => {
   await AsyncStorage.clear();
-  jest.spyOn(SecureStore, 'getItemAsync').mockResolvedValue(null);
-  jest.spyOn(SecureStore, 'setItemAsync').mockResolvedValue(undefined);
-  jest.spyOn(SecureStore, 'deleteItemAsync').mockResolvedValue(undefined);
+  const persisted = new Map<string, string>();
+  jest
+    .spyOn(SecureStore, 'getItemAsync')
+    .mockImplementation(async (key) => persisted.get(key) ?? null);
+  jest
+    .spyOn(SecureStore, 'setItemAsync')
+    .mockImplementation(async (key, value) => {
+      persisted.set(key, value);
+    });
+  jest.spyOn(SecureStore, 'deleteItemAsync').mockImplementation(async (key) => {
+    persisted.delete(key);
+  });
 });
 
 afterEach(() => {
@@ -216,6 +225,77 @@ describe('mobile password recovery', () => {
     expect(
       new Headers(request.mock.calls[1]?.[1]?.headers).get('accept-language'),
     ).toBe('pt-BR');
+  });
+
+  it('loads a recent recovery timestamp on cold entry and still permits resend at 60 seconds', async () => {
+    jest.useFakeTimers();
+    request.mockImplementation(async () => json({ success: true }));
+    const email = 'restored-recovery@example.com';
+    const initial = await renderRouter('./app', {
+      initialUrl: '/forgot-password',
+    });
+    await fill('Email', email);
+    await press('button', 'Send reset code');
+    expect(await screen.findByText('Set a new password')).toBeOnTheScreen();
+    await act(async () => jest.advanceTimersByTime(45_000));
+    await initial.unmount();
+
+    await renderRouter('./app', { initialUrl: '/forgot-password' });
+    await fill('Email', '  RESTORED-Recovery@example.com  ');
+    await press('button', 'Send reset code');
+    const resend = await screen.findByTestId('resend-code');
+    expect(resend).toBeDisabled();
+    expect(
+      await screen.findByText(/Send a new code in 1[45]s/),
+    ).toBeOnTheScreen();
+    expect(request).toHaveBeenCalledTimes(1);
+    await act(async () => jest.advanceTimersByTime(15_000));
+    expect(screen.getByTestId('resend-code')).toBeEnabled();
+  });
+
+  it('returns to sign-in after relaunch when recovery has completed pending email verification', async () => {
+    const email = 'pending-recovery@example.com';
+    const unverified = { id: 'pending-user', email, emailVerified: false };
+    const verified = {
+      ...unverified,
+      emailVerified: true,
+      username: 'returning',
+    };
+    request
+      .mockResolvedValueOnce(json({ user: unverified }))
+      .mockResolvedValueOnce(json({ success: true }))
+      .mockResolvedValueOnce(json({ success: true }))
+      .mockResolvedValueOnce(
+        json({ user: verified }, 200, { 'set-auth-token': 'signed.session' }),
+      );
+    const initial = await renderRouter('./app');
+    await userEvent.press(await screen.findByTestId('open-components'));
+    await userEvent.press(await screen.findByTestId('gallery-sign-in-overlay'));
+    await press('link', 'Create account');
+    await fill('Name', 'Ana');
+    await fill('Email', email);
+    await fill('Password', newPassword);
+    await press('button', 'Create account');
+    expect(await screen.findByText('Verify your email')).toBeOnTheScreen();
+    await press('link', 'Sign in');
+    await press('link', 'Forgot your password?');
+    await fill('Email', email);
+    await press('button', 'Send reset code');
+    await fill('Reset code', '654321');
+    await fill('New password', newPassword);
+    await press('button', 'Reset password');
+    const confirmation = 'Password changed. Sign in with your new password.';
+    expect(await screen.findByText(confirmation)).toBeOnTheScreen();
+    await initial.unmount();
+
+    const reopened = await renderRouter('./app');
+    expect(await screen.findByText(confirmation)).toBeOnTheScreen();
+    expect(reopened.getPathname()).toBe('/sign-in');
+    await fill('Email or Username', email);
+    await fill('Password', newPassword);
+    await press('button', 'Sign in');
+    expect(await screen.findByText('A native overlay')).toBeOnTheScreen();
+    expect(reopened.getPathname()).toBe('/components');
   });
 
   it.each(['', '&email=invalid'])(

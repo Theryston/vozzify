@@ -11,6 +11,7 @@ const storedAuthSchema = z.object({
   token: z.string().optional(),
   verification: verificationSchema.optional(),
   continuation: authContinuationSchema.optional().catch(undefined),
+  passwordReset: authContinuationSchema.optional().catch(undefined),
 });
 
 export type StoredAuth = z.infer<typeof storedAuthSchema>;
