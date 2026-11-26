@@ -8,7 +8,7 @@ import {
 } from './push-installation';
 import { ensureAndroidPushChannel, hasPushPermission } from './push-permission';
 
-export type PushArrival = 'onboarding' | 'travelling' | 'arrived';
+type PushArrival = 'onboarding' | 'travelling' | 'arrived';
 
 export type PushContext = {
   userId: string;
