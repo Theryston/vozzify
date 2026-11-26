@@ -340,7 +340,13 @@ describe('auth restoration and retry', () => {
       JSON.stringify({ token: 'signed.session' }),
     );
     request.mockResolvedValueOnce(
-      json({ user: { ...stillNeedsUsername, emailVerified: false } }),
+      json({
+        user: {
+          ...stillNeedsUsername,
+          email: 'restore@example.com',
+          emailVerified: false,
+        },
+      }),
     );
     await renderRouter('./app', { initialUrl: '/setup-username' });
     expect(
