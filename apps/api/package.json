@@ -33,6 +33,7 @@
     "repair:track-covers": "node dist/main.js --repair-track-covers",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/database/migrate.ts",
+    "storage:migrate-private-tracks": "tsx src/database/migrate-private-track-assets.ts",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/database/seed.ts",
     "sync:track-associations": "node dist/main.js --sync-track-associations"

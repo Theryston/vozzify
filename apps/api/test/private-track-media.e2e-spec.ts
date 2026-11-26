@@ -222,13 +222,14 @@ describe('Private track detail and playback (e2e)', () => {
     await otherClient.get(`${ROOT}/${track.id}`).expect(404);
   });
 
-  it('streams only an authenticated byte range for a Pro owner', async () => {
+  it('shares direct asset URLs with the Pro owner and keeps authenticated stream compatibility', async () => {
     const owner = await createPasswordUser(testApp.db);
     const other = await createPasswordUser(testApp.db);
     await grantPro(owner.id);
     await grantPro(other.id);
     const objectKey = `private-tracks/${owner.id}/stream-source/music.wav`;
-    await testApp.app.get(StorageService).putPrivateFile({
+    const storageService = testApp.app.get(StorageService);
+    await storageService.putPrivateFile({
       key: objectKey,
       filePath: FIXTURE,
       contentType: 'audio/wav',
@@ -246,6 +247,7 @@ describe('Private track detail and playback (e2e)', () => {
         processingStatus: 'COMPLETED',
         processingProgress: 100,
         mediaObjectKey: objectKey,
+        vocalsObjectKey: objectKey,
       })
       .returning();
     if (!track) throw new Error('Expected the private track row');
@@ -255,6 +257,18 @@ describe('Private track detail and playback (e2e)', () => {
       email: owner.email,
       password: DEFAULT_PASSWORD,
     });
+    const { audio } = privateTrackDetailSchema.parse(
+      (await ownerClient.get(`${ROOT}/${track.id}`).expect(200)).body,
+    );
+    const assetUrl = storageService.publicUrl(objectKey);
+    expect(audio).toEqual({ musicMp3Url: assetUrl, vocalsMp3Url: assetUrl });
+    const publicResponse = await fetch(assetUrl, {
+      headers: { Range: 'bytes=0-3' },
+    });
+    expect(publicResponse.status).toBe(206);
+    expect(Buffer.from(await publicResponse.arrayBuffer()).toString()).toBe(
+      'RIFF',
+    );
     const ranged = await ownerClient
       .get(`${ROOT}/${track.id}/media/music`)
       .set('Range', 'bytes=0-3')
@@ -272,6 +286,7 @@ describe('Private track detail and playback (e2e)', () => {
       email: other.email,
       password: DEFAULT_PASSWORD,
     });
+    await otherClient.get(`${ROOT}/${track.id}`).expect(404);
     await otherClient.get(`${ROOT}/${track.id}/media/music`).expect(404);
     await request(testApp.app.getHttpServer())
       .get(`${ROOT}/${track.id}/media/music`)

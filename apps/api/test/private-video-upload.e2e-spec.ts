@@ -235,7 +235,7 @@ async function createVideo(
 }
 
 async function listPrivateObjects(ownerId: string) {
-  const { endpoint, region, accessKeyId, secretAccessKey, privateBucket } =
+  const { endpoint, region, accessKeyId, secretAccessKey, bucket } =
     inject('storage');
   const storage = new S3Client({
     endpoint,
@@ -246,7 +246,7 @@ async function listPrivateObjects(ownerId: string) {
   try {
     const result = await storage.send(
       new ListObjectsV2Command({
-        Bucket: privateBucket,
+        Bucket: bucket,
         Prefix: `private-tracks/${ownerId}/`,
       }),
     );

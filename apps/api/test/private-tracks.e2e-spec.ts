@@ -10,7 +10,6 @@ import {
 } from '@vozzify/contracts';
 import { eq, sql } from 'drizzle-orm';
 import request from 'supertest';
-import { loadEnv } from '../src/config/env.js';
 import { privateTracks } from '../src/database/schema/private-tracks.js';
 import { subscriptions } from '../src/database/schema/subscriptions.js';
 import { StorageService } from '../src/integrations/storage/storage.service.js';
@@ -164,13 +163,11 @@ describe('Private tracks (e2e)', () => {
     try {
       await stored.downloadPrivateFile(privateRow.objectKey, downloaded);
       expect(await readFile(downloaded)).toEqual(await readFile(FIXTURE));
-      const { S3_ENDPOINT } = loadEnv();
-      const privateBucket = loadEnv().S3_PRIVATE_BUCKET ?? 'vozzify-private';
-      const response = await fetch(
-        `${S3_ENDPOINT}/${privateBucket}/${privateRow.objectKey}`,
+      const response = await fetch(stored.publicUrl(privateRow.objectKey));
+      expect(response.status).toBe(200);
+      expect(Buffer.from(await response.arrayBuffer())).toEqual(
+        await readFile(FIXTURE),
       );
-      expect(response.status).toBe(403);
-      await response.body?.cancel();
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

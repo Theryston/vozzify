@@ -24,9 +24,13 @@ export class PrivateTrackSourceStorage {
   deletePrivateObject(key: string): Promise<void> {
     return this.storage.deletePrivateObject(key);
   }
+
+  publicUrl(key: string): string {
+    return this.storage.publicUrl(key);
+  }
 }
 
 export type PrivateTrackSourceStoragePort = Pick<
   StorageService,
-  'putPrivateFile' | 'deletePrivateObject'
+  'putPrivateFile' | 'deletePrivateObject' | 'publicUrl'
 >;

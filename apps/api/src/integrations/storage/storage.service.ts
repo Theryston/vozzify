@@ -47,13 +47,13 @@ export abstract class StorageService {
   /** Stream a caller-owned file without loading the complete object in memory. */
   abstract putPublicFile(file: PublicFile): Promise<void>;
 
-  /** Stream an object into the private bucket without a public ACL. */
+  /** Stream a private track file into the shared asset bucket. */
   abstract putPrivateFile(file: PrivateFile): Promise<void>;
 
-  /** Delete one object from the private bucket. */
+  /** Delete one private track object from the shared asset bucket. */
   abstract deletePrivateObject(key: string): Promise<void>;
 
-  /** Delete every object beneath a private bucket prefix. */
+  /** Delete every object beneath a private track prefix. */
   abstract deletePrivateObjectsWithPrefix(prefix: string): Promise<void>;
 
   /** Download a private object to a caller-owned file without buffering it. */
