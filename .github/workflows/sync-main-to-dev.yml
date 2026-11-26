@@ -1,0 +1,23 @@
+name: Sync main to dev
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: sync-main-to-dev
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge main into dev
+        run: bash .github/scripts/sync-main-to-dev.sh
