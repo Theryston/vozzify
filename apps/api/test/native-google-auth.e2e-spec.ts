@@ -44,6 +44,27 @@ function signGoogleToken(
   return `${jwt}.${sign('RSA-SHA256', Buffer.from(jwt), privateKey).toString('base64url')}`;
 }
 
+function googleSignInBody(token: string) {
+  return { provider: 'google', idToken: { token } };
+}
+
+beforeEach(() => {
+  const realFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (url !== keysUrl) return realFetch(input, init);
+    return Promise.resolve(
+      Response.json({
+        keys: [{ ...key.publicKey.export({ format: 'jwk' }), kid }],
+      }),
+    );
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe('native Google authentication', () => {
   const spec = useAuthSpec({
     env: {
@@ -53,28 +74,9 @@ describe('native Google authentication', () => {
     },
   });
 
-  beforeEach(() => {
-    const realFetch = globalThis.fetch;
-    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = input instanceof Request ? input.url : String(input);
-      if (url !== keysUrl) return realFetch(input, init);
-      return Promise.resolve(
-        Response.json({
-          keys: [{ ...key.publicKey.export({ format: 'jwk' }), kid }],
-        }),
-      );
-    });
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   const client = () => request(spec.testApp.app.getHttpServer());
   const submitIdToken = (token: string) =>
-    client()
-      .post('/v1/auth/sign-in/social')
-      .send({ provider: 'google', idToken: { token } });
+    client().post('/v1/auth/sign-in/social').send(googleSignInBody(token));
   const exchange = (token: string) =>
     submitIdToken(token).set('x-vozzify-auth', 'native');
 
@@ -145,9 +147,49 @@ describe('native Google authentication', () => {
   );
 
   it('enforces identity checks on direct ID tokens sent without a native marker', async () => {
-    await submitIdToken(signGoogleToken({ email_verified: false }))
+    await submitIdToken(
+      signGoogleToken({ aud: webClientId, email_verified: false }),
+    )
       .set('Origin', 'http://localhost:3000')
       .expect(401);
     await expect(spec.testApp.db.select().from(users)).resolves.toHaveLength(0);
+  });
+});
+
+describe('direct web Google authentication without mobile configuration', () => {
+  const spec = useAuthSpec({
+    env: {
+      GOOGLE_CLIENT_ID: webClientId,
+      GOOGLE_CLIENT_SECRET: 'fixture-web-secret',
+      GOOGLE_NATIVE_CLIENT_IDS: undefined,
+    },
+  });
+
+  const webSignIn = (claims: Record<string, unknown> = {}) =>
+    spec.client
+      .post('/v1/auth/sign-in/social')
+      .send(googleSignInBody(signGoogleToken({ aud: webClientId, ...claims })));
+
+  it('continues to accept authentic tokens for the existing web client ID', async () => {
+    const response = await webSignIn().expect(200);
+    expect(response.headers['set-auth-token']).toBeUndefined();
+    const profile = await spec.client.get('/v1/me').expect(200);
+    expect(profile.body).toMatchObject({ email: identity.email });
+  });
+
+  it.each([
+    ['another audience', { aud: androidAudience }],
+    ['an unverified email', { email_verified: false }],
+  ])('rejects a token from the web with %s', async (_reason, claims) => {
+    await webSignIn(claims).expect(401);
+    await expect(spec.testApp.db.select().from(users)).resolves.toHaveLength(0);
+  });
+
+  it('requires a mobile audience configuration to issue a signed native bearer', async () => {
+    await request(spec.testApp.app.getHttpServer())
+      .post('/v1/auth/sign-in/social')
+      .set('x-vozzify-auth', 'native')
+      .send(googleSignInBody(signGoogleToken({ aud: webClientId })))
+      .expect(401);
   });
 });

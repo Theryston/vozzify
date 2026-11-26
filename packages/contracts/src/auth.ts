@@ -125,6 +125,8 @@ export const signInGoogleBodySchema = z.object({
   idToken: z.object({ token: z.string().min(1) }),
 });
 
+export type SignInGoogleBody = z.infer<typeof signInGoogleBodySchema>;
+
 /** Native clients read the session User and the signed token header. */
 export const authSessionResponseSchema = z.object({
   user: authSessionUserSchema,

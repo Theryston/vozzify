@@ -8,6 +8,7 @@ import {
   type SetUsernameBody,
   type SignInBody,
   type SignInEmailBody,
+  type SignInGoogleBody,
   type SignInUsernameBody,
   type SignUpBody,
   sendAuthCodeBodySchema,
@@ -96,7 +97,7 @@ export function signInWithGoogle(
 ) {
   return establishAuthSession('/auth/sign-in/social', {
     bodySchema: signInGoogleBodySchema,
-    body: { provider: 'google', idToken: { token } },
+    body: { provider: 'google', idToken: { token } } satisfies SignInGoogleBody,
     locale,
     signal,
   });
