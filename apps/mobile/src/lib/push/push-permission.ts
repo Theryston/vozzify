@@ -84,8 +84,9 @@ export async function hasPushPermission({ state, signal }: PermissionAttempt) {
   let permission = await Notifications.getPermissionsAsync();
   if (signal.aborted) return false;
   if (prompt && !isGranted(permission)) {
-    const result = await prompt;
-    if (result) return isGranted(result);
+    await prompt;
+    if (signal.aborted) return false;
+    // The OS can change while the previous completion is still in flight.
     permission = await Notifications.getPermissionsAsync();
   }
   const allowed = isGranted(permission);

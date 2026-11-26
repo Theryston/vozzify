@@ -344,6 +344,24 @@ it('does not repeat an interrupted prompt if Android reports a possibly final re
   expect(posted()).toHaveLength(0);
 });
 
+it('ignores a delayed prompt grant when the current foreground permission is denied', async () => {
+  readPermission.mockResolvedValue(undetermined);
+  const prompt = deferred<Notifications.NotificationPermissionsStatus>();
+  requestPermission.mockReturnValue(prompt.promise);
+  await renderHook(() =>
+    usePushDeviceRegistration(firstUser.id, 'first.session', 'arrived'),
+  );
+  await waitFor(() => expect(requestPermission).toHaveBeenCalledTimes(1));
+
+  readPermission.mockResolvedValue(denied);
+  await foreground();
+  await waitFor(() => expect(readPermission).toHaveBeenCalledTimes(2));
+  await act(() => prompt.resolve(granted));
+  await waitFor(() => expect(readPermission).toHaveBeenCalledTimes(3));
+  expect(requestPermission).toHaveBeenCalledTimes(1);
+  expect(posted()).toHaveLength(0);
+});
+
 it('does not re-register when a native token read resolves after permission was revoked', async () => {
   const token = deferred<Notifications.DevicePushToken>();
   getToken
