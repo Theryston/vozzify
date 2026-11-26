@@ -11,7 +11,7 @@ import { PRIVATE_AUDIO_FORMAT_WHITELIST } from './private-audio-formats.js';
 // it at this boundary.
 const DEFAULT_FFMPEG_PATH = 'ffmpeg';
 const DEFAULT_FFPROBE_PATH = 'ffprobe';
-const PRIVATE_AUDIO_DECODE_ARGS = [
+const PRIVATE_MEDIA_INPUT_ARGS = [
   '-v',
   'error',
   '-protocol_whitelist',
@@ -20,11 +20,8 @@ const PRIVATE_AUDIO_DECODE_ARGS = [
   PRIVATE_AUDIO_FORMAT_WHITELIST,
   '-i',
   '/proc/self/fd/3',
-  '-map',
-  '0:a:0',
-  '-vn',
-  '-sn',
-  '-dn',
+];
+const PRIVATE_MEDIA_PROGRESS_ARGS = [
   '-threads',
   '1',
   '-nostats',
@@ -36,6 +33,7 @@ const PRIVATE_AUDIO_DECODE_ARGS = [
   'null',
   '-',
 ];
+const FIRST_AUDIO_STREAM_ARGS = ['-map', '0:a:0', '-vn', '-sn', '-dn'];
 // A conversion of a 15-minute track takes seconds; a hung process is killed.
 const CONVERSION_TIMEOUT_MS = 2 * 60_000;
 // The end of ffmpeg's log is where its error is.
@@ -64,25 +62,20 @@ export class FfmpegClient {
   async convertPrivateAudioFileToWav(
     input: string,
     output: string,
+    trimToSeconds?: number,
   ): Promise<void> {
     const file = await open(input, 'r');
     try {
       await this.run(
         [
           '-y',
-          '-v',
-          'error',
-          '-protocol_whitelist',
-          'file',
-          '-format_whitelist',
-          PRIVATE_AUDIO_FORMAT_WHITELIST,
-          '-i',
-          '/proc/self/fd/3',
-          '-map',
-          '0:a:0',
-          '-vn',
-          '-sn',
-          '-dn',
+          ...PRIVATE_MEDIA_INPUT_ARGS,
+          ...FIRST_AUDIO_STREAM_ARGS,
+          ...(trimToSeconds === undefined ? [] : ['-t', String(trimToSeconds)]),
+          '-map_metadata',
+          '-1',
+          '-map_chapters',
+          '-1',
           '-threads',
           '1',
           '-acodec',
@@ -136,22 +129,66 @@ export class FfmpegClient {
     input: string,
     maxDurationSeconds: number,
   ): Promise<number> {
+    return this.validateMediaDuration(
+      input,
+      maxDurationSeconds,
+      FIRST_AUDIO_STREAM_ARGS,
+    );
+  }
+
+  /** Check the whole video and return the duration of its playable audio. */
+  async validateVideoFile(
+    input: string,
+    maxDurationSeconds: number,
+  ): Promise<number> {
+    const [audioDuration] = await Promise.all([
+      this.validateMediaDuration(input, maxDurationSeconds, [
+        ...FIRST_AUDIO_STREAM_ARGS,
+        '-t',
+        String(maxDurationSeconds),
+      ]),
+      // Packet timestamps measure the entire source without decoding imagery
+      // or counting codec padding after the last audio packet's timed samples.
+      this.validateMediaDuration(input, maxDurationSeconds, [
+        '-map',
+        '0:V',
+        '-map',
+        '0:a:0',
+        '-c',
+        'copy',
+        '-sn',
+        '-dn',
+      ]),
+    ]);
+    return audioDuration;
+  }
+
+  private async validateMediaDuration(
+    input: string,
+    maxDurationSeconds: number,
+    streams: string[],
+  ): Promise<number> {
     const file = await open(input, 'r');
     try {
-      return await this.decodeForValidation(file.fd, maxDurationSeconds);
+      return await this.readMediaDuration(file.fd, maxDurationSeconds, streams);
     } finally {
       await file.close();
     }
   }
 
-  private decodeForValidation(
+  private readMediaDuration(
     inputFd: number,
     maxDurationSeconds: number,
+    streams: string[],
   ): Promise<number> {
     return new Promise((resolve, reject) => {
       const child = spawn(
         this.env.FFMPEG_PATH ?? DEFAULT_FFMPEG_PATH,
-        PRIVATE_AUDIO_DECODE_ARGS,
+        [
+          ...PRIVATE_MEDIA_INPUT_ARGS,
+          ...streams,
+          ...PRIVATE_MEDIA_PROGRESS_ARGS,
+        ],
         {
           stdio: ['ignore', 'pipe', 'pipe', inputFd],
           signal: AbortSignal.timeout(CONVERSION_TIMEOUT_MS),
@@ -181,7 +218,7 @@ export class FfmpegClient {
       child.once('error', reject);
       child.once('close', (code) => {
         if (durationExceeded) {
-          reject(new Error('Audio duration exceeds its limit'));
+          reject(new Error('Media duration exceeds its limit'));
           return;
         }
         if (code !== 0) {

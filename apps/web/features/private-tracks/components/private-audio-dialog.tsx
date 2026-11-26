@@ -1,4 +1,7 @@
-import { createPrivateTrackBodySchema } from '@vozzify/contracts';
+import {
+  createPrivateTrackBodySchema,
+  privateTrackUploadErrorDetailsSchema,
+} from '@vozzify/contracts';
 import { UploadIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { type FormEvent, type RefObject, useRef, useState } from 'react';
@@ -21,7 +24,7 @@ type AudioPickerProps = {
   pending: boolean;
   input: RefObject<HTMLInputElement | null>;
   selected: File | undefined;
-  problem: 'invalidAudio' | 'uploadError' | undefined;
+  problem: 'invalidAudio' | 'missingVideoAudio' | 'uploadError' | undefined;
   onSelected: (file: File | undefined) => void;
 };
 
@@ -86,11 +89,7 @@ function PrivateAudioForm({
       await onUpload(selected);
       setSelected(undefined);
     } catch (error) {
-      setProblem(
-        error instanceof ApiError && error.code === 'VALIDATION_FAILED'
-          ? 'invalidAudio'
-          : 'uploadError',
-      );
+      setProblem(uploadProblem(error));
     }
   };
 
@@ -126,16 +125,17 @@ function AudioPicker({
 }: AudioPickerProps) {
   const t = useTranslations('privateTracks');
   const description = problem ? 'private-audio-error' : 'private-audio-hint';
+  const invalid = problem === 'invalidAudio' || problem === 'missingVideoAudio';
 
   return (
-    <Field data-invalid={problem === 'invalidAudio'}>
+    <Field data-invalid={invalid}>
       <input
         ref={input}
         aria-label={t('chooseAudio')}
         id="private-audio"
         name="audio"
         type="file"
-        accept="audio/*"
+        accept="audio/*,video/*"
         disabled={pending}
         onChange={(event) => onSelected(event.target.files?.[0])}
         hidden
@@ -145,7 +145,7 @@ function AudioPicker({
           type="button"
           variant="secondary"
           disabled={pending}
-          aria-invalid={problem === 'invalidAudio'}
+          aria-invalid={invalid}
           aria-describedby={description}
           onClick={() => input.current?.click()}
         >
@@ -164,4 +164,13 @@ function AudioPicker({
       ) : null}
     </Field>
   );
+}
+
+function uploadProblem(error: unknown): AudioPickerProps['problem'] {
+  if (!(error instanceof ApiError) || error.code !== 'VALIDATION_FAILED') {
+    return 'uploadError';
+  }
+  return privateTrackUploadErrorDetailsSchema.safeParse(error.details).success
+    ? 'missingVideoAudio'
+    : 'invalidAudio';
 }
