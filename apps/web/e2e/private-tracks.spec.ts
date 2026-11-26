@@ -199,11 +199,16 @@ test('shows the localized Pro modal for a free account with no private tracks', 
   await expect(
     page.getByRole('heading', { name: 'Minhas faixas' }),
   ).toBeVisible();
+  const copy = messages['pt-BR'].privateTracks;
+  const offer = page.getByRole('dialog', { name: copy.proTitle });
+  await expect(offer).toBeVisible();
+  await expect(offer.getByRole('listitem')).toHaveText([
+    copy.proNotes,
+    copy.proVocals,
+    copy.proPitch,
+  ]);
   await expect(
-    page.getByRole('dialog', { name: 'Áudio privado é um recurso Pro' }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('dialog').getByRole('link', { name: 'Ver planos' }),
+    offer.getByRole('link', { name: copy.viewPlans }),
   ).toHaveAttribute('href', '/pt-BR/plans');
 });
 

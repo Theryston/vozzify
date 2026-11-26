@@ -2,7 +2,11 @@ import type {
   PrivateTrack,
   PrivateTrackProcessingState,
 } from '@vozzify/contracts';
-import { AudioLinesIcon, ChevronRightIcon } from 'lucide-react';
+import {
+  AudioLinesIcon,
+  ChevronRightIcon,
+  LockKeyholeIcon,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { TrackCoverArt } from '@/features/tracks/components/track-cover-art';
@@ -15,10 +19,12 @@ const LIST_SURFACE = 'rounded-2xl bg-card shadow-sm';
 
 export function PrivateTrackRows({
   tracks,
+  onLockedTrack,
   loading,
   loadError,
 }: {
   tracks: PrivateTrack[];
+  onLockedTrack?: (id: string) => void;
   loading: boolean;
   loadError: boolean;
 }) {
@@ -47,7 +53,11 @@ export function PrivateTrackRows({
       {tracks.length > 0 ? (
         <ul className={cn(LIST_SURFACE, 'divide-y divide-border px-2')}>
           {tracks.map((track) => (
-            <PrivateTrackRow key={track.id} track={track} />
+            <PrivateTrackRow
+              key={track.id}
+              track={track}
+              onLockedTrack={onLockedTrack}
+            />
           ))}
         </ul>
       ) : null}
@@ -55,41 +65,78 @@ export function PrivateTrackRows({
   );
 }
 
-function PrivateTrackRow({ track }: { track: PrivateTrack }) {
+function PrivateTrackRow({
+  track,
+  onLockedTrack,
+}: {
+  track: PrivateTrack;
+  onLockedTrack?: (id: string) => void;
+}) {
+  const className =
+    'group flex min-h-18 w-full min-w-0 items-center gap-3 rounded-xl px-2 py-3 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 sm:gap-4 sm:px-3';
+  const content = (
+    <PrivateTrackRowContent track={track} locked={Boolean(onLockedTrack)} />
+  );
   return (
     <li className="py-1">
-      <Link
-        href={`/tracks/${encodeURIComponent(track.id)}`}
-        className="group flex min-h-18 min-w-0 items-center gap-3 rounded-xl px-2 py-3 outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 sm:gap-4 sm:px-3"
-      >
-        <span className="relative size-12 shrink-0 overflow-hidden rounded-md bg-muted">
-          <TrackCoverArt placeholderSeed={track.id} sizes="48px" />
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-          <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="wrap-anywhere font-semibold text-base">
-              {track.title}
-            </span>
-            <span className="flex items-center gap-2 text-muted-foreground text-xs">
-              {track.artist ? (
-                <>
-                  <span className="truncate">{track.artist}</span>
-                  <span aria-hidden="true">·</span>
-                </>
-              ) : null}
-              <TrackDuration ms={track.durationMs} />
-            </span>
-          </span>
-          {track.processing ? (
-            <PrivateTrackStatus status={track.processing.status} />
-          ) : null}
-        </span>
-        <ChevronRightIcon
-          aria-hidden="true"
-          className="size-4 shrink-0 text-muted-foreground group-hover:text-foreground"
-        />
-      </Link>
+      {onLockedTrack ? (
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          className={className}
+          onClick={() => onLockedTrack(track.id)}
+        >
+          {content}
+        </button>
+      ) : (
+        <Link
+          href={`/tracks/${encodeURIComponent(track.id)}`}
+          className={className}
+        >
+          {content}
+        </Link>
+      )}
     </li>
+  );
+}
+
+function PrivateTrackRowContent({
+  track,
+  locked,
+}: {
+  track: PrivateTrack;
+  locked: boolean;
+}) {
+  const Icon = locked ? LockKeyholeIcon : ChevronRightIcon;
+  return (
+    <>
+      <span className="relative size-12 shrink-0 overflow-hidden rounded-md bg-muted">
+        <TrackCoverArt placeholderSeed={track.id} sizes="48px" />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="wrap-anywhere font-semibold text-base">
+            {track.title}
+          </span>
+          <span className="flex items-center gap-2 text-muted-foreground text-xs">
+            {track.artist ? (
+              <>
+                <span className="truncate">{track.artist}</span>
+                <span aria-hidden="true">·</span>
+              </>
+            ) : null}
+            <TrackDuration ms={track.durationMs} />
+          </span>
+        </span>
+        {track.processing ? (
+          <PrivateTrackStatus status={track.processing.status} />
+        ) : null}
+      </span>
+      <Icon
+        aria-hidden="true"
+        className="size-4 shrink-0 text-muted-foreground group-hover:text-foreground"
+      />
+    </>
   );
 }
 

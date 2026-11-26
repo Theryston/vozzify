@@ -22,10 +22,16 @@ test('deletes a saved private track and shows the Pro offer when its library is 
   };
   const detailPath = `/en/tracks/${entry.id}`;
   const detailApiPath = `/v1/me/private-tracks/${entry.id}`;
-  const savedRow = page.locator(`main a[href="${detailPath}"]`);
+  const savedRow = page.getByRole('button', { name: /Saved recording/ });
+  const offer = page.getByRole('dialog', {
+    name: messages.en.privateTracks.proTitle,
+  });
   let present = true;
   await setPrivateTrackMock(entry);
   await mockAuthApi(page, { user: { ...ADA, username: 'ada' } });
+  await page.route('**/v1/me/subscription?*', (route) =>
+    route.fulfill({ json: { subscription: null } }),
+  );
   await page.context().addCookies([{ ...SIGNED_IN_COOKIE, url: baseURL }]);
   await page.route('**/v1/me/private-tracks**', async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -62,12 +68,32 @@ test('deletes a saved private track and shows the Pro offer when its library is 
   await page
     .getByRole('button', { name: messages.en.header.account.accountMenu })
     .click();
-  await page
-    .getByRole('menuitem', { name: messages.en.header.account.myTracks })
-    .click();
+  const libraryLink = page.getByRole('menuitem', {
+    name: messages.en.header.account.myTracks,
+  });
+  await expect(
+    libraryLink.getByText(messages.en.header.account.proBadge, { exact: true }),
+  ).toBeVisible();
+  await libraryLink.click();
   await expect(page).toHaveURL('/en/me/tracks');
   await expect(page.getByText('Saved recording')).toBeVisible();
+  await expect(offer).toHaveCount(0);
+  await page
+    .getByRole('button', { name: messages.en.privateTracks.newTrack })
+    .click();
+  await expect(offer).toBeVisible();
+  await expect(
+    offer.getByRole('link', { name: messages.en.privateTracks.manageTrack }),
+  ).toHaveCount(0);
+  await offer
+    .getByRole('button', { name: messages.en.privateTracks.close })
+    .click();
   await savedRow.click();
+  await expect(offer).toBeVisible();
+  await expect(page).toHaveURL('/en/me/tracks');
+  await offer
+    .getByRole('link', { name: messages.en.privateTracks.manageTrack })
+    .click();
   await expect(page).toHaveURL(detailPath);
   await page.getByRole('button', { name: 'Delete track' }).click();
   await page
