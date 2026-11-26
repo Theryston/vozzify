@@ -64,9 +64,9 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-function sessionResponse(username: string | null) {
+function sessionResponse(username: string | null, emailVerified = true) {
   return new Response(
-    JSON.stringify({ user: { ...account, username, emailVerified: true } }),
+    JSON.stringify({ user: { ...account, username, emailVerified } }),
     { headers: { 'set-auth-token': 'signed.session' } },
   );
 }
@@ -97,6 +97,48 @@ describe('native Google auth screens', () => {
       provider: 'google',
       idToken: { token: googleResponse.data.idToken },
     });
+  });
+
+  it('requires email verification and Username setup before resuming an action', async () => {
+    selectAccount.mockResolvedValueOnce(googleResponse);
+    request
+      .mockResolvedValueOnce(sessionResponse(null, false))
+      .mockResolvedValueOnce(sessionResponse(null))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ available: true })))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ...account,
+            username: 'ada',
+            name: 'Ada',
+            role: 'USER',
+            image: null,
+            createdAt: '2026-11-26T00:00:00Z',
+          }),
+        ),
+      );
+    const router = await renderRouter('./app', {
+      initialUrl: '/sign-up?redirectTo=%2Fcomponents&action=open-overlay',
+    });
+
+    await pressGoogle();
+    expect(await screen.findByText('Verify your email')).toBeOnTheScreen();
+    expect(router.getPathname()).toBe('/verify-email');
+    expect(screen.queryByText('A native overlay')).not.toBeOnTheScreen();
+
+    await userEvent.type(screen.getByLabelText('Verification code'), '123456');
+    await userEvent.press(screen.getByRole('button', { name: 'Verify email' }));
+
+    expect(await screen.findByText('Choose your Username')).toBeOnTheScreen();
+    expect(screen.queryByText('A native overlay')).not.toBeOnTheScreen();
+    await userEvent.type(screen.getByLabelText('Username'), 'ada');
+    expect(await screen.findByText('Username available')).toBeOnTheScreen();
+    await userEvent.press(
+      screen.getByRole('button', { name: 'Save Username' }),
+    );
+
+    expect(await screen.findByText('A native overlay')).toBeOnTheScreen();
+    expect(router.getPathname()).toBe('/components');
   });
 
   it('returns to Home after a returning User selects Google without a destination', async () => {

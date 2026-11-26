@@ -24,10 +24,9 @@ export function googleProvider(env: Env): BetterAuthOptions['socialProviders'] {
         const audience = native ? nativeClientIds : clientId;
         if (!audience) return false;
         const claims = await verifyGoogleIdToken({ token, nonce, audience });
-        // Google is a trusted account-linking provider. Require verified
-        // ownership of the email before any direct token may link a User.
         return (
-          claims?.email_verified === true && Boolean(claims.exp && claims.sub)
+          typeof claims?.email_verified === 'boolean' &&
+          Boolean(claims.exp && claims.sub)
         );
       },
     },

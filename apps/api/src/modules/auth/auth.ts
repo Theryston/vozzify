@@ -110,10 +110,9 @@ const staticOptions = {
     autoSignInAfterVerification: true,
   },
   account: {
-    // Legacy linked Google to an existing email account. Better Auth only
-    // links when Google reports the email as verified, and strips access
-    // an unverified local account had accrued before.
-    accountLinking: { enabled: true, trustedProviders: ['google'] },
+    // Same-email linking requires verification from both Google and the
+    // local account. Existing Google accounts are resolved by their subject.
+    accountLinking: { enabled: true },
   },
   disabledPaths: [
     // Passwordless OTP sign-in isn't a vozzify feature.

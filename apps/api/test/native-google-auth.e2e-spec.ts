@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { accounts } from '../src/database/schema/auth.js';
 import { users } from '../src/database/schema/users.js';
+import { takeOtpEmail } from './utils/auth.js';
 import { useAuthSpec } from './utils/auth-spec.js';
 import { createPasswordUser } from './utils/factories.js';
 
@@ -132,7 +133,10 @@ describe('native Google authentication', () => {
     ['the web audience', () => signGoogleToken({ aud: webClientId })],
     ['the wrong issuer', () => signGoogleToken({ iss: 'https://example.com' })],
     ['an expired token', () => signGoogleToken({ exp: 1 })],
-    ['an unverified email', () => signGoogleToken({ email_verified: false })],
+    [
+      'an invalid email claim',
+      () => signGoogleToken({ email_verified: 'false' }),
+    ],
     ['a missing subject', () => signGoogleToken({ sub: undefined })],
     ['a forged signature', () => signGoogleToken({}, unrelatedKey.privateKey)],
   ])(
@@ -146,13 +150,42 @@ describe('native Google authentication', () => {
     },
   );
 
-  it('enforces identity checks on direct ID tokens sent without a native marker', async () => {
-    await submitIdToken(
-      signGoogleToken({ aud: webClientId, email_verified: false }),
-    )
-      .set('Origin', 'http://localhost:3000')
-      .expect(401);
-    await expect(spec.testApp.db.select().from(users)).resolves.toHaveLength(0);
+  it('sends an OTP when a new Google User has an unverified email', async () => {
+    const pending = await exchange(
+      signGoogleToken({ email_verified: false }),
+    ).expect(200);
+    expect(pending.body.user).toMatchObject({
+      email: identity.email,
+      emailVerified: false,
+      username: null,
+    });
+
+    const { otp } = await takeOtpEmail(spec.testApp, identity.email);
+    const verified = await client()
+      .post('/v1/auth/email-otp/verify-email')
+      .set('x-vozzify-auth', 'native')
+      .send({ email: identity.email, otp })
+      .expect(200);
+    expect(verified.body.user).toMatchObject({
+      id: pending.body.user.id,
+      emailVerified: true,
+      username: null,
+    });
+    expect(verified.headers['set-auth-token']).toEqual(expect.any(String));
+  });
+
+  it('refuses to link an unverified Google email to an existing User', async () => {
+    await createPasswordUser(spec.testApp.db, { email: identity.email });
+    const response = await exchange(
+      signGoogleToken({ email_verified: false }),
+    ).expect(401);
+    expect(response.headers['set-auth-token']).toBeUndefined();
+    await expect(
+      spec.testApp.db
+        .select()
+        .from(accounts)
+        .where(eq(accounts.providerId, 'google')),
+    ).resolves.toEqual([]);
   });
 });
 
@@ -177,12 +210,20 @@ describe('direct web Google authentication without mobile configuration', () => 
     expect(profile.body).toMatchObject({ email: identity.email });
   });
 
-  it.each([
-    ['another audience', { aud: androidAudience }],
-    ['an unverified email', { email_verified: false }],
-  ])('rejects a token from the web with %s', async (_reason, claims) => {
-    await webSignIn(claims).expect(401);
+  it('rejects a token for a different audience', async () => {
+    await webSignIn({ aud: androidAudience }).expect(401);
     await expect(spec.testApp.db.select().from(users)).resolves.toHaveLength(0);
+  });
+
+  it('refuses to link an unverified Google email in the web exchange', async () => {
+    await createPasswordUser(spec.testApp.db, { email: identity.email });
+    await webSignIn({ email_verified: false }).expect(401);
+    await expect(
+      spec.testApp.db
+        .select()
+        .from(accounts)
+        .where(eq(accounts.providerId, 'google')),
+    ).resolves.toEqual([]);
   });
 
   it('requires a mobile audience configuration to issue a signed native bearer', async () => {
