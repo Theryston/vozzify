@@ -71,7 +71,27 @@ describe('FfmpegClient private audio validation', () => {
   it('stops decoding when actual output duration passes the limit', async () => {
     runDecoder('out_time_us=1800001001\nprogress=continue\n', null);
     await expect(client.validateAudioFile(filePath, 1800)).rejects.toThrow(
-      'Audio duration exceeds its limit',
+      'Media duration exceeds its limit',
+    );
+  });
+
+  it('measures the full video timeline separately from decoding its audio', async () => {
+    runDecoder('out_time_us=1800000000\nprogress=end\n');
+    await expect(client.validateVideoFile(filePath, 1800)).resolves.toBe(1800);
+    const commandArguments = spawnMock.mock.calls.map(([, args]) => args);
+    expect(commandArguments).toContainEqual(
+      expect.arrayContaining([
+        '-map',
+        '0:V',
+        '0:a:0',
+        '-c',
+        'copy',
+        '-f',
+        'null',
+      ]),
+    );
+    expect(commandArguments).toContainEqual(
+      expect.arrayContaining(['0:a:0', '-vn', '-t', '1800', '-f', 'null']),
     );
   });
 });

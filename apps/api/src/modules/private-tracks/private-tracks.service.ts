@@ -1,4 +1,6 @@
-import { basename } from 'node:path';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { createId } from '@paralleldrive/cuid2';
 import type {
@@ -14,6 +16,7 @@ import {
 import { AppException } from '../../common/errors/app-exception.js';
 import { SubscriptionMembershipService } from '../plans/subscription-membership.service.js';
 import { PrivateAudioInspector } from './private-audio.js';
+import { privateTrackMediaKey } from './private-track-object-keys.js';
 import type { PrivateTrackSourceStoragePort } from './private-track-source-storage.js';
 import { PrivateTrackSourceStorage } from './private-track-source-storage.js';
 import { PrivateTracksRepository } from './private-tracks.repository.js';
@@ -92,17 +95,18 @@ export class PrivateTracksService {
     const filename = basename(file.originalname.replaceAll('\\', '/'));
     const title = metadata.title || filename;
     const privateTrackId = createId();
-    const objectKey = `private-tracks/${userId}/${privateTrackId}/source`;
-    await this.storage.putPrivateFile({
-      key: objectKey,
-      filePath: file.path,
-      contentType: 'application/octet-stream',
-    });
+    const mediaObjectKey = metadata.hasVideo
+      ? privateTrackMediaKey(userId, privateTrackId)
+      : null;
+    const objectKey =
+      mediaObjectKey ?? `private-tracks/${userId}/${privateTrackId}/source`;
+    await this.storeSource(file.path, objectKey, metadata.hasVideo === true);
     const row = await this.repository.save({
       id: privateTrackId,
       userId,
       contentSha256,
       objectKey,
+      ...(mediaObjectKey && { mediaObjectKey }),
       originalFilename: filename,
       title,
       artist: metadata.artist,
@@ -112,6 +116,35 @@ export class PrivateTracksService {
       await this.removeDiscardedUpload(row.discardedUploadKey, privateTrackId);
     }
     return toPrivateTrack(row);
+  }
+
+  private async storeSource(
+    filePath: string,
+    objectKey: string,
+    hasVideo: boolean,
+  ): Promise<void> {
+    if (!hasVideo) {
+      await this.storage.putPrivateFile({
+        key: objectKey,
+        filePath,
+        contentType: 'application/octet-stream',
+      });
+      return;
+    }
+
+    const directory = await mkdtemp(join(tmpdir(), 'vozzify-private-video-'));
+    const wavPath = join(directory, 'music.wav');
+    try {
+      // The detector-ready WAV is the only retained source for a video.
+      await this.audio.extractVideoAudio(filePath, wavPath);
+      await this.storage.putPrivateFile({
+        key: objectKey,
+        filePath: wavPath,
+        contentType: 'audio/wav',
+      });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   }
 
   private async removeDiscardedUpload(
