@@ -1,7 +1,9 @@
+import { Test, type TestingModule } from '@nestjs/testing';
 import { ZodValidationException } from '../../common/zod/zod-validation.pipe.js';
-import type { YouTubeMusicClient } from '../../integrations/youtube-music/youtube-music.client.js';
-import type { SubscriptionMembershipService } from '../plans/subscription-membership.service.js';
-import type { PrivateTracksRepository } from './private-tracks.repository.js';
+import { YouTubeMusicClient } from '../../integrations/youtube-music/youtube-music.client.js';
+import { SubscriptionMembershipService } from '../plans/subscription-membership.service.js';
+import { PrivateTrackWorkflowService } from './private-track-workflow.service.js';
+import { PrivateTracksRepository } from './private-tracks.repository.js';
 import { PrivateYouTubeTracksService } from './private-youtube-tracks.service.js';
 
 const VIDEO_ID = 'aBcd1Efgh_2';
@@ -14,11 +16,26 @@ describe('PrivateYouTubeTracksService', () => {
   };
   const membership = { hasPaidMembership: vi.fn() };
   const youtube = { getPracticeVideo: vi.fn() };
-  const service = new PrivateYouTubeTracksService(
-    repository as unknown as PrivateTracksRepository,
-    membership as unknown as SubscriptionMembershipService,
-    youtube as unknown as YouTubeMusicClient,
-  );
+  const workflow = { queueProcessing: vi.fn() };
+  let module: TestingModule;
+  let service: PrivateYouTubeTracksService;
+
+  beforeAll(async () => {
+    module = await Test.createTestingModule({
+      providers: [
+        PrivateYouTubeTracksService,
+        { provide: PrivateTracksRepository, useValue: repository },
+        { provide: SubscriptionMembershipService, useValue: membership },
+        { provide: YouTubeMusicClient, useValue: youtube },
+        { provide: PrivateTrackWorkflowService, useValue: workflow },
+      ],
+    }).compile();
+    service = module.get(PrivateYouTubeTracksService);
+  });
+
+  afterAll(async () => {
+    await module.close();
+  });
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -45,6 +62,7 @@ describe('PrivateYouTubeTracksService', () => {
       processing: { status: 'QUEUED', progress: 0 },
     });
     expect(youtube.getPracticeVideo).toHaveBeenCalledWith(VIDEO_ID);
+    expect(workflow.queueProcessing).toHaveBeenCalledWith('owner', track.id);
   });
 
   it('denies a free user before fetching external data', async () => {

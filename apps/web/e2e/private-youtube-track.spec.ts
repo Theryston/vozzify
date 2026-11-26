@@ -87,7 +87,10 @@ test('plays the submitted video, then continues from the same point with saved a
 
   const slider = page.getByRole('slider', { name: dock.progress });
   await slider.press('ArrowRight');
-  await expect(slider).toHaveAttribute('aria-valuenow', '5');
+  const currentTime = async () =>
+    Number(await slider.getAttribute('aria-valuenow'));
+  await expect.poll(currentTime).toBeGreaterThanOrEqual(5);
+  const lastVideoTime = await currentTime();
   await page.evaluate(() =>
     window.dispatchEvent(new Event('test-youtube-unavailable')),
   );
@@ -97,9 +100,8 @@ test('plays the submitted video, then continues from the same point with saved a
   await expect(
     page.getByRole('button', { name: dock.pause, exact: true }),
   ).toBeVisible();
-  await expect
-    .poll(async () => Number(await slider.getAttribute('aria-valuenow')))
-    .toBeGreaterThan(5);
+  expect(await currentTime()).toBeGreaterThanOrEqual(lastVideoTime);
+  await expect.poll(currentTime).toBeGreaterThan(lastVideoTime);
   expect(mediaRequests.length).toBeGreaterThan(0);
 });
 

@@ -11,6 +11,7 @@ import { YouTubeMusicClient } from '../../integrations/youtube-music/youtube-mus
 import { youtubeVideoIdOf } from '../../integrations/youtube-music/youtube-video-id.js';
 import { SubscriptionMembershipService } from '../plans/subscription-membership.service.js';
 import { privateTrackMediaKey } from './private-track-object-keys.js';
+import { PrivateTrackWorkflowService } from './private-track-workflow.service.js';
 import { PrivateTracksRepository } from './private-tracks.repository.js';
 import { toPrivateTrack } from './private-tracks.service.js';
 
@@ -20,6 +21,7 @@ export class PrivateYouTubeTracksService {
     private readonly tracks: PrivateTracksRepository,
     private readonly membership: SubscriptionMembershipService,
     private readonly youtube: YouTubeMusicClient,
+    private readonly workflow: PrivateTrackWorkflowService,
   ) {}
 
   async submit(userId: string, url: string): Promise<PrivateTrack> {
@@ -30,12 +32,20 @@ export class PrivateYouTubeTracksService {
     if (!videoId) {
       throw invalidYouTubeUrl('Use an individual YouTube video URL');
     }
-    const existing = await this.tracks.findOwnedYouTube(userId, videoId);
-    if (existing) return toPrivateTrack(existing);
+    const track = toPrivateTrack(
+      (await this.tracks.findOwnedYouTube(userId, videoId)) ??
+        (await this.reserveVideo(userId, videoId)),
+    );
+    if (track.processing?.status === 'QUEUED') {
+      await this.workflow.queueProcessing(userId, track.id);
+    }
+    return track;
+  }
 
+  private async reserveVideo(userId: string, videoId: string) {
     const { title, durationMs } = await this.lookupVideo(videoId);
     const id = createId();
-    const row = await this.tracks.reserveYouTube({
+    return this.tracks.reserveYouTube({
       id,
       userId,
       youtubeVideoId: videoId,
@@ -44,7 +54,6 @@ export class PrivateYouTubeTracksService {
       title,
       durationMs,
     });
-    return toPrivateTrack(row);
   }
 
   private async lookupVideo(videoId: string) {

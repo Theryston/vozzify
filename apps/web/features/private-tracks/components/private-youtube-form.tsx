@@ -1,9 +1,11 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import {
   type CreatePrivateYouTubeTrackBody,
   createPrivateYouTubeTrackBodySchema,
+  PRIVATE_YOUTUBE_URL_MAX_LENGTH,
 } from '@vozzify/contracts';
 import { useTranslations } from 'next-intl';
-import { type FormEvent, useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -18,27 +20,21 @@ export function PrivateYouTubeForm({
   onSubmitLink: (body: CreatePrivateYouTubeTrackBody) => Promise<void>;
 }) {
   const t = useTranslations('privateTracks');
-  const [url, setUrl] = useState('');
-  const [error, setError] = useState<'invalidYouTube' | 'youtubeError'>();
+  const { register, handleSubmit, formState, setError, clearErrors } =
+    useForm<CreatePrivateYouTubeTrackBody>({
+      resolver: zodResolver(createPrivateYouTubeTrackBodySchema),
+      defaultValues: { url: '' },
+    });
+  const error = formState.errors.url;
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const parsed = createPrivateYouTubeTrackBodySchema.safeParse({ url });
-    if (!parsed.success) {
-      setError('invalidYouTube');
-      return;
-    }
-    setError(undefined);
+  const submit = handleSubmit(async (body) => {
     try {
-      await onSubmitLink(parsed.data);
+      await onSubmitLink(body);
     } catch (error) {
-      setError(
-        isApiError(error) && error.code === 'VALIDATION_FAILED'
-          ? 'invalidYouTube'
-          : 'youtubeError',
-      );
+      const invalid = isApiError(error) && error.code === 'VALIDATION_FAILED';
+      setError('url', { type: invalid ? 'invalid' : 'provider' });
     }
-  };
+  });
 
   return (
     <form
@@ -46,27 +42,25 @@ export function PrivateYouTubeForm({
       onSubmit={submit}
       className="flex flex-col items-start gap-4"
     >
-      <Field data-invalid={error === 'invalidYouTube'}>
+      <Field data-invalid={Boolean(error)}>
         <FieldLabel htmlFor="private-youtube-url">
           {t('youtubeLink')}
         </FieldLabel>
         <Input
           id="private-youtube-url"
           type="url"
-          value={url}
           disabled={pending}
-          maxLength={2048}
-          aria-invalid={error === 'invalidYouTube'}
+          maxLength={PRIVATE_YOUTUBE_URL_MAX_LENGTH}
+          aria-invalid={Boolean(error)}
           aria-describedby={
             error ? 'private-youtube-error' : 'private-youtube-hint'
           }
-          onChange={(event) => {
-            setUrl(event.target.value);
-            setError(undefined);
-          }}
+          {...register('url', { onChange: () => clearErrors('url') })}
         />
         {error && (
-          <FieldError id="private-youtube-error">{t(error)}</FieldError>
+          <FieldError id="private-youtube-error">
+            {t(error.type === 'provider' ? 'youtubeError' : 'invalidYouTube')}
+          </FieldError>
         )}
       </Field>
       <Button type="submit" disabled={pending}>

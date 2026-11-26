@@ -4,7 +4,7 @@ import {
   privateTrackDetailSchema,
   privateTrackSchema,
 } from '@vozzify/contracts';
-import type { Job } from 'bullmq';
+import type { Job, Queue } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { subscriptions } from '../src/database/schema/subscriptions.js';
@@ -13,8 +13,13 @@ import {
   type NoteDetectionInput,
 } from '../src/integrations/note-detection/note-detection.client.js';
 import { YouTubeMusicClient } from '../src/integrations/youtube-music/youtube-music.client.js';
-import { PROCESS_PRIVATE_TRACK_JOB } from '../src/modules/private-tracks/private-track-processing.job.js';
+import {
+  PRIVATE_TRACK_PROCESSING_QUEUE,
+  PROCESS_PRIVATE_TRACK_JOB,
+  processPrivateTrackJobSchema,
+} from '../src/modules/private-tracks/private-track-processing.job.js';
 import { PrivateTrackProcessingProcessor } from '../src/modules/private-tracks/private-track-processing.processor.js';
+import { PrivateTrackProcessingService } from '../src/modules/private-tracks/private-track-processing.service.js';
 import { createAuthClient, signIn } from './utils/auth.js';
 import { billingCatalog } from './utils/billing-fixture.js';
 import { createTestApp, type TestApp } from './utils/create-test-app.js';
@@ -199,7 +204,7 @@ describe('Private YouTube tracks (e2e)', () => {
         },
       }),
     );
-    await runProcessing(id, owner.user.id);
+    await runProcessing(id);
     expect(downloadAudio).toHaveBeenCalledWith(
       VIDEO_ID,
       expect.any(AbortSignal),
@@ -215,7 +220,7 @@ describe('Private YouTube tracks (e2e)', () => {
         notes: [{ pitch: 69, start: 0.2, end: 0.7 }],
       },
     });
-    await runProcessing(id, owner.user.id);
+    await runProcessing(id);
 
     const detail = await owner.client.get(`${ROOT}/${id}`).expect(200);
     expect(privateTrackDetailSchema.parse(detail.body)).toMatchObject({
@@ -252,7 +257,9 @@ describe('Private YouTube tracks (e2e)', () => {
       .expect(201);
     const { id } = privateTrackSchema.parse(submitted.body);
     downloadAudio.mockRejectedValue(new Error('YouTube download unavailable'));
-    await expect(runProcessing(id, owner.user.id)).rejects.toThrow();
+    await expect(runProcessing(id)).rejects.toThrow(
+      'YouTube download unavailable',
+    );
     const detail = await owner.client.get(`${ROOT}/${id}`).expect(200);
     expect(privateTrackDetailSchema.parse(detail.body).processing.status).toBe(
       'FAILED',
@@ -261,10 +268,22 @@ describe('Private YouTube tracks (e2e)', () => {
     await owner.client.get(`${ROOT}/${id}/media/music`).expect(404);
   });
 
-  function runProcessing(privateTrackId: string, userId: string) {
-    return app.app.get(PrivateTrackProcessingProcessor).process({
-      name: PROCESS_PRIVATE_TRACK_JOB,
-      data: { privateTrackId, userId },
+  function runProcessing(privateTrackId: string) {
+    const queue = app.queues[PRIVATE_TRACK_PROCESSING_QUEUE];
+    const queued = queue?.added.findLast(
+      ({ name, data }) =>
+        name === PROCESS_PRIVATE_TRACK_JOB &&
+        processPrivateTrackJobSchema.safeParse(data).data?.privateTrackId ===
+          privateTrackId,
+    );
+    if (!queue || !queued)
+      throw new Error('Expected queued private Processing');
+    const processor = new PrivateTrackProcessingProcessor(
+      app.app.get(PrivateTrackProcessingService),
+      queue as unknown as Queue,
+    );
+    return processor.process({
+      ...queued,
       attemptsMade: 0,
       opts: { attempts: 1 },
     } as Job);
