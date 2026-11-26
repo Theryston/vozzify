@@ -67,9 +67,41 @@ secrets in public app configuration. Keep EAS builds manual and free. EAS custom
 then run platform-specific Expo prebuild with `--no-install` through Nub before
 native compilation. Before
 linking an EAS project, verify and reuse `@vozzify/vozzify`; do not create a
-second project. Development and preview iOS builds target the simulator only,
-which cannot be installed on an iPhone. A JavaScript export does not count as a
+second project. Development and preview iOS builds target the simulator.
+The `preview-device` EAS profile uses the same preview identity and
+environment for a signed iPhone build. A JavaScript export does not count as a
 native build; report compilation and installed-app evidence separately.
+
+## Native Google sign-in
+
+Configure OAuth in the existing Google Cloud project for each variant that
+offers Google sign-in. Register its Android package and the SHA-1 of the
+certificate that signs the installed build. Register a separate iOS OAuth
+client for its bundle identifier. See `src/lib/config/app-variants.json` for
+the three native identities. The Android OAuth client ID is associated with
+the package and signature in Google Cloud.
+
+In the corresponding EAS environment (or local build env), set
+`EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` to the OAuth Web application client ID
+used by the native SDK to request ID tokens. Set
+`EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` to the iOS OAuth client ID for that variant.
+Expo generates the reversed iOS URL scheme during prebuild. Android needs only
+the Web client ID in the app configuration. These IDs are public.
+
+On the API reached by that build, set `GOOGLE_NATIVE_CLIENT_IDS` to the
+comma-separated Web/server and iOS client IDs of the builds it accepts. Keep
+`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` configured for the existing
+Better Auth Google provider. The secret stays on the API. Builds with no
+Google IDs use the credential forms.
+
+For physical-device QA, install a configured preview APK and use the
+`preview-device` profile with existing iOS signing, or prebuild and run the
+preview variant from Xcode on an iPhone. On each device, cancel from both
+auth forms and confirm the original form and destination stay intact. Then
+sign in with a new Google account, confirm Username setup, and sign in with a
+returning account to confirm Home or the original destination and pending
+action. Android and iOS simulator smoke tests exercise installed builds with
+credential auth. They do not run the live Google flow.
 
 ## Automatic Android validation
 

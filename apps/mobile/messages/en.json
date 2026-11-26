@@ -61,6 +61,7 @@
     "submitting": "Please wait…",
     "resend": "Send a new code",
     "resendIn": "Send a new code in {seconds}s",
+    "continueWithGoogle": "Continue with Google",
     "signIn": {
       "title": "Sign in to Vozzify",
       "description": "Use your email or Username to access your account.",
@@ -95,6 +96,7 @@
     }
   },
   "authErrors": {
+    "GOOGLE_SIGN_IN_FAILED": "Could not continue with Google. Try again or use your email or Username.",
     "INVALID_EMAIL": "Enter a valid email address.",
     "PASSWORD_TOO_SHORT": "The password is too short. Use at least 6 characters.",
     "PASSWORD_TOO_LONG": "The password is too long. Use at most 128 characters.",

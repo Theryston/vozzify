@@ -1,0 +1,145 @@
+import { generateKeyPairSync, sign } from 'node:crypto';
+import { eq } from 'drizzle-orm';
+import request from 'supertest';
+import { accounts } from '../src/database/schema/auth.js';
+import { users } from '../src/database/schema/users.js';
+import { useAuthSpec } from './utils/auth-spec.js';
+import { createPasswordUser } from './utils/factories.js';
+
+const issuer = 'https://accounts.google.com';
+const iosClientId = 'fixture-ios.apps.googleusercontent.com';
+const androidAudience = 'fixture-mobile.apps.googleusercontent.com';
+const webClientId = 'fixture-web.apps.googleusercontent.com';
+const keysUrl = 'https://www.googleapis.com/oauth2/v3/certs';
+const kid = 'test-signing-key';
+
+const identity = {
+  sub: 'google-subject',
+  name: 'Ada Lovelace',
+  email: 'ada@example.com',
+  email_verified: true,
+};
+
+const key = generateKeyPairSync('rsa', { modulusLength: 2048 });
+const unrelatedKey = generateKeyPairSync('rsa', { modulusLength: 2048 });
+
+function encoded(value: unknown) {
+  return Buffer.from(JSON.stringify(value)).toString('base64url');
+}
+
+function signGoogleToken(
+  claims: Record<string, unknown> = {},
+  privateKey = key.privateKey,
+) {
+  const now = Math.floor(Date.now() / 1000);
+  const body = encoded({
+    ...identity,
+    iss: issuer,
+    aud: androidAudience,
+    iat: now,
+    exp: now + 600,
+    ...claims,
+  });
+  const jwt = `${encoded({ alg: 'RS256', kid })}.${body}`;
+  return `${jwt}.${sign('RSA-SHA256', Buffer.from(jwt), privateKey).toString('base64url')}`;
+}
+
+describe('native Google authentication', () => {
+  const spec = useAuthSpec({
+    env: {
+      GOOGLE_CLIENT_ID: webClientId,
+      GOOGLE_CLIENT_SECRET: 'fixture-web-secret',
+      GOOGLE_NATIVE_CLIENT_IDS: [androidAudience, iosClientId],
+    },
+  });
+
+  beforeEach(() => {
+    const realFetch = globalThis.fetch;
+    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== keysUrl) return realFetch(input, init);
+      return Promise.resolve(
+        Response.json({
+          keys: [{ ...key.publicKey.export({ format: 'jwk' }), kid }],
+        }),
+      );
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const client = () => request(spec.testApp.app.getHttpServer());
+  const exchange = (token: string) =>
+    client()
+      .post('/v1/auth/sign-in/social')
+      .set('x-vozzify-auth', 'native')
+      .send({ provider: 'google', idToken: { token } });
+
+  it('creates one verified User and restores the signed native session', async () => {
+    const response = await exchange(signGoogleToken()).expect(200);
+    expect(response.body.user).toMatchObject({
+      email: identity.email,
+      emailVerified: true,
+      username: null,
+    });
+    const session: unknown = response.headers['set-auth-token'];
+    expect(session).toEqual(expect.any(String));
+
+    const me = await client()
+      .get('/v1/me')
+      .set('Authorization', `Bearer ${session}`)
+      .expect(200);
+    expect(me.body.id).toBe(response.body.user.id);
+    await expect(
+      spec.testApp.db
+        .select()
+        .from(accounts)
+        .where(eq(accounts.accountId, identity.sub)),
+    ).resolves.toEqual([
+      expect.objectContaining({ providerId: 'google', userId: me.body.id }),
+    ]);
+  });
+
+  it('links an existing verified account and signs in under the same subject', async () => {
+    const user = await createPasswordUser(spec.testApp.db, {
+      email: identity.email,
+    });
+    const first = await exchange(signGoogleToken({ aud: iosClientId })).expect(
+      200,
+    );
+    expect(first.body.user).toMatchObject({
+      id: user.id,
+      username: user.username,
+      emailVerified: true,
+    });
+    const returning = await exchange(
+      signGoogleToken({ email: 'another-address@example.com' }),
+    ).expect(200);
+    expect(returning.body.user).toMatchObject({
+      id: user.id,
+      email: user.email,
+    });
+    await expect(spec.testApp.db.select().from(users)).resolves.toHaveLength(1);
+  });
+
+  it.each([
+    ['another app’s audience', () => signGoogleToken({ aud: 'another-app' })],
+    ['the web audience', () => signGoogleToken({ aud: webClientId })],
+    ['the wrong issuer', () => signGoogleToken({ iss: 'https://example.com' })],
+    ['an expired token', () => signGoogleToken({ exp: 1 })],
+    ['an unverified email', () => signGoogleToken({ email_verified: false })],
+    ['a missing subject', () => signGoogleToken({ sub: undefined })],
+    ['a forged signature', () => signGoogleToken({}, unrelatedKey.privateKey)],
+  ])(
+    'rejects %s without creating a User or session',
+    async (_reason, token) => {
+      const rejected = await exchange(token()).expect(401);
+      expect(rejected.headers['set-auth-token']).toBeUndefined();
+      await expect(spec.testApp.db.select().from(users)).resolves.toHaveLength(
+        0,
+      );
+    },
+  );
+});

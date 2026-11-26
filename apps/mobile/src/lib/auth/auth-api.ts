@@ -13,6 +13,7 @@ import {
   sendAuthCodeBodySchema,
   setUsernameBodySchema,
   signInEmailBodySchema,
+  signInGoogleBodySchema,
   signInUsernameBodySchema,
   signUpBodySchema,
   type UsernameAvailabilityResponse,
@@ -83,6 +84,19 @@ export function signIn(body: SignInBody, locale: string, signal: AbortSignal) {
   return establishAuthSession('/auth/sign-in/username', {
     bodySchema: signInUsernameBodySchema,
     body: { username: emailOrUsername, password } satisfies SignInUsernameBody,
+    locale,
+    signal,
+  });
+}
+
+export function signInWithGoogle(
+  token: string,
+  locale: string,
+  signal: AbortSignal,
+) {
+  return establishAuthSession('/auth/sign-in/social', {
+    bodySchema: signInGoogleBodySchema,
+    body: { provider: 'google', idToken: { token } },
     locale,
     signal,
   });

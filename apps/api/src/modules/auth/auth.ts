@@ -24,6 +24,7 @@ import { users } from '../../database/schema/users.js';
 import type { EmailService } from '../../integrations/email/email.service.js';
 import { AUTH_BASE_PATH, CLIENT_IP_HEADER } from './auth.constants.js';
 import { emailOtpPlugin, notifyExistingUserSignUp } from './auth-emails.js';
+import { googleProvider } from './google-provider.js';
 import { nativeBearer } from './native-bearer.js';
 import {
   hashPassword,
@@ -125,16 +126,6 @@ const staticOptions = {
   ],
   telemetry: { enabled: false },
 } satisfies BetterAuthOptions;
-
-const socialProviders = (env: Env): BetterAuthOptions['socialProviders'] =>
-  env.GOOGLE_CLIENT_ID !== undefined && env.GOOGLE_CLIENT_SECRET !== undefined
-    ? {
-        google: {
-          clientId: env.GOOGLE_CLIENT_ID,
-          clientSecret: env.GOOGLE_CLIENT_SECRET,
-        },
-      }
-    : {};
 
 const rateLimitOptions = (
   env: Env,
@@ -255,7 +246,7 @@ export const createAuth = ({
       ...staticOptions.emailAndPassword,
       onExistingUserSignUp: notifyExistingUserSignUp(emailService, logger),
     },
-    socialProviders: socialProviders(env),
+    socialProviders: googleProvider(env),
     rateLimit: rateLimitOptions(env, new RedisThrottlerStorage(redis)),
     advanced: advancedOptions(env),
     logger: loggerOptions(env, logger),

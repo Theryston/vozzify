@@ -119,6 +119,12 @@ export const signInUsernameBodySchema = credentialPassword.extend({
 
 export type SignInUsernameBody = z.infer<typeof signInUsernameBodySchema>;
 
+/** `POST /v1/auth/sign-in/social` (Better Auth), native Google ID-token exchange. */
+export const signInGoogleBodySchema = z.object({
+  provider: z.literal('google'),
+  idToken: z.object({ token: z.string().min(1) }),
+});
+
 /** Native clients read the session User and the signed token header. */
 export const authSessionResponseSchema = z.object({
   user: authSessionUserSchema,

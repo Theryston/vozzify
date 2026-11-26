@@ -4,6 +4,7 @@ import {
 } from '../../lib/api/mobile-api-error';
 
 const knownCodes = [
+  'GOOGLE_SIGN_IN_FAILED',
   'INVALID_EMAIL',
   'INVALID_NAME',
   'PASSWORD_TOO_SHORT',

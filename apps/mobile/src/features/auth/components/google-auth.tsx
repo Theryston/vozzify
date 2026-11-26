@@ -1,0 +1,46 @@
+import { useLocale, useTranslations } from 'use-intl';
+import { z } from 'zod';
+import { Button } from '../../../components/ui/button';
+import { MobileAuthError } from '../../../lib/api/mobile-api-error';
+import { signInWithGoogle } from '../../../lib/auth/auth-api';
+import {
+  chooseGoogleAccount,
+  isGoogleSignInAvailable,
+} from '../../../lib/auth/google-sign-in';
+import { useMobileAuth } from '../../../lib/auth/mobile-auth-provider';
+import { useAuthContinuation } from './auth-frame';
+
+export const googleAuthMethodSchema = z.object({ method: z.literal('google') });
+
+export function useGoogleAuth() {
+  const auth = useMobileAuth();
+  const locale = useLocale();
+  const continuation = useAuthContinuation();
+
+  return async (signal: AbortSignal) => {
+    try {
+      const token = await chooseGoogleAccount();
+      if (signal.aborted || token === null) return;
+      const session = await signInWithGoogle(token, locale, signal);
+      await auth.completeAuth(session, continuation, signal);
+    } catch {
+      throw new MobileAuthError(400, 'GOOGLE_SIGN_IN_FAILED');
+    }
+  };
+}
+
+export function GoogleButton({
+  disabled,
+  onPress,
+}: {
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  const t = useTranslations('auth');
+  if (!isGoogleSignInAvailable()) return null;
+  return (
+    <Button disabled={disabled} variant="outline" onPress={onPress}>
+      {t('continueWithGoogle')}
+    </Button>
+  );
+}
