@@ -18,6 +18,8 @@ import {
   PrivateTracksLoading,
 } from './private-tracks-frame';
 
+type ProOffer = { trackId?: string };
+
 type AccountUser = {
   id?: string;
   username: string | null;
@@ -43,16 +45,12 @@ function PrivateTracksLibrary({
 }) {
   const canView = Boolean(user?.username && user.emailVerified);
   const userId = canView ? (user?.id ?? '') : '';
-  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [offer, setOffer] = useState<ProOffer | null>(null);
   const tracks = usePrivateTracks(userId);
   const canSubmit = tracks.data?.pages[0]?.canSubmit;
-
-  usePrivateTracksPageEffects({
-    loading,
-    user,
-    tracks: tracks.data?.pages,
-    setPaywallOpen,
-  });
+  const items = tracks.data?.pages.flatMap((page) => page.items) ?? [];
+  const emptyFreeLibrary = canSubmit === false && items.length === 0;
+  usePrivateTracksPageEffects({ loading, user, emptyFreeLibrary, setOffer });
 
   if (loading) return <PrivateTracksLoading />;
 
@@ -63,14 +61,17 @@ function PrivateTracksLibrary({
           <PrivateTracksAction
             userId={userId}
             canSubmit={canSubmit}
-            onPaywallOpen={() => setPaywallOpen(true)}
+            onPaywallOpen={() => setOffer({})}
           />
         ) : null
       }
     >
       {canView ? (
         <PrivateTracksList
-          tracks={tracks.data?.pages.flatMap((page) => page.items) ?? []}
+          tracks={items}
+          onLockedTrack={
+            canSubmit === false ? (trackId) => setOffer({ trackId }) : undefined
+          }
           loading={tracks.isPending}
           loadError={tracks.isError}
           hasMore={tracks.hasNextPage}
@@ -78,7 +79,11 @@ function PrivateTracksLibrary({
           onLoadMore={() => void tracks.fetchNextPage()}
         />
       ) : null}
-      <ProDialog open={paywallOpen} onPaywallOpenChange={setPaywallOpen} />
+      <ProDialog
+        open={canSubmit === false && offer !== null}
+        trackId={offer?.trackId}
+        onClose={() => setOffer(null)}
+      />
     </PrivateTracksFrame>
   );
 }
@@ -86,13 +91,13 @@ function PrivateTracksLibrary({
 function usePrivateTracksPageEffects({
   loading,
   user,
-  tracks,
-  setPaywallOpen,
+  emptyFreeLibrary,
+  setOffer,
 }: {
   loading: boolean;
   user: AccountUser | null;
-  tracks: { canSubmit: boolean; items: unknown[] }[] | undefined;
-  setPaywallOpen: (open: boolean) => void;
+  emptyFreeLibrary: boolean;
+  setOffer: (offer: ProOffer) => void;
 }) {
   const router = useRouter();
 
@@ -106,11 +111,8 @@ function usePrivateTracksPageEffects({
   }, [loading, router, user]);
 
   useEffect(() => {
-    const firstPage = tracks?.[0];
-    if (firstPage && !firstPage.canSubmit && firstPage.items.length === 0) {
-      setPaywallOpen(true);
-    }
-  }, [setPaywallOpen, tracks]);
+    if (emptyFreeLibrary) setOffer({});
+  }, [emptyFreeLibrary, setOffer]);
 }
 
 function PrivateTracksAction({
@@ -128,6 +130,7 @@ function PrivateTracksAction({
   return (
     <Button
       className="w-full sm:w-auto"
+      aria-haspopup="dialog"
       disabled={canSubmit === undefined}
       onClick={onPaywallOpen}
     >
@@ -139,6 +142,7 @@ function PrivateTracksAction({
 
 type ListProps = {
   tracks: PrivateTrack[];
+  onLockedTrack?: (id: string) => void;
   loading: boolean;
   loadError: boolean;
   hasMore: boolean;
@@ -152,6 +156,7 @@ function PrivateTracksList(props: ListProps) {
     <div className="flex flex-col gap-4">
       <PrivateTrackRows
         tracks={props.tracks}
+        onLockedTrack={props.onLockedTrack}
         loading={props.loading}
         loadError={props.loadError}
       />

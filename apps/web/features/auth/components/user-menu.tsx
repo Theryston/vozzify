@@ -34,15 +34,39 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SubscriptionNavigation } from '@/features/plans/components/subscription-navigation';
+import { usePrivateTracksMenu } from '@/features/private-tracks/components/private-tracks-menu';
 import { Link } from '@/lib/i18n/navigation';
 
 import type { SessionUser } from '../session';
 import { useSignOut } from './sign-out';
 import { UserAvatar } from './user-avatar';
 
-type MenuLink = { href: string; label: string; icon: LucideIcon };
+type MenuLink = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  badge?: string;
+  onClick?: () => void;
+};
 
-function useMenuLinks(user: SessionUser, subscribed: boolean): MenuLink[] {
+function MenuLinkLabel({ label, badge }: Pick<MenuLink, 'label' | 'badge'>) {
+  return (
+    <>
+      {label}
+      {badge && (
+        <span className="rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary text-xs">
+          {badge}
+        </span>
+      )}
+    </>
+  );
+}
+
+function useMenuLinks(
+  user: SessionUser,
+  subscribed: boolean | undefined,
+  openLibrary: () => void,
+): MenuLink[] {
   const t = useTranslations('header');
   const profile: MenuLink[] = user.username
     ? [
@@ -55,7 +79,13 @@ function useMenuLinks(user: SessionUser, subscribed: boolean): MenuLink[] {
     : [];
   return [
     ...profile,
-    { href: '/me/tracks', label: t('account.myTracks'), icon: Music2Icon },
+    {
+      href: '/me/tracks',
+      label: t('account.myTracks'),
+      icon: Music2Icon,
+      badge: subscribed === false ? t('account.proBadge') : undefined,
+      onClick: openLibrary,
+    },
     { href: '/me/edit', label: t('account.editProfile'), icon: PencilIcon },
     {
       href: subscribed ? '/subscription' : '/plans',
@@ -84,12 +114,12 @@ function UserSummary({ user }: { user: SessionUser }) {
 }
 
 type Props = { user: SessionUser; currentPath: string };
-type MenuProps = Props & { subscribed: boolean };
+type MenuProps = Props & { subscribed: boolean | undefined };
+type MenuItemsProps = Props & { links: MenuLink[] };
 
 /** The signed-in user's menu: a dropdown from `md` up. */
-function UserDropdown({ user, currentPath, subscribed }: MenuProps) {
+function UserDropdown({ user, currentPath, links }: MenuItemsProps) {
   const t = useTranslations('header');
-  const links = useMenuLinks(user, subscribed);
   const { signOut, pending } = useSignOut();
 
   return (
@@ -112,14 +142,15 @@ function UserDropdown({ user, currentPath, subscribed }: MenuProps) {
       >
         <UserSummary user={user} />
         <DropdownMenuSeparator />
-        {links.map(({ href, label, icon: Icon }) => (
+        {links.map(({ href, label, badge, onClick, icon: Icon }) => (
           <DropdownMenuItem
             key={href}
             className={menuItemClassName}
-            render={<Link href={href} />}
+            render={onClick ? undefined : <Link href={href} />}
+            onClick={onClick}
           >
             <Icon />
-            {label}
+            <MenuLinkLabel label={label} badge={badge} />
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
@@ -146,9 +177,8 @@ function UserDropdown({ user, currentPath, subscribed }: MenuProps) {
 }
 
 /** The same menu as a bottom sheet, below `md`. */
-function UserDrawer({ user, currentPath, subscribed }: MenuProps) {
+function UserDrawer({ user, currentPath, links }: MenuItemsProps) {
   const t = useTranslations('header');
-  const links = useMenuLinks(user, subscribed);
   const { signOut, pending } = useSignOut();
 
   return (
@@ -166,16 +196,17 @@ function UserDrawer({ user, currentPath, subscribed }: MenuProps) {
     >
       <UserSummary user={user} />
       <MenuDrawerList>
-        {links.map(({ href, label, icon: Icon }) => (
+        {links.map(({ href, label, badge, onClick, icon: Icon }) => (
           <li key={href}>
             <DrawerClose
-              nativeButton={false}
-              role="link"
-              render={<Link href={href} />}
+              nativeButton={Boolean(onClick)}
+              role={onClick ? undefined : 'link'}
+              render={onClick ? undefined : <Link href={href} />}
+              onClick={onClick}
               className={menuDrawerItemClassName()}
             >
               <Icon />
-              {label}
+              <MenuLinkLabel label={label} badge={badge} />
             </DrawerClose>
           </li>
         ))}
@@ -216,23 +247,30 @@ export function UserMenu(props: Props) {
     <SubscriptionNavigation
       userId={props.user.id}
       render={(subscribed) => (
-        <UserMenuContent {...props} subscribed={subscribed} />
+        <UserMenuContent
+          key={JSON.stringify([props.user.id, props.currentPath])}
+          {...props}
+          subscribed={subscribed}
+        />
       )}
     />
   ) : (
-    <UserMenuContent {...props} subscribed={false} />
+    <UserMenuContent {...props} subscribed={undefined} />
   );
 }
 
-function UserMenuContent(props: MenuProps) {
+function UserMenuContent({ user, currentPath, subscribed }: MenuProps) {
+  const { openLibrary, feedback } = usePrivateTracksMenu();
+  const links = useMenuLinks(user, subscribed, openLibrary);
   return (
     <>
       <div className={`hidden md:flex ${avatarSlotClassName}`}>
-        <UserDropdown {...props} />
+        <UserDropdown user={user} currentPath={currentPath} links={links} />
       </div>
       <div className={`flex md:hidden ${avatarSlotClassName}`}>
-        <UserDrawer {...props} />
+        <UserDrawer user={user} currentPath={currentPath} links={links} />
       </div>
+      {feedback}
     </>
   );
 }
