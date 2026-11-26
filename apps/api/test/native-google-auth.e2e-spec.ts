@@ -71,11 +71,12 @@ describe('native Google authentication', () => {
   });
 
   const client = () => request(spec.testApp.app.getHttpServer());
-  const exchange = (token: string) =>
+  const submitIdToken = (token: string) =>
     client()
       .post('/v1/auth/sign-in/social')
-      .set('x-vozzify-auth', 'native')
       .send({ provider: 'google', idToken: { token } });
+  const exchange = (token: string) =>
+    submitIdToken(token).set('x-vozzify-auth', 'native');
 
   it('creates one verified User and restores the signed native session', async () => {
     const response = await exchange(signGoogleToken()).expect(200);
@@ -142,4 +143,11 @@ describe('native Google authentication', () => {
       );
     },
   );
+
+  it('enforces identity checks on direct ID tokens sent without a native marker', async () => {
+    await submitIdToken(signGoogleToken({ email_verified: false }))
+      .set('Origin', 'http://localhost:3000')
+      .expect(401);
+    await expect(spec.testApp.db.select().from(users)).resolves.toHaveLength(0);
+  });
 });

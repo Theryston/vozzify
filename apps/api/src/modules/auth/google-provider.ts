@@ -1,34 +1,28 @@
 import type { BetterAuthOptions } from 'better-auth';
 import { verifyGoogleIdToken } from 'better-auth/social-providers';
 import type { Env } from '../../config/env.js';
-import { isNativeAuthRequest } from './native-bearer.js';
 
 export function googleProvider(env: Env): BetterAuthOptions['socialProviders'] {
-  const { GOOGLE_CLIENT_ID: clientId, GOOGLE_CLIENT_SECRET: clientSecret } =
-    env;
+  const {
+    GOOGLE_CLIENT_ID: clientId,
+    GOOGLE_CLIENT_SECRET: clientSecret,
+    GOOGLE_NATIVE_CLIENT_IDS: audience,
+  } = env;
   if (!clientId || !clientSecret) return {};
 
   return {
     google: {
       clientId,
       clientSecret,
-      // The web authorization-code flow still uses its original client ID
-      // and secret. This verifier handles only client-submitted ID tokens.
-      async verifyIdToken(token, nonce, context) {
-        const native = isNativeAuthRequest(
-          context?.request?.headers ?? context?.headers,
-        );
-        if (native && !env.GOOGLE_NATIVE_CLIENT_IDS) return false;
-        const audience = native
-          ? (env.GOOGLE_NATIVE_CLIENT_IDS ?? [])
-          : clientId;
+      // Direct ID-token exchanges use the allowlist. The web's OAuth
+      // authorization-code exchange continues to use the credentials above.
+      async verifyIdToken(token, nonce) {
+        if (!audience) return false;
         const claims = await verifyGoogleIdToken({ token, nonce, audience });
-        if (!claims) return false;
         // Google is a trusted account-linking provider. Require verified
-        // ownership of the email before native tokens may link a User.
+        // ownership of the email before any direct token may link a User.
         return (
-          !native ||
-          (claims.email_verified === true && Boolean(claims.exp && claims.sub))
+          claims?.email_verified === true && Boolean(claims.exp && claims.sub)
         );
       },
     },

@@ -100,8 +100,8 @@ preview variant from Xcode on an iPhone. On each device, cancel from both
 auth forms and confirm the original form and destination stay intact. Then
 sign in with a new Google account, confirm Username setup, and sign in with a
 returning account to confirm Home or the original destination and pending
-action. Android and iOS simulator smoke tests exercise installed builds with
-credential auth. They do not run the live Google flow.
+action. The Android and iOS simulator smoke tests exercise credential auth
+in installed builds. Live Google validation uses the physical-device steps above.
 
 ## Automatic Android validation
 
