@@ -17,8 +17,8 @@ steps report project generation, dependency installation, compilation,
 simulator startup, app installation and smoke execution. The JUnit result is
 retained for one day. On flow failure, Maestro's command data, hierarchy,
 screenshots and debug log are uploaded when their combined size is at most 10
-MiB, also for one day. A simulator screenshot is added when the gallery flow
-fails.
+MiB, also for one day. On smoke failure a separate small artifact retains
+launch and failure screenshots, screen hierarchies and filtered simulator logs.
 The shared flow in `.maestro/flows/gallery-smoke.yaml` checks app launch,
 gallery navigation, text entry, overlay interaction, appearance and language
 selection, and restoration of the selected appearance and language after an

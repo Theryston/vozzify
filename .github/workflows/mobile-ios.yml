@@ -158,6 +158,7 @@ jobs:
             exit 1
           fi
           xcrun simctl install "$SIMULATOR_UDID" "$app"
+          echo "IOS_APP_EXECUTABLE=$(plutil -extract CFBundleExecutable raw "$app/Info.plist")" >> "$GITHUB_ENV"
 
       - name: Install Maestro CLI
         run: |
@@ -168,7 +169,10 @@ jobs:
           "$RUNNER_TEMP/maestro/bin/maestro" --version
 
       - name: Launch installed app
-        run: xcrun simctl launch "$SIMULATOR_UDID" com.vozzify.app.preview
+        run: |
+          mkdir -p "$RUNNER_TEMP/ios-launch-evidence"
+          xcrun simctl launch "$SIMULATOR_UDID" com.vozzify.app.preview
+          xcrun simctl io "$SIMULATOR_UDID" screenshot "$RUNNER_TEMP/ios-launch-evidence/before-maestro.png"
 
       - name: Run installed app smoke flows
         id: maestro
@@ -176,6 +180,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/maestro-artifacts" "$RUNNER_TEMP/maestro-debug" "$RUNNER_TEMP/maestro-auth"
           maestro test \
+            --udid "$SIMULATOR_UDID" \
             --format junit \
             --output "$RUNNER_TEMP/maestro-results.xml" \
             --test-output-dir "$RUNNER_TEMP/maestro-artifacts" \
@@ -183,9 +188,24 @@ jobs:
             -e AUTH_SCREENSHOT_DIR="$RUNNER_TEMP/maestro-auth" \
             .maestro/flows
 
-      - name: Capture iOS simulator screenshot on Maestro failure
+      - name: Capture iOS launch evidence on Maestro failure
         if: ${{ failure() && steps.maestro.outcome == 'failure' }}
-        run: xcrun simctl io "$SIMULATOR_UDID" screenshot "$RUNNER_TEMP/maestro-artifacts/current-screen.png"
+        run: |
+          xcrun simctl io "$SIMULATOR_UDID" screenshot "$RUNNER_TEMP/ios-launch-evidence/after-maestro.png"
+          xcrun simctl spawn "$SIMULATOR_UDID" log show --last 8m --style compact \
+            --predicate "process == \"$IOS_APP_EXECUTABLE\" OR eventMessage CONTAINS \"com.vozzify.app.preview\"" |
+            tail -n 500 > "$RUNNER_TEMP/ios-launch-evidence/simulator.log"
+
+      - name: Upload iOS launch evidence
+        if: ${{ always() && steps.maestro.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-maestro-launch-evidence
+          path: |
+            ${{ runner.temp }}/ios-launch-evidence/
+            ${{ runner.temp }}/maestro-artifacts/**/screen-hierarchy/*.json
+          if-no-files-found: ignore
+          retention-days: 1
 
       - name: Check Maestro diagnostics size
         id: diagnostics
