@@ -1,6 +1,11 @@
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from '@vozzify/contracts/auth-rules';
 import type { ComponentProps } from 'react';
 import { useTranslations } from 'use-intl';
 import { AuthField } from './auth-field';
+import { PasswordStrengthMeter } from './password-strength-meter';
 
 type FieldProps = Pick<
   ComponentProps<typeof AuthField>,
@@ -23,18 +28,46 @@ export function EmailField(props: FieldProps) {
 
 export function PasswordField({
   existing,
+  label,
   ...props
-}: FieldProps & { existing?: boolean }) {
+}: FieldProps & { existing?: boolean; label?: string }) {
   const t = useTranslations('auth');
   return (
     <AuthField
       autoCapitalize="none"
       autoComplete={existing ? 'current-password' : 'new-password'}
-      label={t('password')}
+      label={label ?? t('password')}
       password
       spellCheck={false}
       testID="auth-password"
       {...props}
     />
+  );
+}
+
+export function NewPasswordField({
+  label,
+  value = '',
+  invalid,
+  onChangeText,
+}: Omit<FieldProps, 'error'> & { label?: string; invalid: boolean }) {
+  const t = useTranslations('auth');
+  return (
+    <>
+      <PasswordField
+        label={label}
+        value={value}
+        error={
+          invalid
+            ? t('passwordInvalid', {
+                min: PASSWORD_MIN_LENGTH,
+                max: PASSWORD_MAX_LENGTH,
+              })
+            : undefined
+        }
+        onChangeText={onChangeText}
+      />
+      <PasswordStrengthMeter password={value} />
+    </>
   );
 }

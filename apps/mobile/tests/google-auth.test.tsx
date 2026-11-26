@@ -219,6 +219,22 @@ describe('native Google auth screens', () => {
     expect(router.getPathname()).toBe('/');
   });
 
+  it('continues the saved destination when Google signs in after password recovery', async () => {
+    jest.mocked(SecureStore.getItemAsync).mockResolvedValueOnce(
+      JSON.stringify({
+        passwordReset: { destination: '/components', action: 'open-overlay' },
+      }),
+    );
+    selectAccount.mockResolvedValueOnce(googleResponse);
+    request.mockResolvedValueOnce(sessionResponse('ada'));
+    const router = await renderRouter('./app', { initialUrl: '/sign-in' });
+
+    await pressGoogle();
+
+    expect(await screen.findByText('A native overlay')).toBeOnTheScreen();
+    expect(router.getPathname()).toBe('/components');
+  });
+
   it('keeps the sign-in form after cancellation and resumes the pending action on retry', async () => {
     jest.replaceProperty(Platform, 'OS', 'android');
     selectAccount

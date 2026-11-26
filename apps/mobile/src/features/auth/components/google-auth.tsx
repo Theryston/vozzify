@@ -3,19 +3,18 @@ import { z } from 'zod';
 import { Button } from '../../../components/ui/button';
 import { MobileAuthError } from '../../../lib/api/mobile-api-error';
 import { signInWithGoogle } from '../../../lib/auth/auth-api';
+import type { AuthContinuation } from '../../../lib/auth/auth-continuation';
 import {
   chooseGoogleAccount,
   isGoogleSignInAvailable,
 } from '../../../lib/auth/google-sign-in';
 import { useMobileAuth } from '../../../lib/auth/mobile-auth-provider';
-import { useAuthContinuation } from './auth-frame';
 
 export const googleAuthMethodSchema = z.object({ method: z.literal('google') });
 
-export function useGoogleAuth() {
+export function useGoogleAuth(continuation: AuthContinuation) {
   const auth = useMobileAuth();
   const locale = useLocale();
-  const continuation = useAuthContinuation();
 
   return async (signal: AbortSignal) => {
     try {

@@ -79,8 +79,8 @@ function useUsernameSelection(
 }
 
 function clearOnboarding(previous: StoredAuth): StoredAuth {
-  const { token, verification, continuation } = previous;
-  return verification || continuation ? { token } : previous;
+  const { token, verification, continuation, passwordReset } = previous;
+  return verification || continuation || passwordReset ? { token } : previous;
 }
 
 function recordVerificationSent(verification: StoredAuth['verification']) {
@@ -140,6 +140,42 @@ function useCompleteAuth(
   };
 }
 
+function afterPasswordReset(
+  previous: StoredAuth,
+  email: string,
+  continuation: AuthContinuation,
+): StoredAuth {
+  const pendingEmail = previous.verification?.email?.toLowerCase();
+  return {
+    ...previous,
+    verification:
+      pendingEmail === email.toLowerCase() ? undefined : previous.verification,
+    passwordReset: continuation,
+  };
+}
+
+function createBeginVerification(
+  update: ReturnType<typeof useAuthRecord>['update'],
+) {
+  return async (
+    verification: NonNullable<StoredAuth['verification']>,
+    continuation: AuthContinuation,
+    signal: AbortSignal,
+  ) => {
+    const saved = await update(
+      (previous) => ({
+        ...previous,
+        verification,
+        continuation,
+        passwordReset: undefined,
+      }),
+      signal,
+    );
+    if (saved) recordVerificationSent(verification);
+    return saved;
+  };
+}
+
 function useAuthOperations() {
   const storage = useAuthRecord();
   const { status, user, setUser, retry } = useRestoreAuth(storage.replace);
@@ -147,25 +183,21 @@ function useAuthOperations() {
   const { update, record } = storage;
   const completeAuth = useCompleteAuth(update, setUser);
 
-  async function beginVerification(
-    verification: NonNullable<StoredAuth['verification']>,
-    continuation: AuthContinuation,
-    signal: AbortSignal,
-  ) {
-    const saved = await update(
-      (previous) => ({ ...previous, verification, continuation }),
-      signal,
-    );
-    if (saved) recordVerificationSent(verification);
-    return saved;
-  }
-
   return {
     status,
     user,
     retry,
     ...record,
-    beginVerification,
+    finishPasswordReset: (
+      email: string,
+      continuation: AuthContinuation,
+      signal: AbortSignal,
+    ) =>
+      update(
+        (previous) => afterPasswordReset(previous, email, continuation),
+        signal,
+      ),
+    beginVerification: createBeginVerification(update),
     completeAuth,
     chooseUsername,
     cancelOnboarding: () => update(clearOnboarding),

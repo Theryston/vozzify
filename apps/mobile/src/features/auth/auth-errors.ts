@@ -38,7 +38,7 @@ export function authErrorKey(error: unknown) {
   );
 }
 
-export function isCodeError(key: ReturnType<typeof authErrorKey>) {
+export function isCodeError(key: string | undefined) {
   return (
     key === 'INVALID_OTP' ||
     key === 'OTP_EXPIRED' ||
