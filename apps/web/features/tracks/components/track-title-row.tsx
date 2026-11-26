@@ -1,6 +1,5 @@
 import type { TrackContributor, TrackDetail } from '@vozzify/contracts';
 import dynamic from 'next/dynamic';
-import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { Fragment, type ReactNode, useState } from 'react';
 
@@ -8,7 +7,7 @@ import { Link } from '@/lib/i18n/navigation';
 
 import { ContributorAvatar } from './contributor-avatar';
 import { TrackBestScore } from './track-best-score';
-import { TrackCoverPlaceholder } from './track-cover-placeholder';
+import { TrackCoverArt } from './track-cover-art';
 import { TrackDuration } from './track-duration';
 import { TrackFavoriteButton } from './track-favorite-button';
 import { TrackShareButton } from './track-share-button';
@@ -166,18 +165,12 @@ export function TrackTitleRow({
       className="flex flex-wrap items-center gap-x-4 gap-y-3"
     >
       <span className="relative block size-14 shrink-0 overflow-hidden rounded-xl bg-muted shadow-xs sm:size-16">
-        {header.coverUrl ? (
-          <Image
-            src={header.coverUrl}
-            alt=""
-            fill
-            unoptimized
-            sizes="64px"
-            className="object-cover"
-          />
-        ) : (
-          <TrackCoverPlaceholder seed={header.id} />
-        )}
+        <TrackCoverArt
+          coverArtUrl={header.coverUrl}
+          placeholderSeed={header.id}
+          sizes="64px"
+          unoptimized
+        />
       </span>
       <div className="flex min-w-0 flex-1 basis-48 flex-col">
         <h1

@@ -34,6 +34,7 @@ export const privateTrackSchema = z.object({
   id: z.string(),
   title: z.string(),
   artist: z.string(),
+  coverUrl: z.string().optional(),
   durationMs: z.number().int().positive(),
   createdAt: z.iso.datetime(),
   processing: z

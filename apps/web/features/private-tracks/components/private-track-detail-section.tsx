@@ -97,7 +97,7 @@ function privateTrackHeader(track: PrivateTrackDetailData): TrackDetail {
   return {
     id: track.id,
     title: track.title,
-    coverUrl: track.recording?.coverUrl ?? null,
+    coverUrl: track.coverUrl ?? track.recording?.coverUrl ?? null,
     artistCredit: track.artist
       ? [{ name: track.artist, joinPhrase: '', artistId: null }]
       : [],
