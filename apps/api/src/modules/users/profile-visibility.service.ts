@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import {
   type AvatarIdentity,
   cacheTags,
@@ -9,7 +9,10 @@ import {
 } from '@vozzify/contracts';
 import { AppException } from '../../common/errors/app-exception.js';
 import { WebRevalidationService } from '../../integrations/web-revalidation/web-revalidation.service.js';
-import { avatarIdentityFields } from '../plans/subscription-membership.service.js';
+import {
+  avatarIdentityFields,
+  SubscriptionMembershipService,
+} from '../plans/subscription-membership.service.js';
 import {
   ProfileVisibilityRepository,
   type ProfileVisibilityRow,
@@ -92,6 +95,7 @@ export class ProfileVisibilityService {
   constructor(
     private readonly repository: ProfileVisibilityRepository,
     private readonly webRevalidation: WebRevalidationService,
+    @Optional() private readonly membership?: SubscriptionMembershipService,
   ) {}
 
   /** The owner's flags. */
@@ -125,11 +129,12 @@ export class ProfileVisibilityService {
     return (await this.viewOf(username, undefined)).shown;
   }
 
-  /** Live section visibility for several public Profiles, keyed by User ID. */
+  /** Live section visibility and public appearance for Home recommendations. */
   async getShownSectionsByUserIds(
     userIds: string[],
   ): Promise<Map<string, SocialProfile>> {
     const rows = await this.repository.findManyByIds(userIds);
+    const paid = await this.membership?.paidMemberIds(rows.map(({ id }) => id));
     return new Map(
       rows.map((row) => [
         row.id,
@@ -142,7 +147,7 @@ export class ProfileVisibilityService {
                 appearance: {
                   name: row.name,
                   image: row.image ?? null,
-                  ...avatarIdentityFields(row),
+                  ...avatarIdentityFields(paid?.has(row.id), row.avatarRole),
                 },
               }),
         },

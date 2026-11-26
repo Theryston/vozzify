@@ -1,10 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import {
   asDailyPracticeTargetSeconds,
   type PublicProfile,
 } from '@vozzify/contracts';
 import { AppException } from '../../common/errors/app-exception.js';
-import { avatarIdentityFields } from '../plans/subscription-membership.service.js';
+import {
+  avatarIdentityFields,
+  SubscriptionMembershipService,
+} from '../plans/subscription-membership.service.js';
 import { UsersRepository } from './users.repository.js';
 
 /**
@@ -37,7 +40,10 @@ export type PublicProfileLookup = {
  */
 @Injectable()
 export class UserProfileService {
-  constructor(private readonly usersRepository: UsersRepository) {}
+  constructor(
+    private readonly usersRepository: UsersRepository,
+    @Optional() private readonly membership?: SubscriptionMembershipService,
+  ) {}
 
   /**
    * Usernames are stored lowercase, so the lookup lowercases the request
@@ -47,7 +53,7 @@ export class UserProfileService {
     return (await this.findPublicProfile(username)).profile;
   }
 
-  /** The banner of a Profile and the ID of its User, read in one query. */
+  /** The banner of a Profile and the ID of its User. */
   async findPublicProfile(username: string): Promise<PublicProfileLookup> {
     const normalized = username.toLowerCase();
     const row =
@@ -55,6 +61,7 @@ export class UserProfileService {
     if (!row) {
       throw new AppException('NOT_FOUND', 'User not found');
     }
+    const pro = await this.membership?.hasPaidMembership(row.id);
     // The Daily target is shown only when the User picked a preset.
     const dailyTarget = asDailyPracticeTargetSeconds(
       row.dailyPracticeTargetSeconds,
@@ -65,7 +72,7 @@ export class UserProfileService {
         username: normalized,
         name: row.name,
         image: row.image,
-        ...avatarIdentityFields(row),
+        ...avatarIdentityFields(pro, row.avatarRole),
         createdAt: row.createdAt.toISOString(),
         followersCount: row.followersCount,
         followingCount: row.followingCount,

@@ -1,11 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import type {
   ListTrackContributorsQuery,
   TrackContributorEntry,
   TrackContributorsPage,
   TrackProcessingState,
 } from '@vozzify/contracts';
-import { avatarIdentityFields } from '../plans/subscription-membership.service.js';
+import {
+  avatarIdentityFields,
+  SubscriptionMembershipService,
+} from '../plans/subscription-membership.service.js';
 import { TrackContributorRepository } from './track-contributor.repository.js';
 import {
   decodeTrackContributorCursor,
@@ -28,6 +31,7 @@ export class TrackProcessingService {
     private readonly tracks: TracksRepository,
     private readonly processings: TrackProcessingRepository,
     private readonly contributors: TrackContributorRepository,
+    @Optional() private readonly membership?: SubscriptionMembershipService,
   ) {}
 
   /**
@@ -78,14 +82,18 @@ export class TrackProcessingService {
       },
     );
     const hasMore = rows.length > query.limit;
-    const items = rows.slice(0, query.limit).map(
+    const page = rows.slice(0, query.limit);
+    const paid = await this.membership?.paidMemberIds(
+      page.map(({ userId }) => userId),
+    );
+    const items = page.map(
       (row): TrackContributorEntry => ({
         id: row.id,
         userId: row.userId,
         username: row.username,
         name: row.name,
         image: row.image,
-        ...avatarIdentityFields(row),
+        ...avatarIdentityFields(paid?.has(row.userId), row.avatarRole),
         ...(viewerId === undefined ? {} : { isFollowing: row.isFollowing }),
       }),
     );

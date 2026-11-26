@@ -3,19 +3,14 @@ import type { AvatarIdentity, UserRole } from '@vozzify/contracts';
 import { isPaidMembershipActive } from './renewal-recovery.js';
 import { SubscriptionsRepository } from './subscriptions.repository.js';
 
-export type AvatarIdentityInputs = {
-  avatarRole?: UserRole;
-  avatarMembership?: Parameters<typeof isPaidMembershipActive>[0] | null;
-};
-
-/** Projects only the displayed User's public marks from the selected inputs. */
-export function avatarIdentityFields(input: AvatarIdentityInputs): {
+/** The two public marks drawn from independent roles and subscriptions. */
+export function avatarIdentityFields(
+  pro: boolean | undefined,
+  role?: UserRole,
+): {
   avatarIdentity?: AvatarIdentity;
 } {
-  const admin = input.avatarRole === 'ADMIN';
-  const pro =
-    input.avatarMembership != null &&
-    isPaidMembershipActive(input.avatarMembership);
+  const admin = role === 'ADMIN';
   return admin || pro
     ? { avatarIdentity: { ...(pro && { pro }), ...(admin && { admin }) } }
     : {};
@@ -29,5 +24,16 @@ export class SubscriptionMembershipService {
     const row = await this.repository.current(userId);
     if (!row) return false;
     return isPaidMembershipActive(row.contract);
+  }
+
+  /** Reads effective paid membership in one query for the given Users. */
+  async paidMemberIds(
+    userIds: readonly string[],
+  ): Promise<ReadonlySet<string>> {
+    if (userIds.length === 0) return new Set();
+    const contracts = await this.repository.membershipForUsers(userIds);
+    return new Set(
+      contracts.filter(isPaidMembershipActive).map(({ userId }) => userId),
+    );
   }
 }

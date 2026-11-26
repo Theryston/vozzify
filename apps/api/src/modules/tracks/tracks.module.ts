@@ -12,6 +12,7 @@ import { WebRevalidationModule } from '../../integrations/web-revalidation/web-r
 import { YouTubeMusicModule } from '../../integrations/youtube-music/youtube-music.module.js';
 import { TRACK_METADATA_QUEUE } from '../../queue/track-metadata.job.js';
 import { LegacyProcessingAdmissionModule } from '../legacy-import/legacy-processing-admission.module.js';
+import { SubscriptionMembershipModule } from '../plans/subscription-membership.module.js';
 import { UsersModule } from '../users/users.module.js';
 import { TrackAlbumCoverService } from './track-album-cover.service.js';
 import { TRACK_ASSOCIATION_QUEUE } from './track-association.job.js';
@@ -103,6 +104,7 @@ export const trackModuleImports = [
   ElevenLabsTranscriptionModule,
   StorageModule,
   UsersModule,
+  SubscriptionMembershipModule,
   WebRevalidationModule,
   YouTubeMusicModule,
 ];

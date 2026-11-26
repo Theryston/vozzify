@@ -1,11 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
+import type { UserRole } from '@vozzify/contracts';
 import { eq, inArray } from 'drizzle-orm';
-import { avatarIdentityColumns } from '../../database/avatar-identity-columns.js';
 import type { DatabaseAdapter } from '../../database/database.js';
-import { subscriptions } from '../../database/schema/subscriptions.js';
 import { users } from '../../database/schema/users.js';
-import type { AvatarIdentityInputs } from '../plans/subscription-membership.service.js';
 
 /** The section visibility flags of a User, with the username that addresses it. */
 export type ProfileVisibilityRow = {
@@ -17,8 +15,11 @@ export type ProfileVisibilityRow = {
 };
 
 /** The section flags to set in one statement: only those given change. */
-type SocialProfileRow = ProfileVisibilityRow &
-  AvatarIdentityInputs & { name?: string; image?: string | null };
+type SocialProfileRow = ProfileVisibilityRow & {
+  name?: string;
+  image?: string | null;
+  avatarRole?: UserRole;
+};
 
 export type ProfileVisibilityValues = Partial<
   Pick<
@@ -68,12 +69,11 @@ export class ProfileVisibilityRepository {
     return this.txHost.tx
       .select({
         ...profileVisibilityColumns,
-        ...avatarIdentityColumns,
+        avatarRole: users.role,
         name: users.name,
         image: users.image,
       })
       .from(users)
-      .leftJoin(subscriptions, eq(subscriptions.userId, users.id))
       .where(inArray(users.id, ids));
   }
 

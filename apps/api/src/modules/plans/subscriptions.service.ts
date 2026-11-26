@@ -11,7 +11,6 @@ import type {
 import { AppException } from '../../common/errors/app-exception.js';
 import { StripeBillingService } from '../../integrations/stripe/stripe-billing.service.js';
 import { checkoutOffer } from './checkout-offer.js';
-import { refreshSubscription } from './refresh-subscription.js';
 import {
   isPaidMembershipActive,
   recoveryDeadline,
@@ -281,30 +280,6 @@ export class SubscriptionsService {
         cancelAtPeriodEnd: contract.cancelAtPeriodEnd,
       },
     };
-  }
-
-  @Transactional()
-  async webhook(event: {
-    id: string;
-    type: string;
-    created?: number;
-    data: { object: { customer?: string; id?: string } };
-  }) {
-    const customer = event.data.object.customer;
-    if (!customer) return;
-    const userId = await this.repository.userForCustomer(customer);
-    if (!userId) return;
-    await this.repository.lock(userId);
-    if (await this.repository.processed(event.id)) return;
-    await refreshSubscription({
-      userId,
-      customer,
-      event,
-      repository: this.repository,
-      stripe: this.stripe,
-    });
-    await this.repository.trackPriceChanges(userId);
-    await this.repository.markProcessed(event.id);
   }
 }
 

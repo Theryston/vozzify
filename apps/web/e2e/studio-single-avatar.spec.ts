@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, type Locator, test } from '@playwright/test';
 import sharp from 'sharp';
 import { ADA, mockAuthApi } from './auth-api-mock';
 import { openAsAda, pickPng, summaryImage } from './edit-profile-helpers';
@@ -7,94 +7,100 @@ import { mockFollowLists } from './follow-lists-api-mock';
 import { messages } from './messages';
 import { subscriptionFixture } from './subscription-fixture';
 
-for (const width of [360, 1280]) {
-  test(`the public sleeve and account trigger describe their own User at ${width}px`, async ({
-    page,
-  }) => {
-    await page.emulateMedia({ colorScheme: width === 360 ? 'dark' : 'light' });
-    await page.setViewportSize({ width, height: 840 });
-    await mockAuthApi(page, { user: { ...ADA, username: 'ada' } });
-    await page.route('**/v1/me/subscription?*', (route) =>
-      route.fulfill({ json: { subscription: subscriptionFixture() } }),
-    );
-    await page.goto('/en/users/studio_admin');
-    const banner = page.getByRole('region', { name: 'Lia Costa', exact: true });
-    await expect(banner.getByText('LC', { exact: true })).toBeVisible();
-    await expect(
-      banner.getByText('Pro', { exact: true }).first(),
-    ).toBeVisible();
-    await expect(banner.getByText('Admin', { exact: true })).toBeVisible();
-    if (width === 360) {
-      const artwork = await banner
-        .getByText('LC', { exact: true })
-        .boundingBox();
-      const name = await banner.getByRole('heading').boundingBox();
-      const box = await banner.boundingBox();
-      if (!artwork || !name || !box)
-        throw new Error('Profile layout unavailable');
-      expect(artwork.y).toBeGreaterThan(box.y);
-      expect(artwork.y + artwork.height).toBeLessThan(name.y);
-    }
-    const trigger = page.getByRole('button', {
-      name: messages.en.header.account.accountMenu,
-    });
-    await expect(trigger).toHaveAccessibleDescription('Pro');
-    await test.info().attach('profile', {
-      body: await banner.screenshot(),
-      contentType: 'image/png',
-    });
-    await trigger.click();
-    const menu = page.getByRole(width === 360 ? 'dialog' : 'menu');
-    await expect(menu).toContainText('Ada Lovelace');
-    await expect(menu.getByText('Pro', { exact: true })).toBeVisible();
-    await test.info().attach('account', {
-      body: await menu.screenshot(),
-      contentType: 'image/png',
-    });
+async function capture(name: string, element: Locator) {
+  await test.info().attach(name, {
+    body: await element.screenshot(),
+    contentType: 'image/png',
   });
 }
 
-test('a mixed follower list shows marks for the displayed person', async ({
-  page,
-}) => {
-  const person = {
-    name: 'Lia Costa',
-    username: 'lia',
-    image: null,
-    id: 'lia',
-    avatarIdentity: { admin: true, pro: true },
-  };
-  await mockAuthApi(page, { user: null });
-  await mockFollowLists(page, {
-    username: 'follow_target',
-    lists: {
-      followers: [
-        person,
-        { id: 'sam', name: 'Sam', username: 'sam', image: null },
-      ],
-      following: [],
-      friends: [],
-    },
-  });
-  await page.goto('/en/users/follow_target');
-  await page
-    .getByRole('list', { name: messages.en.publicProfile.follow.label })
-    .getByRole('button')
-    .first()
-    .click();
-  const profile = page
-    .getByRole('dialog')
-    .getByRole('link', { name: /Lia Costa/ });
-  await expect(profile.getByText('Admin')).toBeVisible();
-  await expect(profile.getByText('Pro')).toBeVisible();
-  await test.info().attach('followers', {
-    body: await profile.screenshot(),
-    contentType: 'image/png',
-  });
-  await expect(
-    page.getByRole('dialog').getByRole('link', { name: /Sam/ }),
-  ).not.toContainText('Pro');
-});
+for (const width of [360, 1280]) {
+  for (const colorScheme of ['light', 'dark'] as const) {
+    test(`the public sleeve and account trigger describe their own User at ${width}px in ${colorScheme}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme });
+      await page.setViewportSize({ width, height: 840 });
+      await mockAuthApi(page, { user: { ...ADA, username: 'ada' } });
+      await page.route('**/v1/me/subscription?*', (route) =>
+        route.fulfill({ json: { subscription: subscriptionFixture() } }),
+      );
+      await page.goto('/en/users/studio_admin');
+      const banner = page.getByRole('region', {
+        name: 'Lia Costa',
+        exact: true,
+      });
+      await expect(banner.getByText('LC', { exact: true })).toBeVisible();
+      await expect(
+        banner.getByText('Pro', { exact: true }).first(),
+      ).toBeVisible();
+      await expect(banner.getByText('Admin', { exact: true })).toBeVisible();
+      if (width === 360) {
+        const artwork = await banner
+          .getByText('LC', { exact: true })
+          .boundingBox();
+        const name = await banner.getByRole('heading').boundingBox();
+        const box = await banner.boundingBox();
+        if (!artwork || !name || !box)
+          throw new Error('Profile layout unavailable');
+        expect(artwork.y).toBeGreaterThan(box.y);
+        expect(artwork.y + artwork.height).toBeLessThan(name.y);
+      }
+      const trigger = page.getByRole('button', {
+        name: messages.en.header.account.accountMenu,
+      });
+      await expect(trigger).toHaveAccessibleDescription('Pro');
+      await capture('profile', banner);
+      await capture('trigger', trigger);
+      await trigger.click();
+      const menu = page.getByRole(width === 360 ? 'dialog' : 'menu');
+      await expect(menu).toContainText('Ada Lovelace');
+      await expect(menu.getByText('Pro', { exact: true })).toBeVisible();
+      await capture('account', menu);
+    });
+
+    test(`a mixed follower list shows marks at ${width}px in ${colorScheme}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 840 });
+      await page.emulateMedia({ colorScheme });
+      const person = {
+        name: 'Lia Costa',
+        username: 'lia',
+        image: null,
+        id: 'lia',
+        avatarIdentity: { admin: true, pro: true },
+      };
+      await mockAuthApi(page, { user: null });
+      await mockFollowLists(page, {
+        username: 'follow_target',
+        lists: {
+          followers: [
+            person,
+            { id: 'sam', name: 'Sam', username: 'sam', image: null },
+          ],
+          following: [],
+          friends: [],
+        },
+      });
+      await page.goto('/en/users/follow_target');
+      await page
+        .getByRole('list', { name: messages.en.publicProfile.follow.label })
+        .getByRole('button')
+        .first()
+        .click();
+      const profile = page
+        .getByRole('dialog')
+        .getByRole('link', { name: /Lia Costa/ });
+      await expect(profile.getByText('Admin')).toBeVisible();
+      await expect(profile.getByText('Pro')).toBeVisible();
+      await capture('followers', profile);
+      await expect(
+        page.getByRole('dialog').getByRole('link', { name: /Sam/ }),
+      ).not.toContainText('Pro');
+    });
+  }
+}
 
 for (const username of ['studio_admin', 'studio_portrait']) {
   test(`the generated share image contains the exposed black record for ${username}`, async ({

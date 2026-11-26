@@ -23,9 +23,15 @@ async function getTrackDetail(trackId: string): Promise<TrackDetail> {
   cacheTag(cacheTags.track(trackId));
   cacheLife({ stale: 30, revalidate: 60, expire: 300 });
 
-  return serverApi(`/tracks/${encodeURIComponent(trackId)}`, {
+  const detail = await serverApi(`/tracks/${encodeURIComponent(trackId)}`, {
     schema: trackDetailSchema,
   });
+  for (const contributor of detail.contributors) {
+    if (contributor.username !== null) {
+      cacheTag(cacheTags.userProfile(contributor.username));
+    }
+  }
+  return detail;
 }
 
 /** The vocal notes of a Track in sung order, cached under their own tag. */

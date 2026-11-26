@@ -1,4 +1,5 @@
 import type { PublicProfile } from '@vozzify/contracts';
+import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { initials } from '../initials';
@@ -15,9 +16,11 @@ export function UserAvatar({
   user,
   className,
   size = 'compact',
+  imageSizes = size === 'full' ? '(min-width: 768px) 192px, 96px' : '40px',
 }: {
   user: AvatarUser;
   className?: string;
+  imageSizes?: string;
   size?: 'compact' | 'full';
 }) {
   const single = avatarTreatment(user.avatarIdentity) === 'studio-single';
@@ -25,7 +28,16 @@ export function UserAvatar({
     <Avatar className={single ? undefined : cn('size-9', className)}>
       {user.image ? (
         <AvatarImage
-          className="data-error:hidden data-loading:hidden"
+          className="data-error:invisible data-loading:invisible"
+          render={
+            <Image
+              fill
+              unoptimized
+              sizes={imageSizes}
+              src={user.image}
+              alt=""
+            />
+          }
           keepMounted
           src={user.image}
           alt=""

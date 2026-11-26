@@ -42,11 +42,17 @@ export function PeopleLayout({
               href={`/users/${person.username}`}
               className="group flex h-full flex-col items-center gap-2 rounded-2xl p-2 text-center outline-none transition-colors duration-150 ease-out hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              <UserAvatar user={person} className="size-20 md:size-24" />
-              <span className="w-full truncate font-medium text-sm">
-                {person.name}
+              <UserAvatar
+                user={person}
+                imageSizes="(max-width: 768px) 80px, 96px"
+                className="size-20 md:size-24"
+              />
+              <span className="flex w-full flex-wrap items-center justify-center gap-1">
+                <span className="truncate font-medium text-sm">
+                  {person.name}
+                </span>
+                <UserIdentityMarks identity={person.avatarIdentity} />
               </span>
-              <UserIdentityMarks identity={person.avatarIdentity} />
               <span className="text-muted-foreground text-xs">
                 {t('home.people.commonTracks', { count: person.commonTracks })}
               </span>

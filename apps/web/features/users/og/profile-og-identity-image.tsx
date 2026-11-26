@@ -7,7 +7,6 @@ export function adminMark(label: string) {
       style={{
         display: 'flex',
         alignItems: 'center',
-        alignSelf: 'flex-start',
         gap: 8,
         background: '#09090b',
         color: 'white',
@@ -105,6 +104,12 @@ export function studioSingleImage(
         {single.label}
       </div>
       {sleeve(card)}
+      {/* The image renderer clips an inline SVG nested inside a rotated layer. */}
+      <div
+        style={{ display: 'flex', position: 'absolute', left: 210, top: 192 }}
+      >
+        <LogoMark width={20} height={22} style={{ color: '#fa4900' }} />
+      </div>
     </div>
   );
 }
@@ -146,7 +151,6 @@ function sleeve(card: ProfileOgCard) {
         >
           {card.name}
         </span>
-        <LogoMark width={20} height={22} style={{ color: '#fa4900' }} />
       </div>
     </div>
   );

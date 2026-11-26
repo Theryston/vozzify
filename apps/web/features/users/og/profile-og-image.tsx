@@ -83,17 +83,20 @@ function textColumn(card: ProfileOgCard): ReactElement {
       <div
         style={{
           display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
           fontSize: '76px',
           fontWeight: 800,
           lineHeight: 1.05,
         }}
       >
-        {card.name}
+        <span>{card.name}</span>
+        {card.adminLabel && adminMark(card.adminLabel)}
       </div>
       <div style={{ display: 'flex', fontSize: '34px', fontWeight: 600 }}>
         {`@${card.username}`}
       </div>
-      {card.adminLabel && adminMark(card.adminLabel)}
       {chipRow(card.chips)}
     </div>
   );

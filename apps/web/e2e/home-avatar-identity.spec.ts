@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { STORED_IMAGE } from './edit-profile-helpers';
+import { setHomeMock } from './fake-home-api';
 import {
   circularHero,
   installHomeMock,
@@ -47,6 +48,7 @@ test('each Home People card links to its own Profile with its own picture and ma
     },
     lead,
   );
+  await page.clock.install();
   await page.goto('/en');
   for (const person of items) {
     const link = page.getByRole('link', { name: new RegExp(person.name) });
@@ -60,4 +62,25 @@ test('each Home People card links to its own Profile with its own picture and ma
     if (person.image) await expect(link.locator('img')).toBeVisible();
     else await expect(link.getByText('S', { exact: true })).toBeVisible();
   }
+  // Expiry is reflected while the same Home visit stays open.
+  await setHomeMock({
+    feeds: {
+      en: [
+        circularHero(lead, 'Studio'),
+        {
+          id: 'home-avatar-identity',
+          layout: 'people',
+          title: { key: 'home.rows.peopleWhoSingWhatYouSing', params: {} },
+          items: items.map((person) => ({
+            ...person,
+            avatarIdentity: { ...person.avatarIdentity, pro: false },
+          })),
+        },
+      ],
+    },
+  });
+  await page.clock.fastForward(61_000);
+  const updated = page.getByRole('link', { name: /singer-3-0/ });
+  await expect(updated.getByText('Pro', { exact: true })).toHaveCount(0);
+  await expect(updated.getByText('Admin', { exact: true })).toBeVisible();
 });

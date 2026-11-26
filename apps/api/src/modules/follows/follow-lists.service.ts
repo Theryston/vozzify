@@ -1,6 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import type { FollowListPage } from '@vozzify/contracts';
-import { avatarIdentityFields } from '../plans/subscription-membership.service.js';
+import {
+  avatarIdentityFields,
+  SubscriptionMembershipService,
+} from '../plans/subscription-membership.service.js';
 import { UsersService } from '../users/users.service.js';
 import {
   decodeFollowListCursor,
@@ -22,6 +25,7 @@ export class FollowListsService {
   constructor(
     private readonly lists: FollowListsRepository,
     private readonly users: UsersService,
+    @Optional() private readonly membership?: SubscriptionMembershipService,
   ) {}
 
   /** One cursor page of a list of the User behind `username`. */
@@ -44,8 +48,9 @@ export class FollowListsService {
     const hasMore = rows.length > query.limit;
     const page = hasMore ? rows.slice(0, query.limit) : rows;
     const last = page.at(-1);
+    const paid = await this.membership?.paidMemberIds(page.map(({ id }) => id));
     return {
-      items: page.map(toListUser),
+      items: page.map((row) => toListUser(row, paid?.has(row.id))),
       nextCursor:
         hasMore && last
           ? encodeFollowListCursor({
@@ -57,16 +62,13 @@ export class FollowListsService {
   }
 }
 
-const toListUser = ({
+const toListUser = (
+  { id, username, name, image, avatarRole }: FollowListPageRow,
+  pro: boolean | undefined,
+) => ({
   id,
   username,
   name,
   image,
-  ...identity
-}: FollowListPageRow) => ({
-  id,
-  username,
-  name,
-  image,
-  ...avatarIdentityFields(identity),
+  ...avatarIdentityFields(pro, avatarRole),
 });
