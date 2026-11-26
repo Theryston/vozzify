@@ -26,6 +26,7 @@ export function createAppConfig(
 ): ExpoConfig {
   const variant = parseAppVariant(environment.APP_VARIANT);
   const identity = appVariants[variant];
+  const googleServicesFile = environment.GOOGLE_SERVICES_JSON;
   return {
     ...config,
     name: identity.name,
@@ -35,13 +36,21 @@ export function createAppConfig(
       ...(config.plugins ?? []),
       ['expo-dev-client', { addGeneratedScheme: false }],
       'expo-secure-store',
+      [
+        'expo-notifications',
+        { mode: variant === 'production' ? 'production' : 'development' },
+      ],
     ],
     owner: config.owner ?? 'vozzify',
     ios: {
       ...config.ios,
       bundleIdentifier: identity.iosBundleIdentifier,
     },
-    android: { ...config.android, package: identity.androidPackage },
+    android: {
+      ...config.android,
+      package: identity.androidPackage,
+      ...(googleServicesFile ? { googleServicesFile } : {}),
+    },
     updates: { ...config.updates, enabled: false },
     extra: {
       ...config.extra,
