@@ -1,6 +1,10 @@
-import { apiErrorSchema } from '@vozzify/contracts';
+import { apiErrorSchema, authErrorResponseSchema } from '@vozzify/contracts';
 import type { z } from 'zod';
-import { MobileApiError, MobileHttpError } from './mobile-api-error';
+import {
+  MobileApiError,
+  MobileAuthError,
+  MobileHttpError,
+} from './mobile-api-error';
 import { getMobileEnv } from './mobile-env';
 
 type QueryValue = string | number | boolean | null | undefined;
@@ -14,6 +18,7 @@ export type MobileApiOptions<TSchema extends z.ZodType> = {
   query?: Record<string, QueryValue>;
   headers?: HeadersInit;
   signal?: AbortSignal;
+  onResponseHeaders?: (headers: Headers) => void;
 };
 
 function isFormData(body: unknown): body is FormData {
@@ -34,12 +39,21 @@ function createUrl(
   return url;
 }
 
-async function parseFailure(response: Response): Promise<MobileHttpError> {
+async function parseFailure(
+  response: Response,
+  path: string,
+): Promise<MobileHttpError | MobileAuthError> {
   let responseBody: unknown;
   try {
     responseBody = await response.json();
   } catch (error) {
     if (isAbortError(error)) throw error;
+  }
+  if (path.startsWith('/auth/')) {
+    return new MobileAuthError(
+      response.status,
+      authErrorResponseSchema.safeParse(responseBody).data?.code,
+    );
   }
   const parsed = apiErrorSchema.safeParse(responseBody);
   if (parsed.success) {
@@ -69,6 +83,10 @@ async function parseSuccess(response: Response): Promise<unknown> {
     if (isAbortError(error)) throw error;
     return undefined;
   }
+}
+
+function isAuthRequest(path: string, headers?: HeadersInit): boolean {
+  return path.startsWith('/auth/') || new Headers(headers).has('authorization');
 }
 
 function prepareRequest<TSchema extends z.ZodType>(
@@ -137,7 +155,12 @@ export async function mobileApi<TSchema extends z.ZodType>(
   const { url, init } = prepareRequest(path, options);
   let response: Response;
   try {
-    response = await fetch(url, init);
+    response = await fetch(
+      url,
+      isAuthRequest(path, init.headers)
+        ? { ...init, credentials: 'omit' }
+        : init,
+    );
   } catch (error) {
     if (isAbortError(error)) throw error;
     throw new MobileApiError(
@@ -147,7 +170,7 @@ export async function mobileApi<TSchema extends z.ZodType>(
     );
   }
 
-  if (!response.ok) throw await parseFailure(response);
+  if (!response.ok) throw await parseFailure(response, path);
   const responseBody = await parseSuccess(response);
   const parsed = options.schema.safeParse(responseBody);
   if (!parsed.success) {
@@ -157,5 +180,6 @@ export async function mobileApi<TSchema extends z.ZodType>(
       parsed.error,
     );
   }
+  options.onResponseHeaders?.(response.headers);
   return parsed.data;
 }

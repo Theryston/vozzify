@@ -3055,6 +3055,42 @@
           "users"
         ]
       }
+    },
+    "/v1/me/push-devices": {
+      "put": {
+        "operationId": "PushDevicesController_sync_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncPushDeviceBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "The installation state was reconciled."
+          },
+          "400": {
+            "description": "The installation state is invalid."
+          },
+          "401": {
+            "description": "No valid session."
+          },
+          "403": {
+            "description": "The installation proof or User eligibility is missing."
+          },
+          "409": {
+            "description": "The push token is in use by another installation."
+          }
+        },
+        "tags": [
+          "push-devices"
+        ]
+      }
     }
   },
   "info": {
@@ -4723,6 +4759,99 @@
             "type": "boolean"
           }
         }
+      },
+      "SyncPushDeviceBodyDto": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "installationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+              },
+              "installationSecret": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "platform": {
+                "type": "string",
+                "enum": [
+                  "android",
+                  "ios"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true,
+                "maximum": 9007199254740991
+              },
+              "active": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "token": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^[!-~]+$"
+              }
+            },
+            "required": [
+              "installationId",
+              "installationSecret",
+              "platform",
+              "revision",
+              "active",
+              "token"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "installationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+              },
+              "installationSecret": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "platform": {
+                "type": "string",
+                "enum": [
+                  "android",
+                  "ios"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true,
+                "maximum": 9007199254740991
+              },
+              "active": {
+                "type": "boolean",
+                "enum": [
+                  false
+                ]
+              }
+            },
+            "required": [
+              "installationId",
+              "installationSecret",
+              "platform",
+              "revision",
+              "active"
+            ],
+            "additionalProperties": false
+          }
+        ]
       }
     }
   }

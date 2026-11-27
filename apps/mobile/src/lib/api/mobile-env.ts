@@ -5,6 +5,12 @@ import { mobileApiUrlSchema } from './api-url';
 
 const mobileEnvSchema = z.object({
   apiBaseUrl: mobileApiUrlSchema,
+  google: z
+    .object({
+      webClientId: z.string().min(1),
+      iosClientId: z.string().min(1).optional(),
+    })
+    .optional(),
 });
 
 export type MobileEnv = z.infer<typeof mobileEnvSchema>;

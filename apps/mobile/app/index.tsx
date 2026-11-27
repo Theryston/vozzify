@@ -3,10 +3,12 @@ import { Pressable, StyleSheet } from 'react-native';
 import { useTranslations } from 'use-intl';
 import { Screen } from '../src/components/screen';
 import { Text } from '../src/components/text';
+import { AuthDestination } from '../src/features/auth/components/auth-destination';
+import { HomeAuth } from '../src/features/auth/components/home-auth';
 
 const styles = StyleSheet.create({ button: { paddingVertical: 12 } });
 
-export default function HomeScreen() {
+function HomeContent() {
   const translate = useTranslations('home');
 
   return (
@@ -22,6 +24,15 @@ export default function HomeScreen() {
           <Text>{translate('openComponents')}</Text>
         </Pressable>
       </Link>
+      <HomeAuth />
     </Screen>
+  );
+}
+
+export default function HomeScreen() {
+  return (
+    <AuthDestination path="/">
+      <HomeContent />
+    </AuthDestination>
   );
 }

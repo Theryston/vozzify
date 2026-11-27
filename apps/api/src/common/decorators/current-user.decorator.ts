@@ -21,3 +21,9 @@ export const CurrentUser = createParamDecorator(
   (_data: unknown, context: ExecutionContext) =>
     currentUserFromContext(context),
 );
+
+/** The session that the global AuthGuard resolved for this request. */
+export const CurrentSession = createParamDecorator(
+  (_data: unknown, context: ExecutionContext) =>
+    context.switchToHttp().getRequest<AuthenticatedRequest>().authSession,
+);

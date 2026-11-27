@@ -8,7 +8,8 @@ the Next.js app remains the web client.
 From the repository root, use `nub run <task> --filter=mobile` for `lint`,
 `check-types`, `test`, `test:cov`, and `build`. For native development, change
 to `apps/mobile` and run `nub run start` or the `android:variant` / `ios:variant`
-scripts. Those native scripts run a clean, platform-specific Expo prebuild with `--no-install` under the selected `APP_VARIANT` before compiling. Expo’s iOS run command synchronizes CocoaPods dependencies before launching the simulator.
+scripts. On a clean checkout, run `nub run --filter=@vozzify/contracts build`
+first so Metro can read the compiled contracts. Those native scripts run a clean, platform-specific Expo prebuild with `--no-install` under the selected `APP_VARIANT` before compiling. Expo’s iOS run command synchronizes CocoaPods dependencies before launching the simulator.
 
 Expo Go is not used: the app uses a development client so later native modules
 fit the same workflow. `nub run build --filter=mobile` exports production
@@ -62,12 +63,45 @@ in `app.config.ts`; select them with `APP_VARIANT`. Each EAS profile selects
 its corresponding EAS environment, which must define the public
 `EXPO_PUBLIC_API_URL`. Use `.env.example` for local API addressing. Never put
 secrets in public app configuration. Keep EAS builds manual and free. EAS custom worker configs install the pinned Nub CLI and use
-`nub install --filter=mobile... --frozen-lockfile`, then run platform-specific
-Expo prebuild with `--no-install` through Nub before native compilation. Before
+`nub install --filter=mobile... --frozen-lockfile`, build the shared contracts,
+then run platform-specific Expo prebuild with `--no-install` through Nub before
+native compilation. Before
 linking an EAS project, verify and reuse `@vozzify/vozzify`; do not create a
-second project. Development and preview iOS builds target the simulator only,
-which cannot be installed on an iPhone. A JavaScript export does not count as a
+second project. Development and preview iOS builds target the simulator.
+The `preview-device` EAS profile uses the same preview identity and
+environment for a signed iPhone build. A JavaScript export does not count as a
 native build; report compilation and installed-app evidence separately.
+
+## Native Google sign-in
+
+Configure OAuth in the existing Google Cloud project for each variant that
+offers Google sign-in. Register its Android package and the SHA-1 of the
+certificate that signs the installed build. Register a separate iOS OAuth
+client for its bundle identifier. See `src/lib/config/app-variants.json` for
+the three native identities. The Android OAuth client ID is associated with
+the package and signature in Google Cloud.
+
+In the corresponding EAS environment (or local build env), set
+`EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` to the OAuth Web application client ID
+used by the native SDK to request ID tokens. Set
+`EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` to the iOS OAuth client ID for that variant.
+Expo generates the reversed iOS URL scheme during prebuild. Android needs only
+the Web client ID in the app configuration. These IDs are public.
+
+On the API reached by that build, set `GOOGLE_NATIVE_CLIENT_IDS` to the
+comma-separated Web/server and iOS client IDs of the builds it accepts. Keep
+`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` configured for the existing
+Better Auth Google provider. The secret stays on the API. Builds with no
+Google IDs use the credential forms.
+
+For physical-device QA, install a configured preview APK and use the
+`preview-device` profile with existing iOS signing, or prebuild and run the
+preview variant from Xcode on an iPhone. On each device, cancel from both
+auth forms and confirm the original form and destination stay intact. Then
+sign in with a new Google account, confirm Username setup, and sign in with a
+returning account to confirm Home or the original destination and pending
+action. The Android and iOS simulator smoke tests exercise credential auth
+in installed builds. Live Google validation uses the physical-device steps above.
 
 ## Automatic Android validation
 
@@ -79,16 +113,23 @@ workflow run Android native validation on pull requests and pushes to `main`. Ot
 
 The workflow uses a standard GitHub-hosted Ubuntu runner, the preview app
 variant and a locally compiled release APK with its JavaScript bundle
-included. It starts an Android emulator, installs that APK and runs `apps/mobile/.maestro/flows/gallery-smoke.yaml`
-against the installed app. It checks gallery navigation, input, overlay,
+included. It builds the shared contracts, starts an Android emulator and runs
+the Maestro smoke flows against the installed APK. It checks gallery navigation, input, overlay,
 appearance and language selection, then restarts the app to verify that the
-selected appearance and language return. The Maestro JUnit report is uploaded
+selected appearance and language return. The credential smoke signs in
+against the API on the runner with a disposable User, restores the session
+mid-onboarding, sets the Username and exercises the Gallery continuation.
+The installed test APK allows HTTP only through the emulator loopback using
+`adb reverse`. Normal Android builds keep their existing network policy. The
+runner opens the APK before Maestro and dismisses the known Pixel Launcher
+ANR dialog if it interrupts the emulator startup. The Maestro JUnit report is uploaded
 for seven days, including when the smoke test fails. Maestro failure logs,
 screenshots and screen hierarchy are uploaded in a separate artifact capped at
 10 MiB and retained for one day. It does not use EAS or produce a store-ready
 signed build.
 
-To reproduce the build locally, run `APP_VARIANT=preview
+To reproduce the build locally, run `nub run --filter=@vozzify/contracts build`,
+then run `APP_VARIANT=preview
 EXPO_PUBLIC_API_URL=http://10.0.2.2:3333 nub exec expo prebuild --clean
 --no-install --platform android` from `apps/mobile`, then run
 `./gradlew --no-daemon assembleRelease -PreactNativeArchitectures=x86_64` from
@@ -102,3 +143,24 @@ pins its CLI release and does not use Maestro Cloud.
 
 The iOS simulator CI workflow, triggers and manual execution are documented in
 [`CI-IOS.md`](./CI-IOS.md).
+
+## Push device registration
+
+Use a physical device and the app variant that matches its push configuration.
+On Android, supply `GOOGLE_SERVICES_JSON` as a local file path or EAS file
+variable. The Firebase Android app in that file must match the variant's package.
+On iOS, enable Push Notifications on the variant's App ID and sign with a
+provisioning profile that grants the matching APNs entitlement. Store the
+configuration in the build environment. The backend stores native FCM or APNs
+tokens. Registration only needs the native app's permission and token configuration.
+
+Use the API's `push_devices` database view to verify the effective registration.
+It exposes a token only while the session that registered it remains valid.
+The installation's proof and latest revision survive session expiry or revocation
+so a new session can reconcile the same device.
+
+On a fresh installation, verify the prompt appears after arriving at Home or
+the pending destination. Deny once, relaunch, and verify the app continues
+without another prompt. Grant and revoke in system settings and verify the
+registration changes after foregrounding. Sign in as a different eligible User
+and confirm that only this installation follows the current User.

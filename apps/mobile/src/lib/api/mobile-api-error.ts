@@ -1,4 +1,4 @@
-import type { ApiErrorCode } from '@vozzify/contracts';
+import type { ApiErrorCode, AuthErrorResponse } from '@vozzify/contracts';
 
 export class MobileApiError extends Error {
   readonly kind: 'network' | 'invalid-request' | 'invalid-response';
@@ -31,5 +31,15 @@ export class MobileHttpError extends Error {
     this.statusCode = statusCode;
     this.code = code;
     this.details = details;
+  }
+}
+
+export class MobileAuthError extends Error {
+  constructor(
+    readonly statusCode: number,
+    readonly code: AuthErrorResponse['code'] | undefined,
+  ) {
+    super('Authentication request failed');
+    this.name = 'MobileAuthError';
   }
 }

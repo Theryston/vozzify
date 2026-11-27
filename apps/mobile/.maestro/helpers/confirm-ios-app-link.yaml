@@ -1,0 +1,8 @@
+appId: com.vozzify.app.preview
+---
+- runFlow:
+    when:
+      platform: iOS
+      visible: '^Open in “Vozzify Preview”\?$'
+    commands:
+      - tapOn: '^Open$'

@@ -6,6 +6,52 @@ type AppVariant = keyof typeof appVariants;
 
 type MobileBuildEnvironment = Readonly<Record<string, string | undefined>>;
 
+const googleClientIdSuffix = '.apps.googleusercontent.com';
+const googleClientIdPattern =
+  /^[a-zA-Z0-9-]+[.]apps[.]googleusercontent[.]com$/;
+
+function readGoogleClientId(environment: MobileBuildEnvironment, key: string) {
+  const id = environment[key]?.trim();
+  if (!id) return undefined;
+  if (!googleClientIdPattern.test(id)) {
+    throw new Error(`${key} must be a Google OAuth client ID`);
+  }
+  return id;
+}
+
+function getGoogleConfig(environment: MobileBuildEnvironment) {
+  const webClientId = readGoogleClientId(
+    environment,
+    'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID',
+  );
+  const iosClientId = readGoogleClientId(
+    environment,
+    'EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID',
+  );
+  if (iosClientId && !webClientId) {
+    throw new Error(
+      'Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to enable Google sign-in',
+    );
+  }
+  if (!webClientId) return undefined;
+  return { webClientId, ...(iosClientId ? { iosClientId } : {}) };
+}
+
+function googleConfigPlugins(
+  iosClientId: string | undefined,
+): NonNullable<ExpoConfig['plugins']> {
+  if (!iosClientId) return [];
+  const prefix = iosClientId.slice(0, -googleClientIdSuffix.length);
+  return [
+    [
+      '@react-native-google-signin/google-signin',
+      {
+        iosUrlScheme: `com.googleusercontent.apps.${prefix}`,
+      },
+    ],
+  ];
+}
+
 function parseAppVariant(value: string | undefined): AppVariant {
   if (value === undefined || value === '') return 'development';
   if (
@@ -26,6 +72,8 @@ export function createAppConfig(
 ): ExpoConfig {
   const variant = parseAppVariant(environment.APP_VARIANT);
   const identity = appVariants[variant];
+  const google = getGoogleConfig(environment);
+  const googleServicesFile = environment.GOOGLE_SERVICES_JSON;
   return {
     ...config,
     name: identity.name,
@@ -34,18 +82,29 @@ export function createAppConfig(
     plugins: [
       ...(config.plugins ?? []),
       ['expo-dev-client', { addGeneratedScheme: false }],
+      'expo-secure-store',
+      ...googleConfigPlugins(google?.iosClientId),
+      [
+        'expo-notifications',
+        { mode: variant === 'production' ? 'production' : 'development' },
+      ],
     ],
     owner: config.owner ?? 'vozzify',
     ios: {
       ...config.ios,
       bundleIdentifier: identity.iosBundleIdentifier,
     },
-    android: { ...config.android, package: identity.androidPackage },
+    android: {
+      ...config.android,
+      package: identity.androidPackage,
+      ...(googleServicesFile ? { googleServicesFile } : {}),
+    },
     updates: { ...config.updates, enabled: false },
     extra: {
       ...config.extra,
       apiBaseUrl: getApiBaseUrl(environment.EXPO_PUBLIC_API_URL),
       appVariant: variant,
+      ...(google ? { google } : {}),
     },
   };
 }

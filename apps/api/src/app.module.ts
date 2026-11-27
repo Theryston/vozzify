@@ -19,6 +19,7 @@ import { PracticePreferencesModule } from './modules/practice-preferences/practi
 import { PrivateTracksModule } from './modules/private-tracks/private-tracks.module.js';
 import { ProfileSummaryModule } from './modules/profile-summary/profile-summary.module.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
+import { PushDevicesModule } from './modules/push-devices/push-devices.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { SearchIndexModule } from './modules/search/search-index.module.js';
 import { StreaksModule } from './modules/streaks/streaks.module.js';
@@ -60,6 +61,7 @@ import { RedisModule } from './redis/redis.module.js';
     ProfileSummaryModule,
     UsersModule,
     ProfilesModule,
+    PushDevicesModule,
   ],
 })
 export class AppModule {}

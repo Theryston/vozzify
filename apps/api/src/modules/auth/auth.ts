@@ -23,7 +23,13 @@ import {
 import { users } from '../../database/schema/users.js';
 import type { EmailService } from '../../integrations/email/email.service.js';
 import { AUTH_BASE_PATH, CLIENT_IP_HEADER } from './auth.constants.js';
-import { emailOtpPlugin, notifyExistingUserSignUp } from './auth-emails.js';
+import {
+  emailOtpPlugin,
+  nativeGoogleVerificationStatus,
+  notifyExistingUserSignUp,
+} from './auth-emails.js';
+import { googleProvider } from './google-provider.js';
+import { nativeBearer } from './native-bearer.js';
 import {
   hashPassword,
   isLegacyPasswordHash,
@@ -108,10 +114,9 @@ const staticOptions = {
     autoSignInAfterVerification: true,
   },
   account: {
-    // Legacy linked Google to an existing email account. Better Auth only
-    // links when Google reports the email as verified, and strips access
-    // an unverified local account had accrued before.
-    accountLinking: { enabled: true, trustedProviders: ['google'] },
+    // Same-email linking requires verification from both Google and the
+    // local account. Existing Google accounts are resolved by their subject.
+    accountLinking: { enabled: true },
   },
   disabledPaths: [
     // Passwordless OTP sign-in isn't a vozzify feature.
@@ -124,16 +129,6 @@ const staticOptions = {
   ],
   telemetry: { enabled: false },
 } satisfies BetterAuthOptions;
-
-const socialProviders = (env: Env): BetterAuthOptions['socialProviders'] =>
-  env.GOOGLE_CLIENT_ID !== undefined && env.GOOGLE_CLIENT_SECRET !== undefined
-    ? {
-        google: {
-          clientId: env.GOOGLE_CLIENT_ID,
-          clientSecret: env.GOOGLE_CLIENT_SECRET,
-        },
-      }
-    : {};
 
 const rateLimitOptions = (
   env: Env,
@@ -254,11 +249,12 @@ export const createAuth = ({
       ...staticOptions.emailAndPassword,
       onExistingUserSignUp: notifyExistingUserSignUp(emailService, logger),
     },
-    socialProviders: socialProviders(env),
+    socialProviders: googleProvider(env),
     rateLimit: rateLimitOptions(env, new RedisThrottlerStorage(redis)),
     advanced: advancedOptions(env),
     logger: loggerOptions(env, logger),
     plugins: [
+      nativeBearer(),
       username({
         minUsernameLength: USERNAME_MIN_LENGTH,
         maxUsernameLength: USERNAME_MAX_LENGTH,
@@ -266,6 +262,7 @@ export const createAuth = ({
         displayUsername: false,
       }),
       emailOtpPlugin(emailService, logger),
+      nativeGoogleVerificationStatus,
     ],
     hooks: {
       before: enforceSignUpRules,

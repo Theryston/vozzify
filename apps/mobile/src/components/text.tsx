@@ -1,9 +1,15 @@
 import type { ReactNode } from 'react';
-import { Text as NativeText } from 'react-native';
+import {
+  Text as NativeText,
+  type TextProps as NativeTextProps,
+} from 'react-native';
 import { useCustomFontsAvailable } from '../lib/design/font-availability';
 import { nativeFontFamilies } from '../lib/design/native-fonts';
 
-type TextProps = {
+type TextProps = Pick<
+  NativeTextProps,
+  'accessibilityRole' | 'accessibilityLiveRegion'
+> & {
   children: ReactNode;
   variant?: 'body' | 'heading';
   weight?: keyof typeof nativeFontFamilies;
@@ -20,6 +26,7 @@ export function Text({
   variant = 'body',
   weight,
   className,
+  ...accessibility
 }: TextProps) {
   const customFontsAvailable = useCustomFontsAvailable();
   const font = weight ?? (variant === 'heading' ? 'extrabold' : 'regular');
@@ -29,6 +36,7 @@ export function Text({
 
   return (
     <NativeText
+      {...accessibility}
       className={`${variantClassName} ${className ?? ''}`}
       style={
         customFontsAvailable

@@ -12,15 +12,17 @@ import { NavigationBar } from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { StatusBar, View } from 'react-native';
+import { Platform, StatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useUniwind } from 'uniwind';
 import { useTranslations } from 'use-intl';
+import { AuthNavigation } from '../src/features/auth/auth-navigation';
 import { getMobileEnv } from '../src/lib/api/mobile-env';
 import {
   MobileAppearanceProvider,
   useMobileAppearance,
 } from '../src/lib/appearance/mobile-appearance-provider';
+import { MobileAuthProvider } from '../src/lib/auth/mobile-auth-provider';
 import { FontAvailabilityProvider } from '../src/lib/design/font-availability';
 import {
   MobileIntlProvider,
@@ -34,6 +36,15 @@ import { MobileQueryProvider } from '../src/lib/query/mobile-query-provider';
 
 void SplashScreen.preventAutoHideAsync();
 
+const authScreens = [
+  'sign-in',
+  'sign-up',
+  'verify-email',
+  'setup-username',
+  'forgot-password/index',
+  'forgot-password/reset',
+];
+
 function NavigationStack({
   statusBarStyle,
 }: {
@@ -43,6 +54,12 @@ function NavigationStack({
 
   return (
     <Stack
+      layout={({ children }) => (
+        <>
+          {children}
+          <AuthNavigation />
+        </>
+      )}
       screenOptions={{
         headerShown: false,
         headerBackTitle: translate('back'),
@@ -55,6 +72,15 @@ function NavigationStack({
         name="components"
         options={{ title: translate('components') }}
       />
+      {Platform.OS === 'android'
+        ? authScreens.map((name) => (
+            <Stack.Screen
+              key={name}
+              name={name}
+              options={{ animation: 'none' }}
+            />
+          ))
+        : null}
     </Stack>
   );
 }
@@ -84,9 +110,11 @@ function AppShell({
       />
       <NavigationBar style={statusBarStyle} />
       <MobileQueryProvider>
-        <View className="flex-1 bg-background">
-          <NavigationStack statusBarStyle={statusBarStyle} />
-        </View>
+        <MobileAuthProvider>
+          <View className="flex-1 bg-background">
+            <NavigationStack statusBarStyle={statusBarStyle} />
+          </View>
+        </MobileAuthProvider>
         <PortalHost />
       </MobileQueryProvider>
     </>

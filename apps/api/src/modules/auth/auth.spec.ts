@@ -65,7 +65,11 @@ describe('createAuth', () => {
       }),
     );
     expect(auth.options.socialProviders).toEqual({
-      google: { clientId: 'google-id', clientSecret: 'google-secret' },
+      google: {
+        clientId: 'google-id',
+        clientSecret: 'google-secret',
+        verifyIdToken: expect.any(Function),
+      },
     });
   });
 

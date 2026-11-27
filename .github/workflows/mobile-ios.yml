@@ -78,6 +78,9 @@ jobs:
       - name: Install locked workspace dependencies
         run: nub install --frozen-lockfile
 
+      - name: Build shared contracts
+        run: nub run --filter=@vozzify/contracts build
+
       - name: Generate iOS project
         working-directory: apps/mobile
         run: nub exec expo prebuild --clean --no-install --platform ios
@@ -106,6 +109,42 @@ jobs:
           echo "SIMULATOR_NAME=$SIMULATOR_NAME" >> "$GITHUB_ENV"
           echo "SIMULATOR_UDID=$SIMULATOR_UDID" >> "$GITHUB_ENV"
           echo "Using $SIMULATOR_NAME ($SIMULATOR_UDID)"
+
+      - name: Embed the simulator Keychain access group
+        working-directory: apps/mobile
+        run: |
+          cat > "$RUNNER_TEMP/simulator-keychain.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <plist version="1.0">
+          <dict>
+            <key>application-identifier</key>
+            <string>VOZZIFYCI0.com.vozzify.app.preview</string>
+            <key>keychain-access-groups</key>
+            <array><string>VOZZIFYCI0.com.vozzify.app.preview</string></array>
+            <key>com.apple.developer.team-identifier</key>
+            <string>VOZZIFYCI0</string>
+          </dict>
+          </plist>
+          PLIST
+          node --input-type=commonjs - "$RUNNER_TEMP/simulator-keychain.plist" <<'NODE'
+          const fs = require("node:fs");
+          const { IOSConfig } = require("expo/config-plugins");
+          const { Paths, XcodeUtils } = IOSConfig;
+          const root = process.cwd();
+          const project = XcodeUtils.getPbxproj(root);
+          const { target } = project.getTarget("com.apple.product-type.application");
+          const [, release] = XcodeUtils.getBuildConfigurationForListIdAndName(project, {
+            configurationListId: target.buildConfigurationList,
+            buildConfiguration: "Release",
+          });
+          const current = release.buildSettings.OTHER_LDFLAGS ?? '"$(inherited)"';
+          release.buildSettings.OTHER_LDFLAGS = [
+            ...(Array.isArray(current) ? current : [current]),
+            ...["-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__entitlements", "-Xlinker", process.argv[2]]
+              .map((flag) => JSON.stringify(flag)),
+          ];
+          fs.writeFileSync(Paths.getPBXProjectPath(root), project.writeSync());
+          NODE
 
       - name: Compile iOS simulator app
         working-directory: apps/mobile
@@ -154,6 +193,11 @@ jobs:
             echo '::error::The native build did not produce an iOS simulator app.'
             exit 1
           fi
+          bundle_id=$(plutil -extract CFBundleIdentifier raw "$app/Info.plist")
+          test "$bundle_id" = com.vozzify.app.preview
+          executable=$(plutil -extract CFBundleExecutable raw "$app/Info.plist")
+          echo "IOS_APP_EXECUTABLE=$executable" >> "$GITHUB_ENV"
+          echo "IOS_APP_BINARY=$app/$executable" >> "$GITHUB_ENV"
           xcrun simctl install "$SIMULATOR_UDID" "$app"
 
       - name: Install Maestro CLI
@@ -165,23 +209,72 @@ jobs:
           "$RUNNER_TEMP/maestro/bin/maestro" --version
 
       - name: Launch installed app
-        run: xcrun simctl launch "$SIMULATOR_UDID" com.vozzify.app.preview
+        run: |
+          mkdir -p "$RUNNER_TEMP/ios-launch-evidence"
+          xcrun simctl launch "$SIMULATOR_UDID" com.vozzify.app.preview
+          xcrun simctl io "$SIMULATOR_UDID" screenshot "$RUNNER_TEMP/ios-launch-evidence/before-maestro.png"
 
-      - name: Run internal gallery smoke flow
+      - name: Run installed app smoke flows
         id: maestro
         working-directory: apps/mobile
+        env:
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: '240000'
         run: |
           mkdir -p "$RUNNER_TEMP/maestro-artifacts" "$RUNNER_TEMP/maestro-debug"
           maestro test \
+            --udid "$SIMULATOR_UDID" \
             --format junit \
             --output "$RUNNER_TEMP/maestro-results.xml" \
             --test-output-dir "$RUNNER_TEMP/maestro-artifacts" \
             --debug-output "$RUNNER_TEMP/maestro-debug" \
-            .maestro/flows/gallery-smoke.yaml
+            .maestro/flows
 
-      - name: Capture iOS simulator screenshot on Maestro failure
+      - name: Capture iOS launch evidence on Maestro failure
         if: ${{ failure() && steps.maestro.outcome == 'failure' }}
-        run: xcrun simctl io "$SIMULATOR_UDID" screenshot "$RUNNER_TEMP/maestro-artifacts/current-screen.png"
+        run: |
+          xcrun simctl io "$SIMULATOR_UDID" screenshot "$RUNNER_TEMP/ios-launch-evidence/after-maestro.png"
+          xcrun simctl spawn "$SIMULATOR_UDID" log show --last 8m --style compact \
+            --predicate "process == \"$IOS_APP_EXECUTABLE\" OR eventMessage CONTAINS \"com.vozzify.app.preview\"" |
+            tail -n 500 > "$RUNNER_TEMP/ios-launch-evidence/simulator.log"
+          xcrun simctl spawn "$SIMULATOR_UDID" log show --last 8m --style compact --info \
+            --predicate 'process == "securityd" AND (eventMessage CONTAINS "Vozzify" OR eventMessage CONTAINS "34018")' |
+            tail -n 200 > "$RUNNER_TEMP/ios-launch-evidence/keychain.log"
+
+      - name: Verify linker entitlements for the running architecture
+        id: entitlements
+        if: ${{ always() && env.IOS_APP_BINARY != '' }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/ios-launch-evidence"
+          # iOS Simulator reads its entitlements from the executable's __TEXT section.
+          architecture=$(uname -m)
+          xcrun lipo -archs "$IOS_APP_BINARY" | tee "$RUNNER_TEMP/ios-launch-evidence/architectures.txt"
+          xcrun otool -arch "$architecture" -s __TEXT __entitlements "$IOS_APP_BINARY" \
+            > "$RUNNER_TEMP/ios-launch-evidence/keychain-entitlements.txt"
+          python3 -c '
+          import plistlib, re, sys
+          octets = bytearray()
+          for line in sys.stdin:
+              fields = line.split()
+              if fields and re.fullmatch(r"[0-9a-fA-F]{16}", fields[0]):
+                  for word in fields[1:]:
+                      octets.extend(bytes.fromhex(word)[::-1])
+          settings = plistlib.loads(octets.rstrip(b"\0"))
+          expected = f"VOZZIFYCI0.{sys.argv[1]}"
+          if settings["application-identifier"] != expected or settings["keychain-access-groups"] != [expected]:
+              raise RuntimeError("Missing simulator application identifier or Keychain access group")
+          print("Verified the linked simulator application identifier and Keychain access group")
+          ' com.vozzify.app.preview < "$RUNNER_TEMP/ios-launch-evidence/keychain-entitlements.txt"
+
+      - name: Upload iOS launch evidence
+        if: ${{ always() && (steps.maestro.outcome == 'failure' || steps.entitlements.outcome == 'failure') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-maestro-launch-evidence
+          path: |
+            ${{ runner.temp }}/ios-launch-evidence/
+            ${{ runner.temp }}/maestro-artifacts/**/screen-hierarchy/*.json
+          if-no-files-found: ignore
+          retention-days: 1
 
       - name: Check Maestro diagnostics size
         id: diagnostics
@@ -220,3 +313,17 @@ jobs:
             ${{ runner.temp }}/maestro-debug/
           if-no-files-found: ignore
           retention-days: 1
+
+      - name: Upload rendered authentication screens
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-maestro-auth-screens
+          path: |
+            ${{ runner.temp }}/maestro-artifacts/**/sign-in-*.png
+            ${{ runner.temp }}/maestro-artifacts/**/sign-up-*.png
+            ${{ runner.temp }}/maestro-artifacts/**/verify-email-*.png
+            ${{ runner.temp }}/maestro-artifacts/**/forgot-password-*.png
+            ${{ runner.temp }}/maestro-artifacts/**/reset-password-*.png
+          if-no-files-found: ignore
+          retention-days: 7
