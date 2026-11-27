@@ -21,6 +21,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Test main-to-dev sync
+        run: bash .github/scripts/sync-main-to-dev.test.sh
+
       - uses: nubjs/setup-nub@v0
         with:
           nub-version: 0.9.5
