@@ -35,6 +35,12 @@
         "config": "nub-ios.yml"
       }
     },
+    "preview-device": {
+      "extends": "preview",
+      "ios": {
+        "simulator": false
+      }
+    },
     "production": {
       "distribution": "store",
       "environment": "production",

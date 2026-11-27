@@ -1,7 +1,8 @@
-import { type SignInBody, signInBodySchema } from '@vozzify/contracts';
+import { signInBodySchema } from '@vozzify/contracts';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useLocale, useTranslations } from 'use-intl';
+import { z } from 'zod';
 import { Button } from '../../../components/ui/button';
 import { signIn } from '../../../lib/auth/auth-api';
 import { authRouteParams } from '../../../lib/auth/auth-continuation';
@@ -12,14 +13,27 @@ import { AuthField, AuthNotice } from './auth-field';
 import { AuthFrame, AuthLink, useAuthContinuation } from './auth-frame';
 import { PasswordField } from './credential-fields';
 
+import {
+  GoogleButton,
+  googleAuthMethodSchema,
+  useGoogleAuth,
+} from './google-auth';
+
+const formSchema = z.discriminatedUnion('method', [
+  signInBodySchema.extend({ method: z.literal('credentials') }),
+  googleAuthMethodSchema,
+]);
+
 function useSignIn() {
   const auth = useMobileAuth();
   const locale = useLocale();
   const router = useRouter();
   const routeContinuation = useAuthContinuation();
   const continuation = auth.passwordReset ?? routeContinuation;
+  const googleAuth = useGoogleAuth(continuation);
 
-  return useAuthSubmit(signInBodySchema, async (values: SignInBody, signal) => {
+  return useAuthSubmit(formSchema, async (values, signal) => {
+    if (values.method === 'google') return googleAuth(signal);
     try {
       const session = await signIn(values, locale, signal);
       await auth.completeAuth(session, continuation, signal);
@@ -80,11 +94,17 @@ function SignInForm() {
       {form.error ? <AuthNotice error>{errors(form.error)}</AuthNotice> : null}
       <Button
         disabled={form.pending}
-        onPress={() => void form.submit({ emailOrUsername, password })}
+        onPress={() =>
+          void form.submit({ method: 'credentials', emailOrUsername, password })
+        }
         testID="submit-sign-in"
       >
         {form.pending ? t('submitting') : t('signIn.submit')}
       </Button>
+      <GoogleButton
+        disabled={form.pending}
+        onPress={() => void form.submit({ method: 'google' })}
+      />
     </>
   );
 }
