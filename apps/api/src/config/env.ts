@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { acoustidEnvSchema } from './acoustid-env.js';
 import { optional } from './env-values.js';
+import { googleAuthEnvSchema } from './google-auth-env.js';
 import { parseLegacyCatalogMapEnv } from './legacy-catalog-map-env.js';
 
 // Only for NODE_ENV=test, so test runners (e.g. the e2e suite) boot without a
@@ -93,9 +94,6 @@ const envSchema = z
     // set, the session cookie is sent to both, so the web server can forward
     // it. Unset: host-only cookie on the API's host.
     AUTH_COOKIE_DOMAIN: optional(z.string().min(1)),
-    // Google sign-in is enabled only when both are set.
-    GOOGLE_CLIENT_ID: optional(z.string().min(1)),
-    GOOGLE_CLIENT_SECRET: optional(z.string().min(1)),
     // Transactional email through Resend. Required in production; elsewhere,
     // when unset, emails (including one-time codes) are logged instead.
     RESEND_API_KEY: optional(z.string().min(1)),
@@ -254,15 +252,6 @@ const envSchema = z
       env.NODE_ENV !== 'production' || env.RUNPOD_ENDPOINT_ID !== undefined,
     { path: ['RUNPOD_ENDPOINT_ID'], message: 'Required in production' },
   )
-  .refine(
-    (env) =>
-      (env.GOOGLE_CLIENT_ID === undefined) ===
-      (env.GOOGLE_CLIENT_SECRET === undefined),
-    {
-      path: ['GOOGLE_CLIENT_SECRET'],
-      message: 'Set both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, or neither',
-    },
-  )
   .transform((env) => {
     const {
       SONIC_HOST,
@@ -283,7 +272,8 @@ const envSchema = z
       BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET ?? TEST_AUTH_SECRET,
     };
   })
-  .and(acoustidEnvSchema);
+  .and(acoustidEnvSchema)
+  .and(googleAuthEnvSchema);
 
 export type Env = z.output<typeof envSchema>;
 
