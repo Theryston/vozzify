@@ -36,10 +36,7 @@
     "brazilianPortuguese": "Português do Brasil"
   },
   "auth": {
-    "leave": "Voltar ao app",
-    "loading": "Restaurando sua sessão",
-    "restoreError": "Não foi possível restaurar sua sessão. Verifique sua conexão e tente de novo.",
-    "retry": "Tentar de novo",
+    "brand": "Vozzify",
     "emailOrUsername": "E-mail ou nome de usuário",
     "identifierRequired": "Informe seu e-mail ou nome de usuário.",
     "password": "Senha",
@@ -50,6 +47,7 @@
     "username": "Nome de usuário",
     "nameInvalid": "Informe um nome entre 1 e {max} caracteres.",
     "passwordInvalid": "Use entre {min} e {max} caracteres.",
+    "passwordHint": "Use pelo menos {min} caracteres.",
     "codeInvalid": "Informe o código de {count} dígitos.",
     "usernameInvalid": "Use de {min} a {max} letras, números ou sublinhados.",
     "showPasswordLabel": "Mostrar senha",
@@ -63,26 +61,27 @@
     "resendIn": "Enviar novo código em {seconds}s",
     "continueWithGoogle": "Continuar com o Google",
     "signIn": {
-      "title": "Entre no Vozzify",
-      "description": "Use seu e-mail ou nome de usuário para acessar sua conta.",
+      "noAccount": "Ainda não tem conta?",
       "submit": "Entrar"
     },
     "signUp": {
       "title": "Crie sua conta",
-      "description": "Comece com seu nome e e-mail. Você vai escolher um nome de usuário depois de verificar seu e-mail.",
+      "description": "Você vai escolher seu nome de usuário depois de verificar o e-mail.",
+      "hasAccount": "Já tem conta?",
       "submit": "Criar conta"
     },
     "recovery": {
-      "link": "Esqueceu sua senha?",
+      "link": "Esqueci minha senha",
+      "remembered": "Lembrou sua senha?",
       "complete": "Senha alterada. Entre com sua nova senha.",
       "request": {
         "title": "Redefina sua senha",
         "description": "Informe o e-mail da sua conta para solicitar um código.",
-        "submit": "Enviar código de redefinição"
+        "submit": "Enviar código"
       },
       "reset": {
         "title": "Crie uma nova senha",
-        "description": "Se houver uma conta com o e-mail {email}, enviamos um código de seis dígitos para ele.",
+        "description": "Se houver uma conta com {email}, você receberá um código de seis dígitos.",
         "code": "Código de redefinição",
         "password": "Nova senha",
         "submit": "Redefinir senha",
@@ -90,7 +89,7 @@
         "resent": "Solicitamos um novo código. Confira seu e-mail."
       },
       "missing": {
-        "title": "Solicite um código de redefinição",
+        "title": "Solicite um código",
         "description": "Informe o e-mail da sua conta para iniciar a recuperação da senha.",
         "submit": "Solicitar código"
       }
@@ -98,9 +97,9 @@
     "verifyEmail": {
       "enterEmail": "Informe o e-mail da sua conta e o código de seis dígitos.",
       "title": "Verifique seu e-mail",
-      "description": "Informe o código de seis dígitos que enviamos.",
       "emailToVerify": "E-mail a verificar: {email}",
-      "sentTo": "Código enviado para {email}",
+      "sentTo": "Digite o código de seis dígitos que enviamos para {email}.",
+      "alreadyVerified": "Já verificou seu e-mail?",
       "submit": "Verificar e-mail"
     },
     "setupUsername": {

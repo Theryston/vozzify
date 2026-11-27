@@ -4,7 +4,7 @@ import { Pressable, type PressableProps } from 'react-native';
 import { Text } from '../text';
 
 const buttonStyles = cva(
-  'min-h-10 flex-row items-center justify-center rounded-full px-5 py-3 active:opacity-90 disabled:opacity-50',
+  'min-h-10 flex-row items-center justify-center rounded-full px-5 active:opacity-90 disabled:opacity-50',
   {
     variants: {
       variant: {
@@ -12,8 +12,12 @@ const buttonStyles = cva(
         secondary: 'bg-secondary',
         outline: 'border border-input bg-background',
       },
+      size: {
+        medium: 'gap-2 py-0',
+        large: 'py-3',
+      },
     },
-    defaultVariants: { variant: 'primary' },
+    defaultVariants: { variant: 'primary', size: 'large' },
   },
 );
 
@@ -26,11 +30,14 @@ const labelStyles = {
 type ButtonProps = Omit<PressableProps, 'children'> &
   VariantProps<typeof buttonStyles> & {
     children: ReactNode;
+    leading?: ReactNode;
   };
 
 export function Button({
   children,
   className,
+  leading,
+  size,
   variant,
   ...props
 }: ButtonProps) {
@@ -38,10 +45,11 @@ export function Button({
 
   return (
     <Pressable
-      className={buttonStyles({ variant, className })}
+      className={buttonStyles({ variant, size, className })}
       accessibilityRole="button"
       {...props}
     >
+      {leading}
       <Text
         className={labelStyles[selectedVariant]}
         weight={selectedVariant === 'primary' ? 'semibold' : 'medium'}

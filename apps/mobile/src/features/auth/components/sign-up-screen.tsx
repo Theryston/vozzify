@@ -10,7 +10,7 @@ import { authRouteParams } from '../../../lib/auth/auth-continuation';
 import { useMobileAuth } from '../../../lib/auth/mobile-auth-provider';
 import { useAuthSubmit } from '../use-auth-submit';
 import { AuthField, AuthNotice } from './auth-field';
-import { AuthFrame, AuthLink, useAuthContinuation } from './auth-frame';
+import { AuthFooterLink, AuthFrame, useAuthContinuation } from './auth-frame';
 import { EmailField, NewPasswordField } from './credential-fields';
 import {
   GoogleButton,
@@ -46,13 +46,12 @@ function useSignUp() {
   });
 }
 
-function SignUpForm() {
+function SignUpForm({ form }: { form: ReturnType<typeof useSignUp> }) {
   const t = useTranslations('auth');
   const errors = useTranslations('authErrors');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const form = useSignUp();
   return (
     <>
       <AuthField
@@ -88,6 +87,7 @@ function SignUpForm() {
       />
       {form.error ? <AuthNotice error>{errors(form.error)}</AuthNotice> : null}
       <Button
+        size="medium"
         disabled={form.pending}
         onPress={() =>
           void form.submit({
@@ -101,20 +101,30 @@ function SignUpForm() {
       >
         {form.pending ? t('submitting') : t('signUp.submit')}
       </Button>
-      <GoogleButton
-        disabled={form.pending}
-        onPress={() => void form.submit({ method: 'google' })}
-      />
     </>
   );
 }
 
 export function SignUpScreen() {
   const t = useTranslations('auth');
+  const form = useSignUp();
   return (
-    <AuthFrame title={t('signUp.title')} description={t('signUp.description')}>
-      <SignUpForm />
-      <AuthLink to="/sign-in">{t('signIn.submit')}</AuthLink>
+    <AuthFrame
+      title={t('signUp.title')}
+      description={t('signUp.description')}
+      footer={
+        <>
+          <GoogleButton
+            disabled={form.pending}
+            onPress={() => void form.submit({ method: 'google' })}
+          />
+          <AuthFooterLink caption={t('signUp.hasAccount')} to="/sign-in">
+            {t('signIn.submit')}
+          </AuthFooterLink>
+        </>
+      }
+    >
+      <SignUpForm form={form} />
     </AuthFrame>
   );
 }

@@ -1,8 +1,21 @@
-import { Link, useLocalSearchParams, useRouter } from 'expo-router';
-import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
+import {
+  Link,
+  useFocusEffect,
+  useIsFocused,
+  useLocalSearchParams,
+  usePreventRemove,
+} from 'expo-router';
+import { type ReactNode, useCallback, useState } from 'react';
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslations } from 'use-intl';
-import { Screen } from '../../../components/screen';
 import { Text } from '../../../components/text';
 import { Button } from '../../../components/ui/button';
 import {
@@ -10,87 +23,143 @@ import {
   authRouteParams,
 } from '../../../lib/auth/auth-continuation';
 import { useMobileAuth } from '../../../lib/auth/mobile-auth-provider';
-import { AuthRestoreStatus } from './auth-restore-status';
 
 export function useAuthContinuation() {
-  const params = useLocalSearchParams();
-  return authContinuationFromParams(params);
+  return authContinuationFromParams(useLocalSearchParams());
 }
 
-export function AuthLink({
-  to,
-  children,
-}: {
+type AuthLinkProps = {
   to: '/sign-in' | '/sign-up' | '/forgot-password';
-  children: ReactNode;
-}) {
+  children: string;
+  primary?: boolean;
+};
+
+export function AuthLink({ to, children, primary }: AuthLinkProps) {
   const params = authRouteParams(useAuthContinuation());
   return (
     <Link href={{ pathname: to, params }} replace asChild>
-      <Button accessibilityRole="link" variant="outline">
-        {children}
-      </Button>
+      {primary ? (
+        <Button accessibilityRole="link" size="medium">
+          {children}
+        </Button>
+      ) : (
+        <Pressable
+          accessibilityRole="link"
+          className="min-h-10 justify-center rounded-full px-2 active:bg-accent"
+        >
+          <Text className="text-sm" weight="semibold">
+            {children}
+          </Text>
+        </Pressable>
+      )}
     </Link>
   );
 }
 
-function AuthExit() {
-  const t = useTranslations('auth');
-  const router = useRouter();
-  const auth = useMobileAuth();
-  const continuation = useAuthContinuation();
-  if (auth.user) return null;
-
+export function AuthFooterLink({
+  caption,
+  ...link
+}: AuthLinkProps & { caption?: string }) {
   return (
-    <Button
-      variant="outline"
-      accessibilityRole="link"
-      onPress={() => {
-        void auth.cancelOnboarding().then(() => {
-          router.dismissTo(continuation.destination);
-        }, auth.retry);
-      }}
-    >
-      {t('leave')}
-    </Button>
+    <View className="flex-row flex-wrap items-center justify-center">
+      {caption ? (
+        <Text className="text-muted-foreground text-sm">{caption}</Text>
+      ) : null}
+      <AuthLink {...link} />
+    </View>
   );
 }
+
+function useCancelOnBack() {
+  const auth = useMobileAuth();
+  const focused = useIsFocused();
+  const [leaving, setLeaving] = useState(false);
+  useFocusEffect(useCallback(() => setLeaving(false), []));
+  const pending =
+    !auth.user && Boolean(auth.verification || auth.passwordReset);
+  usePreventRemove(focused && pending && !leaving, ({ data, repeat }) => {
+    const leave = () => {
+      setLeaving(true);
+      repeat();
+    };
+    if (['GO_BACK', 'POP', 'POP_TO_TOP'].includes(data.action.type)) {
+      void auth.cancelOnboarding().then(leave, leave);
+    } else {
+      leave();
+    }
+  });
+}
+
+function AuthBrand() {
+  const t = useTranslations('auth');
+  return (
+    <View className="min-h-16 flex-row items-center gap-1.5 px-page-gutter-mobile">
+      <Image
+        accessible={false}
+        className="size-6"
+        resizeMode="contain"
+        source={require('../../../../assets/splash.png')}
+        tintColorClassName="accent-primary"
+      />
+      <Text className="text-[22px] leading-7 tracking-tight" weight="bold">
+        {t('brand')}
+      </Text>
+    </View>
+  );
+}
+
+type AuthFrameProps = {
+  title: string;
+  description?: ReactNode;
+  notice?: ReactNode;
+  children: ReactNode;
+  footer?: ReactNode;
+};
 
 export function AuthFrame({
   title,
   description,
+  notice,
   children,
-}: {
-  title: string;
-  description: string;
-  children: ReactNode;
-}) {
-  const auth = useMobileAuth();
+  footer,
+}: AuthFrameProps) {
+  useCancelOnBack();
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      className="flex-1"
-    >
-      <Screen>
-        <View className="w-full max-w-md flex-1 justify-center gap-8 self-center py-6">
-          <View className="gap-2">
-            <Text variant="heading" accessibilityRole="header">
-              {title}
-            </Text>
-            <Text className="text-muted-foreground">{description}</Text>
-          </View>
-          <View className="gap-5">
-            {auth.status === 'ready' ? (
-              <>
-                {children}
-                <AuthExit />
-              </>
-            ) : (
-              <AuthRestoreStatus />
-            )}
-          </View>
-        </View>
-      </Screen>
-    </KeyboardAvoidingView>
+    <View className="flex-1 bg-background" testID="auth-screen-surface">
+      <SafeAreaView style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          className="flex-1"
+        >
+          <ScrollView
+            contentContainerClassName="flex-grow"
+            keyboardShouldPersistTaps="handled"
+          >
+            <AuthBrand />
+            <View className="mx-auto w-full max-w-md flex-1 justify-center gap-6 px-page-gutter-mobile pt-7 pb-9">
+              <View className="gap-3">
+                <Text
+                  accessibilityRole="header"
+                  className="text-4xl leading-10"
+                  variant="heading"
+                >
+                  {title}
+                </Text>
+                {description ? (
+                  <Text className="text-muted-foreground">{description}</Text>
+                ) : null}
+                {notice}
+              </View>
+              <View className="gap-4">{children}</View>
+            </View>
+            {footer ? (
+              <View className="items-center border-border border-t bg-surface px-page-gutter-mobile pt-5 pb-4">
+                <View className="w-full max-w-md gap-2">{footer}</View>
+              </View>
+            ) : null}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 }

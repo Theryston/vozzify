@@ -3,6 +3,7 @@ import {
   PASSWORD_MIN_LENGTH,
 } from '@vozzify/contracts/auth-rules';
 import type { ComponentProps } from 'react';
+import { View } from 'react-native';
 import { useTranslations } from 'use-intl';
 import { AuthField } from './auth-field';
 import { PasswordStrengthMeter } from './password-strength-meter';
@@ -30,7 +31,12 @@ export function PasswordField({
   existing,
   label,
   ...props
-}: FieldProps & { existing?: boolean; label?: string }) {
+}: FieldProps & {
+  existing?: boolean;
+  label?: string;
+  aside?: ComponentProps<typeof AuthField>['aside'];
+  hint?: string;
+}) {
   const t = useTranslations('auth');
   return (
     <AuthField
@@ -53,10 +59,11 @@ export function NewPasswordField({
 }: Omit<FieldProps, 'error'> & { label?: string; invalid: boolean }) {
   const t = useTranslations('auth');
   return (
-    <>
+    <View className="gap-1.5">
       <PasswordField
         label={label}
         value={value}
+        hint={t('passwordHint', { min: PASSWORD_MIN_LENGTH })}
         error={
           invalid
             ? t('passwordInvalid', {
@@ -68,6 +75,6 @@ export function NewPasswordField({
         onChangeText={onChangeText}
       />
       <PasswordStrengthMeter password={value} />
-    </>
+    </View>
   );
 }

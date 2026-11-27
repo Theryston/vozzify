@@ -1,69 +1,16 @@
 import type { AuthSessionUser, SetUsernameBody } from '@vozzify/contracts';
-import {
-  createContext,
-  type ReactNode,
-  useContext,
-  useEffect,
-  useState,
-} from 'react';
+import { createContext, type ReactNode, useContext } from 'react';
 import { MobileHttpError } from '../api/mobile-api-error';
-import { restoreAuthSession, saveUsername } from './auth-api';
+import { saveUsername } from './auth-api';
 import type { AuthContinuation } from './auth-continuation';
-import { readAuth, type StoredAuth, writeAuth } from './auth-storage';
+import type { StoredAuth } from './auth-storage';
 import { useAuthRecord } from './use-auth-record';
+import { useAuthRestore } from './use-auth-restore';
 import { recordCodeSent } from './use-code-cooldown';
-
-type ActiveSession = { user: AuthSessionUser; token: string };
-
-type RestoredAuth = {
-  stored: StoredAuth;
-  user: AuthSessionUser | null;
-};
-
-type AuthStatus = 'loading' | 'ready' | 'error';
-
-async function restore(): Promise<RestoredAuth> {
-  const stored = await readAuth();
-  if (!stored.token) return { stored, user: null };
-  const { data, token } = await restoreAuthSession(stored.token);
-  const nextToken = data ? (token ?? stored.token) : undefined;
-  const updated = { ...stored, token: nextToken };
-  if (nextToken !== stored.token) await writeAuth(updated);
-  return { stored: updated, user: data?.user ?? null };
-}
-
-function useRestoreAuth(replaceRecord: (record: StoredAuth) => void) {
-  const [status, setStatus] = useState<AuthStatus>('loading');
-  const [session, setSession] = useState<ActiveSession | null>(null);
-  useEffect(() => {
-    if (status !== 'loading') return;
-    let active = true;
-    void restore().then(
-      (result) => {
-        if (!active) return;
-        replaceRecord(result.stored);
-        setSession(
-          result.user && result.stored.token
-            ? { user: result.user, token: result.stored.token }
-            : null,
-        );
-        setStatus('ready');
-      },
-      () => {
-        if (active) setStatus('error');
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, [replaceRecord, status]);
-
-  return { status, session, setSession, retry: () => setStatus('loading') };
-}
 
 function useUsernameSelection(
   storage: ReturnType<typeof useAuthRecord>,
-  setSession: ReturnType<typeof useRestoreAuth>['setSession'],
+  setSession: ReturnType<typeof useAuthRestore>['setSession'],
 ) {
   return async (body: SetUsernameBody, signal: AbortSignal) => {
     const { token } = storage.current.current;
@@ -135,7 +82,7 @@ function retainVerification(
 
 function useCompleteAuth(
   update: ReturnType<typeof useAuthRecord>['update'],
-  setSession: ReturnType<typeof useRestoreAuth>['setSession'],
+  setSession: ReturnType<typeof useAuthRestore>['setSession'],
 ) {
   return async (
     session: CompletedAuth,
@@ -175,6 +122,7 @@ function afterPasswordReset(
 
 function createBeginVerification(
   update: ReturnType<typeof useAuthRecord>['update'],
+  token: string | undefined,
 ) {
   return async (
     verification: NonNullable<StoredAuth['verification']>,
@@ -184,6 +132,7 @@ function createBeginVerification(
     const saved = await update(
       (previous) => ({
         ...previous,
+        token,
         verification,
         continuation,
         passwordReset: undefined,
@@ -197,16 +146,19 @@ function createBeginVerification(
 
 function useAuthOperations() {
   const storage = useAuthRecord();
-  const { status, session, setSession, retry } = useRestoreAuth(
-    storage.replace,
-  );
+  const { status, session, setSession, interruptRestore } =
+    useAuthRestore(storage);
   const chooseUsername = useUsernameSelection(storage, setSession);
-  const { update, record } = storage;
-  const completeAuth = useCompleteAuth(update, setSession);
+  const { record, update } = storage;
+  const updateInteractively: typeof update = (transform, signal) => {
+    if (signal?.aborted) return Promise.resolve(false);
+    interruptRestore();
+    return update(transform, signal);
+  };
+  const completeAuth = useCompleteAuth(updateInteractively, setSession);
 
   return {
     status,
-    retry,
     ...record,
     user: session?.user ?? null,
     token: session?.token,
@@ -215,11 +167,19 @@ function useAuthOperations() {
       continuation: AuthContinuation,
       signal: AbortSignal,
     ) =>
-      update(
-        (previous) => afterPasswordReset(previous, email, continuation),
+      updateInteractively(
+        (previous) =>
+          afterPasswordReset(
+            { ...previous, token: session?.token },
+            email,
+            continuation,
+          ),
         signal,
       ),
-    beginVerification: createBeginVerification(update),
+    beginVerification: createBeginVerification(
+      updateInteractively,
+      session?.token,
+    ),
     completeAuth,
     chooseUsername,
     cancelOnboarding: () => update(clearOnboarding),

@@ -13,7 +13,12 @@ import { useMobileAuth } from '../../../lib/auth/mobile-auth-provider';
 import { isCodeError } from '../auth-errors';
 import { useAuthSubmit } from '../use-auth-submit';
 import { AuthField, AuthNotice } from './auth-field';
-import { AuthFrame, AuthLink, useAuthContinuation } from './auth-frame';
+import {
+  AuthFooterLink,
+  AuthFrame,
+  AuthLink,
+  useAuthContinuation,
+} from './auth-frame';
 import { NewPasswordField } from './credential-fields';
 import { ResendCode } from './resend-code';
 
@@ -81,7 +86,19 @@ function ResetPasswordForm({ email }: { email: string }) {
       ? t('codeInvalid', { count: OTP_LENGTH })
       : undefined;
   return (
-    <>
+    <AuthFrame
+      title={t('recovery.reset.title')}
+      description={t('recovery.reset.description', { email })}
+      footer={
+        <ResetFooter
+          email={email}
+          onSent={() => {
+            setOtp('');
+            form.clear('otp');
+          }}
+        />
+      }
+    >
       <ResetCodeField
         value={otp}
         error={codeError}
@@ -103,52 +120,57 @@ function ResetPasswordForm({ email }: { email: string }) {
         <AuthNotice error>{errors(form.error)}</AuthNotice>
       ) : null}
       <Button
+        size="medium"
         disabled={form.pending}
         onPress={() => void form.submit({ email, otp, password })}
         testID="submit-reset-password"
       >
         {form.pending ? t('submitting') : t('recovery.reset.submit')}
       </Button>
+    </AuthFrame>
+  );
+}
+
+function ResetFooter({ email, onSent }: { email: string; onSent: () => void }) {
+  const t = useTranslations('auth.recovery.reset');
+  return (
+    <>
       <ResendCode
         email={email}
         purpose="forget-password"
-        successMessage={t('recovery.reset.resent')}
-        onSent={() => {
-          setOtp('');
-          form.clear('otp');
-        }}
+        successMessage={t('resent')}
+        onSent={onSent}
       />
+      <AuthFooterLink to="/forgot-password">
+        {t('differentEmail')}
+      </AuthFooterLink>
     </>
   );
 }
 
 function MissingRecoveryAddress() {
-  const t = useTranslations('auth.recovery');
+  const t = useTranslations('auth');
 
   return (
     <AuthFrame
-      title={t('missing.title')}
-      description={t('missing.description')}
+      title={t('recovery.missing.title')}
+      description={t('recovery.missing.description')}
+      footer={
+        <AuthFooterLink to="/sign-in">{t('signIn.submit')}</AuthFooterLink>
+      }
     >
-      <AuthLink to="/forgot-password">{t('missing.submit')}</AuthLink>
+      <AuthLink primary to="/forgot-password">
+        {t('recovery.missing.submit')}
+      </AuthLink>
     </AuthFrame>
   );
 }
 
 export function ResetPasswordScreen() {
-  const t = useTranslations('auth.recovery');
   const { email } = useLocalSearchParams();
   const address = forgotPasswordBodySchema.safeParse({ email });
 
   if (!address.success) return <MissingRecoveryAddress />;
   const normalizedEmail = address.data.email.toLowerCase();
-  return (
-    <AuthFrame
-      title={t('reset.title')}
-      description={t('reset.description', { email: normalizedEmail })}
-    >
-      <ResetPasswordForm key={normalizedEmail} email={normalizedEmail} />
-      <AuthLink to="/forgot-password">{t('reset.differentEmail')}</AuthLink>
-    </AuthFrame>
-  );
+  return <ResetPasswordForm key={normalizedEmail} email={normalizedEmail} />;
 }

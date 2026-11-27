@@ -61,6 +61,11 @@ function UsernameForm() {
     <>
       <AuthField
         label={t('username')}
+        prefix="@"
+        hint={t('usernameInvalid', {
+          min: USERNAME_MIN_LENGTH,
+          max: USERNAME_MAX_LENGTH,
+        })}
         autoComplete="username"
         testID="setup-username-input"
         autoCapitalize="none"
@@ -88,7 +93,8 @@ function UsernameForm() {
         </AuthNotice>
       ) : null}
       <Button
-        disabled={form.pending || taken}
+        size="medium"
+        disabled={!auth.user?.emailVerified || form.pending || taken}
         onPress={() => void form.submit({ username })}
         testID="submit-username"
       >

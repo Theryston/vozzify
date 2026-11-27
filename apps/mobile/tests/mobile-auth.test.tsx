@@ -1,5 +1,6 @@
 import { onlineManager } from '@tanstack/react-query';
 import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { router as appRouter } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 import * as SecureStore from 'expo-secure-store';
 
@@ -169,7 +170,9 @@ describe('mobile email onboarding', () => {
     await press('Create account');
 
     expect(
-      await screen.findByText('Code sent to new@example.com'),
+      await screen.findByText(
+        'Enter the six-digit code we sent to new@example.com.',
+      ),
     ).toBeOnTheScreen();
     expect(screen.getByTestId('resend-code')).toBeDisabled();
     await press('Verify email');
@@ -304,31 +307,48 @@ describe('mobile email onboarding', () => {
   });
 });
 
-describe('auth restoration and retry', () => {
-  it('retains a saved session on a connection failure and lets the user retry', async () => {
+describe('background session restoration', () => {
+  it('keeps a new sign-in when the saved-session request completes late', async () => {
+    const late = deferResponse();
+    readSecureStore.mockResolvedValueOnce(
+      JSON.stringify({ token: 'saved.session' }),
+    );
+    request
+      .mockReturnValueOnce(late.promise)
+      .mockResolvedValueOnce(authResponse());
+
+    await renderRouter('./app', { initialUrl: '/sign-in' });
+    await fill('Email or Username', 'ana');
+    await fill('Password', 'old');
+    await press('Sign in');
+    expect(await screen.findByText('Signed in as @ana')).toBeOnTheScreen();
+    expect(request.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+
+    await act(async () =>
+      late.respond(
+        authResponse({
+          ...stillNeedsUsername,
+          username: 'previous',
+        }),
+      ),
+    );
+    expect(screen.getByText('Signed in as @ana')).toBeOnTheScreen();
+    expect(screen.queryByText('Signed in as @previous')).toBeNull();
+  });
+
+  it('keeps the sign-in form available when session validation fails', async () => {
     readSecureStore.mockResolvedValue(
       JSON.stringify({ token: 'signed.session' }),
     );
-    request
-      .mockRejectedValueOnce(new Error('offline'))
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ user: { ...stillNeedsUsername, username: 'ana' } }),
-          { headers: { 'set-auth-token': 'renewed.session' } },
-        ),
-      );
+    request.mockRejectedValueOnce(new Error('offline'));
     await renderRouter('./app', { initialUrl: '/sign-in' });
     expect(
-      await screen.findByText(/could not restore your session/i),
+      await screen.findByRole('header', { name: 'Sign in' }),
     ).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(request).toHaveBeenCalledTimes(1);
     expect(writeSecureStore).not.toHaveBeenCalled();
-    await press('Try again');
-    expect(await screen.findByText('Signed in as @ana')).toBeOnTheScreen();
-    expect(writeSecureStore).toHaveBeenCalledWith(
-      expect.any(String),
-      JSON.stringify({ token: 'renewed.session' }),
-      expect.any(Object),
-    );
   });
 
   it('discards an expired session and directs visitors away from Username setup', async () => {
@@ -337,7 +357,9 @@ describe('auth restoration and retry', () => {
     );
     request.mockResolvedValueOnce(json(null));
     await renderRouter('./app', { initialUrl: '/setup-username' });
-    expect(await screen.findByText('Sign in to Vozzify')).toBeOnTheScreen();
+    expect(
+      await screen.findByRole('header', { name: 'Sign in' }),
+    ).toBeOnTheScreen();
     expect(writeSecureStore).toHaveBeenCalledWith(
       expect.any(String),
       '{}',
@@ -381,23 +403,24 @@ describe('auth restoration and retry', () => {
   });
 });
 
-it('can leave email verification and return to the original screen without reopening verification', async () => {
+it('can use system back to leave verification without reopening it', async () => {
   request.mockResolvedValueOnce(json({ code: 'EMAIL_NOT_VERIFIED' }, 403));
-  await renderRouter('./app', {
-    initialUrl: '/sign-in?redirectTo=%2Fcomponents',
-  });
+  await renderRouter('./app', { initialUrl: '/components' });
+  await userEvent.press(await screen.findByTestId('gallery-sign-in-overlay'));
   await fill('Email or Username', 'leave@example.com');
   await fill('Password', 'old');
   await press('Sign in');
   expect(
-    await screen.findByText('Code sent to leave@example.com'),
+    await screen.findByText(
+      'Enter the six-digit code we sent to leave@example.com.',
+    ),
   ).toBeOnTheScreen();
-  await userEvent.press(screen.getByRole('link', { name: 'Return to app' }));
+  await act(async () => appRouter.back());
   expect(await screen.findByText('Foundation components')).toBeOnTheScreen();
   expect(screen.queryByText('Verify your email')).toBeNull();
 });
 
-it('gates a cold-open gallery and completes Username setup when the API is reachable without internet', async () => {
+it('renders a cold-open gallery during validation and resumes Username setup when the session returns', async () => {
   mockInternetReachable = false;
   const session = deferResponse();
   readSecureStore.mockResolvedValueOnce(
@@ -408,8 +431,9 @@ it('gates a cold-open gallery and completes Username setup when the API is reach
     .mockResolvedValueOnce(json({ available: true }))
     .mockResolvedValueOnce(json(currentUser('ana')));
   const router = await renderRouter('./app', { initialUrl: '/components' });
-  expect(screen.getByLabelText('Restoring your session')).toBeOnTheScreen();
-  expect(screen.queryByTestId('overlay-open')).toBeNull();
+  expect(screen.getByText('Foundation components')).toBeOnTheScreen();
+  expect(screen.getByTestId('overlay-open')).toBeOnTheScreen();
+  expect(screen.queryByTestId('gallery-sign-in-overlay')).toBeNull();
   await act(async () => session.respond(json({ user: stillNeedsUsername })));
 
   expect(await screen.findByText('Choose your Username')).toBeOnTheScreen();
@@ -475,7 +499,9 @@ it('clears a revoked session during Username setup and keeps the requested desti
   await fill('Username', 'available');
   expect(await screen.findByText('Username available')).toBeOnTheScreen();
   await press('Save Username');
-  expect(await screen.findByText('Sign in to Vozzify')).toBeOnTheScreen();
+  expect(
+    await screen.findByRole('header', { name: 'Sign in' }),
+  ).toBeOnTheScreen();
   await fill('Email or Username', 'ana');
   await fill('Password', 'old');
   await press('Sign in');
@@ -491,7 +517,9 @@ it('ignores a successful sign-up response after leaving the form', async () => {
   await fill('Password', 'abcdef');
   await press('Create account');
   await userEvent.press(screen.getByRole('link', { name: 'Sign in' }));
-  expect(await screen.findByText('Sign in to Vozzify')).toBeOnTheScreen();
+  expect(
+    await screen.findByRole('header', { name: 'Sign in' }),
+  ).toBeOnTheScreen();
 
   await act(async () => submission.respond(json({ user: stillNeedsUsername })));
   expect(request.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
@@ -500,19 +528,17 @@ it('ignores a successful sign-up response after leaving the form', async () => {
   expect(screen.queryByText('Verify your email')).toBeNull();
 });
 
-it('offers retry on a cold-open gallery when session restoration is offline', async () => {
+it('keeps the cold-open gallery usable as a visitor when session validation fails', async () => {
   readSecureStore.mockResolvedValue(
     JSON.stringify({ token: 'signed.session' }),
   );
-  request
-    .mockRejectedValueOnce(new Error('offline'))
-    .mockResolvedValueOnce(json({ user: stillNeedsUsername }));
-  await renderRouter('./app', { initialUrl: '/components' });
+  request.mockRejectedValueOnce(new Error('offline'));
+  const router = await renderRouter('./app', { initialUrl: '/components' });
   expect(
-    await screen.findByText(/could not restore your session/i),
+    await screen.findByTestId('gallery-sign-in-overlay'),
   ).toBeOnTheScreen();
-  expect(screen.queryByTestId('overlay-open')).toBeNull();
-  await press('Try again');
-  expect(await screen.findByText('Choose your Username')).toBeOnTheScreen();
-  expect(screen.queryByTestId('overlay-open')).toBeNull();
+  expect(screen.getByTestId('overlay-open')).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+  expect(router.getPathname()).toBe('/components');
+  expect(request).toHaveBeenCalledTimes(1);
 });

@@ -12,26 +12,26 @@ export function useAuthRecord() {
     setRecord(next);
   }, []);
 
-  function update(
-    transform: (previous: StoredAuth) => StoredAuth,
-    signal?: AbortSignal,
-  ) {
-    const write = queue.current.then(async () => {
-      if (signal?.aborted) return false;
-      const previous = current.current;
-      const next = transform(previous);
-      if (next === previous) return false;
-      await writeAuth(next);
-      if (signal?.aborted) {
-        await writeAuth(previous);
-        return false;
-      }
-      replace(next);
-      return true;
-    });
-    queue.current = write.catch(() => undefined);
-    return write;
-  }
+  const update = useCallback(
+    (transform: (previous: StoredAuth) => StoredAuth, signal?: AbortSignal) => {
+      const write = queue.current.then(async () => {
+        if (signal?.aborted) return false;
+        const previous = current.current;
+        const next = transform(previous);
+        if (next === previous) return false;
+        await writeAuth(next);
+        if (signal?.aborted) {
+          await writeAuth(previous);
+          return false;
+        }
+        replace(next);
+        return true;
+      });
+      queue.current = write.catch(() => undefined);
+      return write;
+    },
+    [replace],
+  );
 
   return { record, current, replace, update };
 }

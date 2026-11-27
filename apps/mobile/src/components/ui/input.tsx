@@ -3,7 +3,7 @@ import { TextInput } from 'react-native';
 import { useCustomFontsAvailable } from '../../lib/design/font-availability';
 import { nativeFontFamilies } from '../../lib/design/native-fonts';
 
-export function Input(props: TextInputProps) {
+export function Input({ mono, ...props }: TextInputProps & { mono?: boolean }) {
   const customFontsAvailable = useCustomFontsAvailable();
 
   return (
@@ -12,7 +12,11 @@ export function Input(props: TextInputProps) {
       placeholderTextColorClassName="accent-muted-foreground"
       style={
         customFontsAvailable
-          ? { fontFamily: nativeFontFamilies.regular }
+          ? {
+              fontFamily: mono
+                ? nativeFontFamilies.mono
+                : nativeFontFamilies.regular,
+            }
           : undefined
       }
       {...props}

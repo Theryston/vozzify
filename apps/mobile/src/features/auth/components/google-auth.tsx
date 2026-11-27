@@ -1,3 +1,4 @@
+import { Image } from 'react-native';
 import { useLocale, useTranslations } from 'use-intl';
 import { z } from 'zod';
 import { Button } from '../../../components/ui/button';
@@ -38,7 +39,21 @@ export function GoogleButton({
   const t = useTranslations('auth');
   if (!isGoogleSignInAvailable()) return null;
   return (
-    <Button disabled={disabled} variant="outline" onPress={onPress}>
+    <Button
+      disabled={disabled}
+      size="medium"
+      variant="secondary"
+      onPress={onPress}
+      leading={
+        <Image
+          accessible={false}
+          className="size-4"
+          resizeMode="contain"
+          source={require('../../../../assets/google-mark.png')}
+          tintColorClassName="accent-foreground"
+        />
+      }
+    >
       {t('continueWithGoogle')}
     </Button>
   );

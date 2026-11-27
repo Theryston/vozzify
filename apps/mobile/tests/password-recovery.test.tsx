@@ -60,7 +60,7 @@ describe('mobile password recovery', () => {
     const router = await renderRouter('./app', { initialUrl: '/sign-in' });
     await press('link', 'Forgot your password?');
     await fill('Email', 'invalid');
-    await press('button', 'Send reset code');
+    await press('button', 'Send code');
     expect(
       await screen.findByText('Enter a valid email address.'),
     ).toBeOnTheScreen();
@@ -68,11 +68,11 @@ describe('mobile password recovery', () => {
 
     for (const email of ['known@example.com', 'unknown@example.com']) {
       await fill('Email', email);
-      await press('button', 'Send reset code');
+      await press('button', 'Send code');
       expect(await screen.findByText('Set a new password')).toBeOnTheScreen();
       expect(
         await screen.findByText(
-          `If an account exists for ${email}, we sent it a six-digit code.`,
+          `If an account exists for ${email}, you’ll receive a six-digit code.`,
         ),
       ).toBeOnTheScreen();
       expect(router.getPathname()).toBe('/forgot-password/reset');
@@ -108,7 +108,7 @@ describe('mobile password recovery', () => {
     await userEvent.press(await screen.findByTestId('gallery-sign-in-overlay'));
     await press('link', 'Forgot your password?');
     await fill('Email', recoveryEmail);
-    await press('button', 'Send reset code');
+    await press('button', 'Send code');
 
     await fill('Reset code', '123');
     await fill('New password', 'abcdef');
@@ -172,12 +172,12 @@ describe('mobile password recovery', () => {
     await renderRouter('./app', { initialUrl: '/forgot-password' });
 
     await fill('Email', '  COOLDOWN@EXAMPLE.COM  ');
-    await press('button', 'Send reset code');
+    await press('button', 'Send code');
     expect(await screen.findByTestId('resend-code')).toBeDisabled();
     await act(async () => jest.advanceTimersByTime(30_000));
     await press('link', 'Use a different email');
     await fill('Email', email);
-    await press('button', 'Send reset code');
+    await press('button', 'Send code');
     expect(await screen.findByTestId('resend-code')).toBeDisabled();
     expect(
       screen.getByText(/Send a new code in 2[89]s|Send a new code in 30s/),
@@ -216,9 +216,9 @@ describe('mobile password recovery', () => {
     expect(await screen.findByTestId('resend-code')).toBeDisabled();
 
     await press('link', 'Entrar');
-    await press('link', 'Esqueceu sua senha?');
+    await press('link', 'Esqueci minha senha');
     await fill('E-mail', email);
-    await press('button', 'Enviar código de redefinição');
+    await press('button', 'Enviar código');
     expect(await screen.findByText('Crie uma nova senha')).toBeOnTheScreen();
     expect(request).toHaveBeenCalledTimes(2);
     expectRequest(1, 'email-otp/request-password-reset', { email });
@@ -235,14 +235,14 @@ describe('mobile password recovery', () => {
       initialUrl: '/forgot-password',
     });
     await fill('Email', email);
-    await press('button', 'Send reset code');
+    await press('button', 'Send code');
     expect(await screen.findByText('Set a new password')).toBeOnTheScreen();
     await act(async () => jest.advanceTimersByTime(45_000));
     await initial.unmount();
 
     await renderRouter('./app', { initialUrl: '/forgot-password' });
     await fill('Email', '  RESTORED-Recovery@example.com  ');
-    await press('button', 'Send reset code');
+    await press('button', 'Send code');
     const resend = await screen.findByTestId('resend-code');
     expect(resend).toBeDisabled();
     expect(
@@ -280,7 +280,7 @@ describe('mobile password recovery', () => {
     await press('link', 'Sign in');
     await press('link', 'Forgot your password?');
     await fill('Email', email);
-    await press('button', 'Send reset code');
+    await press('button', 'Send code');
     await fill('Reset code', '654321');
     await fill('New password', newPassword);
     await press('button', 'Reset password');
@@ -305,7 +305,7 @@ describe('mobile password recovery', () => {
         initialUrl: `/forgot-password/reset?redirectTo=https%3A%2F%2Fexample.com${emailParam}`,
       });
       expect(
-        await screen.findByText('Request a reset code first'),
+        await screen.findByRole('header', { name: 'Request a code' }),
       ).toBeOnTheScreen();
       await press('link', 'Request a code');
       expect(await screen.findByText('Reset your password')).toBeOnTheScreen();

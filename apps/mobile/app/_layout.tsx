@@ -12,7 +12,7 @@ import { NavigationBar } from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { StatusBar, View } from 'react-native';
+import { Platform, StatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useUniwind } from 'uniwind';
 import { useTranslations } from 'use-intl';
@@ -35,6 +35,15 @@ import {
 import { MobileQueryProvider } from '../src/lib/query/mobile-query-provider';
 
 void SplashScreen.preventAutoHideAsync();
+
+const authScreens = [
+  'sign-in',
+  'sign-up',
+  'verify-email',
+  'setup-username',
+  'forgot-password/index',
+  'forgot-password/reset',
+];
 
 function NavigationStack({
   statusBarStyle,
@@ -63,6 +72,15 @@ function NavigationStack({
         name="components"
         options={{ title: translate('components') }}
       />
+      {Platform.OS === 'android'
+        ? authScreens.map((name) => (
+            <Stack.Screen
+              key={name}
+              name={name}
+              options={{ animation: 'none' }}
+            />
+          ))
+        : null}
     </Stack>
   );
 }

@@ -6,8 +6,8 @@ import { useMobileAuth } from '../../../lib/auth/mobile-auth-provider';
 
 export function GalleryAuthAction() {
   const t = useTranslations('components');
-  const { user } = useMobileAuth();
-  if (user) return null;
+  const { status, user } = useMobileAuth();
+  if (status === 'loading' || user) return null;
 
   return (
     <Link

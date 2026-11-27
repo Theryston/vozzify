@@ -11,7 +11,7 @@ import {
 } from '../../../lib/auth/use-code-cooldown';
 import { useAuthSubmit } from '../use-auth-submit';
 import { AuthNotice } from './auth-field';
-import { AuthFrame, AuthLink, useAuthContinuation } from './auth-frame';
+import { AuthFooterLink, AuthFrame, useAuthContinuation } from './auth-frame';
 import { EmailField } from './credential-fields';
 
 function useRecoveryRequest() {
@@ -52,6 +52,7 @@ function RecoveryRequestForm() {
       />
       {form.error ? <AuthNotice error>{errors(form.error)}</AuthNotice> : null}
       <Button
+        size="medium"
         disabled={form.pending}
         onPress={() => void form.submit({ email: email.trim().toLowerCase() })}
         testID="submit-forgot-password"
@@ -69,9 +70,13 @@ export function ForgotPasswordScreen() {
     <AuthFrame
       title={t('recovery.request.title')}
       description={t('recovery.request.description')}
+      footer={
+        <AuthFooterLink caption={t('recovery.remembered')} to="/sign-in">
+          {t('signIn.submit')}
+        </AuthFooterLink>
+      }
     >
       <RecoveryRequestForm />
-      <AuthLink to="/sign-in">{t('signIn.submit')}</AuthLink>
     </AuthFrame>
   );
 }

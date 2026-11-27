@@ -50,13 +50,14 @@ export function ResendCode({
       ) : null}
       {form.error ? <AuthNotice error>{errors(form.error)}</AuthNotice> : null}
       {resent && successMessage ? (
-        <AuthNotice>{successMessage}</AuthNotice>
+        <AuthNotice success>{successMessage}</AuthNotice>
       ) : null}
       <Button
         disabled={!ready || form.pending || seconds > 0}
         onPress={() => void form.submit({ email: email.trim(), type: purpose })}
         testID="resend-code"
-        variant="outline"
+        size="medium"
+        variant="secondary"
       >
         {seconds > 0 ? t('resendIn', { seconds }) : t('resend')}
       </Button>

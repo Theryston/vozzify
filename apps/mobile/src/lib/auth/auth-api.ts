@@ -178,10 +178,11 @@ export function verifyEmail(
   });
 }
 
-export function restoreAuthSession(token: string) {
+export function restoreAuthSession(token: string, signal: AbortSignal) {
   return requestAuthSession('/auth/get-session', {
     schema: authSessionResponseSchema.nullable(),
     headers: authHeaders(token),
+    signal,
   });
 }
 

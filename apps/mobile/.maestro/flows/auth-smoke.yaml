@@ -20,7 +20,7 @@ appId: com.vozzify.app.preview
     id: return-home
 - tapOn:
     id: open-sign-in
-- assertVisible: Sign in to Vozzify
+- assertVisible: Sign in
 - tapOn:
     id: submit-sign-in
 - assertVisible: Enter your email or Username.
@@ -49,7 +49,7 @@ appId: com.vozzify.app.preview
     id: language-pt-BR
 - openLink: vozzify-preview://sign-in
 - runFlow: ../helpers/confirm-ios-app-link.yaml
-- assertVisible: Entre no Vozzify
+- assertVisible: Entrar
 - takeScreenshot: sign-in-dark-pt-br
 - tapOn: Criar conta
 - assertVisible: Crie sua conta

@@ -36,10 +36,7 @@
     "brazilianPortuguese": "Brazilian Portuguese"
   },
   "auth": {
-    "leave": "Return to app",
-    "loading": "Restoring your session",
-    "restoreError": "We could not restore your session. Check your connection and try again.",
-    "retry": "Try again",
+    "brand": "Vozzify",
     "emailOrUsername": "Email or Username",
     "identifierRequired": "Enter your email or Username.",
     "password": "Password",
@@ -50,6 +47,7 @@
     "username": "Username",
     "nameInvalid": "Enter a Name between 1 and {max} characters.",
     "passwordInvalid": "Use between {min} and {max} characters.",
+    "passwordHint": "Use at least {min} characters.",
     "codeInvalid": "Enter the {count}-digit code.",
     "usernameInvalid": "Use {min}–{max} letters, digits or underscores.",
     "showPasswordLabel": "Show password",
@@ -63,26 +61,27 @@
     "resendIn": "Send a new code in {seconds}s",
     "continueWithGoogle": "Continue with Google",
     "signIn": {
-      "title": "Sign in to Vozzify",
-      "description": "Use your email or Username to access your account.",
+      "noAccount": "New to Vozzify?",
       "submit": "Sign in"
     },
     "signUp": {
       "title": "Create your account",
-      "description": "Start with your Name and email. You’ll choose a Username after verifying your email.",
+      "description": "You’ll choose a Username after verifying your email.",
+      "hasAccount": "Already have an account?",
       "submit": "Create account"
     },
     "recovery": {
       "link": "Forgot your password?",
+      "remembered": "Remember your password?",
       "complete": "Password changed. Sign in with your new password.",
       "request": {
         "title": "Reset your password",
         "description": "Enter the email linked to your account to request a reset code.",
-        "submit": "Send reset code"
+        "submit": "Send code"
       },
       "reset": {
         "title": "Set a new password",
-        "description": "If an account exists for {email}, we sent it a six-digit code.",
+        "description": "If an account exists for {email}, you’ll receive a six-digit code.",
         "code": "Reset code",
         "password": "New password",
         "submit": "Reset password",
@@ -90,7 +89,7 @@
         "resent": "A new code was requested. Check your email."
       },
       "missing": {
-        "title": "Request a reset code first",
+        "title": "Request a code",
         "description": "Enter the email linked to your account to start password recovery.",
         "submit": "Request a code"
       }
@@ -98,9 +97,9 @@
     "verifyEmail": {
       "enterEmail": "Enter the email linked to your account and the six-digit code.",
       "title": "Verify your email",
-      "description": "Enter the six-digit code we sent you.",
       "emailToVerify": "Email to verify: {email}",
-      "sentTo": "Code sent to {email}",
+      "sentTo": "Enter the six-digit code we sent to {email}.",
+      "alreadyVerified": "Already verified your email?",
       "submit": "Verify email"
     },
     "setupUsername": {

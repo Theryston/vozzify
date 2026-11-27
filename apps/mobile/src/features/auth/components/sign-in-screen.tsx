@@ -10,7 +10,12 @@ import { useMobileAuth } from '../../../lib/auth/mobile-auth-provider';
 import { authErrorKey } from '../auth-errors';
 import { useAuthSubmit } from '../use-auth-submit';
 import { AuthField, AuthNotice } from './auth-field';
-import { AuthFrame, AuthLink, useAuthContinuation } from './auth-frame';
+import {
+  AuthFooterLink,
+  AuthFrame,
+  AuthLink,
+  useAuthContinuation,
+} from './auth-frame';
 import { PasswordField } from './credential-fields';
 
 import {
@@ -56,12 +61,11 @@ function useSignIn() {
   });
 }
 
-function SignInForm() {
+function SignInForm({ form }: { form: ReturnType<typeof useSignIn> }) {
   const t = useTranslations('auth');
   const errors = useTranslations('authErrors');
   const [emailOrUsername, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const form = useSignIn();
   return (
     <>
       <AuthField
@@ -83,6 +87,7 @@ function SignInForm() {
         }}
       />
       <PasswordField
+        aside={<AuthLink to="/forgot-password">{t('recovery.link')}</AuthLink>}
         existing
         value={password}
         error={form.invalid.has('password') ? t('passwordRequired') : undefined}
@@ -93,6 +98,7 @@ function SignInForm() {
       />
       {form.error ? <AuthNotice error>{errors(form.error)}</AuthNotice> : null}
       <Button
+        size="medium"
         disabled={form.pending}
         onPress={() =>
           void form.submit({ method: 'credentials', emailOrUsername, password })
@@ -101,10 +107,6 @@ function SignInForm() {
       >
         {form.pending ? t('submitting') : t('signIn.submit')}
       </Button>
-      <GoogleButton
-        disabled={form.pending}
-        onPress={() => void form.submit({ method: 'google' })}
-      />
     </>
   );
 }
@@ -112,12 +114,28 @@ function SignInForm() {
 export function SignInScreen() {
   const t = useTranslations('auth');
   const { passwordReset } = useMobileAuth();
+  const form = useSignIn();
   return (
-    <AuthFrame title={t('signIn.title')} description={t('signIn.description')}>
-      {passwordReset ? <AuthNotice>{t('recovery.complete')}</AuthNotice> : null}
-      <SignInForm />
-      <AuthLink to="/forgot-password">{t('recovery.link')}</AuthLink>
-      <AuthLink to="/sign-up">{t('signUp.submit')}</AuthLink>
+    <AuthFrame
+      title={t('signIn.submit')}
+      notice={
+        passwordReset ? (
+          <AuthNotice success>{t('recovery.complete')}</AuthNotice>
+        ) : null
+      }
+      footer={
+        <>
+          <GoogleButton
+            disabled={form.pending}
+            onPress={() => void form.submit({ method: 'google' })}
+          />
+          <AuthFooterLink caption={t('signIn.noAccount')} to="/sign-up">
+            {t('signUp.submit')}
+          </AuthFooterLink>
+        </>
+      }
+    >
+      <SignInForm form={form} />
     </AuthFrame>
   );
 }

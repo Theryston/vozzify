@@ -1,7 +1,5 @@
 import type { ReactNode } from 'react';
-import { View } from 'react-native';
 import { useMobileAuth } from '../../../lib/auth/mobile-auth-provider';
-import { AuthRestoreStatus } from './auth-restore-status';
 
 export function AuthDestination({
   path,
@@ -12,13 +10,7 @@ export function AuthDestination({
 }) {
   const { status, user, verification, continuation, passwordReset } =
     useMobileAuth();
-  if (status !== 'ready') {
-    return (
-      <View className="flex-1 items-center justify-center gap-4 px-page-gutter-mobile">
-        <AuthRestoreStatus />
-      </View>
-    );
-  }
+  if (status === 'loading') return children;
   if (!user) return verification || passwordReset ? null : children;
 
   const incomplete = !user.emailVerified || !user.username;
