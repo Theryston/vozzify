@@ -13,6 +13,8 @@ import { readAuth, type StoredAuth, writeAuth } from './auth-storage';
 import { useAuthRecord } from './use-auth-record';
 import { recordCodeSent } from './use-code-cooldown';
 
+type ActiveSession = { user: AuthSessionUser; token: string };
+
 type RestoredAuth = {
   stored: StoredAuth;
   user: AuthSessionUser | null;
@@ -32,7 +34,7 @@ async function restore(): Promise<RestoredAuth> {
 
 function useRestoreAuth(replaceRecord: (record: StoredAuth) => void) {
   const [status, setStatus] = useState<AuthStatus>('loading');
-  const [user, setUser] = useState<AuthSessionUser | null>(null);
+  const [session, setSession] = useState<ActiveSession | null>(null);
   useEffect(() => {
     if (status !== 'loading') return;
     let active = true;
@@ -40,7 +42,11 @@ function useRestoreAuth(replaceRecord: (record: StoredAuth) => void) {
       (result) => {
         if (!active) return;
         replaceRecord(result.stored);
-        setUser(result.user);
+        setSession(
+          result.user && result.stored.token
+            ? { user: result.user, token: result.stored.token }
+            : null,
+        );
         setStatus('ready');
       },
       () => {
@@ -52,12 +58,12 @@ function useRestoreAuth(replaceRecord: (record: StoredAuth) => void) {
     };
   }, [replaceRecord, status]);
 
-  return { status, user, setUser, retry: () => setStatus('loading') };
+  return { status, session, setSession, retry: () => setStatus('loading') };
 }
 
 function useUsernameSelection(
   storage: ReturnType<typeof useAuthRecord>,
-  setUser: ReturnType<typeof useRestoreAuth>['setUser'],
+  setSession: ReturnType<typeof useRestoreAuth>['setSession'],
 ) {
   return async (body: SetUsernameBody, signal: AbortSignal) => {
     const { token } = storage.current.current;
@@ -65,15 +71,28 @@ function useUsernameSelection(
     try {
       const nextUser = await saveUsername(body, token, signal);
       if (!signal.aborted) {
-        setUser(
-          (current) => current && { ...current, username: nextUser.username },
+        setSession((current) =>
+          current?.token === token
+            ? {
+                ...current,
+                user: { ...current.user, username: nextUser.username },
+              }
+            : current,
         );
       }
     } catch (error) {
       if (!(error instanceof MobileHttpError) || error.statusCode !== 401)
         throw error;
-      await storage.update(({ continuation }) => ({ continuation }), signal);
-      if (!signal.aborted) setUser(null);
+      await storage.update(
+        (current) =>
+          current.token === token
+            ? { continuation: current.continuation }
+            : current,
+        signal,
+      );
+      if (!signal.aborted) {
+        setSession((current) => (current?.token === token ? null : current));
+      }
     }
   };
 }
@@ -116,7 +135,7 @@ function retainVerification(
 
 function useCompleteAuth(
   update: ReturnType<typeof useAuthRecord>['update'],
-  setUser: ReturnType<typeof useRestoreAuth>['setUser'],
+  setSession: ReturnType<typeof useRestoreAuth>['setSession'],
 ) {
   return async (
     session: CompletedAuth,
@@ -135,7 +154,7 @@ function useCompleteAuth(
     );
     if (saved) {
       recordVerificationSent(issued);
-      setUser(user);
+      setSession({ user, token });
     }
   };
 }
@@ -178,16 +197,19 @@ function createBeginVerification(
 
 function useAuthOperations() {
   const storage = useAuthRecord();
-  const { status, user, setUser, retry } = useRestoreAuth(storage.replace);
-  const chooseUsername = useUsernameSelection(storage, setUser);
+  const { status, session, setSession, retry } = useRestoreAuth(
+    storage.replace,
+  );
+  const chooseUsername = useUsernameSelection(storage, setSession);
   const { update, record } = storage;
-  const completeAuth = useCompleteAuth(update, setUser);
+  const completeAuth = useCompleteAuth(update, setSession);
 
   return {
     status,
-    user,
     retry,
     ...record,
+    user: session?.user ?? null,
+    token: session?.token,
     finishPasswordReset: (
       email: string,
       continuation: AuthContinuation,
@@ -204,14 +226,21 @@ function useAuthOperations() {
     rememberContinuation: (
       continuation: AuthContinuation,
       signal: AbortSignal,
-    ) =>
-      update(
-        (previous) =>
-          previous.continuation ? previous : { ...previous, continuation },
-        signal,
-      ),
+    ) => rememberContinuation(update, continuation, signal),
     consumeContinuation: () => consumeContinuation(update),
   };
+}
+
+function rememberContinuation(
+  update: ReturnType<typeof useAuthRecord>['update'],
+  continuation: AuthContinuation,
+  signal: AbortSignal,
+) {
+  return update(
+    (previous) =>
+      previous.continuation ? previous : { ...previous, continuation },
+    signal,
+  );
 }
 
 async function consumeContinuation(

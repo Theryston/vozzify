@@ -5,6 +5,7 @@ import {
   authRouteParams,
 } from '../../lib/auth/auth-continuation';
 import { useMobileAuth } from '../../lib/auth/mobile-auth-provider';
+import { usePushDeviceRegistration } from '../../lib/push/use-push-device-registration';
 
 const authRoutes = new Set([
   '/sign-in',
@@ -83,6 +84,18 @@ export function AuthNavigation() {
       void auth.consumeContinuation();
     }
   }, [auth, continuation, isAuthRoute, path, required, router]);
+
+  const user = auth.status === 'ready' ? auth.user : null;
+  const eligible = Boolean(user?.emailVerified && user.username);
+  const atDestination =
+    (path === '/' || path === '/components') &&
+    (!auth.continuation || path === continuation.destination);
+  const arrival = !eligible
+    ? 'onboarding'
+    : atDestination
+      ? 'arrived'
+      : 'travelling';
+  usePushDeviceRegistration(user?.id, auth.token, arrival);
 
   return null;
 }

@@ -209,5 +209,6 @@ jobs:
             ${{ runner.temp }}/maestro-artifacts/**/forgot-password-*.png
             ${{ runner.temp }}/maestro-artifacts/**/reset-password-*.png
             ${{ runner.temp }}/maestro-auth-artifacts/**/setup-username-*.png
+            ${{ runner.temp }}/maestro-auth-artifacts/**/notification-permission.png
           if-no-files-found: ignore
           retention-days: 7

@@ -143,3 +143,24 @@ pins its CLI release and does not use Maestro Cloud.
 
 The iOS simulator CI workflow, triggers and manual execution are documented in
 [`CI-IOS.md`](./CI-IOS.md).
+
+## Push device registration
+
+Use a physical device and the app variant that matches its push configuration.
+On Android, supply `GOOGLE_SERVICES_JSON` as a local file path or EAS file
+variable. The Firebase Android app in that file must match the variant's package.
+On iOS, enable Push Notifications on the variant's App ID and sign with a
+provisioning profile that grants the matching APNs entitlement. Store the
+configuration in the build environment. The backend stores native FCM or APNs
+tokens. Registration only needs the native app's permission and token configuration.
+
+Use the API's `push_devices` database view to verify the effective registration.
+It exposes a token only while the session that registered it remains valid.
+The installation's proof and latest revision survive session expiry or revocation
+so a new session can reconcile the same device.
+
+On a fresh installation, verify the prompt appears after arriving at Home or
+the pending destination. Deny once, relaunch, and verify the app continues
+without another prompt. Grant and revoke in system settings and verify the
+registration changes after foregrounding. Sign in as a different eligible User
+and confirm that only this installation follows the current User.
